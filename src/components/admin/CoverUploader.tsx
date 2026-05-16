@@ -97,6 +97,10 @@ export function CoverUploader({ gameId, currentCover, onUploaded }: Props) {
 
   // ── Adjust / crop ──────────────────────────────────────────────────────────
 
+  const getOriginalCoverUrl = (path: string) => {
+    return path.replace('.webp', '.original.webp') + `?t=${Date.now()}`
+  }
+
   const handleAdjustedSave = async (blob: Blob) => {
     setAdjusting(false)
     const file = new File([blob], `cover_${gameId}_adjusted.webp`, { type: 'image/webp' })
@@ -283,7 +287,7 @@ export function CoverUploader({ gameId, currentCover, onUploaded }: Props) {
       {/* Adjust modal */}
       {adjusting && preview && (
         <CoverAdjustModal
-          src={preview}
+          src={getOriginalCoverUrl(preview)}
           onSave={handleAdjustedSave}
           onClose={() => setAdjusting(false)}
         />

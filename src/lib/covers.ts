@@ -13,16 +13,25 @@ export async function downloadAndCacheCover(
   fs.mkdirSync(dir, { recursive: true })
 
   const fileName = `${gameId}.webp`
+  const originalFileName = `${gameId}.original.webp`
   const filePath = path.join(dir, fileName)
+  const originalPath = path.join(dir, originalFileName)
 
   const res = await fetch(imageUrl)
   if (!res.ok) throw new Error(`Failed to download cover: ${res.status}`)
 
   const buffer = Buffer.from(await res.arrayBuffer())
 
+  // Save original (unmodified) image
   await sharp(buffer)
-    .resize(400, 600, { fit: 'cover', position: 'center' })
-    .webp({ quality: 85 })
+    .resize(1200, 1800, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
+    .webp({ quality: 90 })
+    .toFile(originalPath)
+
+  // Save as display image (same initially)
+  await sharp(buffer)
+    .resize(1200, 1800, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
+    .webp({ quality: 90 })
     .toFile(filePath)
 
   return `/covers/${platformSlug}/${fileName}`
@@ -37,12 +46,28 @@ export async function saveCoverFromBuffer(
   fs.mkdirSync(dir, { recursive: true })
 
   const fileName = `${gameId}.webp`
+  const originalFileName = `${gameId}.original.webp`
   const filePath = path.join(dir, fileName)
+  const originalPath = path.join(dir, originalFileName)
 
+  // Save original (unmodified) image - only if it doesn't exist
+  if (!fs.existsSync(originalPath)) {
+    await sharp(buffer)
+      .resize(1200, 1800, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
+      .webp({ quality: 90 })
+      .toFile(originalPath)
+  }
+
+  // Save as display image (can be modified)
   await sharp(buffer)
-    .resize(400, 600, { fit: 'cover', position: 'center' })
-    .webp({ quality: 85 })
+    .resize(1200, 1800, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
+    .webp({ quality: 90 })
     .toFile(filePath)
 
   return `/covers/${platformSlug}/${fileName}`
+}
+
+export function getOriginalCoverPath(coverPath: string): string {
+  // Convert /covers/platform/gameId.webp to /covers/platform/gameId.original.webp
+  return coverPath.replace('.webp', '.original.webp')
 }

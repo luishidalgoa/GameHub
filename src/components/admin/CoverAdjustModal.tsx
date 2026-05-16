@@ -9,8 +9,9 @@ interface Props {
   onClose: () => void
 }
 
-const OUT_W = 600
-const OUT_H = 900
+// Output dimensions - keep at standard 2:3 ratio but allow full-size images
+const OUT_W = 1200
+const OUT_H = 1800
 
 export function CoverAdjustModal({ src, onSave, onClose }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
