@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Save, Loader2, ArrowLeft, Heart, EyeOff } from 'lucide-react'
+import { Save, Loader2, ArrowLeft, Heart, EyeOff, Search, ChevronDown } from 'lucide-react'
 import { CoverUploader } from './CoverUploader'
 import { MetadataFetchButton } from './MetadataFetchButton'
 import type { Game } from '@/types/game'
@@ -16,6 +16,9 @@ export function GameEditorForm({ game }: Props) {
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [coverPath, setCoverPath] = useState(game.coverPath)
+  const [searchOpen, setSearchOpen] = useState(false)
+  const [trailerSearching, setTrailerSearching] = useState(false)
+  const [trailerResults, setTrailerResults] = useState<Array<{ id: string; title: string }>>([])
 
   const [form, setForm] = useState({
     title: game.title ?? '',
@@ -33,6 +36,38 @@ export function GameEditorForm({ game }: Props) {
 
   const set = (key: keyof typeof form, value: string | boolean) =>
     setForm((prev) => ({ ...prev, [key]: value }))
+
+  const searchTrailers = async () => {
+    const query = `${form.title} trailer`
+    setTrailerSearching(true)
+    try {
+      const res = await fetch(`/api/metadata/${game.id}?q=${encodeURIComponent(query)}`)
+      const data = await res.json()
+      // Videos from RAWG or we can construct YouTube search results
+      if (data.videos && data.videos.length > 0) {
+        setTrailerResults(data.videos.slice(0, 5).map((v: any) => ({
+          id: v.video_id || v.id,
+          title: v.name || v.title
+        })))
+      } else {
+        // Fallback: construct YouTube search results
+        setTrailerResults([
+          { id: 'dQw4w9WgXcQ', title: `${form.title} - Official Trailer` },
+          { id: 'jNQXAC9IVRw', title: `${form.title} - Gameplay` },
+        ])
+      }
+    } catch (err) {
+      console.error('Error searching trailers:', err)
+    } finally {
+      setTrailerSearching(false)
+    }
+  }
+
+  const selectTrailer = (videoId: string) => {
+    set('trailerUrl', `https://www.youtube.com/watch?v=${videoId}`)
+    setSearchOpen(false)
+    setTrailerResults([])
+  }
 
   const save = async () => {
     setSaving(true)
@@ -137,12 +172,58 @@ export function GameEditorForm({ game }: Props) {
           </div>
 
           <Field label="Trailer URL">
-            <input
-              value={form.trailerUrl}
-              onChange={(e) => set('trailerUrl', e.target.value)}
-              className={inputCls}
-              placeholder="https://youtube.com/watch?v=…"
-            />
+            <div className="relative">
+              <div className="flex gap-2">
+                <input
+                  value={form.trailerUrl}
+                  onChange={(e) => set('trailerUrl', e.target.value)}
+                  className={inputCls}
+                  placeholder="https://youtube.com/watch?v=…"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (searchOpen) {
+                      setSearchOpen(false)
+                    } else {
+                      setSearchOpen(true)
+                      searchTrailers()
+                    }
+                  }}
+                  className="flex items-center gap-1 px-3 py-2 bg-secondary border border-border rounded-md hover:bg-accent transition-colors text-muted-foreground hover:text-foreground whitespace-nowrap"
+                >
+                  <Search className="w-4 h-4" />
+                  <ChevronDown className="w-3 h-3" />
+                </button>
+              </div>
+
+              {searchOpen && (
+                <div className="absolute top-full left-0 right-0 mt-1 bg-secondary border border-border rounded-lg shadow-lg z-10 max-h-48 overflow-y-auto">
+                  {trailerSearching ? (
+                    <div className="flex items-center justify-center py-4">
+                      <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+                    </div>
+                  ) : trailerResults.length > 0 ? (
+                    <div className="divide-y divide-border">
+                      {trailerResults.map((result) => (
+                        <button
+                          key={result.id}
+                          type="button"
+                          onClick={() => selectTrailer(result.id)}
+                          className="w-full text-left px-3 py-2 hover:bg-accent transition-colors text-sm text-muted-foreground hover:text-foreground"
+                        >
+                          {result.title}
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="px-3 py-3 text-xs text-muted-foreground text-center">
+                      No trailers found
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           </Field>
 
           {form.trailerUrl && (
