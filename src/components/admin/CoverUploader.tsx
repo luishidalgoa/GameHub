@@ -9,6 +9,8 @@ interface Props {
   gameId: number
   currentCover: string | null
   onUploaded: (path: string) => void
+  thumbnailWidth?: number
+  thumbnailHeight?: number
 }
 
 interface SearchResult {
@@ -19,7 +21,7 @@ interface SearchResult {
   releaseYear?: number
 }
 
-export function CoverUploader({ gameId, currentCover, onUploaded }: Props) {
+export function CoverUploader({ gameId, currentCover, onUploaded, thumbnailWidth = 200, thumbnailHeight = 300 }: Props) {
   const [urlInput, setUrlInput]       = useState('')
   const [loading, setLoading]         = useState(false)
   const [preview, setPreview]         = useState(currentCover)
@@ -133,7 +135,8 @@ export function CoverUploader({ gameId, currentCover, onUploaded }: Props) {
 
       {/* Preview / drop zone */}
       <div
-        className="relative aspect-[2/3] w-full rounded-lg overflow-hidden bg-secondary border-2 border-dashed border-border hover:border-primary/50 transition-colors cursor-pointer"
+        style={{ aspectRatio: `${thumbnailWidth}/${thumbnailHeight}` }}
+        className="relative w-full rounded-lg overflow-hidden bg-secondary border-2 border-dashed border-border hover:border-primary/50 transition-colors cursor-pointer"
         onDrop={handleDrop}
         onDragOver={(e) => e.preventDefault()}
         onClick={() => fileRef.current?.click()}
@@ -290,6 +293,8 @@ export function CoverUploader({ gameId, currentCover, onUploaded }: Props) {
           src={getOriginalCoverUrl(preview)}
           onSave={handleAdjustedSave}
           onClose={() => setAdjusting(false)}
+          thumbnailWidth={thumbnailWidth}
+          thumbnailHeight={thumbnailHeight}
         />
       )}
     </div>

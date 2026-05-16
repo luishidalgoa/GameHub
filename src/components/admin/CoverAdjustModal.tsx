@@ -7,13 +7,16 @@ interface Props {
   src: string
   onSave: (blob: Blob) => void
   onClose: () => void
+  thumbnailWidth?: number
+  thumbnailHeight?: number
 }
 
-// Output dimensions - keep at standard 2:3 ratio but allow full-size images
-const OUT_W = 1200
-const OUT_H = 1800
-
-export function CoverAdjustModal({ src, onSave, onClose }: Props) {
+export function CoverAdjustModal({ src, onSave, onClose, thumbnailWidth = 200, thumbnailHeight = 300 }: Props) {
+  // Calculate output dimensions maintaining aspect ratio based on thumbnail config
+  // Use a reasonable maximum while maintaining the aspect ratio
+  const aspectRatio = thumbnailWidth / thumbnailHeight
+  const OUT_W = Math.min(1200, thumbnailWidth * 6) // Scale up but keep reasonable
+  const OUT_H = Math.round(OUT_W / aspectRatio)
   const containerRef = useRef<HTMLDivElement>(null)
   const imgRef       = useRef<HTMLImageElement>(null)
   const canvasRef    = useRef<HTMLCanvasElement>(null)
@@ -159,7 +162,8 @@ export function CoverAdjustModal({ src, onSave, onClose }: Props) {
 
           <div
             ref={containerRef}
-            className="relative aspect-[2/3] w-full overflow-hidden rounded-lg bg-black cursor-grab active:cursor-grabbing select-none"
+            style={{ aspectRatio: `${thumbnailWidth}/${thumbnailHeight}` }}
+            className="relative w-full overflow-hidden rounded-lg bg-black cursor-grab active:cursor-grabbing select-none"
             onPointerDown={onPointerDown}
             onPointerMove={onPointerMove}
             onPointerUp={onPointerUp}

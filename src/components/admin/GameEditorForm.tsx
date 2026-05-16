@@ -9,9 +9,11 @@ import type { Game } from '@/types/game'
 
 interface Props {
   game: Game
+  thumbnailWidth?: number
+  thumbnailHeight?: number
 }
 
-export function GameEditorForm({ game }: Props) {
+export function GameEditorForm({ game, thumbnailWidth = 200, thumbnailHeight = 300 }: Props) {
   const router = useRouter()
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -283,6 +285,8 @@ export function GameEditorForm({ game }: Props) {
               gameId={game.id}
               currentCover={coverPath}
               onUploaded={(path) => setCoverPath(path)}
+              thumbnailWidth={thumbnailWidth}
+              thumbnailHeight={thumbnailHeight}
             />
           </div>
 

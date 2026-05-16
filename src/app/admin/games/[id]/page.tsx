@@ -22,7 +22,11 @@ export default async function AdminGameEditorPage({ params }: Props) {
 
   return (
     <div>
-      <GameEditorForm game={gameData} />
+      <GameEditorForm 
+        game={gameData}
+        thumbnailWidth={game.platform.thumbnailWidth}
+        thumbnailHeight={game.platform.thumbnailHeight}
+      />
     </div>
   )
 }
