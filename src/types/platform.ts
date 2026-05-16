@@ -8,6 +8,8 @@ export interface Platform {
   scanMode: string
   sortOrder: number
   enabled: boolean
+  thumbnailWidth: number
+  thumbnailHeight: number
   _count?: { games: number }
   createdAt: Date | string
   updatedAt: Date | string

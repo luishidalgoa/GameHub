@@ -13,9 +13,11 @@ interface Props {
   games: (GameListItem & { fileName: string })[]
   platformSlug: string
   isAdmin?: boolean
+  thumbnailWidth?: number
+  thumbnailHeight?: number
 }
 
-export function GameGrid({ games, platformSlug, isAdmin = false }: Props) {
+export function GameGrid({ games, platformSlug, isAdmin = false, thumbnailWidth = 200, thumbnailHeight = 300 }: Props) {
   const [search, setSearch] = useState('')
   const [sort, setSort] = useState<SortKey>('title')
   const [favOnly, setFavOnly] = useState(false)
@@ -96,6 +98,8 @@ export function GameGrid({ games, platformSlug, isAdmin = false }: Props) {
               onSelect={setSelectedId}
               onToggleFavorite={handleToggleFavorite}
               isAdmin={isAdmin}
+              thumbnailWidth={thumbnailWidth}
+              thumbnailHeight={thumbnailHeight}
             />
           ))}
         </div>

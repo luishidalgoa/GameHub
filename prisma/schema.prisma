@@ -8,18 +8,20 @@ datasource db {
 }
 
 model Platform {
-  id         Int      @id @default(autoincrement())
-  slug       String   @unique
-  name       String
-  scanPath   String
-  extensions String
-  iconPath   String?
-  scanMode   String   @default("flat")   // flat | folder | ports
-  sortOrder  Int      @default(0)
-  enabled    Boolean  @default(true)
-  games      Game[]
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id               Int      @id @default(autoincrement())
+  slug             String   @unique
+  name             String
+  scanPath         String
+  extensions       String
+  iconPath         String?
+  scanMode         String   @default("flat")   // flat | folder | ports
+  sortOrder        Int      @default(0)
+  enabled          Boolean  @default(true)
+  thumbnailWidth   Int      @default(200)
+  thumbnailHeight  Int      @default(300)
+  games            Game[]
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 }
 
 model Game {

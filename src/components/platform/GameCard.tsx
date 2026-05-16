@@ -10,10 +10,13 @@ interface Props {
   onSelect: (id: number) => void
   onToggleFavorite: (id: number, current: boolean) => void
   isAdmin?: boolean
+  thumbnailWidth?: number
+  thumbnailHeight?: number
 }
 
-export function GameCard({ game, onSelect, onToggleFavorite, isAdmin = false }: Props) {
+export function GameCard({ game, onSelect, onToggleFavorite, isAdmin = false, thumbnailWidth = 200, thumbnailHeight = 300 }: Props) {
   const cover = game.coverPath ?? game.coverUrl
+  const aspectRatio = (thumbnailWidth / thumbnailHeight).toFixed(2)
 
   return (
     <div
@@ -21,7 +24,7 @@ export function GameCard({ game, onSelect, onToggleFavorite, isAdmin = false }: 
       onClick={() => onSelect(game.id)}
     >
       {/* Cover */}
-      <div className="aspect-[2/3] relative bg-secondary">
+      <div style={{ aspectRatio: `${thumbnailWidth}/${thumbnailHeight}` }} className="relative bg-secondary">
         {cover ? (
           <Image
             src={cover}

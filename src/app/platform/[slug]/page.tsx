@@ -60,6 +60,8 @@ export default async function PlatformPage({ params }: Props) {
         games={games.map((g) => ({ ...g, fileSize: g.fileSize.toString(), metadataFetchedAt: g.metadataFetchedAt?.toISOString() ?? null })) as any}
         platformSlug={params.slug}
         isAdmin={isAdmin}
+        thumbnailWidth={platform.thumbnailWidth}
+        thumbnailHeight={platform.thumbnailHeight}
       />
     </div>
   )

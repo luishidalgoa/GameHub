@@ -12,18 +12,20 @@ export async function GET() {
 
 export async function POST(req: Request) {
   const body = await req.json()
-  const { slug, name, scanPath, extensions, scanMode, sortOrder } = body
+  const { slug, name, scanPath, extensions, scanMode, thumbnailWidth, thumbnailHeight, sortOrder } = body
   if (!slug || !name || !scanPath || !extensions) {
     return NextResponse.json({ error: 'slug, name, scanPath and extensions are required' }, { status: 400 })
   }
   const platform = await db.platform.create({
     data: {
-      slug:       slug.toLowerCase().replace(/[^a-z0-9-]/g, '-'),
+      slug:            slug.toLowerCase().replace(/[^a-z0-9-]/g, '-'),
       name,
       scanPath,
       extensions,
-      scanMode:   scanMode ?? 'flat',
-      sortOrder:  sortOrder ?? 99,
+      scanMode:        scanMode ?? 'flat',
+      thumbnailWidth:  thumbnailWidth ?? 200,
+      thumbnailHeight: thumbnailHeight ?? 300,
+      sortOrder:       sortOrder ?? 99,
     },
   })
   return NextResponse.json(platform, { status: 201 })

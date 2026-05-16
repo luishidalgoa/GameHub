@@ -13,6 +13,8 @@ interface Platform {
   scanMode: string
   enabled: boolean
   sortOrder: number
+  thumbnailWidth?: number
+  thumbnailHeight?: number
 }
 
 interface Props {
@@ -26,7 +28,7 @@ const SCAN_MODES = [
   { value: 'ports',  label: 'Ports',  desc: 'Root files + folders, no deep walk (Vita Ports)' },
 ]
 
-const emptyPlatform = { slug: '', name: '', scanPath: '', extensions: '', scanMode: 'flat' }
+const emptyPlatform = { slug: '', name: '', scanPath: '', extensions: '', scanMode: 'flat', thumbnailWidth: 200, thumbnailHeight: 300 }
 
 export function SettingsForm({ platforms: initial, settings }: Props) {
   const router = useRouter()
@@ -40,7 +42,7 @@ export function SettingsForm({ platforms: initial, settings }: Props) {
   const [newPlatform, setNewPlatform] = useState(emptyPlatform)
   const [adding, setAdding] = useState(false)
 
-  function update(id: number, field: string, value: string) {
+  function update(id: number, field: string, value: string | number) {
     setPlatforms((prev) => prev.map((p) => (p.id === id ? { ...p, [field]: value } : p)))
   }
 
@@ -54,11 +56,13 @@ export function SettingsForm({ platforms: initial, settings }: Props) {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            id:         p.id,
-            name:       p.name,
-            scanPath:   p.scanPath,
-            extensions: p.extensions,
-            scanMode:   p.scanMode,
+            id:              p.id,
+            name:            p.name,
+            scanPath:        p.scanPath,
+            extensions:      p.extensions,
+            scanMode:        p.scanMode,
+            thumbnailWidth:  p.thumbnailWidth ?? 200,
+            thumbnailHeight: p.thumbnailHeight ?? 300,
           }),
         })
       ),
@@ -191,6 +195,33 @@ export function SettingsForm({ platforms: initial, settings }: Props) {
                   className="w-40 bg-secondary border border-border rounded-md px-3 py-1.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-ring"
                 />
               </div>
+
+              {/* Thumbnail size */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-muted-foreground mb-1">Thumbnail Width (px)</label>
+                  <input
+                    type="number"
+                    min="50"
+                    max="500"
+                    value={p.thumbnailWidth ?? 200}
+                    onChange={(e) => update(p.id, 'thumbnailWidth', parseInt(e.target.value))}
+                    className="w-full bg-secondary border border-border rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-muted-foreground mb-1">Thumbnail Height (px)</label>
+                  <input
+                    type="number"
+                    min="50"
+                    max="800"
+                    value={p.thumbnailHeight ?? 300}
+                    onChange={(e) => update(p.id, 'thumbnailHeight', parseInt(e.target.value))}
+                    className="w-full bg-secondary border border-border rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                  />
+                </div>
+              </div>
+
               <p className="text-xs text-muted-foreground">
                 <span className="font-mono text-muted-foreground/70">{p.slug}</span>
                 {' · '}
