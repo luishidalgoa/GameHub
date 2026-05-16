@@ -1,3 +1,3 @@
 # GameHub
 
-Proyecto middle que combina backend y frontend para la descarga de ROMs.
+Proyecto intermedio (middle-tier) que combina backend y frontend para la descarga de ROMs.
