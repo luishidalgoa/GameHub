@@ -110,14 +110,7 @@ export default function PrivacyPage() {
             purpose="Fetches game metadata (titles, covers, descriptions) for the admin CMS."
             data="Game title search queries are sent to RAWG. No personal data is transmitted."
             privacy="https://rawg.io/privacy"
-          />
-          <ThirdParty
-            name="Ad shortener (optional)"
-            purpose="Shortens download URLs to pass through an ad-supported link shortener."
-            data="The direct download URL (containing no personal data) is sent to the configured shortener. Visitors who click the shortened link are subject to that service's own privacy policy."
-            privacy={null}
-          />
-        </div>
+          /></div>
       </section>
 
       {/* 5. Your rights */}
@@ -228,3 +221,4 @@ function ThirdParty({
     </div>
   )
 }
+

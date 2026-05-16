@@ -44,7 +44,7 @@ export function GameDetailModal({ gameId, onClose }: Props) {
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
 
       {/* Sheet — bottom sheet on mobile, right panel on desktop */}
-      <div className="relative z-10 w-full sm:h-full sm:max-w-2xl max-h-[92dvh] rounded-t-2xl sm:rounded-none bg-card border-t sm:border-t-0 sm:border-l border-border overflow-y-auto shadow-2xl flex flex-col animate-in slide-in-from-bottom sm:slide-in-from-right duration-300">
+      <div className="relative z-10 w-full sm:h-full sm:max-w-2xl max-h-[92dvh] sm:max-h-full rounded-t-2xl sm:rounded-none bg-card border-t sm:border-t-0 sm:border-l border-border overflow-y-auto shadow-2xl flex flex-col animate-in slide-in-from-bottom sm:slide-in-from-right duration-300">
         {/* Drag handle — mobile only */}
         <div className="sm:hidden flex-shrink-0 flex justify-center pt-3 pb-1">
           <div className="w-10 h-1 rounded-full bg-border" />

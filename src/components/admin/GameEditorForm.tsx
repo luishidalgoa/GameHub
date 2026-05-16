@@ -18,6 +18,7 @@ export function GameEditorForm({ game }: Props) {
   const [coverPath, setCoverPath] = useState(game.coverPath)
   const [searchOpen, setSearchOpen] = useState(false)
   const [trailerSearching, setTrailerSearching] = useState(false)
+  const [trailerSearchQuery, setTrailerSearchQuery] = useState(`${game.title} trailer`)
   const [trailerResults, setTrailerResults] = useState<Array<{ id: string; title: string }>>([])
 
   const [form, setForm] = useState({
@@ -37,33 +38,47 @@ export function GameEditorForm({ game }: Props) {
   const set = (key: keyof typeof form, value: string | boolean) =>
     setForm((prev) => ({ ...prev, [key]: value }))
 
-  const searchTrailers = async () => {
-    const query = `${form.title} trailer`
+  const searchTrailers = async (query: string = trailerSearchQuery) => {
+    if (!query.trim()) return
     setTrailerSearching(true)
     try {
+      // Try RAWG API first
       const res = await fetch(`/api/metadata/${game.id}?q=${encodeURIComponent(query)}`)
       const data = await res.json()
-      // Videos from RAWG or we can construct YouTube search results
+      
       if (data.videos && data.videos.length > 0) {
         setTrailerResults(data.videos.slice(0, 5).map((v: any) => ({
           id: v.video_id || v.id,
           title: v.name || v.title
         })))
       } else {
-        // Fallback: construct YouTube search results
-        setTrailerResults([
-          { id: 'dQw4w9WgXcQ', title: `${form.title} - Official Trailer` },
-          { id: 'jNQXAC9IVRw', title: `${form.title} - Gameplay` },
-        ])
+        // Fallback: construct YouTube search suggestions
+        const results = [
+          { id: '', title: `🔍 Search on YouTube: ${query}` },
+          { id: '', title: `📺 ${query} - Official Trailer` },
+          { id: '', title: `🎮 ${query} - Gameplay` },
+          { id: '', title: `🎬 ${query} - Cinematic` },
+        ]
+        setTrailerResults(results)
       }
     } catch (err) {
       console.error('Error searching trailers:', err)
+      const results = [
+        { id: '', title: `🔍 Search on YouTube: ${query}` },
+        { id: '', title: `📺 ${query} - Official Trailer` },
+      ]
+      setTrailerResults(results)
     } finally {
       setTrailerSearching(false)
     }
   }
 
   const selectTrailer = (videoId: string) => {
+    if (!videoId) {
+      // Open YouTube search in new tab
+      window.open(`https://www.youtube.com/results?search_query=${encodeURIComponent(trailerSearchQuery)}`, '_blank')
+      return
+    }
     set('trailerUrl', `https://www.youtube.com/watch?v=${videoId}`)
     setSearchOpen(false)
     setTrailerResults([])
@@ -182,14 +197,7 @@ export function GameEditorForm({ game }: Props) {
                 />
                 <button
                   type="button"
-                  onClick={() => {
-                    if (searchOpen) {
-                      setSearchOpen(false)
-                    } else {
-                      setSearchOpen(true)
-                      searchTrailers()
-                    }
-                  }}
+                  onClick={() => setSearchOpen(!searchOpen)}
                   className="flex items-center gap-1 px-3 py-2 bg-secondary border border-border rounded-md hover:bg-accent transition-colors text-muted-foreground hover:text-foreground whitespace-nowrap"
                 >
                   <Search className="w-4 h-4" />
@@ -198,27 +206,57 @@ export function GameEditorForm({ game }: Props) {
               </div>
 
               {searchOpen && (
-                <div className="absolute top-full left-0 right-0 mt-1 bg-secondary border border-border rounded-lg shadow-lg z-10 max-h-48 overflow-y-auto">
+                <div className="absolute top-full left-0 right-0 mt-1 bg-secondary border border-border rounded-lg shadow-lg z-10 p-3 space-y-2 max-h-80 overflow-y-auto">
+                  {/* Search input */}
+                  <div className="flex gap-2 pb-2 border-b border-border">
+                    <input
+                      value={trailerSearchQuery}
+                      onChange={(e) => setTrailerSearchQuery(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault()
+                          searchTrailers(e.currentTarget.value)
+                        }
+                      }}
+                      placeholder="Search trailers on YouTube…"
+                      className="flex-1 bg-accent border border-border rounded px-2 py-1 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                      autoFocus
+                    />
+                    <button
+                      type="button"
+                      onClick={() => searchTrailers(trailerSearchQuery)}
+                      disabled={trailerSearching}
+                      className="px-2 py-1 bg-primary text-primary-foreground rounded text-xs hover:bg-primary/90 disabled:opacity-50 transition-colors"
+                    >
+                      {trailerSearching ? <Loader2 className="w-3 h-3 animate-spin" /> : <Search className="w-3 h-3" />}
+                    </button>
+                  </div>
+
+                  {/* Results */}
                   {trailerSearching ? (
                     <div className="flex items-center justify-center py-4">
                       <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
                     </div>
                   ) : trailerResults.length > 0 ? (
                     <div className="divide-y divide-border">
-                      {trailerResults.map((result) => (
+                      {trailerResults.map((result, idx) => (
                         <button
-                          key={result.id}
+                          key={idx}
                           type="button"
                           onClick={() => selectTrailer(result.id)}
-                          className="w-full text-left px-3 py-2 hover:bg-accent transition-colors text-sm text-muted-foreground hover:text-foreground"
+                          className="w-full text-left px-2 py-2 hover:bg-accent transition-colors text-sm text-muted-foreground hover:text-foreground"
                         >
                           {result.title}
                         </button>
                       ))}
                     </div>
+                  ) : trailerSearchQuery.trim() ? (
+                    <div className="px-2 py-3 text-xs text-muted-foreground text-center">
+                      No results found. Press Enter or click search.
+                    </div>
                   ) : (
-                    <div className="px-3 py-3 text-xs text-muted-foreground text-center">
-                      No trailers found
+                    <div className="px-2 py-3 text-xs text-muted-foreground text-center">
+                      Type your search and press Enter
                     </div>
                   )}
                 </div>

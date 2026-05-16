@@ -1,6 +1,5 @@
 import { db } from '@/lib/db'
 import { SettingsForm } from '@/components/admin/SettingsForm'
-import { RoutingProviderForm } from '@/components/admin/RoutingProviderForm'
 import { DonationSettingsForm } from '@/components/admin/DonationSettingsForm'
 
 export const dynamic = 'force-dynamic'
@@ -17,15 +16,6 @@ export default async function SettingsPage() {
   return (
     <div className="space-y-8">
       <SettingsForm platforms={platforms} settings={settingsMap} />
-
-      <RoutingProviderForm
-        initial={{
-          shortener_url:        settingsMap['shortener_url']        ?? '',
-          shortener_key:        settingsMap['shortener_key']        ?? '',
-          shortener_param:      settingsMap['shortener_param']      ?? '',
-          shortener_bypass_ips: settingsMap['shortener_bypass_ips'] ?? '',
-        }}
-      />
 
       <DonationSettingsForm
         initial={{

@@ -1,12 +1,1 @@
-{
-  "/api/auth/me/route": "app/api/auth/me/route.js",
-  "/page": "app/page.js",
-  "/api/platforms/route": "app/api/platforms/route.js",
-  "/donate/page": "app/donate/page.js",
-  "/api/admin/donations/route": "app/api/admin/donations/route.js",
-  "/api/admin/traffic/route": "app/api/admin/traffic/route.js",
-  "/api/admin/traffic/live/route": "app/api/admin/traffic/live/route.js",
-  "/admin/settings/page": "app/admin/settings/page.js",
-  "/admin/donations/page": "app/admin/donations/page.js",
-  "/admin/traffic/page": "app/admin/traffic/page.js"
-}
+{}

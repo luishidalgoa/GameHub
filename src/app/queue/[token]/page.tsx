@@ -12,7 +12,6 @@ interface QueueState {
   gameId?: number
   dlcId?: number
   redirectUrl?: string
-  shortenerPending?: boolean
 }
 
 export default function QueuePage() {
@@ -22,7 +21,7 @@ export default function QueuePage() {
   const [error, setError] = useState('')
   const [countdown, setCountdown] = useState<number | null>(null)
   const [downloading, setDownloading] = useState(false)
-  const [redirectedToAd, setRedirectedToAd] = useState(false) // <-- Control de redirección única
+  const [redirectedToAd, setRedirectedToAd] = useState(false)
 
   const poll = useCallback(async () => {
     const res = await fetch(`/api/queue/${token}`)
@@ -63,17 +62,14 @@ export default function QueuePage() {
   const startDownload = useCallback(() => {
     if (!state || state.status !== 'ready' || redirectedToAd) return
 
-    // If shortener is still pending (API failed), wait — poll will retry
-    if (state.shortenerPending) return
-
     if (state.redirectUrl) {
       setRedirectedToAd(true)
       window.location.href = state.redirectUrl
       return
     }
 
-    // Localhost fallback: direct download (no shortener)
-    if (typeof window !== 'undefined' && window.location.hostname === 'localhost') {
+    // Fallback: direct download
+    if (typeof window !== 'undefined') {
       setDownloading(true)
       const url = state.dlcId
         ? `/api/download/dlc/${state.dlcId}?token=${token}`
@@ -140,13 +136,11 @@ export default function QueuePage() {
   if (state.status === 'ready' || state.status === 'downloading') {
     return (
       <QueueCard
-        icon={<Download className={`w-12 h-12 ${state.shortenerPending ? 'text-amber-400' : 'text-green-400 animate-bounce'}`} />}
-        title={state.shortenerPending ? 'Preparing your link…' : 'Your download is starting!'}
+        icon={<Download className="w-12 h-12 text-green-400 animate-bounce" />}
+        title="Your download is starting!"
       >
         <p className="text-sm text-muted-foreground mt-2">
-          {state.shortenerPending
-            ? 'Connecting to the download provider, please wait…'
-            : 'The file is being sent to your browser now.'}
+          The file is being sent to your browser now.
         </p>
         {countdown !== null && countdown > 0 && (
           <p className="text-xs text-amber-400 mt-3">

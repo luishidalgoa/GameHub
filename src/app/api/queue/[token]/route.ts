@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server'
 import { getEntry } from '@/lib/download-queue'
-import { shorten, buildDownloadUrl, isLocalRequest } from '@/lib/shortener'
 
 export const dynamic = 'force-dynamic'
 
@@ -30,21 +29,9 @@ export async function GET(req: Request, { params }: { params: { token: string } 
   }
 
   if (entry.status === 'ready') {
-    const isLocal = await isLocalRequest(req)
-
-    if (isLocal) {
-      responseData.redirectUrl = entry.dlcId
-        ? `/api/download/dlc/${entry.dlcId}?token=${token}`
-        : `/api/download/${entry.gameId}?token=${token}`
-    } else {
-      const directUrl = buildDownloadUrl(entry.gameId, token, entry.dlcId, req)
-      const shortened = await shorten(directUrl)
-      if (shortened) {
-        responseData.redirectUrl = shortened
-      } else {
-        responseData.shortenerPending = true
-      }
-    }
+    responseData.redirectUrl = entry.dlcId
+      ? `/api/download/dlc/${entry.dlcId}?token=${token}`
+      : `/api/download/${entry.gameId}?token=${token}`
   }
 
   return NextResponse.json(responseData)
