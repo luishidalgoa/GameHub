@@ -1,0 +1,131 @@
+'use client'
+
+import { useState, useRef, useEffect } from 'react'
+import { Play, RefreshCw, ChevronDown } from 'lucide-react'
+import useSWR from 'swr'
+import type { Platform } from '@/types/platform'
+
+const fetcher = (url: string) => fetch(url).then((r) => r.json())
+
+export function ScanPanel() {
+  const [scanning, setScanning]         = useState(false)
+  const [logs, setLogs]                 = useState<string[]>([])
+  const [selectedSlug, setSelectedSlug] = useState<string>('all')
+  const logRef = useRef<HTMLDivElement>(null)
+
+  // Load platforms from DB (so newly added platforms appear in the dropdown)
+  const { data: platforms } = useSWR<Platform[]>('/api/platforms', fetcher)
+
+  useEffect(() => {
+    if (logRef.current) {
+      logRef.current.scrollTop = logRef.current.scrollHeight
+    }
+  }, [logs])
+
+  const startScan = async () => {
+    setScanning(true)
+    setLogs(['Starting scan…'])
+
+    await fetch('/api/scanner', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(selectedSlug !== 'all' ? { platformSlug: selectedSlug } : {}),
+    })
+
+    const es = new EventSource('/api/scanner/stream')
+
+    es.onmessage = (e) => {
+      try {
+        const event = JSON.parse(e.data)
+        let line = ''
+
+        switch (event.type) {
+          case 'scan_start':
+            line = '▶ Scan started'
+            break
+          case 'platform_start':
+            line = `📂 Scanning ${event.platform}…`
+            break
+          case 'file_found':
+            line = `  ${event.isNew ? '✚' : '·'} ${event.filePath?.split(/[\\/]/).pop()}`
+            break
+          case 'platform_done':
+            line = `✓ ${event.platform}: ${event.count} found, ${event.added} new, ${event.updated} updated`
+            break
+          case 'scan_complete':
+            line = `\n✅ Scan complete — ${event.total} games total, ${event.added} added, ${event.updated} updated, ${event.stale} stale`
+            setScanning(false)
+            es.close()
+            break
+          case 'scan_error':
+            line = `❌ Error: ${event.message}`
+            setScanning(false)
+            es.close()
+            break
+          default:
+            return
+        }
+
+        setLogs((prev) => [...prev, line])
+      } catch { /* ignore parse errors */ }
+    }
+
+    es.onerror = () => {
+      setLogs((prev) => [...prev, '⚠ Connection lost'])
+      setScanning(false)
+      es.close()
+    }
+  }
+
+  return (
+    <div className="bg-card border border-border rounded-xl p-6">
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <h3 className="font-semibold">ROM Scanner</h3>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            Scan your configured ROM folders to import games
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2">
+          {/* Platform selector */}
+          <div className="relative">
+            <select
+              value={selectedSlug}
+              onChange={e => setSelectedSlug(e.target.value)}
+              disabled={scanning}
+              className="appearance-none bg-secondary border border-border rounded-md pl-3 pr-8 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50 cursor-pointer"
+            >
+              <option value="all">All platforms</option>
+              {platforms?.map(p => (
+                <option key={p.slug} value={p.slug}>{p.name}</option>
+              ))}
+            </select>
+            <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
+          </div>
+
+          <button
+            onClick={startScan}
+            disabled={scanning}
+            className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed rounded-md text-sm font-medium transition-colors"
+          >
+            {scanning ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
+            {scanning ? 'Scanning…' : 'Run Scan'}
+          </button>
+        </div>
+      </div>
+
+      {logs.length > 0 && (
+        <div
+          ref={logRef}
+          className="bg-black/40 rounded-lg p-4 h-64 overflow-y-auto font-mono text-xs text-green-400 leading-relaxed"
+        >
+          {logs.map((line, i) => (
+            <div key={i} className="whitespace-pre-wrap">{line}</div>
+          ))}
+          {scanning && <span className="animate-pulse">█</span>}
+        </div>
+      )}
+    </div>
+  )
+}

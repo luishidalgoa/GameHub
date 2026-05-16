@@ -1,0 +1,193 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Platform {
+  id         Int      @id @default(autoincrement())
+  slug       String   @unique
+  name       String
+  scanPath   String
+  extensions String
+  iconPath   String?
+  scanMode   String   @default("flat")   // flat | folder | ports
+  sortOrder  Int      @default(0)
+  enabled    Boolean  @default(true)
+  games      Game[]
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model Game {
+  id         Int      @id @default(autoincrement())
+
+  filePath   String   @unique
+  fileName   String
+  fileSize   BigInt
+
+  platformId Int
+  platform   Platform @relation(fields: [platformId], references: [id])
+
+  title       String
+  sortTitle   String?
+  region      String?
+  releaseYear Int?
+  genre       String?
+  developer   String?
+  publisher   String?
+
+  coverPath       String?
+  coverUrl        String?
+  trailerUrl      String?
+  screenshotPaths String?
+
+  description String?
+  customNotes String?
+
+  igdbId   Int?
+  rawgId   Int?
+  rawgSlug String?
+
+  isFavorite   Boolean   @default(false)
+  isHidden     Boolean   @default(false)
+  playCount    Int       @default(0)
+  lastPlayedAt DateTime?
+
+  lastSeenAt        DateTime @default(now())
+  metadataFetchedAt DateTime?
+
+  dlcs         GameDlc[]
+  downloadLogs DownloadLog[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([platformId])
+  @@index([title])
+  @@index([isFavorite])
+  @@index([lastSeenAt])
+}
+
+model GameDlc {
+  id       Int    @id @default(autoincrement())
+  gameId   Int
+  game     Game   @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  filePath String @unique
+  fileName String
+  fileSize BigInt
+  title    String?
+  type     String @default("dlc")   // "dlc" | "update"
+
+  @@index([gameId])
+}
+
+model Setting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+}
+
+model ScanLog {
+  id           Int       @id @default(autoincrement())
+  startedAt    DateTime  @default(now())
+  finishedAt   DateTime?
+  gamesFound   Int       @default(0)
+  gamesAdded   Int       @default(0)
+  gamesUpdated Int       @default(0)
+  gamesStale   Int       @default(0)
+  errors       String?
+  triggeredBy  String    @default("manual")
+}
+
+model RequestLog {
+  id         Int      @id @default(autoincrement())
+  ip         String
+  path       String
+  method     String   @default("GET")
+  status     Int      @default(200)
+  userAgent  String?
+  device     String?
+  browser    String?
+  referer    String?
+  bytes      Int      @default(0)
+  durationMs Int?
+  ts         DateTime @default(now())
+
+  @@index([ts])
+  @@index([ip])
+  @@index([status])
+  @@index([device])
+}
+
+model SearchLog {
+  id      Int      @id @default(autoincrement())
+  query   String
+  ip      String
+  results Int      @default(0)
+  ts      DateTime @default(now())
+
+  @@index([ts])
+  @@index([query])
+}
+
+model IpCache {
+  ip          String   @id
+  country     String?
+  countryCode String?
+  city        String?
+  isp         String?
+  flagEmoji   String?
+  cachedAt    DateTime @default(now())
+}
+
+model DownloadToken {
+  token     String  @id
+  gameId    Int
+  dlcId     Int?
+  status    String  @default("waiting") // waiting | ready | downloading | done | expired
+  position  Int     @default(0)
+  createdAt BigInt
+  readyAt   BigInt?
+  expiresAt BigInt?
+
+  @@index([status])
+}
+
+model Donation {
+  id         Int      @id @default(autoincrement())
+  platform   String   // kofi | paypal | bmac | crypto | manual
+  amount     Float
+  currency   String   @default("EUR")
+  note       String?
+  fromName   String?
+  receivedAt DateTime @default(now())
+  source     String   @default("manual") // manual | webhook
+  externalId String?  @unique            // ko-fi transaction ID (dedup)
+
+  @@index([receivedAt])
+  @@index([platform])
+}
+
+model DownloadLog {
+  id         Int       @id @default(autoincrement())
+  gameId     Int
+  game       Game      @relation(fields: [gameId], references: [id])
+  dlcId      Int?
+  dlcType    String?                // "dlc" | "update" when dlcId is set
+  ip         String
+  device     String?
+  browser    String?
+  fileName   String
+  fileSize   BigInt
+  startedAt  DateTime  @default(now())
+  finishedAt DateTime?
+  completed  Boolean   @default(false)
+
+  @@index([gameId])
+  @@index([startedAt])
+  @@index([ip])
+}

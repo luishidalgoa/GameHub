@@ -1,0 +1,73 @@
+import { NextResponse } from 'next/server'
+import { db } from '@/lib/db'
+import { getRawgProvider, cleanTitle } from '@/lib/metadata/rawg'
+import { downloadAndCacheCover } from '@/lib/covers'
+import { serializeBigInt } from '@/lib/serialize'
+
+export async function GET(req: Request, { params }: { params: { id: string } }) {
+  const gameId = parseInt(params.id, 10)
+  const game = await db.game.findUnique({ where: { id: gameId }, include: { platform: true } })
+  if (!game) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+  const provider = getRawgProvider()
+  if (!provider) return NextResponse.json({ error: 'RAWG_API_KEY not configured' }, { status: 503 })
+
+  const sp = new URL(req.url).searchParams
+
+  // ?slug=pokemon-x → direct lookup, returns single result (no search ranking issues)
+  const slugParam = sp.get('slug')
+  if (slugParam) {
+    const result = await provider.fetchById(slugParam)
+    if (!result) return NextResponse.json({ results: [], usedQuery: slugParam, mode: 'slug' })
+    return NextResponse.json({ results: [result], usedQuery: slugParam, mode: 'slug' })
+  }
+
+  // ?q= manual query override, otherwise derive from DB title
+  const overrideQuery = sp.get('q') ?? undefined
+  const usedQuery = overrideQuery ?? cleanTitle(game.title)
+
+  const results = await provider.search(game.title, game.platform.slug, overrideQuery)
+  return NextResponse.json({ results, usedQuery, mode: 'search' })
+}
+
+export async function POST(req: Request, { params }: { params: { id: string } }) {
+  const gameId = parseInt(params.id, 10)
+  const body = await req.json()
+  // Accept either rawgId (number) or rawgSlug (string like "pokemon-x")
+  const rawgLookup: number | string = body.rawgSlug ?? body.rawgId
+
+  const game = await db.game.findUnique({ where: { id: gameId }, include: { platform: true } })
+  if (!game) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+  const provider = getRawgProvider()
+  if (!provider) return NextResponse.json({ error: 'RAWG_API_KEY not configured' }, { status: 503 })
+
+  const meta = await provider.fetchById(rawgLookup)
+  if (!meta) return NextResponse.json({ error: 'Not found on RAWG' }, { status: 404 })
+
+  let coverPath: string | undefined
+  if (meta.coverUrl) {
+    try {
+      coverPath = await downloadAndCacheCover(meta.coverUrl, game.platform.slug, gameId)
+    } catch { /* non-fatal */ }
+  }
+
+  const updated = await db.game.update({
+    where: { id: gameId },
+    data: {
+      title:             meta.title,
+      description:       meta.description,
+      releaseYear:       meta.releaseYear,
+      genre:             meta.genre,
+      developer:         meta.developer,
+      publisher:         meta.publisher,
+      rawgId:            meta.id,
+      rawgSlug:          meta.slug,
+      coverUrl:          meta.coverUrl,
+      ...(coverPath && { coverPath }),
+      metadataFetchedAt: new Date(),
+    },
+  })
+
+  return NextResponse.json(serializeBigInt(updated))
+}

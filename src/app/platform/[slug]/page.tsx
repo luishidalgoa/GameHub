@@ -1,0 +1,66 @@
+import { notFound } from 'next/navigation'
+import { db } from '@/lib/db'
+import { isAdminSession } from '@/lib/auth'
+import { GameGrid } from '@/components/platform/GameGrid'
+
+export const dynamic = 'force-dynamic'
+
+interface Props {
+  params: { slug: string }
+}
+
+export async function generateMetadata({ params }: Props) {
+  const platform = await db.platform.findUnique({ where: { slug: params.slug } })
+  return { title: platform ? `${platform.name} — GameHub` : 'GameHub' }
+}
+
+export default async function PlatformPage({ params }: Props) {
+  const [isAdmin, platform] = await Promise.all([
+    isAdminSession(),
+    db.platform.findUnique({
+      where: { slug: params.slug },
+      include: { _count: { select: { games: { where: { isHidden: false } } } } },
+    }),
+  ])
+
+  if (!platform) notFound()
+
+  const games = await db.game.findMany({
+    where: { platformId: platform.id, isHidden: false },
+    orderBy: { sortTitle: 'asc' },
+    select: {
+      id: true,
+      title: true,
+      sortTitle: true,
+      region: true,
+      releaseYear: true,
+      genre: true,
+      coverPath: true,
+      coverUrl: true,
+      isFavorite: true,
+      isHidden: true,
+      platformId: true,
+      fileSize: true,
+      fileName: true,
+      metadataFetchedAt: true,
+    },
+  })
+
+  const gameCount = platform._count?.games ?? 0
+
+  return (
+    <div>
+      <div className="mb-6">
+        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">{platform.name}</h1>
+        <p className="text-muted-foreground mt-1">{gameCount} games</p>
+      </div>
+
+      <GameGrid
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        games={games.map((g) => ({ ...g, fileSize: g.fileSize.toString(), metadataFetchedAt: g.metadataFetchedAt?.toISOString() ?? null })) as any}
+        platformSlug={params.slug}
+        isAdmin={isAdmin}
+      />
+    </div>
+  )
+}
