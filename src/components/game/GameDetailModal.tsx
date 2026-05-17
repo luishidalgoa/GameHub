@@ -258,6 +258,12 @@ function MetaRow({ icon, label, value }: { icon: React.ReactNode; label: string;
 }
 
 function TrailerEmbed({ url, watchLabel }: { url: string; watchLabel: string }) {
+  const [origin, setOrigin] = useState<string>('')
+
+  useEffect(() => {
+    setOrigin(window.location.origin)
+  }, [])
+
   const getYouTubeId = (u: string) => {
     const m = u.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/))([a-zA-Z0-9_-]{11})/)
     return m?.[1]
@@ -269,7 +275,7 @@ function TrailerEmbed({ url, watchLabel }: { url: string; watchLabel: string }) 
     return (
       <div className="aspect-video rounded-lg overflow-hidden">
         <iframe
-          src={`https://www.youtube.com/embed/${videoId}`}
+          src={`https://www.youtube.com/embed/${videoId}?origin=${encodeURIComponent(origin)}`}
           className="w-full h-full"
           allowFullScreen
           allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
