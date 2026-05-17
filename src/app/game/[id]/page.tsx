@@ -56,7 +56,7 @@ export default async function GamePage({ params }: Props) {
             style={{ aspectRatio: `${thumbW} / ${thumbH}` }}
           >
             {cover ? (
-              <Image src={cover} alt={game.title} fill className="object-cover" />
+              <Image src={cover} alt={game.title} fill className="object-cover" unoptimized />
             ) : (
               <div className="w-full h-full flex items-center justify-center">
                 <span className="text-6xl font-bold text-muted-foreground/30">{game.title.charAt(0)}</span>
@@ -201,7 +201,7 @@ function TrailerBlock({ url }: { url: string }) {
   return (
     <div className="aspect-video rounded-xl overflow-hidden max-w-2xl">
       <iframe
-        src={`https://www.youtube.com/embed/${videoId}`}
+        src={`https://www.youtube.com/embed/${videoId}?origin=${encodeURIComponent(typeof window !== 'undefined' ? window.location.origin : '')}`}
         className="w-full h-full"
         allowFullScreen
         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"

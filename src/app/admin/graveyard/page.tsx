@@ -133,6 +133,7 @@ export default async function GraveyardPage({ searchParams }: Props) {
                               width={28}
                               height={40}
                               className="object-cover w-full h-full opacity-60"
+                              unoptimized
                             />
                           ) : (
                             <span className="text-[8px] text-muted-foreground font-bold">

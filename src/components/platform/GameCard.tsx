@@ -33,6 +33,7 @@ export function GameCard({ game, onSelect, onToggleFavorite, isAdmin = false, th
             className="object-cover"
             sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 16vw"
             loading="lazy"
+            unoptimized
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center">
