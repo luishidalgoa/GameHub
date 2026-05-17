@@ -1,7 +1,7 @@
 import { getTranslations } from 'next-intl/server'
 import { db } from '@/lib/db'
 import { formatBytes } from '@/lib/utils'
-import { DeleteGameButton, PurgeAllButton } from '@/components/admin/GraveyardClient'
+import { DeleteGameButton, PurgeAllButton, RecoverMetadataButton } from '@/components/admin/GraveyardClient'
 import Image from 'next/image'
 import { Ghost } from 'lucide-react'
 
@@ -55,7 +55,10 @@ export default async function GraveyardPage({ searchParams }: Props) {
           </div>
           <p className="text-sm text-muted-foreground mt-0.5">{t('subtitle')}</p>
         </div>
-        <PurgeAllButton count={totalMissing} />
+        <div className="flex items-center gap-2">
+          <RecoverMetadataButton count={totalMissing} />
+          <PurgeAllButton count={totalMissing} />
+        </div>
       </div>
 
       {/* Filters */}

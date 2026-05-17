@@ -317,7 +317,12 @@
     "purgeConfirm": "This will permanently delete all {count} missing games from the database. Are you sure?",
     "purgeYes": "Yes, purge",
     "cancel": "Cancel",
-    "deleting": "Deleting…"
+    "deleting": "Deleting…",
+    "recoverMetadata": "Recover Metadata",
+    "recoverConfirm": "This will automatically recover metadata from missing games that have the same file hash (SHA256). Files must be identical. Continue?",
+    "recovering": "Recovering…",
+    "recoverSuccess": "✓ {count} games recovered",
+    "recoverError": "Recovery failed. Check browser console for details."
   },
   "AdminGames": {
     "title": "All Games",

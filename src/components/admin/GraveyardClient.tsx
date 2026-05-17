@@ -1,9 +1,9 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useTranslations } from 'next-intl'
-import { Trash2, AlertTriangle } from 'lucide-react'
+import { Trash2, AlertTriangle, RefreshCw } from 'lucide-react'
 
 // ── Single-game delete ────────────────────────────────────────────────────────
 
@@ -87,5 +87,64 @@ export function PurgeAllButton({ count }: { count: number }) {
         {t('cancel')}
       </button>
     </div>
+  )
+}
+
+// ── Recover metadata ──────────────────────────────────────────────────────────
+
+export function RecoverMetadataButton({ count }: { count: number }) {
+  const t = useTranslations('AdminGraveyard')
+  const router = useRouter()
+  const [loading, setLoading] = useState(false)
+  const [result, setResult] = useState<{ recovered: number; failed: number } | null>(null)
+
+  if (count === 0) return null
+
+  const handleRecover = () => {
+    if (!window.confirm(t('recoverConfirm') || 'Recover metadata from graveyard games?')) return
+
+    setResult(null)
+    setLoading(true)
+
+    fetch('/api/admin/graveyard/recover', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'auto' }),
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        setResult({ recovered: data.recovered, failed: data.failed })
+        setTimeout(() => {
+          router.refresh()
+        }, 1500)
+      })
+      .catch((err) => {
+        console.error(err)
+        alert(t('recoverError') || 'Recovery failed')
+      })
+      .finally(() => setLoading(false))
+  }
+
+  if (result) {
+    return (
+      <div className="flex items-center gap-2 px-3 py-1.5 bg-green-950/40 border border-green-700/50 rounded-md text-sm">
+        <RefreshCw className="w-3.5 h-3.5 text-green-400 shrink-0" />
+        <span className="text-green-300">
+          {t('recoverSuccess', { count: result.recovered }) || `✓ ${result.recovered} games recovered`}
+          {result.failed > 0 && ` (${result.failed} failed)`}
+        </span>
+      </div>
+    )
+  }
+
+  return (
+    <button
+      onClick={handleRecover}
+      disabled={loading}
+      className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md border border-green-700/40 text-green-400 hover:bg-green-500/10 transition-colors disabled:opacity-50"
+    >
+      <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+      {loading ? (t('recovering') || 'Recovering...') : (t('recoverMetadata') || 'Recover Metadata')}
+    </button>
   )
 }

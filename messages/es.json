@@ -317,7 +317,12 @@
     "purgeConfirm": "Esto eliminará permanentemente los {count} juegos desaparecidos de la base de datos. ¿Estás seguro?",
     "purgeYes": "Sí, purgar",
     "cancel": "Cancelar",
-    "deleting": "Eliminando…"
+    "deleting": "Eliminando…",
+    "recoverMetadata": "Recuperar metadatos",
+    "recoverConfirm": "Esto recuperará automáticamente los metadatos de los juegos desaparecidos que tengan el mismo hash de archivo (SHA256). Los archivos deben ser idénticos. ¿Continuar?",
+    "recovering": "Recuperando…",
+    "recoverSuccess": "✓ {count} juegos recuperados",
+    "recoverError": "La recuperación falló. Consulta la consola del navegador para más detalles."
   },
   "AdminGames": {
     "title": "Todos los juegos",
