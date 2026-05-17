@@ -5,6 +5,8 @@ import { downloadAndCacheCover } from '@/lib/covers'
 import { searchYouTubeTrailer } from '@/lib/youtube'
 import { serializeBigInt } from '@/lib/serialize'
 
+export const dynamic = 'force-dynamic'
+
 export async function GET(req: Request, { params }: { params: { id: string } }) {
   const gameId = parseInt(params.id, 10)
   const game   = await db.game.findUnique({ where: { id: gameId }, include: { platform: true } })

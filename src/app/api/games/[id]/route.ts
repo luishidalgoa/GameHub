@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { serializeBigInt } from '@/lib/serialize'
 
+export const dynamic = 'force-dynamic'
+
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
   const id = parseInt(params.id, 10)
   const game = await db.game.findUnique({

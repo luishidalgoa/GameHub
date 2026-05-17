@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 
+export const dynamic = 'force-dynamic'
+
 async function getKey(): Promise<string | null> {
   const row = await db.setting.findUnique({ where: { key: 'steamgriddb_key' } })
   return row?.value || process.env.STEAMGRIDDB_API_KEY || process.env.STEAMGRIDDB_KEY || null

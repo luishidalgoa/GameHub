@@ -3,6 +3,8 @@ import { db } from '@/lib/db'
 import { serializeBigInt } from '@/lib/serialize'
 import { getClientIp } from '@/lib/tracker'
 
+export const dynamic = 'force-dynamic'
+
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url)
   const platformSlug = searchParams.get('platform')
