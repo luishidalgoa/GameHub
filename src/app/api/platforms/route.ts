@@ -14,7 +14,7 @@ export async function GET() {
 
 export async function POST(req: Request) {
   const body = await req.json()
-  const { slug, name, scanPath, extensions, scanMode, thumbnailWidth, thumbnailHeight, sortOrder } = body
+  const { slug, name, scanPath, extensions, scanMode, thumbnailWidth, thumbnailHeight, sortOrder, scanDlc } = body
   if (!slug || !name || !scanPath || !extensions) {
     return NextResponse.json({ error: 'slug, name, scanPath and extensions are required' }, { status: 400 })
   }
@@ -28,6 +28,7 @@ export async function POST(req: Request) {
       thumbnailWidth:  thumbnailWidth ?? 200,
       thumbnailHeight: thumbnailHeight ?? 300,
       sortOrder:       sortOrder ?? 99,
+      scanDlc:         scanDlc ?? false,
     },
   })
   return NextResponse.json(platform, { status: 201 })

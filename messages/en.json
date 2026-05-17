@@ -148,7 +148,8 @@
     "maxDownloads": "Max concurrent downloads",
     "maxDownloadsHint": "Recommended: 1–3 for a home server.",
     "nginxConfig": "nginx rate limiting config ↓",
-    "browseFolder": "Browse…"
+    "browseFolder": "Browse…",
+    "scanDlcLabel": "Detect Updates & DLC (Title ID)"
   },
   "DonationSettings": {
     "title": "Donations",

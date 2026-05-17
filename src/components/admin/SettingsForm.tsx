@@ -20,6 +20,7 @@ interface Platform {
   sortOrder: number
   thumbnailWidth?: number
   thumbnailHeight?: number
+  scanDlc: boolean
 }
 
 interface Props {
@@ -33,7 +34,7 @@ const SCAN_MODES = [
   { value: 'ports',  label: 'Ports',  desc: 'Root files + folders, no deep walk (Vita Ports)' },
 ]
 
-const emptyNewPlatform = { slug: '', name: '', extensions: '', scanMode: 'flat', thumbnailWidth: 200, thumbnailHeight: 300 }
+const emptyNewPlatform = { slug: '', name: '', extensions: '', scanMode: 'flat', thumbnailWidth: 200, thumbnailHeight: 300, scanDlc: false }
 
 export function SettingsForm({ platforms: initial, settings }: Props) {
   const t = useTranslations('SettingsForm')
@@ -95,6 +96,7 @@ export function SettingsForm({ platforms: initial, settings }: Props) {
             scanMode:        p.scanMode,
             thumbnailWidth:  p.thumbnailWidth ?? 200,
             thumbnailHeight: p.thumbnailHeight ?? 300,
+            scanDlc:         p.scanDlc,
           }),
         })
       ),
@@ -323,6 +325,21 @@ export function SettingsForm({ platforms: initial, settings }: Props) {
                 </div>
               </div>
 
+              {/* DLC / Update scan toggle */}
+              <label className="flex items-center gap-2.5 cursor-pointer select-none w-fit">
+                <div className="relative">
+                  <input
+                    type="checkbox"
+                    className="sr-only"
+                    checked={p.scanDlc}
+                    onChange={(e) => updateField(p.id, 'scanDlc', e.target.checked)}
+                  />
+                  <div className={`w-9 h-5 rounded-full transition-colors ${p.scanDlc ? 'bg-primary' : 'bg-secondary border border-border'}`} />
+                  <div className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${p.scanDlc ? 'translate-x-4' : ''}`} />
+                </div>
+                <span className="text-xs text-muted-foreground">{t('scanDlcLabel')}</span>
+              </label>
+
               <p className="text-xs text-muted-foreground">
                 <span className="font-mono text-muted-foreground/70">{p.slug}</span>
                 {' · '}
@@ -405,6 +422,21 @@ export function SettingsForm({ platforms: initial, settings }: Props) {
                 />
               </div>
             </div>
+
+            {/* DLC / Update scan toggle */}
+            <label className="flex items-center gap-2.5 cursor-pointer select-none w-fit">
+              <div className="relative">
+                <input
+                  type="checkbox"
+                  className="sr-only"
+                  checked={newPlatform.scanDlc}
+                  onChange={(e) => setNewPlatform((p) => ({ ...p, scanDlc: e.target.checked }))}
+                />
+                <div className={`w-9 h-5 rounded-full transition-colors ${newPlatform.scanDlc ? 'bg-primary' : 'bg-secondary border border-border'}`} />
+                <div className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${newPlatform.scanDlc ? 'translate-x-4' : ''}`} />
+              </div>
+              <span className="text-xs text-muted-foreground">{t('scanDlcLabel')}</span>
+            </label>
 
             <button
               onClick={addPlatform}

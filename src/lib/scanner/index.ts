@@ -1,7 +1,7 @@
 import path from 'path'
 import { db } from '@/lib/db'
 import { cleanTitle, extractRegion, toSortTitle } from '@/lib/utils'
-import { walkDirectory, scanSwitchFolders, scanPortsFolders } from './walker'
+import { walkDirectory, scanSwitchFolders, scanPortsFolders, walkFlatWithDlcDetection, extractGameKey } from './walker'
 import type { SwitchGameFolder } from './walker'
 import { scanBus } from './events'
 import type { ScanEvent } from './events'
@@ -138,6 +138,60 @@ export async function runScan(triggeredBy = 'manual', platformSlug?: string) {
           )
           found++; added += a; updated += u
           if (found % 20 === 0) await tick()
+        }
+
+      } else if ((platform as { scanDlc?: boolean }).scanDlc) {
+        // ── Flat + DLC: Title-ID-aware scan (3DS / NDS) ───────────────────────
+        // Pass 1: upsert base game files, build gameKey → id map for linking
+        const { games: baseFiles, updates, dlcs } = walkFlatWithDlcDetection(scanPath, extensions)
+        const gameKeyMap = new Map<string, number>()
+
+        for (const file of baseFiles) {
+          found++
+          const title  = cleanTitle(file.fileName)
+          const region = extractRegion(file.fileName)
+          try {
+            const existing = await db.game.findUnique({ where: { filePath: file.filePath } })
+            let gameId: number
+            if (!existing) {
+              const game = await db.game.create({ data: { filePath: file.filePath, fileName: file.fileName, fileSize: file.fileSize, platformId: platform.id, title, sortTitle: toSortTitle(title), region, lastSeenAt: scanStart } })
+              added++
+              gameId = game.id
+              emit({ type: 'file_found', filePath: file.filePath, isNew: true, platform: platform.name })
+            } else {
+              await db.game.update({ where: { id: existing.id }, data: { fileSize: file.fileSize, lastSeenAt: scanStart, isHidden: false } })
+              updated++
+              gameId = existing.id
+              emit({ type: 'file_found', filePath: file.filePath, isNew: false, platform: platform.name })
+            }
+            const key = extractGameKey(file.fileName)
+            if (key) gameKeyMap.set(key, gameId)
+          } catch (err) { errors.push(`Error processing ${file.filePath}: ${err}`) }
+          if (found % 20 === 0) await tick()
+        }
+
+        // Pass 2: link updates/DLCs to their base game via matching Title ID key
+        for (const dlc of [...updates, ...dlcs]) {
+          const key = extractGameKey(dlc.fileName)
+          let gameId = key ? gameKeyMap.get(key) : undefined
+
+          // Fall back to DB lookup (e.g. base game was scanned in a previous run)
+          if (gameId === undefined && key) {
+            const baseGame = await db.game.findFirst({
+              where: { platformId: platform.id, fileName: { contains: key }, isHidden: false },
+            })
+            if (baseGame) gameId = baseGame.id
+          }
+
+          if (gameId === undefined) continue // orphan — no base game found, skip
+
+          try {
+            await db.gameDlc.upsert({
+              where:  { filePath: dlc.filePath },
+              update: { fileSize: dlc.fileSize, type: dlc.type ?? 'update' },
+              create: { gameId, filePath: dlc.filePath, fileName: dlc.fileName, fileSize: dlc.fileSize, title: cleanTitle(dlc.fileName), type: dlc.type ?? 'update' },
+            })
+          } catch (err) { errors.push(`Error linking DLC ${dlc.filePath}: ${err}`) }
         }
 
       } else {

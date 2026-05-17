@@ -19,6 +19,7 @@ model Platform {
   enabled          Boolean  @default(true)
   thumbnailWidth   Int      @default(200)
   thumbnailHeight  Int      @default(300)
+  scanDlc          Boolean  @default(false)
   games            Game[]
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt

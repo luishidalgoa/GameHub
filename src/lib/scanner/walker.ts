@@ -110,6 +110,58 @@ export function scanSwitchFolders(
   return result
 }
 
+// ── Flat + DLC scanner (3DS / NDS Title ID pattern) ──────────────────────────
+//
+// 3DS Title ID layout: TTTTTTTTXXXXXXXX  (16 hex chars)
+//   00040000XXXXXXXX → base game
+//   0004000EXXXXXXXX → update  (XXXXXXXX matches base)
+//   0004008CXXXXXXXX → DLC     (XXXXXXXX matches base)
+//
+// The last 8 hex chars are the game-unique key shared by base, update and DLC.
+
+const TITLE_UPDATE_RE = /0004000e/i
+const TITLE_DLC_RE    = /0004008c/i
+
+export function classifyByTitleId(fileName: string): 'game' | 'update' | 'dlc' {
+  if (TITLE_UPDATE_RE.test(fileName)) return 'update'
+  if (TITLE_DLC_RE.test(fileName))    return 'dlc'
+  return 'game'
+}
+
+/** Returns the 8-char game-unique portion of a 3DS Title ID found in `fileName`. */
+export function extractGameKey(fileName: string): string | null {
+  const m = fileName.match(/0004[0-9a-f]{12}/i)
+  return m ? m[0].slice(-8).toUpperCase() : null
+}
+
+export interface FlatDlcScanResult {
+  games:   FileEntry[]
+  updates: FileEntry[]
+  dlcs:    FileEntry[]
+}
+
+/**
+ * Walks a flat directory and categorises each file by its 3DS Title ID.
+ * Files whose name doesn't contain a recognisable Title ID are treated as games.
+ */
+export function walkFlatWithDlcDetection(
+  dir:        string,
+  extensions: string[],
+): FlatDlcScanResult {
+  const games:   FileEntry[] = []
+  const updates: FileEntry[] = []
+  const dlcs:    FileEntry[] = []
+
+  for (const file of walkDirectory(dir, extensions)) {
+    const kind = classifyByTitleId(file.fileName)
+    if      (kind === 'update') updates.push({ ...file, type: 'update' })
+    else if (kind === 'dlc')    dlcs.push(   { ...file, type: 'dlc'    })
+    else                        games.push(  { ...file, type: 'game'   })
+  }
+
+  return { games, updates, dlcs }
+}
+
 // ── PSVita Ports scanner ──────────────────────────────────────────────────────
 //
 // Structure supported:
