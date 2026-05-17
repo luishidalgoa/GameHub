@@ -79,11 +79,12 @@ export function parseUaDetail(ua: string): UaDetail {
 
 export function getClientIp(req: Request): string {
   const h = req.headers as unknown as { get: (k: string) => string | null }
-  return (
+  const ip =
     h.get('x-forwarded-for')?.split(',')[0].trim() ??
     h.get('x-real-ip') ??
     '127.0.0.1'
-  )
+  // Normalize IPv6 loopback to the IPv4 equivalent
+  return ip === '::1' ? '127.0.0.1' : ip
 }
 
 // ── Geo-lookup (ip-api.com, cached in IpCache) ────────────────────────────────

@@ -1,5 +1,6 @@
 import { getTranslations } from 'next-intl/server'
 import { db } from '@/lib/db'
+import { getS3Config, resolveCoverPath } from '@/lib/s3'
 import { ConsoleGrid } from '@/components/home/ConsoleGrid'
 import { RecentStrip } from '@/components/home/RecentStrip'
 import { TopDownloads } from '@/components/home/TopDownloads'
@@ -55,6 +56,9 @@ export default async function HomePage() {
       .slice(0, 15)
   }
 
+  const s3Config = await getS3Config()
+  const resolvedRecent = recentGames.map(g => ({ ...g, coverPath: resolveCoverPath(g.coverPath, s3Config) }))
+
   const totalGames = platforms.reduce((acc, p) => acc + (p._count?.games ?? 0), 0)
 
   return (
@@ -68,7 +72,7 @@ export default async function HomePage() {
       </div>
 
       {/* Recently added */}
-      <RecentStrip games={recentGames} />
+      <RecentStrip games={resolvedRecent} />
 
       {/* Platform grid */}
       <ConsoleGrid platforms={platforms as any[]} />

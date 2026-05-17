@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation'
 import { getTranslations } from 'next-intl/server'
 import { db } from '@/lib/db'
 import { isAdminSession } from '@/lib/auth'
+import { getS3Config, resolveCoverPath } from '@/lib/s3'
 import { GameGrid } from '@/components/platform/GameGrid'
 
 export const dynamic = 'force-dynamic'
@@ -49,6 +50,8 @@ export default async function PlatformPage({ params }: Props) {
   })
 
   const gameCount = platform._count?.games ?? 0
+  const s3Config  = await getS3Config()
+  const resolvedGames = games.map(g => ({ ...g, coverPath: resolveCoverPath(g.coverPath, s3Config) }))
 
   return (
     <div>
@@ -59,7 +62,7 @@ export default async function PlatformPage({ params }: Props) {
 
       <GameGrid
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        games={games.map((g) => ({ ...g, fileSize: g.fileSize.toString(), metadataFetchedAt: g.metadataFetchedAt?.toISOString() ?? null })) as any}
+        games={resolvedGames.map((g) => ({ ...g, fileSize: g.fileSize.toString(), metadataFetchedAt: g.metadataFetchedAt?.toISOString() ?? null })) as any}
         platformSlug={params.slug}
         isAdmin={isAdmin}
         thumbnailWidth={platform.thumbnailWidth}

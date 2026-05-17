@@ -56,6 +56,13 @@ export function SettingsForm({ platforms: initial, settings }: Props) {
   const [youtubeKey,    setYoutubeKey]    = useState(settings['youtube_api_key']           ?? '')
   const [maxDownloads,  setMaxDownloads]  = useState(settings['max_concurrent_downloads'] ?? '1')
 
+  // S3 / MinIO
+  const [s3Internal,   setS3Internal]   = useState(settings['s3_endpoint_interno'] ?? '')
+  const [s3Public,     setS3Public]     = useState(settings['s3_endpoint_publico']  ?? '')
+  const [s3AccessKey,  setS3AccessKey]  = useState(settings['s3_access_key']        ?? '')
+  const [s3SecretKey,  setS3SecretKey]  = useState(settings['s3_secret_key']        ?? '')
+  const [s3Bucket,     setS3Bucket]     = useState(settings['s3_bucket_name']       ?? '')
+
   const [saving,   setSaving]   = useState(false)
   const [saved,    setSaved]    = useState(false)
   const [deleting, setDeleting] = useState<number | null>(null)
@@ -100,6 +107,11 @@ export function SettingsForm({ platforms: initial, settings }: Props) {
           steamgriddb_key:          sgdbKey,
           youtube_api_key:          youtubeKey,
           max_concurrent_downloads: maxDownloads,
+          s3_endpoint_interno:      s3Internal,
+          s3_endpoint_publico:      s3Public,
+          s3_access_key:            s3AccessKey,
+          s3_secret_key:            s3SecretKey,
+          s3_bucket_name:           s3Bucket,
         }),
       }),
     ])
@@ -460,6 +472,84 @@ export function SettingsForm({ platforms: initial, settings }: Props) {
             className="w-full max-w-md bg-secondary border border-border rounded-md px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring font-mono"
           />
         </div>
+      </div>
+
+      {/* S3 / MinIO Storage */}
+      <div className="bg-card border border-border rounded-xl p-6 space-y-5">
+        <div>
+          <h3 className="font-semibold">{t('s3Title')}</h3>
+          <p className="text-sm text-muted-foreground mt-0.5">{t('s3Desc')}</p>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium mb-1.5">{t('s3Internal')}</label>
+            <input
+              type="text"
+              value={s3Internal}
+              onChange={e => setS3Internal(e.target.value)}
+              placeholder="http://minio:9000"
+              className="w-full bg-secondary border border-border rounded-md px-3 py-2 text-sm font-mono placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+            <p className="text-xs text-muted-foreground mt-1">{t('s3InternalHint')}</p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-1.5">{t('s3Public')}</label>
+            <input
+              type="text"
+              value={s3Public}
+              onChange={e => setS3Public(e.target.value)}
+              placeholder="https://s3.yourdomain.com"
+              className="w-full bg-secondary border border-border rounded-md px-3 py-2 text-sm font-mono placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+            <p className="text-xs text-muted-foreground mt-1">{t('s3PublicHint')}</p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-1.5">{t('s3Bucket')}</label>
+            <input
+              type="text"
+              value={s3Bucket}
+              onChange={e => setS3Bucket(e.target.value)}
+              placeholder="gamehub"
+              className="w-full bg-secondary border border-border rounded-md px-3 py-2 text-sm font-mono placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+          </div>
+
+          <div />
+
+          <div>
+            <label className="block text-sm font-medium mb-1.5">{t('s3AccessKey')}</label>
+            <input
+              type="text"
+              value={s3AccessKey}
+              onChange={e => setS3AccessKey(e.target.value)}
+              placeholder="access-key-id"
+              className="w-full bg-secondary border border-border rounded-md px-3 py-2 text-sm font-mono placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-1.5">{t('s3SecretKey')}</label>
+            <input
+              type="password"
+              value={s3SecretKey}
+              onChange={e => setS3SecretKey(e.target.value)}
+              placeholder="secret-key"
+              className="w-full bg-secondary border border-border rounded-md px-3 py-2 text-sm font-mono placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+          </div>
+        </div>
+
+        {s3Public && s3Bucket && (
+          <p className="text-xs text-muted-foreground font-mono bg-secondary/50 rounded px-3 py-2">
+            {t('s3Preview')}{' '}
+            <span className="text-foreground">
+              {s3Public.replace(/\/$/, '')}/{s3Bucket}/covers/&lt;platform&gt;/&lt;id&gt;.webp
+            </span>
+          </p>
+        )}
       </div>
 
       {/* Download Queue */}

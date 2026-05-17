@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { getS3Config, resolveCoverPath } from '@/lib/s3'
 
 export const dynamic = 'force-dynamic'
 
@@ -37,5 +38,7 @@ export async function GET(req: Request) {
     }),
   ])
 
-  return NextResponse.json({ games, platforms })
+  const config = await getS3Config()
+  const resolvedGames = games.map(g => ({ ...g, coverPath: resolveCoverPath(g.coverPath, config) }))
+  return NextResponse.json({ games: resolvedGames, platforms })
 }

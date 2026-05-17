@@ -129,7 +129,7 @@ export function CoverUploader({ gameId, gameTitle = '', currentCover, onUploaded
   }
 
   const getOriginalCoverUrl = (path: string) =>
-    path.replace('.webp', '.original.webp') + `?t=${Date.now()}`
+    path.split('?')[0].replace(/\.webp$/, '.original.webp') + `?t=${Date.now()}`
 
   const handleAdjustedSave = async (blob: Blob) => {
     setAdjusting(false)
