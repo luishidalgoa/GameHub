@@ -508,6 +508,20 @@ export function SettingsForm({ platforms: initial, settings }: Props) {
             className="w-full max-w-md bg-secondary border border-border rounded-md px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring font-mono"
           />
         </div>
+
+        <div className="border-t border-border pt-5">
+          <div className="flex items-center justify-between mb-1">
+            <p className="text-sm font-medium">{t('appUrlLabel') || 'App URL'}</p>
+          </div>
+          <p className="text-xs text-muted-foreground mb-3">{t('appUrlDesc') || 'URL pública de la aplicación, usada para iframes y enlaces.'}</p>
+          <input
+            type="text"
+            value={appUrl}
+            onChange={(e) => setAppUrl(e.target.value)}
+            placeholder="https://gamehub.example.com"
+            className="w-full max-w-md bg-secondary border border-border rounded-md px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+          />
+        </div>
       </div>
 
       {/* S3 / MinIO Storage */}
