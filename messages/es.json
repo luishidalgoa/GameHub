@@ -133,6 +133,8 @@
     "youtubeKeyLabel": "Clave API de YouTube",
     "youtubeKeyOptional": "(opcional — usa la clave de Google API como alternativa)",
     "youtubeKeyPlaceholder": "Dejar en blanco para reutilizar la clave de Google API…",
+    "appUrlLabel": "URL de la app",
+    "appUrlDesc": "URL pública de la aplicación, usada para iframes y enlaces compartidos.",
     "s3Title": "Almacenamiento S3 / MinIO",
     "s3Desc": "Las carátulas se almacenan en MinIO. El endpoint interno lo usa el backend para subir archivos; el endpoint público lo usan los navegadores para mostrar las imágenes.",
     "s3Internal": "Endpoint interno (backend)",

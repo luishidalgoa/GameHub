@@ -133,6 +133,8 @@
     "youtubeKeyLabel": "YouTube API Key",
     "youtubeKeyOptional": "(optional — falls back to Google API Key)",
     "youtubeKeyPlaceholder": "Leave blank to reuse Google API Key above…",
+    "appUrlLabel": "App URL",
+    "appUrlDesc": "Public URL of the app, used for iframes and shared links.",
     "s3Title": "S3 / MinIO Storage",
     "s3Desc": "Cover art is stored in MinIO. The internal endpoint is used by the backend to upload; the public endpoint is used by browsers to display images.",
     "s3Internal": "Internal endpoint (backend)",

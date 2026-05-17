@@ -511,9 +511,9 @@ export function SettingsForm({ platforms: initial, settings }: Props) {
 
         <div className="border-t border-border pt-5">
           <div className="flex items-center justify-between mb-1">
-            <p className="text-sm font-medium">{t('appUrlLabel') || 'App URL'}</p>
+            <p className="text-sm font-medium">{t('appUrlLabel')}</p>
           </div>
-          <p className="text-xs text-muted-foreground mb-3">{t('appUrlDesc') || 'URL pública de la aplicación, usada para iframes y enlaces.'}</p>
+          <p className="text-xs text-muted-foreground mb-3">{t('appUrlDesc')}</p>
           <input
             type="text"
             value={appUrl}
