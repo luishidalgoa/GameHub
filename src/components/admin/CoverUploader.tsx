@@ -39,7 +39,7 @@ export function CoverUploader({ gameId, gameTitle = '', currentCover, onUploaded
   const [searchTab, setSearchTab]   = useState<'rawg' | 'sgdb'>('sgdb')
 
   // RAWG tab
-  const [rawgQuery, setRawgQuery]     = useState('')
+  const [rawgQuery, setRawgQuery]     = useState(gameTitle)
   const [rawgSearching, setRawgSearching] = useState(false)
   const [rawgResults, setRawgResults] = useState<RawgResult[]>([])
   const [applyingRawg, setApplyingRawg] = useState<number | null>(null)
