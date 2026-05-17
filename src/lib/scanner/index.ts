@@ -53,7 +53,7 @@ async function upsertFolderGame(
       emitFn({ type: 'file_found', filePath: baseFile.filePath, isNew: true, platform: platformName })
       return { added: 1, updated: 0 }
     } else {
-      await db.game.update({ where: { id: existing.id }, data: { fileSize: baseFile.fileSize, lastSeenAt: scanStart } })
+      await db.game.update({ where: { id: existing.id }, data: { fileSize: baseFile.fileSize, lastSeenAt: scanStart, isHidden: false } })
       await upsertDlcs(existing.id)
       emitFn({ type: 'file_found', filePath: baseFile.filePath, isNew: false, platform: platformName })
       return { added: 0, updated: 1 }
@@ -122,7 +122,7 @@ export async function runScan(triggeredBy = 'manual', platformSlug?: string) {
               added++
               emit({ type: 'file_found', filePath: file.filePath, isNew: true, platform: platform.name })
             } else {
-              await db.game.update({ where: { id: existing.id }, data: { fileSize: file.fileSize, lastSeenAt: scanStart } })
+              await db.game.update({ where: { id: existing.id }, data: { fileSize: file.fileSize, lastSeenAt: scanStart, isHidden: false } })
               updated++
               emit({ type: 'file_found', filePath: file.filePath, isNew: false, platform: platform.name })
             }
@@ -153,7 +153,7 @@ export async function runScan(triggeredBy = 'manual', platformSlug?: string) {
               added++
               emit({ type: 'file_found', filePath: file.filePath, isNew: true, platform: platform.name })
             } else {
-              await db.game.update({ where: { id: existing.id }, data: { fileSize: file.fileSize, lastSeenAt: scanStart } })
+              await db.game.update({ where: { id: existing.id }, data: { fileSize: file.fileSize, lastSeenAt: scanStart, isHidden: false } })
               updated++
               emit({ type: 'file_found', filePath: file.filePath, isNew: false, platform: platform.name })
             }
