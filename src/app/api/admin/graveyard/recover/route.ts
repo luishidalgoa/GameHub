@@ -87,6 +87,9 @@ export async function POST(req: Request) {
           })
           result.recovered++
           result.details.push({ graveyardId: old.id, newId: newGame.id, title: old.title, success: true, matchedBy })
+        } else {
+          // No match found — report it so the UI can show it in the log
+          result.details.push({ graveyardId: old.id, newId: 0, title: old.title, success: false })
         }
       } catch (error) {
         result.failed++
