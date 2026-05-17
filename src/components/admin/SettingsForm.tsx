@@ -64,6 +64,7 @@ export function SettingsForm({ platforms: initial, settings }: Props) {
   const [s3SecretKey,  setS3SecretKey]  = useState(settings['s3_secret_key']        ?? '')
   const [s3Bucket,     setS3Bucket]     = useState(settings['s3_bucket_name']       ?? '')
   const [s3Region,     setS3Region]     = useState(settings['s3_region']            ?? '')
+  const [appUrl,       setAppUrl]       = useState(settings['app_url']            ?? process.env.NEXT_PUBLIC_APP_URL ?? '')
 
   const [saving,   setSaving]   = useState(false)
   const [saved,    setSaved]    = useState(false)
@@ -109,6 +110,7 @@ export function SettingsForm({ platforms: initial, settings }: Props) {
           google_search_api_key:    googleApiKey,
           steamgriddb_key:          sgdbKey,
           youtube_api_key:          youtubeKey,
+          app_url:                  appUrl,
           max_concurrent_downloads: maxDownloads,
           s3_endpoint_interno:      s3Internal,
           s3_endpoint_publico:      s3Public,
