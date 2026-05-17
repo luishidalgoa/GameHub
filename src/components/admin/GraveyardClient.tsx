@@ -10,24 +10,24 @@ import { Trash2, AlertTriangle, RefreshCw } from 'lucide-react'
 export function DeleteGameButton({ id }: { id: number }) {
   const t = useTranslations('AdminGraveyard')
   const router = useRouter()
-  const [pending, startTransition] = useTransition()
+  const [loading, setLoading] = useState(false)
 
   const handleDelete = () => {
     if (!window.confirm(t('confirmDelete'))) return
-    startTransition(async () => {
-      await fetch('/api/admin/graveyard', {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id }),
-      })
-      router.refresh()
+    setLoading(true)
+    fetch('/api/admin/graveyard', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id }),
     })
+      .then(() => router.refresh())
+      .finally(() => setLoading(false))
   }
 
   return (
     <button
       onClick={handleDelete}
-      disabled={pending}
+      disabled={loading}
       title={t('deleteTitle')}
       className="p-1.5 rounded-md text-muted-foreground hover:text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-40"
     >
@@ -41,7 +41,7 @@ export function DeleteGameButton({ id }: { id: number }) {
 export function PurgeAllButton({ count }: { count: number }) {
   const t = useTranslations('AdminGraveyard')
   const router = useRouter()
-  const [pending, startTransition] = useTransition()
+  const [loading, setLoading] = useState(false)
   const [confirmed, setConfirmed] = useState(false)
 
   if (count === 0) return null
@@ -64,24 +64,26 @@ export function PurgeAllButton({ count }: { count: number }) {
       <span className="text-red-300">{t('purgeConfirm', { count })}</span>
       <button
         onClick={() => {
-          startTransition(async () => {
-            await fetch('/api/admin/graveyard', {
-              method: 'DELETE',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ purge: true }),
-            })
-            setConfirmed(false)
-            router.refresh()
+          setLoading(true)
+          fetch('/api/admin/graveyard', {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ purge: true }),
           })
+            .then(() => {
+              setConfirmed(false)
+              router.refresh()
+            })
+            .finally(() => setLoading(false))
         }}
-        disabled={pending}
+        disabled={loading}
         className="ml-1 px-2 py-0.5 text-xs font-medium bg-red-700 hover:bg-red-600 text-white rounded transition-colors disabled:opacity-50"
       >
-        {pending ? t('deleting') : t('purgeYes')}
+        {loading ? t('deleting') : t('purgeYes')}
       </button>
       <button
         onClick={() => setConfirmed(false)}
-        disabled={pending}
+        disabled={loading}
         className="px-2 py-0.5 text-xs text-muted-foreground hover:text-foreground rounded transition-colors"
       >
         {t('cancel')}
