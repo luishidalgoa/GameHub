@@ -20,14 +20,10 @@ services:
       - ./public/covers:/app/public/covers
 
       # ── ROM directories ──────────────────────────────────────────────────────
-      # Mount every folder that contains your ROMs so the scanner can reach them.
-      # Use the SAME paths you configured (or will configure) in Admin → Settings.
-      # Example:
-      #   - /mnt/roms/switch:/mnt/roms/switch:ro
-      #   - /mnt/roms/psp:/mnt/roms/psp:ro
-      #   - /home/pi/roms:/home/pi/roms:ro
-      #
-      # ← ADD YOUR ROM PATHS HERE (keep the :ro suffix — read-only is safer)
+      # Whole drives mounted at their root — the scanner reaches any subfolder.
+      # Configure the actual per-platform paths in Admin → Settings.
+      - /mnt/F:/mnt/F:ro
+      - /mnt/nextcloud_hdd_1:/mnt/nextcloud_hdd_1:ro
 
     # Expose Prometheus metrics to your existing Grafana/Node Exporter stack
     labels:

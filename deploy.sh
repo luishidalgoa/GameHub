@@ -5,7 +5,7 @@
 #   Update:        ./deploy.sh update
 
 set -e
-DOMAIN="YOUR_DOMAIN.com"
+DOMAIN="gamehub.luishidalgoa.ddns-ip.net"
 APP_DIR="/opt/gamehub"
 
 # ── Colors ────────────────────────────────────────────────────────────────────
@@ -54,7 +54,7 @@ install() {
     docker compose logs --tail=20
 
     info "Done! App running at http://localhost:3000"
-    info "Now configure nginx + certbot (see deploy.sh nginx_setup)"
+    info "Now configure Apache2 + certbot: ./deploy.sh apache_setup"
 }
 
 # ── Update ────────────────────────────────────────────────────────────────────
@@ -75,29 +75,34 @@ update() {
     docker compose ps
 }
 
-# ── Nginx + Certbot setup ─────────────────────────────────────────────────────
-nginx_setup() {
-    command -v nginx  >/dev/null 2>&1 || sudo apt-get install -y nginx
-    command -v certbot >/dev/null 2>&1 || sudo apt-get install -y certbot python3-certbot-nginx
+# ── Apache2 + Certbot setup ───────────────────────────────────────────────────
+apache_setup() {
+    # Enable required Apache modules
+    info "Enabling Apache modules..."
+    sudo a2enmod proxy proxy_http proxy_wstunnel rewrite headers ssl
 
-    info "Copying nginx config..."
-    sudo cp "$APP_DIR/nginx/gamehub.conf" /etc/nginx/sites-available/gamehub.conf
-    sudo sed -i "s/YOUR_DOMAIN.com/$DOMAIN/g" /etc/nginx/sites-available/gamehub.conf
-    sudo ln -sf /etc/nginx/sites-available/gamehub.conf /etc/nginx/sites-enabled/gamehub.conf
+    info "Copying Apache config..."
+    sudo cp "$APP_DIR/apache2/gamehub.conf" /etc/apache2/sites-available/gamehub.conf
+
+    info "Enabling site..."
+    sudo a2ensite gamehub.conf
 
     # Disable default site if present
-    sudo rm -f /etc/nginx/sites-enabled/default
+    sudo a2dissite 000-default.conf 2>/dev/null || true
 
-    info "Testing nginx config..."
-    sudo nginx -t
+    info "Testing Apache config..."
+    sudo apache2ctl configtest
 
-    info "Obtaining SSL certificate..."
-    sudo certbot --nginx -d "$DOMAIN" --non-interactive --agree-tos \
-        --redirect --email "admin@$DOMAIN" || \
-    warning "Certbot failed — run manually: sudo certbot --nginx -d $DOMAIN"
+    info "Reloading Apache..."
+    sudo systemctl reload apache2
 
-    sudo systemctl reload nginx
-    info "Nginx configured. App available at https://$DOMAIN"
+    info "Obtaining SSL certificate via certbot..."
+    sudo certbot --apache -d "$DOMAIN" --non-interactive --agree-tos \
+        --redirect --email "admin@luishidalgoa.ddns-ip.net" || \
+    warning "Certbot failed — run manually: sudo certbot --apache -d $DOMAIN"
+
+    sudo systemctl reload apache2
+    info "Apache configured. App available at https://$DOMAIN"
 }
 
 # ── Logs ─────────────────────────────────────────────────────────────────────
@@ -116,18 +121,18 @@ status() {
 
 # ── Entrypoint ────────────────────────────────────────────────────────────────
 case "${1:-help}" in
-    install)     install     ;;
-    update)      update      ;;
-    nginx_setup) nginx_setup ;;
-    logs)        logs        ;;
-    status)      status      ;;
+    install)      install      ;;
+    update)       update       ;;
+    apache_setup) apache_setup ;;
+    logs)         logs         ;;
+    status)       status       ;;
     *)
-        echo "Usage: $0 {install|update|nginx_setup|logs|status}"
+        echo "Usage: $0 {install|update|apache_setup|logs|status}"
         echo ""
-        echo "  install      — first deploy on a fresh Pi"
-        echo "  update       — rebuild and restart after a git pull"
-        echo "  nginx_setup  — configure nginx + certbot SSL"
-        echo "  logs         — follow live logs"
-        echo "  status       — container status and resource usage"
+        echo "  install       — first deploy on a fresh Pi"
+        echo "  update        — rebuild and restart after a git pull"
+        echo "  apache_setup  — configure Apache2 + certbot SSL"
+        echo "  logs          — follow live logs"
+        echo "  status        — container status and resource usage"
         ;;
 esac
