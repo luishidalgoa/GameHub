@@ -6,8 +6,12 @@ import { useTranslations } from 'next-intl'
 import { Save, Loader2, Plus, Trash2, ChevronDown, ChevronUp, FolderPlus, X, FolderOpen } from 'lucide-react'
 import { FolderPickerModal } from './FolderPickerModal'
 
-const splitPaths = (s: string) => s.split('|').map(p => p.trim()).filter(Boolean)
-const joinPaths  = (arr: string[]) => arr.filter(Boolean).join('|')
+// splitPaths filters empty — use for logic/checks
+// splitPathsRaw preserves empty slots — use for rendering editable inputs
+const splitPaths    = (s: string) => s.split('|').map(p => p.trim()).filter(Boolean)
+const splitPathsRaw = (s: string) => s.split('|').map(p => p.trim())
+const joinPaths     = (arr: string[]) => arr.filter(Boolean).join('|')
+const joinPathsRaw  = (arr: string[]) => arr.join('|')
 
 interface Platform {
   id: number
@@ -67,7 +71,7 @@ export function SettingsForm({ platforms: initial, settings }: Props) {
           body: JSON.stringify({
             id:              p.id,
             name:            p.name,
-            scanPath:        p.scanPath,
+            scanPath:        joinPaths(splitPathsRaw(p.scanPath)),
             extensions:      p.extensions,
             scanMode:        p.scanMode,
             thumbnailWidth:  p.thumbnailWidth ?? 200,
@@ -190,26 +194,26 @@ export function SettingsForm({ platforms: initial, settings }: Props) {
                   <span className="text-xs text-muted-foreground font-medium">{t('scanPaths')}</span>
                   <button
                     type="button"
-                    onClick={() => update(p.id, 'scanPath', joinPaths([...splitPaths(p.scanPath), '']))}
+                    onClick={() => update(p.id, 'scanPath', joinPathsRaw([...splitPathsRaw(p.scanPath).filter(Boolean), '']))}
                     className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
                   >
                     <FolderPlus className="w-3.5 h-3.5" /> {t('addPath')}
                   </button>
                 </div>
-                {splitPaths(p.scanPath).length === 0 && (
+                {splitPaths(p.scanPath).length === 0 && splitPathsRaw(p.scanPath).every(x => !x) && (
                   <p className="text-xs text-amber-500/80 italic">{t('noPaths')}</p>
                 )}
-                {splitPaths(p.scanPath).map((path, idx) => (
+                {splitPathsRaw(p.scanPath).map((path, idx) => (
                   <div key={idx} className="flex items-center gap-2">
                     <input
                       type="text"
                       value={path}
                       onChange={(e) => {
-                        const paths = splitPaths(p.scanPath)
+                        const paths = splitPathsRaw(p.scanPath)
                         paths[idx] = e.target.value
-                        update(p.id, 'scanPath', joinPaths(paths))
+                        update(p.id, 'scanPath', joinPathsRaw(paths))
                       }}
-                      placeholder={`e.g. F:\\${p.slug.toUpperCase()}\\Games`}
+                      placeholder={`e.g. /mnt/F/${p.slug.toUpperCase()}/Games`}
                       className="flex-1 bg-secondary border border-border rounded-md px-3 py-1.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-ring"
                     />
                     <button
@@ -223,7 +227,7 @@ export function SettingsForm({ platforms: initial, settings }: Props) {
                     <button
                       type="button"
                       onClick={() => {
-                        const paths = splitPaths(p.scanPath).filter((_, i) => i !== idx)
+                        const paths = splitPathsRaw(p.scanPath).filter((_, i) => i !== idx)
                         update(p.id, 'scanPath', joinPaths(paths))
                       }}
                       className="p-1.5 rounded text-muted-foreground hover:text-red-400 hover:bg-red-950/30 transition-colors"
