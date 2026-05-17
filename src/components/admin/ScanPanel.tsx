@@ -23,17 +23,25 @@ export function ScanPanel() {
     }
   }, [logs])
 
-  const startScan = async () => {
+  const startScan = () => {
     setScanning(true)
     setLogs(['Starting scan…'])
 
-    await fetch('/api/scanner', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(selectedSlug !== 'all' ? { platformSlug: selectedSlug } : {}),
-    })
-
+    // Open SSE first — only trigger the POST once the server confirms it's listening.
+    // This prevents fast single-platform scans from emitting all events before the
+    // SSE connection is established (which would leave the UI stuck at "Starting scan…").
     const es = new EventSource('/api/scanner/stream')
+
+    const triggerPost = () =>
+      fetch('/api/scanner', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(selectedSlug !== 'all' ? { platformSlug: selectedSlug } : {}),
+      }).catch(() => {
+        setLogs((prev) => [...prev, '❌ Failed to start scan'])
+        setScanning(false)
+        es.close()
+      })
 
     es.onmessage = (e) => {
       try {
@@ -41,6 +49,10 @@ export function ScanPanel() {
         let line = ''
 
         switch (event.type) {
+          case 'connected':
+            // SSE listener is now registered on the server — safe to start the scan
+            triggerPost()
+            return
           case 'scan_start':
             line = '▶ Scan started'
             break
