@@ -9,3 +9,4 @@ node_modules
 prisma/gamehub.db
 prisma/gamehub.db-shm
 prisma/gamehub.db-wal
+data
