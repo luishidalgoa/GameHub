@@ -11,7 +11,7 @@ function getSecret(): Uint8Array {
   return new TextEncoder().encode(secret)
 }
 
-// ── Local-network detection ───────────────────────────────────────────────────
+// ── IP detection ──────────────────────────────────────────────────────────────
 
 export function isLocalIp(ip: string): boolean {
   // Strip IPv4-mapped IPv6 prefix (::ffff:192.168.x.x → 192.168.x.x)
@@ -24,6 +24,13 @@ export function isLocalIp(ip: string): boolean {
     /^10\./.test(s) ||
     /^172\.(1[6-9]|2\d|3[01])\./.test(s)
   )
+}
+
+export function isPublicIpMatch(clientIp: string): boolean {
+  const publicIp = process.env.PUBLIC_IP
+  if (!publicIp) return false
+  const cleanClientIp = clientIp.trim().split(',')[0].trim().replace(/^::ffff:/i, '')
+  return cleanClientIp === publicIp
 }
 
 /** Extract real client IP from a NextRequest (middleware / API routes). */
@@ -67,17 +74,19 @@ export async function verifySessionToken(token: string): Promise<boolean> {
 
 // ── Public helpers ────────────────────────────────────────────────────────────
 
-/** Used in middleware and API routes. Local-network IPs are always admin. */
+/** Used in middleware and API routes. Local-network IPs and public IP match are always admin. */
 export async function getSessionFromRequest(req: NextRequest): Promise<boolean> {
-  if (isLocalIp(clientIpFromRequest(req))) return true
+  const clientIp = clientIpFromRequest(req)
+  if (isLocalIp(clientIp) || isPublicIpMatch(clientIp)) return true
   const token = req.cookies.get(COOKIE_NAME)?.value
   if (!token) return false
   return verifySessionToken(token)
 }
 
-/** Used in Server Components. Local-network IPs are always admin. */
+/** Used in Server Components. Local-network IPs and public IP match are always admin. */
 export async function isAdminSession(): Promise<boolean> {
-  if (isLocalIp(clientIpFromHeaders())) return true
+  const clientIp = clientIpFromHeaders()
+  if (isLocalIp(clientIp) || isPublicIpMatch(clientIp)) return true
   const token = cookies().get(COOKIE_NAME)?.value
   if (!token) return false
   return verifySessionToken(token)
