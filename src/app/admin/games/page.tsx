@@ -73,7 +73,8 @@ export default async function AdminGamesPage({ searchParams }: Props) {
 
       {/* Table */}
       <div className="bg-card border border-border rounded-xl overflow-hidden">
-        <table className="w-full text-sm">
+        <div className="overflow-x-auto">
+        <table className="w-full min-w-[600px] text-sm">
           <thead>
             <tr className="border-b border-border text-left text-muted-foreground">
               <th className="px-4 py-3 font-medium">{t('colTitle')}</th>
@@ -113,6 +114,7 @@ export default async function AdminGamesPage({ searchParams }: Props) {
             ))}
           </tbody>
         </table>
+        </div>
       </div>
 
       {/* Pagination */}

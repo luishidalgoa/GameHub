@@ -209,7 +209,7 @@ export function SettingsForm({ platforms: initial, settings }: Props) {
 
   return (
     <div className="space-y-8">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-xl font-semibold">{t('title')}</h2>
         <button
           onClick={save}
@@ -223,7 +223,7 @@ export function SettingsForm({ platforms: initial, settings }: Props) {
 
       {/* Platform paths */}
       <div className="bg-card border border-border rounded-xl p-6">
-        <div className="flex items-center justify-between mb-1">
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
           <h3 className="font-semibold">{t('platforms')}</h3>
           <button
             onClick={() => setAddOpen((o) => !o)}
@@ -240,13 +240,13 @@ export function SettingsForm({ platforms: initial, settings }: Props) {
           {platforms.map((p) => (
             <div key={p.id} className="border border-border rounded-lg p-4 space-y-3">
               {/* Name + ScanMode + Delete */}
-              <div className="flex items-center gap-3">
+              <div className="flex flex-wrap items-center gap-3">
                 <input
                   type="text"
                   value={p.name}
                   onChange={(e) => updateField(p.id, 'name', e.target.value)}
                   placeholder="Display name"
-                  className="flex-1 bg-secondary border border-border rounded-md px-3 py-1.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-ring"
+                  className="flex-1 min-w-[120px] bg-secondary border border-border rounded-md px-3 py-1.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-ring"
                 />
                 <select
                   value={p.scanMode}

@@ -198,14 +198,14 @@ export default function TrafficPage() {
             </span>
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full text-xs">
+            <table className="w-full min-w-[640px] text-xs">
               <thead>
                 <tr className="border-b border-border text-muted-foreground uppercase tracking-wide">
                   <th className="text-left px-3 py-2">{t('path')}</th>
                   <th className="text-left px-3 py-2">{t('ip')}</th>
-                  <th className="text-left px-3 py-2 hidden md:table-cell">{t('status')}</th>
-                  <th className="text-left px-3 py-2 hidden sm:table-cell">{t('device')}</th>
-                  <th className="text-left px-3 py-2 hidden lg:table-cell">{t('latency')}</th>
+                  <th className="text-left px-3 py-2">{t('status')}</th>
+                  <th className="text-left px-3 py-2">{t('device')}</th>
+                  <th className="text-left px-3 py-2">{t('latency')}</th>
                   <th className="text-left px-3 py-2">{t('when')}</th>
                 </tr>
               </thead>
@@ -214,13 +214,13 @@ export default function TrafficPage() {
                   <tr key={r.id} className="border-b border-border/40 hover:bg-accent/20">
                     <td className="px-3 py-2 font-mono truncate max-w-[160px]">{r.path}</td>
                     <td className="px-3 py-2 font-mono">{r.ip}</td>
-                    <td className={`px-3 py-2 hidden md:table-cell font-medium ${r.status >= 500 ? 'text-red-400' : r.status >= 400 ? 'text-amber-400' : 'text-green-400'}`}>{r.status}</td>
-                    <td className="px-3 py-2 hidden sm:table-cell">
+                    <td className={`px-3 py-2 font-medium ${r.status >= 500 ? 'text-red-400' : r.status >= 400 ? 'text-amber-400' : 'text-green-400'}`}>{r.status}</td>
+                    <td className="px-3 py-2">
                       {r.deviceModel
                         ? <span>{r.deviceModel}<span className="text-muted-foreground ml-1 text-xs">{r.os}</span></span>
                         : <span className="capitalize">{r.device ?? '—'}</span>}
                     </td>
-                    <td className="px-3 py-2 hidden lg:table-cell text-muted-foreground">{r.durationMs != null ? `${r.durationMs}ms` : '—'}</td>
+                    <td className="px-3 py-2 text-muted-foreground">{r.durationMs != null ? `${r.durationMs}ms` : '—'}</td>
                     <td className="px-3 py-2 text-muted-foreground whitespace-nowrap">{rel(r.ts)}</td>
                   </tr>
                 ))}

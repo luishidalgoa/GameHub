@@ -71,7 +71,7 @@ export function MetadataBatchPanel() {
     <div className="bg-card border border-border rounded-xl p-6 space-y-4">
 
       {/* Header */}
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
         <div>
           <h3 className="font-semibold flex items-center gap-2">
             <Sparkles className="w-4 h-4 text-violet-400" />
@@ -82,7 +82,7 @@ export function MetadataBatchPanel() {
           </p>
         </div>
 
-        <div className="flex items-center gap-3 flex-shrink-0">
+        <div className="flex items-center gap-3 flex-shrink-0 flex-wrap">
           {/* Cover toggle */}
           <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer select-none">
             <input

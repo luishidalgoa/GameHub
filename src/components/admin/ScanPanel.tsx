@@ -108,7 +108,7 @@ export function ScanPanel() {
 
   return (
     <div className="bg-card border border-border rounded-xl p-6">
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
         <div>
           <h3 className="font-semibold">{t('title')}</h3>
           <p className="text-sm text-muted-foreground mt-0.5">
@@ -116,7 +116,7 @@ export function ScanPanel() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           {/* Platform selector */}
           <div className="relative">
             <select
