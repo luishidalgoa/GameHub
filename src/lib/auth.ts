@@ -15,7 +15,8 @@ function getSecret(): Uint8Array {
 
 export function isPublicIp(clientIp: string): boolean {
   const publicIp = process.env.PUBLIC_IP
-  if (!publicIp) return false
+  // If PUBLIC_IP is not configured, skip IP restriction (dev / unconfigured instances)
+  if (!publicIp) return true
   const cleanClientIp = clientIp.trim().split(',')[0].trim().replace(/^::ffff:/i, '')
   return cleanClientIp === publicIp
 }
