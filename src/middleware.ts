@@ -21,23 +21,20 @@ export async function middleware(req: NextRequest) {
 
   // --- Protect admin pages ---
   if (pathname.startsWith(ADMIN_PAGE_PREFIX)) {
-    // Login page: accessible from anywhere (no IP restriction)
-    if (pathname === '/admin/login') {
-      return NextResponse.next()
-    }
-
-    // Admin pages: only accessible from public IP
+    // Admin pages: only accessible from public IP (always blocked otherwise)
     if (!isPublicIpRequest(req)) {
       console.log(`[MIDDLEWARE] Admin access denied from IP: ${req.headers.get('x-real-ip') ?? req.headers.get('x-forwarded-for') ?? req.ip}`)
       return NextResponse.redirect(new URL('/', req.url))
     }
 
+    // If request comes from public IP, require a valid admin session.
     const authenticated = await getSessionFromRequest(req)
     if (!authenticated) {
       const loginUrl = new URL('/admin/login', req.url)
       loginUrl.searchParams.set('from', pathname)
       return NextResponse.redirect(loginUrl)
     }
+
     return NextResponse.next()
   }
 
