@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
-import { getSessionFromRequest } from '@/lib/auth'
+import { getSessionFromRequest, isPublicIpRequest } from '@/lib/auth'
 
 // Paths that require admin auth
 const ADMIN_PAGE_PREFIX = '/admin'
@@ -24,6 +24,12 @@ export async function middleware(req: NextRequest) {
     // Login page: accessible from anywhere (no IP restriction)
     if (pathname === '/admin/login') {
       return NextResponse.next()
+    }
+
+    // Admin pages: only accessible from public IP
+    if (!isPublicIpRequest(req)) {
+      console.log(`[MIDDLEWARE] Admin access denied from IP: ${req.headers.get('x-real-ip') ?? req.headers.get('x-forwarded-for') ?? req.ip}`)
+      return NextResponse.redirect(new URL('/', req.url))
     }
 
     const authenticated = await getSessionFromRequest(req)

@@ -39,6 +39,7 @@ export function Sidebar({ open, onClose }: Props) {
   const t = useTranslations('Sidebar')
   const { data: platforms } = useSWR<Platform[]>('/api/platforms', fetcher)
   const { data: auth } = useSWR<{ admin: boolean }>('/api/auth/me', fetcher)
+  const { data: ipData } = useSWR<{ isAdminIp: boolean }>('/api/auth/is-admin-ip', fetcher)
 
   return (
     <aside
@@ -114,8 +115,8 @@ export function Sidebar({ open, onClose }: Props) {
           onNavigate={onClose}
         />
 
-        {/* Admin links */}
-        {auth?.admin && (
+        {/* Admin links — only visible if accessing from public IP */}
+        {ipData?.isAdminIp && (
           <>
             <NavItem
               href="/admin"

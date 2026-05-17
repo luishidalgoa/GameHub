@@ -11,7 +11,23 @@ function getSecret(): Uint8Array {
   return new TextEncoder().encode(secret)
 }
 
-// ── Token helpers ─────────────────────────────────────────────────────────────
+// ── Public IP detection ───────────────────────────────────────────────────────
+
+export function isPublicIp(clientIp: string): boolean {
+  const publicIp = process.env.PUBLIC_IP
+  if (!publicIp) return false
+  const cleanClientIp = clientIp.trim().split(',')[0].trim().replace(/^::ffff:/i, '')
+  return cleanClientIp === publicIp
+}
+
+function clientIpFromRequest(req: NextRequest): string {
+  return (
+    req.headers.get('x-real-ip') ??
+    req.headers.get('x-forwarded-for') ??
+    req.ip ??
+    ''
+  )
+}
 
 export async function createSessionToken(): Promise<string> {
   return new SignJWT({ admin: true })
@@ -37,6 +53,10 @@ export async function getSessionFromRequest(req: NextRequest): Promise<boolean> 
   const token = req.cookies.get(COOKIE_NAME)?.value
   if (!token) return false
   return verifySessionToken(token)
+}
+
+export function isPublicIpRequest(req: NextRequest): boolean {
+  return isPublicIp(clientIpFromRequest(req))
 }
 
 /** Used in Server Components. Requires valid session token. */
