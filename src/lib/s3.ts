@@ -12,6 +12,7 @@ export interface S3Config {
   accessKey:        string
   secretKey:        string
   bucketName:       string
+  region:           string
 }
 
 // Env-var fallbacks — overridden by DB settings when present
@@ -21,6 +22,7 @@ const ENV_DEFAULTS: S3Config = {
   accessKey:        process.env.S3_ACCESS_KEY        ?? '',
   secretKey:        process.env.S3_SECRET_KEY        ?? '',
   bucketName:       process.env.S3_BUCKET_NAME       ?? 'gamehub',
+  region:           process.env.S3_REGION            ?? 'us-east-1',
 }
 
 const DB_KEYS = [
@@ -29,6 +31,7 @@ const DB_KEYS = [
   's3_access_key',
   's3_secret_key',
   's3_bucket_name',
+  's3_region',
 ] as const
 
 /** Read S3 config: DB values take priority over env-var fallbacks. */
@@ -42,15 +45,16 @@ export async function getS3Config(): Promise<S3Config> {
     accessKey:        m['s3_access_key']        || ENV_DEFAULTS.accessKey,
     secretKey:        m['s3_secret_key']        || ENV_DEFAULTS.secretKey,
     bucketName:       m['s3_bucket_name']       || ENV_DEFAULTS.bucketName,
+    region:           m['s3_region']            || ENV_DEFAULTS.region,
   }
 }
 
 /** Create an S3Client pointed at the INTERNAL endpoint (backend use only). */
 export function makeS3Client(config: S3Config): S3Client {
   return new S3Client({
-    endpoint:    config.internalEndpoint,
-    region:      'us-east-1',
-    credentials: { accessKeyId: config.accessKey, secretAccessKey: config.secretKey },
+    endpoint:       config.internalEndpoint,
+    region:         config.region,
+    credentials:    { accessKeyId: config.accessKey, secretAccessKey: config.secretKey },
     forcePathStyle: true, // required for MinIO
   })
 }

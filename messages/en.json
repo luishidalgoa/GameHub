@@ -142,6 +142,8 @@
     "s3Bucket": "Bucket name",
     "s3AccessKey": "Access key",
     "s3SecretKey": "Secret key",
+    "s3Region": "Region",
+    "s3RegionHint": "MinIO/S3 region. Leave blank for the default (us-east-1). Change if MinIO returns a region mismatch error.",
     "s3Preview": "Cover URL example:",
     "downloadQueue": "Download Queue",
     "downloadQueueDesc": "Maximum simultaneous downloads allowed at the same time. Users beyond this limit are placed in a queue.",

@@ -63,6 +63,7 @@ export function SettingsForm({ platforms: initial, settings }: Props) {
   const [s3AccessKey,  setS3AccessKey]  = useState(settings['s3_access_key']        ?? '')
   const [s3SecretKey,  setS3SecretKey]  = useState(settings['s3_secret_key']        ?? '')
   const [s3Bucket,     setS3Bucket]     = useState(settings['s3_bucket_name']       ?? '')
+  const [s3Region,     setS3Region]     = useState(settings['s3_region']            ?? '')
 
   const [saving,   setSaving]   = useState(false)
   const [saved,    setSaved]    = useState(false)
@@ -114,6 +115,7 @@ export function SettingsForm({ platforms: initial, settings }: Props) {
           s3_access_key:            s3AccessKey,
           s3_secret_key:            s3SecretKey,
           s3_bucket_name:           s3Bucket,
+          s3_region:                s3Region,
         }),
       }),
     ])
@@ -571,6 +573,18 @@ export function SettingsForm({ platforms: initial, settings }: Props) {
               placeholder="secret-key"
               className="w-full bg-secondary border border-border rounded-md px-3 py-2 text-sm font-mono placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
             />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-1.5">{t('s3Region')}</label>
+            <input
+              type="text"
+              value={s3Region}
+              onChange={e => setS3Region(e.target.value)}
+              placeholder="us-east-1"
+              className="w-full bg-secondary border border-border rounded-md px-3 py-2 text-sm font-mono placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+            <p className="text-xs text-muted-foreground mt-1">{t('s3RegionHint')}</p>
           </div>
         </div>
 

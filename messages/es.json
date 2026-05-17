@@ -142,6 +142,8 @@
     "s3Bucket": "Nombre del bucket",
     "s3AccessKey": "Clave de acceso",
     "s3SecretKey": "Clave secreta",
+    "s3Region": "Región",
+    "s3RegionHint": "Región de MinIO/S3. Deja en blanco para el valor por defecto (us-east-1). Cámbialo si MinIO devuelve un error de región incorrecta.",
     "s3Preview": "Ejemplo de URL de carátula:",
     "downloadQueue": "Cola de descargas",
     "downloadQueueDesc": "Número máximo de descargas simultáneas permitidas. Los usuarios que superen este límite se colocan en cola.",
