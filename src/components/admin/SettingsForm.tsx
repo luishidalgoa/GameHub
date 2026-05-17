@@ -78,7 +78,7 @@ export function SettingsForm({ platforms: initial, settings }: Props) {
   // Folder picker: { platformId: -1 } means "new platform" form
   const [folderPicker, setFolderPicker] = useState<{ platformId: number; pathIndex: number } | null>(null)
 
-  function updateField(id: number, field: string, value: string | number) {
+  function updateField(id: number, field: string, value: string | number | boolean) {
     setPlatforms((prev) => prev.map((p) => (p.id === id ? { ...p, [field]: value } : p)))
   }
 
