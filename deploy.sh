@@ -6,7 +6,7 @@
 
 set -e
 DOMAIN="gamehub.luishidalgoa.ddns-ip.net"
-APP_DIR="/opt/gamehub"
+APP_DIR="/home/luish/services/GameHub"
 
 # ── Colors ────────────────────────────────────────────────────────────────────
 GREEN='\033[0;32m'; YELLOW='\033[1;33m'; RED='\033[0;31m'; NC='\033[0m'
@@ -81,28 +81,33 @@ apache_setup() {
     info "Enabling Apache modules..."
     sudo a2enmod proxy proxy_http proxy_wstunnel rewrite headers ssl
 
-    info "Copying Apache config..."
+    info "Copying Apache configs (HTTP + HTTPS template)..."
     sudo cp "$APP_DIR/apache2/gamehub.conf" /etc/apache2/sites-available/gamehub.conf
+    sudo cp "$APP_DIR/apache2/gamehub-le-ssl.conf" /etc/apache2/sites-available/gamehub-le-ssl.conf
 
-    info "Enabling site..."
+    info "Enabling sites..."
     sudo a2ensite gamehub.conf
+    sudo a2ensite gamehub-le-ssl.conf
 
     # Disable default site if present
     sudo a2dissite 000-default.conf 2>/dev/null || true
 
-    info "Testing Apache config..."
+    info "Testing Apache initial config..."
     sudo apache2ctl configtest
 
-    info "Reloading Apache..."
+    info "Reloading Apache to apply templates..."
     sudo systemctl reload apache2
 
-    info "Obtaining SSL certificate via certbot..."
+    info "Obtaining/Renewing SSL certificate via certbot..."
+    # --keep-until-expiring evita que certbot duplique o sobreescriba configuraciones si el certificado ya es válido
     sudo certbot --apache -d "$DOMAIN" --non-interactive --agree-tos \
-        --redirect --email "admin@luishidalgoa.ddns-ip.net" || \
-    warning "Certbot failed — run manually: sudo certbot --apache -d $DOMAIN"
+        --redirect --email "admin@luishidalgoa.ddns-ip.net" --keep-until-expiring || \
+        warning "Certbot task finished — verify status manually."
 
-    sudo systemctl reload apache2
-    info "Apache configured. App available at https://$DOMAIN"
+    info "Final test and restart of Apache..."
+    sudo apache2ctl configtest
+    sudo systemctl restart apache2
+    info "Apache fully configured. App stable at https://$DOMAIN"
 }
 
 # ── Logs ─────────────────────────────────────────────────────────────────────
