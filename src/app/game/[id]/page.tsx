@@ -5,7 +5,9 @@ import { ArrowLeft, Calendar, Tag, User, Building2, HardDrive, Pencil } from 'lu
 import { db } from '@/lib/db'
 import { formatBytes } from '@/lib/utils'
 import { DownloadButton } from '@/components/shared/DownloadButton'
+import { ScreenshotCarousel } from '@/components/game/ScreenshotCarousel'
 import { isAdminSession } from '@/lib/auth'
+import { getRawgProvider } from '@/lib/metadata/rawg'
 
 export const dynamic = 'force-dynamic'
 
@@ -15,17 +17,29 @@ interface Props {
 
 export default async function GamePage({ params }: Props) {
   const id = parseInt(params.id, 10)
-  const [game, isAdmin] = await Promise.all([
+  const [game, isAdmin, rawgSetting] = await Promise.all([
     db.game.findUnique({ where: { id }, include: { platform: true, dlcs: true } }),
     isAdminSession(),
+    db.setting.findUnique({ where: { key: 'rawg_api_key' } }),
   ])
 
   if (!game) notFound()
 
+  // Fetch RAWG screenshots if the game has been matched to RAWG
+  let screenshots: string[] = []
+  if (game.rawgSlug) {
+    const provider = getRawgProvider(rawgSetting?.value)
+    if (provider) {
+      screenshots = await provider.fetchScreenshots(game.rawgSlug).catch(() => [])
+    }
+  }
+
   const cover = game.coverPath ?? game.coverUrl
+  const thumbW = game.platform?.thumbnailWidth  ?? 200
+  const thumbH = game.platform?.thumbnailHeight ?? 300
 
   return (
-    <div className="max-w-4xl">
+    <div>
       <Link
         href={game.platform ? `/platform/${game.platform.slug}` : '/'}
         className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground mb-6 transition-colors"
@@ -34,10 +48,13 @@ export default async function GamePage({ params }: Props) {
         Back to {game.platform?.name ?? 'Library'}
       </Link>
 
-      <div className="flex gap-8">
-        {/* Cover */}
-        <div className="flex-shrink-0 w-48">
-          <div className="aspect-[2/3] relative rounded-xl overflow-hidden bg-secondary shadow-2xl">
+      <div className="flex gap-8 lg:gap-12">
+        {/* Cover — aspect ratio from platform thumbnail settings, wider on large screens */}
+        <div className="flex-shrink-0 w-40 sm:w-48 lg:w-64">
+          <div
+            className="relative rounded-xl overflow-hidden bg-secondary shadow-2xl"
+            style={{ aspectRatio: `${thumbW} / ${thumbH}` }}
+          >
             {cover ? (
               <Image src={cover} alt={game.title} fill className="object-cover" />
             ) : (
@@ -95,6 +112,14 @@ export default async function GamePage({ params }: Props) {
           )}
         </div>
       </div>
+
+      {/* Screenshots */}
+      {screenshots.length > 0 && (
+        <div className="mt-8">
+          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">Screenshots</h2>
+          <ScreenshotCarousel screenshots={screenshots} />
+        </div>
+      )}
 
       {/* Trailer */}
       {game.trailerUrl && (

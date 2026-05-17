@@ -1,0 +1,38 @@
+services:
+  gamehub:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: gamehub
+    restart: unless-stopped
+
+    env_file: .env.production
+
+    ports:
+      - "3000:3000"   # Nginx proxies to this; don't expose publicly if using nginx
+
+    volumes:
+      # ── Persistent data ──────────────────────────────────────────────────────
+      # SQLite database
+      - ./data:/data
+
+      # Cover art cache (downloaded automatically by the app)
+      - ./public/covers:/app/public/covers
+
+      # ── ROM directories ──────────────────────────────────────────────────────
+      # Mount every folder that contains your ROMs so the scanner can reach them.
+      # Use the SAME paths you configured (or will configure) in Admin → Settings.
+      # Example:
+      #   - /mnt/roms/switch:/mnt/roms/switch:ro
+      #   - /mnt/roms/psp:/mnt/roms/psp:ro
+      #   - /home/pi/roms:/home/pi/roms:ro
+      #
+      # ← ADD YOUR ROM PATHS HERE (keep the :ro suffix — read-only is safer)
+
+    # Expose Prometheus metrics to your existing Grafana/Node Exporter stack
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"   # optional: auto-updates via Watchtower
+
+networks:
+  default:
+    name: gamehub-net

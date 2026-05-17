@@ -1,7 +1,8 @@
 import Link from 'next/link'
+import { getTranslations } from 'next-intl/server'
 import { db } from '@/lib/db'
 import { formatBytes } from '@/lib/utils'
-import { Pencil, Image as ImageIcon } from 'lucide-react'
+import { Pencil } from 'lucide-react'
 
 export const dynamic = 'force-dynamic'
 
@@ -10,12 +11,14 @@ interface Props {
 }
 
 export default async function AdminGamesPage({ searchParams }: Props) {
+  const t = await getTranslations('AdminGames')
   const search = searchParams.search ?? ''
   const platformSlug = searchParams.platform ?? ''
   const page = parseInt(searchParams.page ?? '1', 10)
   const pageSize = 50
 
   const where = {
+    isHidden: false,
     ...(search && { title: { contains: search } }),
     ...(platformSlug && { platform: { slug: platformSlug } }),
   }
@@ -37,8 +40,8 @@ export default async function AdminGamesPage({ searchParams }: Props) {
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
-        <h2 className="text-xl font-semibold">All Games</h2>
-        <span className="text-sm text-muted-foreground">{total} games</span>
+        <h2 className="text-xl font-semibold">{t('title')}</h2>
+        <span className="text-sm text-muted-foreground">{t('gamesCount', { n: total })}</span>
       </div>
 
       {/* Filters */}
@@ -47,7 +50,7 @@ export default async function AdminGamesPage({ searchParams }: Props) {
           type="text"
           name="search"
           defaultValue={search}
-          placeholder="Search title…"
+          placeholder={t('searchPlaceholder')}
           className="bg-secondary border border-border rounded-md px-3 py-1.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring w-48"
         />
         <select
@@ -55,7 +58,7 @@ export default async function AdminGamesPage({ searchParams }: Props) {
           defaultValue={platformSlug}
           className="bg-secondary border border-border rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
         >
-          <option value="">All Platforms</option>
+          <option value="">{t('allPlatforms')}</option>
           {platforms.map((p) => (
             <option key={p.slug} value={p.slug}>{p.name}</option>
           ))}
@@ -64,7 +67,7 @@ export default async function AdminGamesPage({ searchParams }: Props) {
           type="submit"
           className="px-4 py-1.5 text-sm rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
         >
-          Filter
+          {t('filter')}
         </button>
       </form>
 
@@ -73,12 +76,12 @@ export default async function AdminGamesPage({ searchParams }: Props) {
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-border text-left text-muted-foreground">
-              <th className="px-4 py-3 font-medium">Title</th>
-              <th className="px-4 py-3 font-medium">Platform</th>
-              <th className="px-4 py-3 font-medium">Region</th>
-              <th className="px-4 py-3 font-medium">Year</th>
-              <th className="px-4 py-3 font-medium">Size</th>
-              <th className="px-4 py-3 font-medium">Cover</th>
+              <th className="px-4 py-3 font-medium">{t('colTitle')}</th>
+              <th className="px-4 py-3 font-medium">{t('colPlatform')}</th>
+              <th className="px-4 py-3 font-medium">{t('colRegion')}</th>
+              <th className="px-4 py-3 font-medium">{t('colYear')}</th>
+              <th className="px-4 py-3 font-medium">{t('colSize')}</th>
+              <th className="px-4 py-3 font-medium">{t('colCover')}</th>
               <th className="px-4 py-3 font-medium"></th>
             </tr>
           </thead>
@@ -93,11 +96,9 @@ export default async function AdminGamesPage({ searchParams }: Props) {
                 <td className="px-4 py-2.5 text-muted-foreground">{game.releaseYear ?? '—'}</td>
                 <td className="px-4 py-2.5 text-muted-foreground">{formatBytes(game.fileSize)}</td>
                 <td className="px-4 py-2.5">
-                  {game.coverPath || game.coverUrl ? (
-                    <span className="text-green-500 text-xs">✓</span>
-                  ) : (
-                    <span className="text-amber-500 text-xs">—</span>
-                  )}
+                  {game.coverPath || game.coverUrl
+                    ? <span className="text-green-500 text-xs">✓</span>
+                    : <span className="text-amber-500 text-xs">—</span>}
                 </td>
                 <td className="px-4 py-2.5">
                   <Link
@@ -105,7 +106,7 @@ export default async function AdminGamesPage({ searchParams }: Props) {
                     className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-md bg-secondary hover:bg-accent transition-colors"
                   >
                     <Pencil className="w-3 h-3" />
-                    Edit
+                    {t('edit')}
                   </Link>
                 </td>
               </tr>

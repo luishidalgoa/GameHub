@@ -1,5 +1,7 @@
 import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
+import { NextIntlClientProvider } from 'next-intl'
+import { getMessages, getLocale } from 'next-intl/server'
 import './globals.css'
 import { Shell } from '@/components/layout/Shell'
 import { Toaster } from '@/components/ui/toaster'
@@ -18,14 +20,18 @@ export const metadata: Metadata = {
   },
 }
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const [locale, messages] = await Promise.all([getLocale(), getMessages()])
+
   return (
-    <html lang="en" className="dark">
+    <html lang={locale} className="dark">
       <body className={`${inter.variable} font-sans antialiased`}>
-        <Shell>{children}</Shell>
-        <Toaster />
-        <TrackingBeacon />
-        <CookieConsent />
+        <NextIntlClientProvider locale={locale} messages={messages}>
+          <Shell>{children}</Shell>
+          <Toaster />
+          <TrackingBeacon />
+          <CookieConsent />
+        </NextIntlClientProvider>
       </body>
     </html>
   )

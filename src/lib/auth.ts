@@ -84,10 +84,10 @@ export async function isAdminSession(): Promise<boolean> {
 }
 
 export const sessionCookieOptions = {
-  name: COOKIE_NAME,
-  maxAge: COOKIE_MAX_AGE,
+  name:     COOKIE_NAME,
+  maxAge:   COOKIE_MAX_AGE,
   httpOnly: true,
   sameSite: 'lax' as const,
-  path: '/',
-  // secure: true  // uncomment once behind HTTPS
+  path:     '/',
+  secure:   process.env.NODE_ENV === 'production',
 }

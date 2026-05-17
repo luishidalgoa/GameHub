@@ -2,19 +2,20 @@ import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getRawgProvider, cleanTitle } from '@/lib/metadata/rawg'
 import { downloadAndCacheCover } from '@/lib/covers'
+import { searchYouTubeTrailer } from '@/lib/youtube'
 import { serializeBigInt } from '@/lib/serialize'
 
 export async function GET(req: Request, { params }: { params: { id: string } }) {
   const gameId = parseInt(params.id, 10)
-  const game = await db.game.findUnique({ where: { id: gameId }, include: { platform: true } })
+  const game   = await db.game.findUnique({ where: { id: gameId }, include: { platform: true } })
   if (!game) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-  const provider = getRawgProvider()
-  if (!provider) return NextResponse.json({ error: 'RAWG_API_KEY not configured' }, { status: 503 })
+  const setting  = await db.setting.findUnique({ where: { key: 'rawg_api_key' } })
+  const provider = getRawgProvider(setting?.value)
+  if (!provider) return NextResponse.json({ error: 'RAWG API key not configured' }, { status: 503 })
 
   const sp = new URL(req.url).searchParams
 
-  // ?slug=pokemon-x → direct lookup, returns single result (no search ranking issues)
   const slugParam = sp.get('slug')
   if (slugParam) {
     const result = await provider.fetchById(slugParam)
@@ -22,34 +23,36 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
     return NextResponse.json({ results: [result], usedQuery: slugParam, mode: 'slug' })
   }
 
-  // ?q= manual query override, otherwise derive from DB title
   const overrideQuery = sp.get('q') ?? undefined
-  const usedQuery = overrideQuery ?? cleanTitle(game.title)
-
-  const results = await provider.search(game.title, game.platform.slug, overrideQuery)
+  const usedQuery     = overrideQuery ?? cleanTitle(game.title)
+  const results       = await provider.search(game.title, game.platform.slug, overrideQuery)
   return NextResponse.json({ results, usedQuery, mode: 'search' })
 }
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   const gameId = parseInt(params.id, 10)
-  const body = await req.json()
-  // Accept either rawgId (number) or rawgSlug (string like "pokemon-x")
-  const rawgLookup: number | string = body.rawgSlug ?? body.rawgId
+  const body   = await req.json()
 
   const game = await db.game.findUnique({ where: { id: gameId }, include: { platform: true } })
   if (!game) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-  const provider = getRawgProvider()
-  if (!provider) return NextResponse.json({ error: 'RAWG_API_KEY not configured' }, { status: 503 })
+  const setting  = await db.setting.findUnique({ where: { key: 'rawg_api_key' } })
+  const provider = getRawgProvider(setting?.value)
+  if (!provider) return NextResponse.json({ error: 'RAWG API key not configured' }, { status: 503 })
 
+  const rawgLookup: number | string = body.rawgSlug ?? body.rawgId
   const meta = await provider.fetchById(rawgLookup)
   if (!meta) return NextResponse.json({ error: 'Not found on RAWG' }, { status: 404 })
 
   let coverPath: string | undefined
   if (meta.coverUrl) {
-    try {
-      coverPath = await downloadAndCacheCover(meta.coverUrl, game.platform.slug, gameId)
-    } catch { /* non-fatal */ }
+    try { coverPath = await downloadAndCacheCover(meta.coverUrl, game.platform.slug, gameId) } catch { /* non-fatal */ }
+  }
+
+  // Auto-search YouTube trailer (only if not already set)
+  let trailerUrl: string | undefined
+  if (!game.trailerUrl) {
+    trailerUrl = await searchYouTubeTrailer(meta.title).catch(() => undefined) ?? undefined
   }
 
   const updated = await db.game.update({
@@ -64,10 +67,10 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       rawgId:            meta.id,
       rawgSlug:          meta.slug,
       coverUrl:          meta.coverUrl,
-      ...(coverPath && { coverPath }),
+      ...(coverPath  && { coverPath }),
+      ...(trailerUrl && { trailerUrl }),
       metadataFetchedAt: new Date(),
     },
   })
-
   return NextResponse.json(serializeBigInt(updated))
 }

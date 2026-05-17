@@ -1,6 +1,6 @@
 export interface MetadataResult {
   id: number
-  slug: string
+  slug?: string
   title: string
   description?: string
   releaseYear?: number
@@ -10,7 +10,6 @@ export interface MetadataResult {
   coverUrl?: string
   rating?: number
   source: 'rawg'
-  /** RAWG numeric platform IDs present on this game — used for confidence scoring */
   platformIds?: number[]
 }
 

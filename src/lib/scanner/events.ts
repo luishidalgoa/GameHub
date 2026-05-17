@@ -7,19 +7,31 @@ export type ScanEventType =
   | 'platform_done'
   | 'scan_complete'
   | 'scan_error'
+  | 'auto_meta_start'
+  | 'auto_meta_progress'
+  | 'auto_meta_done'
+  | 'pipeline_done'
 
 export interface ScanEvent {
-  type: ScanEventType
-  platform?: string
-  filePath?: string
-  isNew?: boolean
-  count?: number
-  total?: number
-  added?: number
-  updated?: number
-  stale?: number
-  message?: string
-  logId?: number
+  type:          ScanEventType
+  platform?:     string
+  filePath?:     string
+  isNew?:        boolean
+  count?:        number
+  total?:        number
+  added?:        number
+  updated?:      number
+  stale?:        number
+  message?:      string
+  logId?:        number
+  // auto-metadata fields
+  gameTitle?:    string
+  metaStatus?:   'applied' | 'skipped' | 'failed'
+  confidence?:   number
+  trailerFound?: boolean
+  processed?:    number
+  skipped?:      number
+  failed?:       number
 }
 
 // Use globalThis so the same EventEmitter instance is shared across

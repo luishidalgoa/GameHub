@@ -26,11 +26,6 @@ export function TopBar({ onMenuClick }: Props) {
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
-        e.preventDefault()
-        setOpen(true)
-        inputRef.current?.focus()
-      }
       if (e.key === 'Escape') {
         setOpen(false)
         setQuery('')
@@ -74,19 +69,26 @@ export function TopBar({ onMenuClick }: Props) {
           <input
             ref={inputRef}
             type="text"
-            placeholder="Search games… (Ctrl+K)"
+            placeholder="Search games…"
             value={query}
             onFocus={() => setOpen(true)}
             onBlur={() => setTimeout(() => setOpen(false), 150)}
             onChange={(e) => setQuery(e.target.value)}
             className="w-full bg-secondary border border-border rounded-md pl-9 pr-8 py-1.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
           />
-          {query && (
+          {query ? (
             <button
               onClick={() => setQuery('')}
               className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
             >
               <X className="w-3.5 h-3.5" />
+            </button>
+          ) : (
+            <button
+              onClick={() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true }))}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 hidden sm:flex items-center text-[10px] font-mono text-muted-foreground/50 bg-secondary border border-border/60 rounded px-1.5 py-0.5 hover:text-muted-foreground transition-colors"
+            >
+              Ctrl K
             </button>
           )}
           {open && query.length > 1 && data?.games && (

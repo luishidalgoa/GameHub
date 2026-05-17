@@ -59,6 +59,8 @@ model Game {
   playCount    Int       @default(0)
   lastPlayedAt DateTime?
 
+  sha256            String?
+
   lastSeenAt        DateTime @default(now())
   metadataFetchedAt DateTime?
 

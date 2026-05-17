@@ -12,6 +12,7 @@ const PROTECTED_API_PATTERNS = [
   { method: 'PATCH',  path: '/api/platforms' },
   { method: 'PATCH',  path: '/api/games' },
   { method: 'DELETE', path: '/api/games' },
+  { method: 'DELETE', path: '/api/admin/graveyard' },
 ]
 
 export async function middleware(req: NextRequest) {
@@ -59,5 +60,7 @@ export const config = {
     '/api/settings/:path*',
     '/api/platforms/:path*',
     '/api/games/:path*',
+    '/api/admin/fs/:path*',
+    '/api/admin/graveyard',
   ],
 }

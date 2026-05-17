@@ -1,6 +1,7 @@
 'use client'
 
 import useSWR from 'swr'
+import { useTranslations } from 'next-intl'
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend, LabelList,
@@ -57,7 +58,6 @@ interface LiveData {
   rateLimitAlerts: Array<{ ip: string; count: number; window: string }>
 }
 
-// Simple SVG sparkline
 function Sparkline({ data, color = '#6366f1' }: { data: number[]; color?: string }) {
   if (!data || data.length < 2) return <div className="h-8 w-20" />
   const max = Math.max(...data, 1)
@@ -110,20 +110,21 @@ function SectionTitle({ icon, title, sub }: { icon: React.ReactNode; title: stri
   )
 }
 
-function rel(ts: string) {
-  const diff = Date.now() - new Date(ts).getTime()
-  const s = Math.floor(diff / 1000)
-  if (s < 60) return `${s}s ago`
-  const m = Math.floor(s / 60)
-  if (m < 60) return `${m}m ago`
-  const h = Math.floor(m / 60)
-  if (h < 24) return `${h}h ago`
-  return `${Math.floor(h / 24)}d ago`
-}
-
 export default function TrafficPage() {
+  const t = useTranslations('Traffic')
   const { data, isLoading } = useSWR<TrafficData>('/api/admin/traffic', fetcher, { refreshInterval: 30_000 })
   const { data: live } = useSWR<LiveData>('/api/admin/traffic/live', fetcher, { refreshInterval: 3_000 })
+
+  const rel = (ts: string) => {
+    const diff = Date.now() - new Date(ts).getTime()
+    const s = Math.floor(diff / 1000)
+    if (s < 60) return t('timeAgoS', { n: s })
+    const m = Math.floor(s / 60)
+    if (m < 60) return t('timeAgoM', { n: m })
+    const h = Math.floor(m / 60)
+    if (h < 24) return t('timeAgoH', { n: h })
+    return t('timeAgoD', { n: Math.floor(h / 24) })
+  }
 
   if (isLoading || !data) {
     return (
@@ -134,80 +135,65 @@ export default function TrafficPage() {
   }
 
   const { summary, sparklines, deviceBreakdown, browserBreakdown,
-    topPlatforms, recentIps, errorCounts,
-    topDownloads, downloadsByDevice } = data
+    topPlatforms, recentIps, errorCounts, topDownloads, downloadsByDevice } = data
 
-  // Live data falls back to static snapshot until first live fetch completes
-  const activeNow      = live?.activeNow      ?? summary.activeNow
-  const recentRequests = live?.recentRequests  ?? []
-  const recentSearches = live?.recentSearches  ?? []
+  const activeNow       = live?.activeNow      ?? summary.activeNow
+  const recentRequests  = live?.recentRequests  ?? []
+  const recentSearches  = live?.recentSearches  ?? []
   const rateLimitAlerts = live?.rateLimitAlerts ?? []
 
-  const deviceData = deviceBreakdown.map((d) => ({
-    name: d.device ?? 'unknown',
-    value: d._count.id,
-  }))
-
-  const browserData = browserBreakdown.map((b) => ({
-    name: b.browser ?? 'unknown',
-    value: b._count.id,
-  }))
-
-  const platformData = topPlatforms.map((p) => ({
-    name: PLATFORM_LABELS[p.slug] ?? p.slug,
-    visits: p.count,
-  }))
+  const deviceData   = deviceBreakdown.map((d) => ({ name: d.device ?? 'unknown', value: d._count.id }))
+  const browserData  = browserBreakdown.map((b) => ({ name: b.browser ?? 'unknown', value: b._count.id }))
+  const platformData = topPlatforms.map((p) => ({ name: PLATFORM_LABELS[p.slug] ?? p.slug, visits: p.count }))
 
   return (
     <div className="max-w-7xl space-y-10">
       <div>
-        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Traffic Analysis</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">{t('title')}</h1>
         <p className="text-muted-foreground mt-1 text-sm">
-          Live data every 3s · stats every 30s · {activeNow} connection{activeNow !== 1 ? 's' : ''} active now
+          {activeNow === 1 ? t('subtitle', { n: activeNow }) : t('subtitlePlural', { n: activeNow })}
         </p>
       </div>
 
-      {/* ── SECTION 1: General Traffic ─────────────────────────────────────── */}
+      {/* ── SECTION 1: General Traffic */}
       <section>
-        <SectionTitle icon={<Activity className="w-4 h-4" />} title="General Traffic" sub="Sparklines show last 7 days" />
+        <SectionTitle icon={<Activity className="w-4 h-4" />} title={t('generalTraffic')} sub={t('sparklinesSub')} />
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-          <StatCard icon={<Eye className="w-4 h-4" />} label="Page views today"
-            value={String(summary.pageViewsToday)} sub={`${summary.pageViewsWeek} this week`}
+          <StatCard icon={<Eye className="w-4 h-4" />} label={t('pageViewsToday')}
+            value={String(summary.pageViewsToday)} sub={t('pageViewsWeekSub', { n: summary.pageViewsWeek })}
             sparkline={sparklines.pageViews} sparklineColor="#6366f1" />
-          <StatCard icon={<Users className="w-4 h-4" />} label="Unique visitors today"
-            value={String(summary.uniqueVisitorsToday)} sub={`${summary.bounceRate}% bounce rate`}
+          <StatCard icon={<Users className="w-4 h-4" />} label={t('uniqueVisitors')}
+            value={String(summary.uniqueVisitorsToday)} sub={t('bounceRateSub', { n: summary.bounceRate })}
             sparkline={sparklines.pageViews.map((v) => Math.round(v * 0.6))} sparklineColor="#22c55e" />
-          <StatCard icon={<Zap className="w-4 h-4" />} label="Active now"
-            value={String(activeNow)} sub="Unique IPs last 10 min"
-            alert={activeNow > 20} />
-          <StatCard icon={<TrendingUp className="w-4 h-4" />} label="Downloads"
+          <StatCard icon={<Zap className="w-4 h-4" />} label={t('activeNow')}
+            value={String(activeNow)} sub={t('activeNowSub')} alert={activeNow > 20} />
+          <StatCard icon={<TrendingUp className="w-4 h-4" />} label={t('downloads')}
             value={String(summary.totalDownloads)} sub={formatBytes(BigInt(summary.totalBytesTransferred))}
             sparkline={sparklines.downloads} sparklineColor="#f59e0b" />
         </div>
       </section>
 
-      {/* ── SECTION 2: System & Performance ───────────────────────────────── */}
+      {/* ── SECTION 2: System & Performance */}
       <section>
-        <SectionTitle icon={<Monitor className="w-4 h-4" />} title="System & Performance" />
+        <SectionTitle icon={<Monitor className="w-4 h-4" />} title={t('systemPerf')} />
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 mb-6">
-          <StatCard icon={<Clock className="w-4 h-4" />} label="Avg response time"
+          <StatCard icon={<Clock className="w-4 h-4" />} label={t('avgResponse')}
             value={summary.avgLatencyMs ? `${summary.avgLatencyMs}ms` : '—'}
-            sub="Last hour" alert={summary.avgLatencyMs > 2000} />
-          <StatCard icon={<HardDrive className="w-4 h-4" />} label="Bandwidth transferred"
-            value={formatBytes(BigInt(summary.totalBytesTransferred))} sub="Completed downloads" />
-          <StatCard icon={<AlertTriangle className="w-4 h-4" />} label="HTTP errors (7d)"
+            sub={t('lastHour')} alert={summary.avgLatencyMs > 2000} />
+          <StatCard icon={<HardDrive className="w-4 h-4" />} label={t('bandwidth')}
+            value={formatBytes(BigInt(summary.totalBytesTransferred))} sub={t('bandwidthSub')} />
+          <StatCard icon={<AlertTriangle className="w-4 h-4" />} label={t('httpErrors')}
             value={String(errorCounts.reduce((s, e) => s + e._count.id, 0))}
             sub={errorCounts.map((e) => `${e.status}×${e._count.id}`).join(' ')}
             alert={errorCounts.reduce((s, e) => s + e._count.id, 0) > 50} />
-          <StatCard icon={<Eye className="w-4 h-4" />} label="Total page views"
-            value={String(summary.totalPageViews)} sub="All time" />
+          <StatCard icon={<Eye className="w-4 h-4" />} label={t('totalPageViews')}
+            value={String(summary.totalPageViews)} sub={t('allTime')} />
         </div>
 
-        {/* Recent request log */}
         <div className="bg-card border border-border rounded-xl overflow-hidden">
           <div className="px-4 py-3 border-b border-border flex items-center justify-between">
             <span className="font-medium text-sm flex items-center gap-2">
-              Request Log (last 50)
+              {t('requestLog')}
               <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
             </span>
           </div>
@@ -215,12 +201,12 @@ export default function TrafficPage() {
             <table className="w-full text-xs">
               <thead>
                 <tr className="border-b border-border text-muted-foreground uppercase tracking-wide">
-                  <th className="text-left px-3 py-2">Path</th>
-                  <th className="text-left px-3 py-2">IP</th>
-                  <th className="text-left px-3 py-2 hidden md:table-cell">Status</th>
-                  <th className="text-left px-3 py-2 hidden sm:table-cell">Device</th>
-                  <th className="text-left px-3 py-2 hidden lg:table-cell">Latency</th>
-                  <th className="text-left px-3 py-2">When</th>
+                  <th className="text-left px-3 py-2">{t('path')}</th>
+                  <th className="text-left px-3 py-2">{t('ip')}</th>
+                  <th className="text-left px-3 py-2 hidden md:table-cell">{t('status')}</th>
+                  <th className="text-left px-3 py-2 hidden sm:table-cell">{t('device')}</th>
+                  <th className="text-left px-3 py-2 hidden lg:table-cell">{t('latency')}</th>
+                  <th className="text-left px-3 py-2">{t('when')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -239,7 +225,7 @@ export default function TrafficPage() {
                   </tr>
                 ))}
                 {recentRequests.length === 0 && (
-                  <tr><td colSpan={6} className="px-3 py-6 text-center text-muted-foreground">No requests logged yet</td></tr>
+                  <tr><td colSpan={6} className="px-3 py-6 text-center text-muted-foreground">{t('noRequests')}</td></tr>
                 )}
               </tbody>
             </table>
@@ -247,27 +233,22 @@ export default function TrafficPage() {
         </div>
       </section>
 
-      {/* ── SECTION 2.5: Download Charts ──────────────────────────────────── */}
+      {/* ── SECTION 2.5: Download Charts */}
       <section>
-        <SectionTitle icon={<HardDrive className="w-4 h-4" />} title="Download Analytics" sub="Which games and from which devices" />
+        <SectionTitle icon={<HardDrive className="w-4 h-4" />} title={t('downloadAnalytics')} sub={t('downloadAnalyticsSub')} />
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-
-          {/* Top downloaded games */}
           <div className="bg-card border border-border rounded-xl p-4">
-            <h3 className="text-sm font-medium mb-4">Top Downloaded Games</h3>
+            <h3 className="text-sm font-medium mb-4">{t('topDownloads')}</h3>
             {topDownloads.length === 0 ? (
-              <p className="text-xs text-muted-foreground">No downloads recorded yet</p>
+              <p className="text-xs text-muted-foreground">{t('noDownloads')}</p>
             ) : (
               <ResponsiveContainer width="100%" height={Math.max(200, topDownloads.length * 36)}>
                 <BarChart
                   data={topDownloads.map((d) => ({
                     name: d.title.length > 22 ? d.title.slice(0, 20) + '…' : d.title,
-                    downloads: d.count,
-                    bytes: d.bytes,
+                    downloads: d.count, bytes: d.bytes,
                   }))}
-                  layout="vertical"
-                  barSize={18}
-                  margin={{ left: 8, right: 48 }}
+                  layout="vertical" barSize={18} margin={{ left: 8, right: 48 }}
                 >
                   <XAxis type="number" hide />
                   <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={140} />
@@ -275,8 +256,7 @@ export default function TrafficPage() {
                     contentStyle={{ background: '#1c1c27', border: '1px solid #333', borderRadius: 6, fontSize: 12 }}
                     // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     formatter={(val: any, _name: any, props: any) => [
-                      `${val} downloads · ${formatBytes(BigInt(props.payload?.bytes ?? '0'))}`,
-                      'Downloads',
+                      `${val} downloads · ${formatBytes(BigInt(props.payload?.bytes ?? '0'))}`, 'Downloads',
                     ]}
                   />
                   <Bar dataKey="downloads" fill="#6366f1" radius={[0, 6, 6, 0]}>
@@ -287,12 +267,11 @@ export default function TrafficPage() {
             )}
           </div>
 
-          {/* Downloads by device per game (stacked bar) */}
           <div className="bg-card border border-border rounded-xl p-4">
-            <h3 className="text-sm font-medium mb-1">Downloads by Device</h3>
-            <p className="text-xs text-muted-foreground mb-4">Top 8 games · stacked by device type</p>
+            <h3 className="text-sm font-medium mb-1">{t('downloadsByDevice')}</h3>
+            <p className="text-xs text-muted-foreground mb-4">{t('downloadsByDeviceSub')}</p>
             {downloadsByDevice.length === 0 ? (
-              <p className="text-xs text-muted-foreground">No downloads recorded yet</p>
+              <p className="text-xs text-muted-foreground">{t('noDownloads')}</p>
             ) : (
               <ResponsiveContainer width="100%" height={Math.max(200, downloadsByDevice.length * 36)}>
                 <BarChart data={downloadsByDevice} layout="vertical" barSize={18} margin={{ left: 8, right: 16 }}>
@@ -312,16 +291,14 @@ export default function TrafficPage() {
         </div>
       </section>
 
-      {/* ── SECTION 3: User Behaviour ──────────────────────────────────────── */}
+      {/* ── SECTION 3: User Behaviour */}
       <section>
-        <SectionTitle icon={<Search className="w-4 h-4" />} title="User Behaviour & Filters" />
+        <SectionTitle icon={<Search className="w-4 h-4" />} title={t('userBehaviour')} />
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-
-          {/* Top platforms (bar chart) */}
           <div className="bg-card border border-border rounded-xl p-4">
-            <h3 className="text-sm font-medium mb-3">Top Consoles Browsed</h3>
+            <h3 className="text-sm font-medium mb-3">{t('topConsoles')}</h3>
             {platformData.length === 0 ? (
-              <p className="text-xs text-muted-foreground">No data yet</p>
+              <p className="text-xs text-muted-foreground">{t('noData')}</p>
             ) : (
               <ResponsiveContainer width="100%" height={180}>
                 <BarChart data={platformData} layout="vertical" barSize={14}>
@@ -334,15 +311,16 @@ export default function TrafficPage() {
             )}
           </div>
 
-          {/* Devices (pie) */}
           <div className="bg-card border border-border rounded-xl p-4">
-            <h3 className="text-sm font-medium mb-3">Devices</h3>
+            <h3 className="text-sm font-medium mb-3">{t('devices')}</h3>
             {deviceData.length === 0 ? (
-              <p className="text-xs text-muted-foreground">No data yet</p>
+              <p className="text-xs text-muted-foreground">{t('noData')}</p>
             ) : (
               <ResponsiveContainer width="100%" height={180}>
                 <PieChart>
-                  <Pie data={deviceData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={65} label={({ name, percent }) => `${name} ${Math.round((percent ?? 0) * 100)}%`} labelLine={false} fontSize={11}>
+                  <Pie data={deviceData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={65}
+                    label={({ name, percent }) => `${name} ${Math.round((percent ?? 0) * 100)}%`}
+                    labelLine={false} fontSize={11}>
                     {deviceData.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
                   </Pie>
                   <Tooltip contentStyle={{ background: '#1c1c27', border: '1px solid #333', borderRadius: 6, fontSize: 12 }} />
@@ -351,11 +329,10 @@ export default function TrafficPage() {
             )}
           </div>
 
-          {/* Browsers (bar chart) */}
           <div className="bg-card border border-border rounded-xl p-4">
-            <h3 className="text-sm font-medium mb-3">Browsers</h3>
+            <h3 className="text-sm font-medium mb-3">{t('browsers')}</h3>
             {browserData.length === 0 ? (
-              <p className="text-xs text-muted-foreground">No data yet</p>
+              <p className="text-xs text-muted-foreground">{t('noData')}</p>
             ) : (
               <ResponsiveContainer width="100%" height={180}>
                 <BarChart data={browserData} layout="vertical" barSize={14}>
@@ -369,17 +346,16 @@ export default function TrafficPage() {
           </div>
         </div>
 
-        {/* Recent searches */}
         <div className="bg-card border border-border rounded-xl overflow-hidden">
           <div className="px-4 py-3 border-b border-border">
             <h3 className="font-medium text-sm flex items-center gap-2">
-              Live Search Queries
+              {t('liveSearches')}
               <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
             </h3>
           </div>
           <div className="divide-y divide-border/40 max-h-64 overflow-y-auto">
             {recentSearches.length === 0 ? (
-              <p className="px-4 py-6 text-sm text-muted-foreground text-center">No searches yet</p>
+              <p className="px-4 py-6 text-sm text-muted-foreground text-center">{t('noSearches')}</p>
             ) : recentSearches.map((s) => (
               <div key={s.id} className="flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-accent/20">
                 <Search className="w-3 h-3 text-muted-foreground flex-shrink-0" />
@@ -392,23 +368,24 @@ export default function TrafficPage() {
         </div>
       </section>
 
-      {/* ── SECTION 4: Security ────────────────────────────────────────────── */}
+      {/* ── SECTION 4: Security */}
       <section>
-        <SectionTitle icon={<Shield className="w-4 h-4" />} title="Security Control" />
+        <SectionTitle icon={<Shield className="w-4 h-4" />} title={t('security')} />
 
-        {/* Rate limit alerts */}
         {rateLimitAlerts.length > 0 && (
           <div className="bg-red-950/30 border border-red-700/40 rounded-xl p-4 mb-6">
             <div className="flex items-center gap-2 text-red-400 font-medium mb-3">
               <AlertTriangle className="w-4 h-4" />
-              Rate Limit Alerts — {rateLimitAlerts.length} suspicious IP{rateLimitAlerts.length > 1 ? 's' : ''}
+              {rateLimitAlerts.length === 1
+                ? t('rateLimitAlert', { n: rateLimitAlerts.length })
+                : t('rateLimitAlertPlural', { n: rateLimitAlerts.length })}
             </div>
             <div className="space-y-2">
               {rateLimitAlerts.map((a) => (
                 <div key={a.ip} className="flex items-center gap-3 text-sm bg-red-950/40 rounded px-3 py-2">
                   <span className="font-mono text-xs text-red-300 flex-1">{a.ip}</span>
                   <span className="text-red-400 font-medium">{a.count} downloads / {a.window}</span>
-                  <span className="text-xs text-red-500">⚠ Possible mass download</span>
+                  <span className="text-xs text-red-500">{t('massDownload')}</span>
                 </div>
               ))}
             </div>
@@ -418,26 +395,25 @@ export default function TrafficPage() {
         {rateLimitAlerts.length === 0 && (
           <div className="bg-green-950/20 border border-green-700/30 rounded-xl px-4 py-3 mb-6 flex items-center gap-2 text-sm text-green-400">
             <Shield className="w-4 h-4" />
-            No suspicious activity detected in the last hour
+            {t('noSuspicious')}
           </div>
         )}
 
-        {/* IP registry */}
         <div className="bg-card border border-border rounded-xl overflow-hidden">
           <div className="px-4 py-3 border-b border-border">
-            <h3 className="font-medium text-sm">IP Registry (last 7 days, unique)</h3>
+            <h3 className="font-medium text-sm">{t('ipRegistry')}</h3>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
               <thead>
                 <tr className="border-b border-border text-muted-foreground uppercase tracking-wide">
-                  <th className="text-left px-3 py-2">IP</th>
-                  <th className="text-left px-3 py-2 hidden sm:table-cell">Location</th>
-                  <th className="text-left px-3 py-2 hidden md:table-cell">ISP</th>
-                  <th className="text-left px-3 py-2">OS</th>
-                  <th className="text-left px-3 py-2 hidden sm:table-cell">Device</th>
-                  <th className="text-left px-3 py-2 hidden lg:table-cell">Browser</th>
-                  <th className="text-left px-3 py-2">Last seen</th>
+                  <th className="text-left px-3 py-2">{t('ip')}</th>
+                  <th className="text-left px-3 py-2 hidden sm:table-cell">{t('location')}</th>
+                  <th className="text-left px-3 py-2 hidden md:table-cell">{t('isp')}</th>
+                  <th className="text-left px-3 py-2">{t('os')}</th>
+                  <th className="text-left px-3 py-2 hidden sm:table-cell">{t('device')}</th>
+                  <th className="text-left px-3 py-2 hidden lg:table-cell">{t('browser')}</th>
+                  <th className="text-left px-3 py-2">{t('lastSeen')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -453,15 +429,13 @@ export default function TrafficPage() {
                       <span className="font-medium">{ip.os}</span>
                       {ip.osVersion && <span className="text-muted-foreground ml-1 text-xs">{ip.osVersion}</span>}
                     </td>
-                    <td className="px-3 py-2.5 hidden sm:table-cell text-muted-foreground">
-                      {ip.deviceModel || ip.device || '—'}
-                    </td>
+                    <td className="px-3 py-2.5 hidden sm:table-cell text-muted-foreground">{ip.deviceModel || ip.device || '—'}</td>
                     <td className="px-3 py-2.5 hidden lg:table-cell">{ip.browser ?? '—'}</td>
                     <td className="px-3 py-2.5 text-muted-foreground whitespace-nowrap">{rel(ip.ts)}</td>
                   </tr>
                 ))}
                 {recentIps.length === 0 && (
-                  <tr><td colSpan={7} className="px-3 py-6 text-center text-muted-foreground">No visitors yet</td></tr>
+                  <tr><td colSpan={7} className="px-3 py-6 text-center text-muted-foreground">{t('noVisitors')}</td></tr>
                 )}
               </tbody>
             </table>

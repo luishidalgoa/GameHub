@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
+import { useTranslations } from 'next-intl'
 import { Play, RefreshCw, ChevronDown } from 'lucide-react'
 import useSWR from 'swr'
 import type { Platform } from '@/types/platform'
@@ -8,12 +9,12 @@ import type { Platform } from '@/types/platform'
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
 export function ScanPanel() {
+  const t = useTranslations('ScanPanel')
   const [scanning, setScanning]         = useState(false)
   const [logs, setLogs]                 = useState<string[]>([])
   const [selectedSlug, setSelectedSlug] = useState<string>('all')
   const logRef = useRef<HTMLDivElement>(null)
 
-  // Load platforms from DB (so newly added platforms appear in the dropdown)
   const { data: platforms } = useSWR<Platform[]>('/api/platforms', fetcher)
 
   useEffect(() => {
@@ -54,11 +55,27 @@ export function ScanPanel() {
             break
           case 'scan_complete':
             line = `\n✅ Scan complete — ${event.total} games total, ${event.added} added, ${event.updated} updated, ${event.stale} stale`
-            setScanning(false)
-            es.close()
+            if ((event.added ?? 0) > 0) line += '\n🤖 Fetching metadata for new games…'
             break
           case 'scan_error':
             line = `❌ Error: ${event.message}`
+            setScanning(false)
+            es.close()
+            break
+          case 'auto_meta_start':
+            line = `\n🔍 Auto-metadata: ${event.total} game${event.total === 1 ? '' : 's'} to process`
+            break
+          case 'auto_meta_progress': {
+            const icon = event.metaStatus === 'applied' ? '✚' : event.metaStatus === 'failed' ? '✗' : '·'
+            const trailer = event.trailerFound ? ' 🎬' : ''
+            line = `  ${icon} [${event.processed}/${event.total}] ${event.gameTitle}${trailer}`
+            break
+          }
+          case 'auto_meta_done':
+            line = `✅ Metadata done — ${event.added} applied, ${event.skipped} skipped, ${event.failed} failed`
+            break
+          case 'pipeline_done':
+            line = event.message ? `ℹ ${event.message}` : ''
             setScanning(false)
             es.close()
             break
@@ -81,9 +98,9 @@ export function ScanPanel() {
     <div className="bg-card border border-border rounded-xl p-6">
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h3 className="font-semibold">ROM Scanner</h3>
+          <h3 className="font-semibold">{t('title')}</h3>
           <p className="text-sm text-muted-foreground mt-0.5">
-            Scan your configured ROM folders to import games
+            {t('description')}
           </p>
         </div>
 
@@ -110,7 +127,7 @@ export function ScanPanel() {
             className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed rounded-md text-sm font-medium transition-colors"
           >
             {scanning ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
-            {scanning ? 'Scanning…' : 'Run Scan'}
+            {scanning ? t('scanning') : t('runScan')}
           </button>
         </div>
       </div>

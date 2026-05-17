@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { Save, Loader2, Heart, Coffee, Bitcoin } from 'lucide-react'
 
 interface Props {
@@ -14,6 +15,7 @@ interface Props {
 }
 
 export function DonationSettingsForm({ initial }: Props) {
+  const t = useTranslations('DonationSettings')
   const [kofi,    setKofi]    = useState(initial.donate_kofi)
   const [paypal,  setPaypal]  = useState(initial.donate_paypal)
   const [bmac,    setBmac]    = useState(initial.donate_bmac)
@@ -47,7 +49,7 @@ export function DonationSettingsForm({ initial }: Props) {
       <div className="flex items-center justify-between mb-1">
         <div className="flex items-center gap-2">
           <Heart className="w-4 h-4 text-red-400" />
-          <h3 className="font-semibold">Donations</h3>
+          <h3 className="font-semibold">{t('title')}</h3>
         </div>
         <button
           onClick={save}
@@ -55,25 +57,22 @@ export function DonationSettingsForm({ initial }: Props) {
           className="flex items-center gap-2 px-3 py-1.5 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:bg-primary/90 disabled:opacity-50 transition-colors"
         >
           {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
-          {saved ? 'Saved!' : saving ? 'Saving…' : 'Save'}
+          {saved ? t('saved') : saving ? t('saving') : t('save')}
         </button>
       </div>
-      <p className="text-sm text-muted-foreground mb-5">
-        Configure donation links shown on the public <code className="text-xs bg-secondary px-1 py-0.5 rounded">/donate</code> page.
-        Leave empty to hide a method.
-      </p>
+      <p className="text-sm text-muted-foreground mb-5">{t('description')}</p>
 
       <div className="space-y-4">
         {/* Custom message */}
         <div>
           <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1.5">
-            Personal message
+            {t('personalMessage')}
           </label>
           <input
             type="text"
             value={message}
             onChange={(e) => setMessage(e.target.value)}
-            placeholder="e.g. Thanks for supporting the server!"
+            placeholder={t('messagePlaceholder')}
             className="w-full bg-secondary border border-border rounded-md px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
           />
         </div>
@@ -82,7 +81,7 @@ export function DonationSettingsForm({ initial }: Props) {
           {/* Ko-fi */}
           <div>
             <label className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1.5">
-              <Coffee className="w-3.5 h-3.5" /> Ko-fi URL
+              <Coffee className="w-3.5 h-3.5" /> {t('kofiLabel')}
             </label>
             <input
               type="url"
@@ -96,7 +95,7 @@ export function DonationSettingsForm({ initial }: Props) {
           {/* PayPal */}
           <div>
             <label className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1.5">
-              <span className="text-blue-400 font-bold text-xs">PP</span> PayPal.me URL
+              <span className="text-blue-400 font-bold text-xs">PP</span> {t('paypalLabel')}
             </label>
             <input
               type="url"
@@ -110,7 +109,7 @@ export function DonationSettingsForm({ initial }: Props) {
           {/* Buy Me a Coffee */}
           <div>
             <label className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1.5">
-              <Coffee className="w-3.5 h-3.5 text-yellow-400" /> Buy Me a Coffee URL
+              <Coffee className="w-3.5 h-3.5 text-yellow-400" /> {t('bmacLabel')}
             </label>
             <input
               type="url"
@@ -124,22 +123,20 @@ export function DonationSettingsForm({ initial }: Props) {
           {/* Crypto */}
           <div>
             <label className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1.5">
-              <Bitcoin className="w-3.5 h-3.5 text-orange-400" /> Crypto address
+              <Bitcoin className="w-3.5 h-3.5 text-orange-400" /> {t('cryptoLabel')}
             </label>
             <input
               type="text"
               value={crypto}
               onChange={(e) => setCrypto(e.target.value)}
-              placeholder="BTC / ETH / any wallet address"
+              placeholder={t('cryptoPlaceholder')}
               className="w-full bg-secondary border border-border rounded-md px-3 py-2 text-sm font-mono placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
             />
           </div>
         </div>
 
         {!anyConfigured && (
-          <p className="text-xs text-amber-500/80">
-            No donation methods configured — the /donate page will show a placeholder.
-          </p>
+          <p className="text-xs text-amber-500/80">{t('notConfigured')}</p>
         )}
       </div>
     </div>

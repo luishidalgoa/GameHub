@@ -1,4 +1,5 @@
 import { notFound } from 'next/navigation'
+import { getTranslations } from 'next-intl/server'
 import { db } from '@/lib/db'
 import { isAdminSession } from '@/lib/auth'
 import { GameGrid } from '@/components/platform/GameGrid'
@@ -15,7 +16,8 @@ export async function generateMetadata({ params }: Props) {
 }
 
 export default async function PlatformPage({ params }: Props) {
-  const [isAdmin, platform] = await Promise.all([
+  const [t, isAdmin, platform] = await Promise.all([
+    getTranslations('Platform'),
     isAdminSession(),
     db.platform.findUnique({
       where: { slug: params.slug },
@@ -52,7 +54,7 @@ export default async function PlatformPage({ params }: Props) {
     <div>
       <div className="mb-6">
         <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">{platform.name}</h1>
-        <p className="text-muted-foreground mt-1">{gameCount} games</p>
+        <p className="text-muted-foreground mt-1">{t('games', { count: gameCount })}</p>
       </div>
 
       <GameGrid

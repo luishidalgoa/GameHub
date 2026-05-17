@@ -1,6 +1,7 @@
 import { db } from '@/lib/db'
 import { downloadAndCacheCover } from '@/lib/covers'
 import { getRawgProvider, cleanTitle, RAWG_PLATFORM_IDS } from './rawg'
+import { searchYouTubeTrailer } from '@/lib/youtube'
 import type { MetadataResult } from './provider'
 
 // ── Confidence thresholds ────────────────────────────────────────────────────
@@ -18,17 +19,18 @@ export const REVIEW_THRESHOLD = 40
 export type BatchEventType = 'start' | 'applied' | 'skipped' | 'failed' | 'done'
 
 export interface BatchEvent {
-  type:         BatchEventType
-  gameId?:      number
-  title?:       string           // our DB title (cleaned)
-  matchedTitle?: string          // RAWG title that was accepted/considered
-  confidence?:  number           // 0-100
-  reason?:      string           // why it was skipped/failed
-  processed?:   number
-  total?:       number
-  applied?:     number
-  skipped?:     number
-  failed?:      number
+  type:          BatchEventType
+  gameId?:       number
+  title?:        string
+  matchedTitle?: string
+  confidence?:   number
+  reason?:       string
+  processed?:    number
+  total?:        number
+  applied?:      number
+  skipped?:      number
+  failed?:       number
+  trailerFound?: boolean
 }
 
 // ── Text normalization ────────────────────────────────────────────────────────
@@ -88,16 +90,18 @@ const delay = (ms: number) => new Promise(r => setTimeout(r, ms))
 // ── Main batch processor ──────────────────────────────────────────────────────
 
 export async function runMetadataBatch(opts: {
-  emit:        (event: BatchEvent) => void
-  signal:      AbortSignal
-  withCovers?: boolean           // also download cover art (default: true)
-  rateMs?:     number            // ms between RAWG requests (default: 350)
+  emit:          (event: BatchEvent) => void
+  signal:        AbortSignal
+  withCovers?:   boolean
+  withTrailers?: boolean
+  rateMs?:       number
+  apiKey?:       string
 }) {
-  const { emit, signal, withCovers = true, rateMs = 350 } = opts
+  const { emit, signal, withCovers = true, withTrailers = false, rateMs = 350, apiKey } = opts
 
-  const provider = getRawgProvider()
+  const provider = getRawgProvider(apiKey)
   if (!provider) {
-    emit({ type: 'failed', reason: 'RAWG_API_KEY not configured' })
+    emit({ type: 'failed', reason: 'RAWG API key not configured' })
     emit({ type: 'done', total: 0, processed: 0, applied: 0, skipped: 0, failed: 1 })
     return
   }
@@ -171,7 +175,19 @@ export async function runMetadataBatch(opts: {
         } catch { /* cover download failure is non-fatal */ }
       }
 
-      // ── 5. Persist to DB ──────────────────────────────────────────────────
+      // ── 5. Optionally search YouTube trailer ──────────────────────────────
+      let trailerUrl: string | undefined
+      let trailerFound = false
+      if (withTrailers) {
+        try {
+          const url = await searchYouTubeTrailer(meta.title)
+          if (url) { trailerUrl = url; trailerFound = true }
+        } catch { /* non-fatal */ }
+        await delay(rateMs)
+        if (signal.aborted) break
+      }
+
+      // ── 6. Persist to DB ──────────────────────────────────────────────────
       await db.game.update({
         where: { id: game.id },
         data: {
@@ -181,16 +197,17 @@ export async function runMetadataBatch(opts: {
           genre:             meta.genre,
           developer:         meta.developer,
           publisher:         meta.publisher,
-          rawgId:            meta.id,
-          rawgSlug:          meta.slug,
           coverUrl:          meta.coverUrl,
-          ...(coverPath && { coverPath }),
+          rawgId:   meta.id,
+          rawgSlug: meta.slug,
+          ...(coverPath  && { coverPath }),
+          ...(trailerUrl && { trailerUrl }),
           metadataFetchedAt: new Date(),
         },
       })
 
       applied++
-      emit({ type: 'applied', gameId: game.id, title: game.title, matchedTitle: meta.title, confidence: best.confidence, processed, total, applied, skipped, failed })
+      emit({ type: 'applied', gameId: game.id, title: game.title, matchedTitle: meta.title, confidence: best.confidence, trailerFound, processed, total, applied, skipped, failed })
 
     } catch (err) {
       failed++

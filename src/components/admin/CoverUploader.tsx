@@ -2,18 +2,20 @@
 
 import { useState, useRef, useEffect } from 'react'
 import Image from 'next/image'
-import { Upload, Link as LinkIcon, Loader2, Crop, Search, ChevronDown, ChevronUp } from 'lucide-react'
+import { useTranslations } from 'next-intl'
+import { Upload, Link as LinkIcon, Loader2, Crop, Search, ChevronDown, ChevronUp, ArrowLeft } from 'lucide-react'
 import { CoverAdjustModal } from './CoverAdjustModal'
 
 interface Props {
   gameId: number
+  gameTitle?: string
   currentCover: string | null
   onUploaded: (path: string) => void
   thumbnailWidth?: number
   thumbnailHeight?: number
 }
 
-interface SearchResult {
+interface RawgResult {
   id: number
   slug?: string
   title: string
@@ -21,18 +23,35 @@ interface SearchResult {
   releaseYear?: number
 }
 
-export function CoverUploader({ gameId, currentCover, onUploaded, thumbnailWidth = 200, thumbnailHeight = 300 }: Props) {
-  const [urlInput, setUrlInput]       = useState('')
-  const [loading, setLoading]         = useState(false)
-  const [preview, setPreview]         = useState(currentCover)
-  const [adjusting, setAdjusting]     = useState(false)
+interface SgdbGame   { id: number; name: string }
+interface SgdbCover  { url: string; thumb: string; style: string }
 
-  // Cover search state
-  const [searchOpen, setSearchOpen]   = useState(false)
-  const [searchQuery, setSearchQuery] = useState('')
-  const [searching, setSearching]     = useState(false)
-  const [searchResults, setSearchResults] = useState<SearchResult[]>([])
-  const [applying, setApplying]       = useState<number | null>(null)
+export function CoverUploader({ gameId, gameTitle = '', currentCover, onUploaded, thumbnailWidth = 200, thumbnailHeight = 300 }: Props) {
+  const t = useTranslations('CoverUploader')
+  const [urlInput, setUrlInput]   = useState('')
+  const [loading, setLoading]     = useState(false)
+  const [preview, setPreview]     = useState(currentCover)
+  const [adjusting, setAdjusting] = useState(false)
+
+  // Panel state
+  const [searchOpen, setSearchOpen] = useState(false)
+  const [searchTab, setSearchTab]   = useState<'rawg' | 'sgdb'>('sgdb')
+
+  // RAWG tab
+  const [rawgQuery, setRawgQuery]     = useState('')
+  const [rawgSearching, setRawgSearching] = useState(false)
+  const [rawgResults, setRawgResults] = useState<RawgResult[]>([])
+  const [applyingRawg, setApplyingRawg] = useState<number | null>(null)
+
+  // SteamGridDB tab — two-step: game search → cover picker
+  const [sgdbQuery, setSgdbQuery]       = useState(gameTitle)
+  const [sgdbSearching, setSgdbSearching] = useState(false)
+  const [sgdbGames, setSgdbGames]       = useState<SgdbGame[]>([])
+  const [sgdbError, setSgdbError]       = useState('')
+  const [sgdbSelected, setSgdbSelected] = useState<SgdbGame | null>(null)
+  const [sgdbCovers, setSgdbCovers]     = useState<SgdbCover[]>([])
+  const [sgdbLoadingCovers, setSgdbLoadingCovers] = useState(false)
+  const [applyingSgdb, setApplyingSgdb] = useState<string | null>(null)
 
   const fileRef = useRef<HTMLInputElement>(null)
 
@@ -43,15 +62,10 @@ export function CoverUploader({ gameId, currentCover, onUploaded, thumbnailWidth
     const form = new FormData()
     form.append('gameId', String(gameId))
     form.append('file', file)
-
     const res  = await fetch('/api/covers', { method: 'POST', body: form })
     const data = await res.json()
     setLoading(false)
-
-    if (res.ok) {
-      setPreview(data.coverPath + `?t=${Date.now()}`)
-      onUploaded(data.coverPath)
-    }
+    if (res.ok) { setPreview(data.coverPath + `?t=${Date.now()}`); onUploaded(data.coverPath) }
   }
 
   const uploadFromUrl = async (url: string) => {
@@ -63,7 +77,6 @@ export function CoverUploader({ gameId, currentCover, onUploaded, thumbnailWidth
     })
     const data = await res.json()
     setLoading(false)
-
     if (res.ok) {
       setPreview(data.coverPath + `?t=${Date.now()}`)
       onUploaded(data.coverPath)
@@ -89,43 +102,69 @@ export function CoverUploader({ gameId, currentCover, onUploaded, thumbnailWidth
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // ── Drop ───────────────────────────────────────────────────────────────────
-
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault()
     const file = e.dataTransfer.files[0]
     if (file && file.type.startsWith('image/')) uploadFile(file)
   }
 
-  // ── Adjust / crop ──────────────────────────────────────────────────────────
-
-  const getOriginalCoverUrl = (path: string) => {
-    return path.replace('.webp', '.original.webp') + `?t=${Date.now()}`
-  }
+  const getOriginalCoverUrl = (path: string) =>
+    path.replace('.webp', '.original.webp') + `?t=${Date.now()}`
 
   const handleAdjustedSave = async (blob: Blob) => {
     setAdjusting(false)
-    const file = new File([blob], `cover_${gameId}_adjusted.webp`, { type: 'image/webp' })
-    await uploadFile(file)
+    await uploadFile(new File([blob], `cover_${gameId}_adjusted.webp`, { type: 'image/webp' }))
   }
 
-  // ── Cover search ───────────────────────────────────────────────────────────
+  // ── RAWG cover search ──────────────────────────────────────────────────────
 
-  const doSearch = async (q: string) => {
+  const doRawgSearch = async (q: string) => {
     if (!q.trim()) return
-    setSearching(true)
-    setSearchResults([])
+    setRawgSearching(true)
+    setRawgResults([])
     const res  = await fetch(`/api/metadata/${gameId}?q=${encodeURIComponent(q.trim())}`)
     const data = await res.json()
-    setSearching(false)
-    if (res.ok) setSearchResults((data.results ?? []).filter((r: SearchResult) => r.coverUrl))
+    setRawgSearching(false)
+    if (res.ok) setRawgResults((data.results ?? []).filter((r: RawgResult) => r.coverUrl))
   }
 
-  const applyCover = async (result: SearchResult) => {
+  const applyRawgCover = async (result: RawgResult) => {
     if (!result.coverUrl) return
-    setApplying(result.id)
+    setApplyingRawg(result.id)
     await uploadFromUrl(result.coverUrl)
-    setApplying(null)
+    setApplyingRawg(null)
+  }
+
+  // ── SteamGridDB ────────────────────────────────────────────────────────────
+
+  const doSgdbSearch = async (q: string) => {
+    if (!q.trim()) return
+    setSgdbSearching(true)
+    setSgdbGames([])
+    setSgdbError('')
+    setSgdbSelected(null)
+    setSgdbCovers([])
+    const res  = await fetch(`/api/covers/steamgriddb?q=${encodeURIComponent(q.trim())}`)
+    const data = await res.json()
+    setSgdbSearching(false)
+    if (!res.ok) setSgdbError(data.message ?? data.error ?? 'Search failed')
+    else setSgdbGames(data.games ?? [])
+  }
+
+  const loadSgdbCovers = async (game: SgdbGame) => {
+    setSgdbSelected(game)
+    setSgdbLoadingCovers(true)
+    setSgdbCovers([])
+    const res  = await fetch(`/api/covers/steamgriddb?gameId=${game.id}`)
+    const data = await res.json()
+    setSgdbLoadingCovers(false)
+    if (res.ok) setSgdbCovers(data.covers ?? [])
+  }
+
+  const applySgdbCover = async (thumb: string, url: string) => {
+    setApplyingSgdb(url)
+    await uploadFromUrl(url)
+    setApplyingSgdb(null)
   }
 
   // ── Render ─────────────────────────────────────────────────────────────────
@@ -149,14 +188,14 @@ export function CoverUploader({ gameId, currentCover, onUploaded, thumbnailWidth
           <>
             <Image src={preview} alt="Cover" fill className="object-cover" unoptimized />
             <div className="absolute inset-0 bg-black/50 opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center">
-              <p className="text-white text-sm font-medium">Click or drop to replace</p>
+              <p className="text-white text-sm font-medium">{t('clickOrDrop')}</p>
             </div>
           </>
         ) : (
           <div className="absolute inset-0 flex flex-col items-center justify-center text-muted-foreground gap-1">
             <Upload className="w-8 h-8 mb-1" />
-            <p className="text-sm">Drop image or click</p>
-            <p className="text-xs opacity-60">or Ctrl+V to paste</p>
+            <p className="text-sm">{t('dropHint')}</p>
+            <p className="text-xs opacity-60">{t('pasteHint')}</p>
           </div>
         )}
       </div>
@@ -169,7 +208,6 @@ export function CoverUploader({ gameId, currentCover, onUploaded, thumbnailWidth
         onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadFile(f) }}
       />
 
-      {/* Adjust button */}
       {preview && !loading && (
         <button
           type="button"
@@ -177,7 +215,7 @@ export function CoverUploader({ gameId, currentCover, onUploaded, thumbnailWidth
           className="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm bg-secondary border border-border rounded-md hover:bg-accent transition-colors text-muted-foreground hover:text-foreground"
         >
           <Crop className="w-4 h-4" />
-          Adjust / Crop
+          {t('adjustCrop')}
         </button>
       )}
 
@@ -187,7 +225,7 @@ export function CoverUploader({ gameId, currentCover, onUploaded, thumbnailWidth
           <LinkIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
           <input
             type="url"
-            placeholder="Paste image URL…"
+            placeholder={t('urlPlaceholder')}
             value={urlInput}
             onChange={(e) => setUrlInput(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); uploadFromUrl(urlInput.trim()) } }}
@@ -200,11 +238,11 @@ export function CoverUploader({ gameId, currentCover, onUploaded, thumbnailWidth
           disabled={loading || !urlInput.trim()}
           className="px-3 py-1.5 bg-secondary border border-border rounded-md text-sm hover:bg-accent transition-colors disabled:opacity-50"
         >
-          Use
+          {t('use')}
         </button>
       </div>
 
-      {/* Cover search panel */}
+      {/* Search panel */}
       <div className="border border-border rounded-md overflow-hidden">
         <button
           type="button"
@@ -213,81 +251,211 @@ export function CoverUploader({ gameId, currentCover, onUploaded, thumbnailWidth
         >
           <span className="flex items-center gap-2">
             <Search className="w-3.5 h-3.5" />
-            Search covers on RAWG
+            {t('searchCovers')}
           </span>
           {searchOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
         </button>
 
         {searchOpen && (
-          <div className="border-t border-border p-3 space-y-3 bg-secondary/30">
-            {/* Search input */}
-            <form
-              onSubmit={(e) => { e.preventDefault(); doSearch(searchQuery) }}
-              className="flex gap-2"
-            >
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Game title…"
-                className="flex-1 bg-secondary border border-border rounded-md px-3 py-1.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-              />
-              <button
-                type="submit"
-                disabled={searching || !searchQuery.trim()}
-                className="px-3 py-1.5 bg-primary text-primary-foreground rounded-md text-sm hover:bg-primary/90 disabled:opacity-50 transition-colors"
-              >
-                {searching ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Search className="w-3.5 h-3.5" />}
-              </button>
-            </form>
+          <div className="border-t border-border bg-secondary/30">
 
-            {/* Results grid */}
-            {searching && (
-              <div className="flex justify-center py-4">
-                <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
-              </div>
-            )}
+            {/* Tabs */}
+            <div className="flex border-b border-border">
+              {(['sgdb', 'rawg'] as const).map((tab) => (
+                <button
+                  key={tab}
+                  type="button"
+                  onClick={() => setSearchTab(tab)}
+                  className={`flex-1 px-3 py-2 text-xs font-medium transition-colors ${
+                    searchTab === tab
+                      ? 'text-foreground border-b-2 border-primary -mb-px bg-secondary/50'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  {tab === 'sgdb' ? 'SteamGridDB' : 'RAWG'}
+                </button>
+              ))}
+            </div>
 
-            {!searching && searchResults.length === 0 && searchQuery && (
-              <p className="text-xs text-muted-foreground text-center py-3">No covers found</p>
-            )}
+            <div className="p-3 space-y-3">
 
-            {searchResults.length > 0 && (
-              <div className="grid grid-cols-3 gap-2 max-h-64 overflow-y-auto">
-                {searchResults.map((r) => (
-                  <button
-                    key={r.id}
-                    type="button"
-                    onClick={() => applyCover(r)}
-                    disabled={applying === r.id || loading}
-                    className="relative group aspect-[2/3] rounded overflow-hidden bg-secondary border border-border hover:border-primary transition-colors disabled:opacity-60"
-                    title={`${r.title}${r.releaseYear ? ` (${r.releaseYear})` : ''}`}
+              {/* ── SteamGridDB tab ───────────────────────────────────── */}
+              {searchTab === 'sgdb' && (
+                <>
+                  {/* Step 1 or step 2 header */}
+                  {sgdbSelected ? (
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => { setSgdbSelected(null); setSgdbCovers([]) }}
+                        className="p-1 rounded hover:bg-accent transition-colors text-muted-foreground hover:text-foreground"
+                      >
+                        <ArrowLeft className="w-3.5 h-3.5" />
+                      </button>
+                      <span className="text-xs font-medium text-foreground truncate">{sgdbSelected.name}</span>
+                    </div>
+                  ) : (
+                    <form
+                      onSubmit={(e) => { e.preventDefault(); doSgdbSearch(sgdbQuery) }}
+                      className="flex gap-2"
+                    >
+                      <input
+                        type="text"
+                        value={sgdbQuery}
+                        onChange={(e) => setSgdbQuery(e.target.value)}
+                        placeholder={t('gameTitlePlaceholder')}
+                        className="flex-1 bg-secondary border border-border rounded-md px-3 py-1.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                      />
+                      <button
+                        type="submit"
+                        disabled={sgdbSearching || !sgdbQuery.trim()}
+                        className="px-3 py-1.5 bg-primary text-primary-foreground rounded-md text-sm hover:bg-primary/90 disabled:opacity-50 transition-colors"
+                      >
+                        {sgdbSearching ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Search className="w-3.5 h-3.5" />}
+                      </button>
+                    </form>
+                  )}
+
+                  {sgdbError && (
+                    <p className="text-xs text-destructive bg-destructive/10 border border-destructive/20 rounded px-3 py-2">
+                      {sgdbError}
+                    </p>
+                  )}
+
+                  {/* Step 1: game list */}
+                  {!sgdbSelected && !sgdbSearching && sgdbGames.length > 0 && (
+                    <div className="space-y-1 max-h-48 overflow-y-auto">
+                      {sgdbGames.map((g) => (
+                        <button
+                          key={g.id}
+                          type="button"
+                          onClick={() => loadSgdbCovers(g)}
+                          className="w-full text-left px-3 py-2 text-sm rounded-md hover:bg-accent transition-colors text-foreground/80 hover:text-foreground flex items-center justify-between group"
+                        >
+                          <span className="truncate">{g.name}</span>
+                          <span className="text-xs text-muted-foreground group-hover:text-foreground ml-2 flex-shrink-0">{t('coversArrow')}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {sgdbSearching && (
+                    <div className="flex justify-center py-4">
+                      <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+                    </div>
+                  )}
+
+                  {!sgdbSearching && !sgdbError && sgdbGames.length === 0 && sgdbQuery && !sgdbSelected && (
+                    <p className="text-xs text-muted-foreground text-center py-3">{t('noGames')}</p>
+                  )}
+
+                  {/* Step 2: cover grid */}
+                  {sgdbSelected && (
+                    <>
+                      {sgdbLoadingCovers && (
+                        <div className="flex justify-center py-4">
+                          <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+                        </div>
+                      )}
+                      {!sgdbLoadingCovers && sgdbCovers.length === 0 && (
+                        <p className="text-xs text-muted-foreground text-center py-3">{t('noCoversForGame')}</p>
+                      )}
+                      {sgdbCovers.length > 0 && (
+                        <div className="grid grid-cols-3 gap-2 max-h-64 overflow-y-auto">
+                          {sgdbCovers.map((c) => (
+                            <button
+                              key={c.url}
+                              type="button"
+                              onClick={() => applySgdbCover(c.thumb, c.url)}
+                              disabled={applyingSgdb === c.url || loading}
+                              className="relative group aspect-[2/3] rounded overflow-hidden bg-secondary border border-border hover:border-primary transition-colors disabled:opacity-60"
+                            >
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img src={c.thumb} alt="" className="w-full h-full object-cover" />
+                              {applyingSgdb === c.url ? (
+                                <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+                                  <Loader2 className="w-4 h-4 animate-spin text-white" />
+                                </div>
+                              ) : (
+                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                  <span className="text-white text-xs font-medium">{t('use')}</span>
+                                </div>
+                              )}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </>
+                  )}
+                </>
+              )}
+
+              {/* ── RAWG tab ──────────────────────────────────────────── */}
+              {searchTab === 'rawg' && (
+                <>
+                  <form
+                    onSubmit={(e) => { e.preventDefault(); doRawgSearch(rawgQuery) }}
+                    className="flex gap-2"
                   >
-                    <Image
-                      src={r.coverUrl!}
-                      alt={r.title}
-                      fill
-                      className="object-cover"
-                      unoptimized
+                    <input
+                      type="text"
+                      value={rawgQuery}
+                      onChange={(e) => setRawgQuery(e.target.value)}
+                      placeholder="Game title…"
+                      className="flex-1 bg-secondary border border-border rounded-md px-3 py-1.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
                     />
-                    {applying === r.id ? (
-                      <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
-                        <Loader2 className="w-4 h-4 animate-spin text-white" />
-                      </div>
-                    ) : (
-                      <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-1">
-                        <p className="text-white text-[10px] leading-tight line-clamp-2">{r.title}</p>
-                      </div>
-                    )}
-                  </button>
-                ))}
-              </div>
-            )}
+                    <button
+                      type="submit"
+                      disabled={rawgSearching || !rawgQuery.trim()}
+                      className="px-3 py-1.5 bg-primary text-primary-foreground rounded-md text-sm hover:bg-primary/90 disabled:opacity-50 transition-colors"
+                    >
+                      {rawgSearching ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Search className="w-3.5 h-3.5" />}
+                    </button>
+                  </form>
+
+                  {rawgSearching && (
+                    <div className="flex justify-center py-4">
+                      <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+                    </div>
+                  )}
+
+                  {!rawgSearching && rawgResults.length === 0 && rawgQuery && (
+                    <p className="text-xs text-muted-foreground text-center py-3">{t('noCovers')}</p>
+                  )}
+
+                  {rawgResults.length > 0 && (
+                    <div className="grid grid-cols-3 gap-2 max-h-64 overflow-y-auto">
+                      {rawgResults.map((r) => (
+                        <button
+                          key={r.id}
+                          type="button"
+                          onClick={() => applyRawgCover(r)}
+                          disabled={applyingRawg === r.id || loading}
+                          className="relative group aspect-[2/3] rounded overflow-hidden bg-secondary border border-border hover:border-primary transition-colors disabled:opacity-60"
+                          title={r.title}
+                        >
+                          <Image src={r.coverUrl!} alt={r.title} fill className="object-cover" unoptimized />
+                          {applyingRawg === r.id ? (
+                            <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+                              <Loader2 className="w-4 h-4 animate-spin text-white" />
+                            </div>
+                          ) : (
+                            <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-1">
+                              <p className="text-white text-[10px] leading-tight line-clamp-2">{r.title}</p>
+                            </div>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
+
+            </div>
           </div>
         )}
       </div>
 
-      {/* Adjust modal */}
       {adjusting && preview && (
         <CoverAdjustModal
           src={getOriginalCoverUrl(preview)}

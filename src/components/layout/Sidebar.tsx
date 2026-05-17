@@ -2,9 +2,11 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import useSWR from 'swr'
 import { Gamepad2, Settings, LayoutDashboard, Home, X, Heart, Shield } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { LanguageSwitcher } from '@/components/shared/LanguageSwitcher'
 import type { Platform } from '@/types/platform'
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
@@ -34,6 +36,7 @@ interface Props {
 
 export function Sidebar({ open, onClose }: Props) {
   const pathname = usePathname()
+  const t = useTranslations('Sidebar')
   const { data: platforms } = useSWR<Platform[]>('/api/platforms', fetcher)
   const { data: auth } = useSWR<{ admin: boolean }>('/api/auth/me', fetcher)
 
@@ -54,7 +57,7 @@ export function Sidebar({ open, onClose }: Props) {
         <button
           onClick={onClose}
           className="md:hidden p-2 rounded-md hover:bg-accent text-muted-foreground hover:text-foreground"
-          aria-label="Close menu"
+          aria-label={t('closeMenu')}
         >
           <X className="w-5 h-5" />
         </button>
@@ -65,7 +68,7 @@ export function Sidebar({ open, onClose }: Props) {
         <NavItem
           href="/"
           icon={<Home className="w-4 h-4" />}
-          label="Library"
+          label={t('library')}
           pathname={pathname}
           onNavigate={onClose}
         />
@@ -73,7 +76,7 @@ export function Sidebar({ open, onClose }: Props) {
         {platforms && platforms.length > 0 && (
           <div className="mt-4">
             <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wider px-3 mb-1">
-              Platforms
+              {t('platforms')}
             </p>
             {platforms.map((p) => (
               <NavItem
@@ -97,7 +100,7 @@ export function Sidebar({ open, onClose }: Props) {
         <NavItem
           href="/donate"
           icon={<Heart className="w-4 h-4" />}
-          label="Support"
+          label={t('support')}
           pathname={pathname}
           activeColor="text-red-400"
           onNavigate={onClose}
@@ -106,7 +109,7 @@ export function Sidebar({ open, onClose }: Props) {
         <NavItem
           href="/privacy"
           icon={<Shield className="w-4 h-4" />}
-          label="Privacy"
+          label={t('privacy')}
           pathname={pathname}
           onNavigate={onClose}
         />
@@ -117,19 +120,22 @@ export function Sidebar({ open, onClose }: Props) {
             <NavItem
               href="/admin"
               icon={<LayoutDashboard className="w-4 h-4" />}
-              label="Admin"
+              label={t('admin')}
               pathname={pathname}
               onNavigate={onClose}
             />
             <NavItem
               href="/admin/settings"
               icon={<Settings className="w-4 h-4" />}
-              label="Settings"
+              label={t('settings')}
               pathname={pathname}
               onNavigate={onClose}
             />
           </>
         )}
+
+        {/* Language switcher */}
+        <LanguageSwitcher />
       </div>
     </aside>
   )

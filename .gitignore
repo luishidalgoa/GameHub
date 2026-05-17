@@ -2,5 +2,10 @@ node_modules
 # Keep environment variables out of version control
 .env
 .env.local
+.env.production
 /generated/prisma
 .claude
+# SQLite database (user data — never commit)
+prisma/gamehub.db
+prisma/gamehub.db-shm
+prisma/gamehub.db-wal

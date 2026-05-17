@@ -86,6 +86,13 @@ export class RawgProvider implements MetadataProvider {
     }))
   }
 
+  async fetchScreenshots(slug: string): Promise<string[]> {
+    const res = await fetch(`${RAWG_BASE}/games/${slug}/screenshots?key=${this.apiKey}&page_size=12`)
+    if (!res.ok) return []
+    const data = await res.json()
+    return (data.results ?? []).map((s: { image: string }) => s.image)
+  }
+
   // Accepts either a numeric RAWG ID or a slug string (e.g. "pokemon-x")
   async fetchById(id: number | string): Promise<MetadataResult | null> {
     const res = await fetch(`${RAWG_BASE}/games/${id}?key=${this.apiKey}`)
@@ -109,11 +116,8 @@ export class RawgProvider implements MetadataProvider {
   }
 }
 
-let _provider: RawgProvider | null = null
-
-export function getRawgProvider(): RawgProvider | null {
-  const key = process.env.RAWG_API_KEY
+export function getRawgProvider(apiKey?: string): RawgProvider | null {
+  const key = apiKey ?? process.env.RAWG_API_KEY
   if (!key) return null
-  if (!_provider) _provider = new RawgProvider(key)
-  return _provider
+  return new RawgProvider(key)
 }

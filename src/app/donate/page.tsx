@@ -1,5 +1,6 @@
+import { getTranslations } from 'next-intl/server'
 import { db } from '@/lib/db'
-import { Heart, Coffee, Bitcoin, ExternalLink, Copy } from 'lucide-react'
+import { Heart, Coffee, Bitcoin, ExternalLink } from 'lucide-react'
 import { CopyButton } from '@/components/shared/CopyButton'
 
 export const dynamic = 'force-dynamic'
@@ -7,7 +8,10 @@ export const dynamic = 'force-dynamic'
 const KEYS = ['donate_kofi', 'donate_paypal', 'donate_bmac', 'donate_crypto', 'donate_message']
 
 export default async function DonatePage() {
-  const rows = await db.setting.findMany({ where: { key: { in: KEYS } } })
+  const [t, rows] = await Promise.all([
+    getTranslations('Donate'),
+    db.setting.findMany({ where: { key: { in: KEYS } } }),
+  ])
   const s = Object.fromEntries(rows.map((r) => [r.key, r.value]))
 
   const kofi    = s['donate_kofi']    ?? ''
@@ -25,9 +29,9 @@ export default async function DonatePage() {
         <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-red-500/10 border border-red-500/20 mb-4">
           <Heart className="w-6 h-6 text-red-400" />
         </div>
-        <h1 className="text-2xl font-bold tracking-tight mb-2">Support the project</h1>
+        <h1 className="text-2xl font-bold tracking-tight mb-2">{t('title')}</h1>
         <p className="text-muted-foreground text-sm leading-relaxed">
-          {message || 'If you enjoy using GameHub, consider buying me a coffee ☕'}
+          {message || t('defaultMessage')}
         </p>
       </div>
 
@@ -42,7 +46,6 @@ export default async function DonatePage() {
               bg="hover:bg-cyan-500/10 border-cyan-500/20"
             />
           )}
-
           {paypal && (
             <DonateLink
               href={paypal}
@@ -52,7 +55,6 @@ export default async function DonatePage() {
               bg="hover:bg-blue-500/10 border-blue-500/20"
             />
           )}
-
           {bmac && (
             <DonateLink
               href={bmac}
@@ -62,7 +64,6 @@ export default async function DonatePage() {
               bg="hover:bg-yellow-500/10 border-yellow-500/20"
             />
           )}
-
           {crypto && (
             <div className="flex items-center gap-3 px-4 py-3 rounded-xl border border-orange-500/20 bg-card">
               <span className="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-lg bg-orange-500/10">
@@ -78,12 +79,12 @@ export default async function DonatePage() {
         </div>
       ) : (
         <div className="text-center py-10 text-muted-foreground text-sm">
-          No donation methods configured yet.
+          {t('notConfigured')}
         </div>
       )}
 
       <p className="text-center text-xs text-muted-foreground mt-10 opacity-60">
-        100% optional · no account needed · thank you ♥
+        {t('footer')}
       </p>
     </div>
   )

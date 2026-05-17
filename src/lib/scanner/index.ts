@@ -5,6 +5,7 @@ import { walkDirectory, scanSwitchFolders, scanPortsFolders } from './walker'
 import type { SwitchGameFolder } from './walker'
 import { scanBus } from './events'
 import type { ScanEvent } from './events'
+import { triggerAutoMetadata } from '@/lib/metadata/auto'
 
 function emit(event: ScanEvent) {
   scanBus.emit('scan', event)
@@ -89,13 +90,16 @@ export async function runScan(triggeredBy = 'manual', platformSlug?: string) {
 
     let found = 0, added = 0, updated = 0
     const extensions = platform.extensions.split(',').map(e => e.trim()).filter(Boolean)
+    // Support multiple scan paths separated by '|' (pipe)
+    const scanPaths = platform.scanPath.split('|').map(p => p.trim()).filter(Boolean)
 
     try {
       const mode = (platform.scanMode ?? 'flat') as 'flat' | 'folder' | 'ports'
 
+      for (const scanPath of scanPaths) {
       if (mode === 'folder') {
         // ── Folder-style: one folder = one game (Switch) ─────────────────────
-        const folders = scanSwitchFolders(platform.scanPath, extensions, /dlc|update|patch/i)
+        const folders = scanSwitchFolders(scanPath, extensions, /dlc|update|patch/i)
         for (const folder of folders) {
           if (!folder.baseFile) continue
           const { added: a, updated: u } = await upsertFolderGame(folder, platform.id, scanStart, errors, emit, platform.name)
@@ -105,7 +109,7 @@ export async function runScan(triggeredBy = 'manual', platformSlug?: string) {
 
       } else if (mode === 'ports') {
         // ── Ports-style: root files + root folders, each = one game ──────────
-        const { loose, folders } = scanPortsFolders(platform.scanPath, extensions)
+        const { loose, folders } = scanPortsFolders(scanPath, extensions)
 
         for (const file of loose) {
           found++
@@ -138,7 +142,7 @@ export async function runScan(triggeredBy = 'manual', platformSlug?: string) {
 
       } else {
         // ── Flat: walk recursively, each file = one game ─────────────────────
-        for (const file of walkDirectory(platform.scanPath, extensions)) {
+        for (const file of walkDirectory(scanPath, extensions)) {
           found++
           const title  = cleanTitle(file.fileName)
           const region = extractRegion(file.fileName)
@@ -157,6 +161,7 @@ export async function runScan(triggeredBy = 'manual', platformSlug?: string) {
           if (found % 20 === 0) await tick()
         }
       }
+      } // end for scanPath
     } catch (err) {
       const msg = `Error scanning platform ${platform.name}: ${err}`
       errors.push(msg)
@@ -207,6 +212,15 @@ export async function runScan(triggeredBy = 'manual', platformSlug?: string) {
     stale: totalStale,
     logId: log.id,
   })
+
+  if (totalAdded > 0) {
+    // Fire auto-metadata in the background — don't await so the scan API returns immediately
+    triggerAutoMetadata(emit).catch((err) => {
+      emit({ type: 'pipeline_done', message: `Auto-metadata error: ${err}` })
+    })
+  } else {
+    emit({ type: 'pipeline_done' })
+  }
 
   return log.id
 }

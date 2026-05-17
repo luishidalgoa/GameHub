@@ -4,9 +4,11 @@ import { useEffect, useState } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import useSWR from 'swr'
+import { useTranslations } from 'next-intl'
 import { X, Heart, Pencil, ExternalLink, HardDrive, Calendar, Tag, User, Building2 } from 'lucide-react'
 import { formatBytes } from '@/lib/utils'
 import { DownloadButton } from '@/components/shared/DownloadButton'
+import { ScreenshotCarousel } from '@/components/game/ScreenshotCarousel'
 import type { Game } from '@/types/game'
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
@@ -17,9 +19,15 @@ interface Props {
 }
 
 export function GameDetailModal({ gameId, onClose }: Props) {
+  const t = useTranslations('GameDetail')
   const [game, setGame] = useState<Game | null>(null)
   const [loading, setLoading] = useState(true)
   const { data: auth } = useSWR<{ admin: boolean }>('/api/auth/me', fetcher)
+  const { data: ssData } = useSWR<{ screenshots: string[] }>(
+    game?.rawgSlug ? `/api/games/${gameId}/screenshots` : null,
+    fetcher,
+  )
+  const screenshots = ssData?.screenshots ?? []
 
   useEffect(() => {
     fetch(`/api/games/${gameId}`)
@@ -52,7 +60,7 @@ export function GameDetailModal({ gameId, onClose }: Props) {
         {/* Header */}
         <div className="flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 border-b border-border sticky top-0 bg-card z-10">
           <h2 className="font-semibold text-base sm:text-lg truncate pr-3">
-            {loading ? 'Loading…' : game?.title}
+            {loading ? t('loading') : game?.title}
           </h2>
           <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
             {game && (
@@ -68,7 +76,7 @@ export function GameDetailModal({ gameId, onClose }: Props) {
                     className="flex items-center gap-1.5 px-3 py-2 text-sm rounded-md bg-secondary hover:bg-accent transition-colors touch-manipulation"
                   >
                     <Pencil className="w-3.5 h-3.5" />
-                    <span className="hidden sm:inline">Edit</span>
+                    <span className="hidden sm:inline">{t('edit')}</span>
                   </Link>
                 )}
               </>
@@ -76,7 +84,7 @@ export function GameDetailModal({ gameId, onClose }: Props) {
             <button
               onClick={onClose}
               className="p-2 rounded-md hover:bg-accent transition-colors text-muted-foreground hover:text-foreground touch-manipulation"
-              aria-label="Close"
+              aria-label={t('close')}
             >
               <X className="w-5 h-5" />
             </button>
@@ -93,7 +101,12 @@ export function GameDetailModal({ gameId, onClose }: Props) {
             <div className="flex gap-6 mb-6">
               {/* Cover */}
               <div className="flex-shrink-0 w-36">
-                <div className="aspect-[2/3] relative rounded-lg overflow-hidden bg-secondary">
+                <div
+                  className="relative rounded-lg overflow-hidden bg-secondary"
+                  style={{
+                    aspectRatio: `${game.platform?.thumbnailWidth ?? 200} / ${game.platform?.thumbnailHeight ?? 300}`,
+                  }}
+                >
                   {cover ? (
                     <Image src={cover} alt={game.title} fill className="object-cover" />
                   ) : (
@@ -131,20 +144,20 @@ export function GameDetailModal({ gameId, onClose }: Props) {
 
                 <div className="mt-4 space-y-2 text-sm">
                   {game.releaseYear && (
-                    <MetaRow icon={<Calendar className="w-3.5 h-3.5" />} label="Year" value={String(game.releaseYear)} />
+                    <MetaRow icon={<Calendar className="w-3.5 h-3.5" />} label={t('year')} value={String(game.releaseYear)} />
                   )}
                   {game.genre && (
-                    <MetaRow icon={<Tag className="w-3.5 h-3.5" />} label="Genre" value={game.genre} />
+                    <MetaRow icon={<Tag className="w-3.5 h-3.5" />} label={t('genre')} value={game.genre} />
                   )}
                   {game.developer && (
-                    <MetaRow icon={<User className="w-3.5 h-3.5" />} label="Developer" value={game.developer} />
+                    <MetaRow icon={<User className="w-3.5 h-3.5" />} label={t('developer')} value={game.developer} />
                   )}
                   {game.publisher && (
-                    <MetaRow icon={<Building2 className="w-3.5 h-3.5" />} label="Publisher" value={game.publisher} />
+                    <MetaRow icon={<Building2 className="w-3.5 h-3.5" />} label={t('publisher')} value={game.publisher} />
                   )}
                   <MetaRow
                     icon={<HardDrive className="w-3.5 h-3.5" />}
-                    label="Size"
+                    label={t('size')}
                     value={formatBytes(BigInt(game.fileSize))}
                   />
                 </div>
@@ -154,7 +167,7 @@ export function GameDetailModal({ gameId, onClose }: Props) {
             {/* Description */}
             {game.description && (
               <div className="mb-6">
-                <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-2">Description</h4>
+                <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-2">{t('description')}</h4>
                 <p className="text-sm text-foreground/80 leading-relaxed line-clamp-6">{game.description}</p>
               </div>
             )}
@@ -162,15 +175,23 @@ export function GameDetailModal({ gameId, onClose }: Props) {
             {/* Trailer */}
             {game.trailerUrl && (
               <div className="mb-6">
-                <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-2">Trailer</h4>
-                <TrailerEmbed url={game.trailerUrl} />
+                <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-2">{t('trailer')}</h4>
+                <TrailerEmbed url={game.trailerUrl} watchLabel={t('watchTrailer')} />
+              </div>
+            )}
+
+            {/* Screenshots */}
+            {screenshots.length > 0 && (
+              <div className="mb-6">
+                <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-2">Screenshots</h4>
+                <ScreenshotCarousel screenshots={screenshots} />
               </div>
             )}
 
             {/* Custom notes */}
             {game.customNotes && (
               <div className="mb-6">
-                <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-2">Notes</h4>
+                <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-2">{t('notes')}</h4>
                 <p className="text-sm text-foreground/70 leading-relaxed whitespace-pre-line">{game.customNotes}</p>
               </div>
             )}
@@ -179,7 +200,7 @@ export function GameDetailModal({ gameId, onClose }: Props) {
             {game.dlcs && game.dlcs.filter((d) => d.type === 'update').length > 0 && (
               <div className="mb-6">
                 <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-                  Updates ({game.dlcs.filter((d) => d.type === 'update').length})
+                  {t('updates', { count: game.dlcs.filter((d) => d.type === 'update').length })}
                 </h4>
                 <div className="space-y-1">
                   {game.dlcs.filter((d) => d.type === 'update').map((dlc) => (
@@ -197,7 +218,7 @@ export function GameDetailModal({ gameId, onClose }: Props) {
             {game.dlcs && game.dlcs.filter((d) => d.type !== 'update').length > 0 && (
               <div className="mb-6">
                 <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-                  DLC ({game.dlcs.filter((d) => d.type !== 'update').length})
+                  {t('dlc', { count: game.dlcs.filter((d) => d.type !== 'update').length })}
                 </h4>
                 <div className="space-y-1">
                   {game.dlcs.filter((d) => d.type !== 'update').map((dlc) => (
@@ -218,7 +239,7 @@ export function GameDetailModal({ gameId, onClose }: Props) {
           </div>
         ) : (
           <div className="flex-1 flex items-center justify-center text-muted-foreground">
-            Game not found
+            {t('notFound')}
           </div>
         )}
       </div>
@@ -236,7 +257,7 @@ function MetaRow({ icon, label, value }: { icon: React.ReactNode; label: string;
   )
 }
 
-function TrailerEmbed({ url }: { url: string }) {
+function TrailerEmbed({ url, watchLabel }: { url: string; watchLabel: string }) {
   const getYouTubeId = (u: string) => {
     const m = u.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/))([a-zA-Z0-9_-]{11})/)
     return m?.[1]
@@ -265,7 +286,7 @@ function TrailerEmbed({ url }: { url: string }) {
       className="flex items-center gap-2 text-sm text-primary hover:underline"
     >
       <ExternalLink className="w-4 h-4" />
-      Watch trailer
+      {watchLabel}
     </a>
   )
 }

@@ -27,9 +27,9 @@ export async function GET() {
         scanBus.off('scan', send)
       }
 
-      // Auto-cleanup on scan complete/error
+      // Close when the full pipeline finishes (scan + optional auto-metadata)
       const done = (event: ScanEvent) => {
-        if (event.type === 'scan_complete' || event.type === 'scan_error') {
+        if (event.type === 'pipeline_done' || event.type === 'scan_error') {
           cleanup()
           try { controller.close() } catch { /* already closed */ }
         }

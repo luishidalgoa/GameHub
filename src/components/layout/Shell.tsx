@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { Sidebar } from './Sidebar'
 import { TopBar } from './TopBar'
+import { CommandPalette } from '@/components/shared/CommandPalette'
 
 export function Shell({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -24,6 +25,8 @@ export function Shell({ children }: { children: React.ReactNode }) {
       <main className="md:ml-56 mt-14 p-4 sm:p-6 min-h-[calc(100vh-3.5rem)]">
         {children}
       </main>
+
+      <CommandPalette />
     </div>
   )
 }

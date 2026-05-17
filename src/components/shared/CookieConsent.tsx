@@ -1,15 +1,16 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useTranslations } from 'next-intl'
 import Link from 'next/link'
 import { Cookie, X } from 'lucide-react'
 import { getConsent, setConsent, type ConsentValue } from '@/lib/cookie-consent'
 
 export function CookieConsent() {
+  const t = useTranslations('CookieConsent')
   const [visible, setVisible] = useState(false)
 
   useEffect(() => {
-    // Show only if no prior decision
     if (getConsent() === null) setVisible(true)
   }, [])
 
@@ -31,10 +32,9 @@ export function CookieConsent() {
           <Cookie className="w-5 h-5 text-primary flex-shrink-0 hidden sm:block" />
 
           <p className="text-sm text-muted-foreground flex-1 leading-relaxed">
-            We use a session cookie for admin access and, with your consent, analytics cookies to
-            understand how the library is used.{' '}
+            {t('description')}{' '}
             <Link href="/privacy" className="text-primary hover:underline underline-offset-2">
-              Privacy policy →
+              {t('privacyLink')}
             </Link>
           </p>
 
@@ -43,17 +43,17 @@ export function CookieConsent() {
               onClick={() => accept('necessary')}
               className="px-3 py-1.5 text-sm rounded-md border border-border text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
             >
-              Necessary only
+              {t('necessaryOnly')}
             </button>
             <button
               onClick={() => accept('all')}
               className="px-4 py-1.5 text-sm rounded-md bg-primary text-primary-foreground hover:bg-primary/90 font-medium transition-colors"
             >
-              Accept all
+              {t('acceptAll')}
             </button>
             <button
               onClick={() => accept('necessary')}
-              aria-label="Dismiss"
+              aria-label={t('dismiss')}
               className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
             >
               <X className="w-4 h-4" />
