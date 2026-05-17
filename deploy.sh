@@ -23,11 +23,16 @@ check_deps() {
 
 # ── First install ─────────────────────────────────────────────────────────────
 install() {
-    check_deps
+    # check_deps # Descoméntalo si tienes la función definida arriba
 
     info "Creating app directory at $APP_DIR"
     sudo mkdir -p "$APP_DIR"/{data,public/covers}
-    sudo chown -R "$USER":"$USER" "$APP_DIR"
+    
+    # [CAMBIO CRÍTICO]: Inicializamos los permisos para que pertenezcan al UID 1001 (nextjs)
+    # Así, cuando Docker monte el volumen de la base de datos, Prisma podrá escribir sin fallos.
+    info "Setting up Docker volume permissions for Next.js (UID 1001)..."
+    sudo chown -R 1001:1001 "$APP_DIR/data" "$APP_DIR/public/covers"
+    sudo chmod -R 775 "$APP_DIR/data" "$APP_DIR/public/covers"
 
     if [ ! -f "$APP_DIR/.env.production" ]; then
         warning ".env.production not found — copying template"
@@ -53,7 +58,7 @@ install() {
     sleep 5
     docker compose logs --tail=20
 
-    info "Done! App running at http://localhost:3000"
+    info "Done! App running at https://$DOMAIN"
     info "Now configure Apache2 + certbot: ./deploy.sh apache_setup"
 }
 
@@ -124,20 +129,84 @@ status() {
     docker stats --no-stream gamehub
 }
 
+# ── Database Import / Export ──────────────────────────────────────────────────
+db_export() {
+    local backup_name="gamehub_backup_$(date +%F_%H%M%S).db"
+    info "Exporting database..."
+    
+    if [ ! -f "$APP_DIR/data/gamehub.db" ]; then
+        error "No active database found at $APP_DIR/data/gamehub.db to export."
+    fi
+
+    # Copiamos la base de datos a la carpeta actual desde la que ejecutas el script
+    cp "$APP_DIR/data/gamehub.db" "./$backup_name"
+    # Le devolvemos el propietario al usuario que lanza el script para que puedas moverlo por FTP/Samba fácilmente
+    sudo chown "$USER":"$USER" "./$backup_name"
+    
+    info "Database exported successfully to current directory as: $backup_name"
+}
+
+db_import() {
+    info "Preparing database import..."
+    
+    # Buscamos si hay algún archivo .db en la carpeta actual para importar
+    local available_dbs=( *.db )
+    
+    if [ ! -e "${available_dbs[0]}" ]; then
+        error "No file ending in .db found in the current directory. Place your Windows 'gamehub.db' here first."
+    fi
+
+    echo "Available databases in this directory:"
+    select file in "${available_dbs[@]}"; do
+        if [ -n "$file" ]; then
+            info "Selected file for import: $file"
+            
+            # Si el contenedor está corriendo, lo paramos para no corromper SQLite en caliente
+            info "Stopping gamehub container to safely replace database..."
+            cd "$APP_DIR" && docker compose stop gamehub || true
+            
+            # Hacemos un backup rápido de la que ya haya en la Pi por si acaso
+            if [ -f "$APP_DIR/data/gamehub.db" ]; then
+                mv "$APP_DIR/data/gamehub.db" "$APP_DIR/data/gamehub.db.bak"
+            fi
+            
+            # Copiamos el nuevo archivo a su destino definitivo
+            sudo cp "$APP_DIR/$file" "$APP_DIR/data/gamehub.db"
+            
+            # Re-aplicamos los permisos del UID 1001 imprescindibles para Prisma
+            sudo chown -R 1001:1001 "$APP_DIR/data"
+            sudo chmod -R 775 "$APP_DIR/data"
+            
+            # Volvemos a levantar el contenedor
+            info "Starting container back up..."
+            docker compose start gamehub
+            
+            info "Database successfully imported and permissions fixed!"
+            break
+        else
+            warning "Invalid selection."
+        fi
+    done
+}
+
 # ── Entrypoint ────────────────────────────────────────────────────────────────
 case "${1:-help}" in
     install)      install      ;;
     update)       update       ;;
     apache_setup) apache_setup ;;
+    db_export)    db_export    ;;
+    db_import)    db_import    ;;
     logs)         logs         ;;
     status)       status       ;;
     *)
-        echo "Usage: $0 {install|update|apache_setup|logs|status}"
+        echo "Usage: $0 {install|update|apache_setup|db_export|db_import|logs|status}"
         echo ""
-        echo "  install       — first deploy on a fresh Pi"
-        echo "  update        — rebuild and restart after a git pull"
-        echo "  apache_setup  — configure Apache2 + certbot SSL"
-        echo "  logs          — follow live logs"
-        echo "  status        — container status and resource usage"
+        echo "  install      — first deploy on a fresh Pi"
+        echo "  update       — rebuild and restart after a git pull"
+        echo "  apache_setup — configure Apache2 + certbot SSL"
+        echo "  db_export    — backup and export current SQLite database"
+        echo "  db_import    — import a local database file (.db) with auto-permissions"
+        echo "  logs         — follow live logs"
+        echo "  status       — container status and resource usage"
         ;;
 esac
