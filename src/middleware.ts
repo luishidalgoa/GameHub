@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
-import { getSessionFromRequest, isLocalIp } from '@/lib/auth'
+import { getSessionFromRequest } from '@/lib/auth'
 
 // Paths that require admin auth
 const ADMIN_PAGE_PREFIX = '/admin'
@@ -21,10 +21,8 @@ export async function middleware(req: NextRequest) {
 
   // --- Protect admin pages ---
   if (pathname.startsWith(ADMIN_PAGE_PREFIX)) {
-    // Login page: only accessible from the local network
+    // Login page: accessible from anywhere (no IP restriction)
     if (pathname === '/admin/login') {
-      const ip = req.headers.get('x-real-ip') ?? req.headers.get('x-forwarded-for') ?? req.ip ?? ''
-      if (!isLocalIp(ip)) return new NextResponse(null, { status: 404 })
       return NextResponse.next()
     }
 
