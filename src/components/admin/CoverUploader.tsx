@@ -32,6 +32,7 @@ export function CoverUploader({ gameId, gameTitle = '', currentCover, onUploaded
   const [loading, setLoading]     = useState(false)
   const [preview, setPreview]     = useState(currentCover)
   const [adjusting, setAdjusting] = useState(false)
+  const [error, setError]         = useState<string | null>(null)
 
   // Panel state
   const [searchOpen, setSearchOpen] = useState(false)
@@ -59,29 +60,47 @@ export function CoverUploader({ gameId, gameTitle = '', currentCover, onUploaded
 
   const uploadFile = async (file: File) => {
     setLoading(true)
-    const form = new FormData()
-    form.append('gameId', String(gameId))
-    form.append('file', file)
-    const res  = await fetch('/api/covers', { method: 'POST', body: form })
-    const data = await res.json()
-    setLoading(false)
-    if (res.ok) { setPreview(data.coverPath + `?t=${Date.now()}`); onUploaded(data.coverPath) }
+    setError(null)
+    try {
+      const form = new FormData()
+      form.append('gameId', String(gameId))
+      form.append('file', file)
+      const res  = await fetch('/api/covers', { method: 'POST', body: form })
+      const data = await res.json()
+      setLoading(false)
+      if (res.ok) { setPreview(data.coverPath + `?t=${Date.now()}`); onUploaded(data.coverPath) }
+      else setError(data.error || 'Upload failed')
+    } catch (err) {
+      setLoading(false)
+      const msg = err instanceof Error ? err.message : 'Network error'
+      setError(msg)
+      console.error('Upload error:', err)
+    }
   }
 
   const uploadFromUrl = async (url: string) => {
     setLoading(true)
-    const res  = await fetch('/api/covers', {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ gameId, url }),
-    })
-    const data = await res.json()
-    setLoading(false)
-    if (res.ok) {
-      setPreview(data.coverPath + `?t=${Date.now()}`)
-      onUploaded(data.coverPath)
-      setUrlInput('')
-      setSearchOpen(false)
+    setError(null)
+    try {
+      const res  = await fetch('/api/covers', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ gameId, url }),
+      })
+      const data = await res.json()
+      setLoading(false)
+      if (res.ok) {
+        setPreview(data.coverPath + `?t=${Date.now()}`)
+        onUploaded(data.coverPath)
+        setUrlInput('')
+        setSearchOpen(false)
+      }
+      else setError(data.error || 'Upload failed')
+    } catch (err) {
+      setLoading(false)
+      const msg = err instanceof Error ? err.message : 'Network error'
+      setError(msg)
+      console.error('Upload error:', err)
     }
   }
 
@@ -104,6 +123,7 @@ export function CoverUploader({ gameId, gameTitle = '', currentCover, onUploaded
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault()
+    setError(null)
     const file = e.dataTransfer.files[0]
     if (file && file.type.startsWith('image/')) uploadFile(file)
   }
@@ -172,7 +192,13 @@ export function CoverUploader({ gameId, gameTitle = '', currentCover, onUploaded
   return (
     <div className="space-y-3">
 
-      {/* Preview / drop zone */}
+      {/* Error message */}
+      {error && (
+        <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-lg text-sm text-destructive">
+          <p className="font-medium">Upload failed:</p>
+          <p className="text-xs mt-1">{error}</p>
+        </div>
+      )}
       <div
         style={{ aspectRatio: `${thumbnailWidth}/${thumbnailHeight}` }}
         className="relative w-full rounded-lg overflow-hidden bg-secondary border-2 border-dashed border-border hover:border-primary/50 transition-colors cursor-pointer"
@@ -205,7 +231,7 @@ export function CoverUploader({ gameId, gameTitle = '', currentCover, onUploaded
         type="file"
         accept="image/*"
         className="hidden"
-        onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadFile(f) }}
+        onChange={(e) => { setError(null); const f = e.target.files?.[0]; if (f) uploadFile(f) }}
       />
 
       {preview && !loading && (
