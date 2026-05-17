@@ -1,0 +1,25 @@
+services:
+  gamehub:
+    # Override: mount source code as volume for hot reload
+    volumes:
+      # ── Source code (hot reload) ──────────────────────────────────────────
+      - .:/app
+
+      # ── Keep persistent data volumes ──────────────────────────────────────
+      - ./data:/data
+      - ./public/covers:/app/public/covers
+
+      # ── ROM directories (read-only) ───────────────────────────────────────
+      - /mnt/F:/mnt/F:ro
+      - /mnt/nextcloud_hdd_1:/mnt/nextcloud_hdd_1:ro
+
+      # ── Exclude node_modules and .next from host mount ────────────────────
+      - /app/node_modules
+      - /app/.next
+
+    # Override command to run dev server instead of built app
+    command: npm run dev
+
+    # Keep container running even if dev server exits
+    stdin_open: true
+    tty: true

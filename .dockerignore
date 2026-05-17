@@ -9,3 +9,4 @@ data/
 public/covers/
 nginx/
 apache2/
+docker-compose.dev.yml

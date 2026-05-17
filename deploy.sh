@@ -189,6 +189,37 @@ db_import() {
     done
 }
 
+# ── Development mode (direct Node.js) ──────────────────────────────────────────
+dev() {
+    info "Starting Next.js dev server..."
+    cd "$APP_DIR"
+
+    if [ ! -f "$APP_DIR/.env.production" ]; then
+        error ".env.production not found"
+    fi
+
+    if [ ! -d "$APP_DIR/node_modules" ]; then
+        info "Installing dependencies..."
+        npm install
+    fi
+
+    info "Running database migrations..."
+    npx prisma migrate deploy
+
+    info "Starting dev server on http://localhost:3000"
+    info "Press Ctrl+C to stop"
+    npm run dev
+}
+
+# ── Development mode (Docker with hot reload) ──────────────────────────────────
+dev_docker() {
+    info "Starting Next.js dev server in Docker with hot reload..."
+    cd "$APP_DIR"
+
+    info "Starting dev containers..."
+    docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+}
+
 # ── Entrypoint ────────────────────────────────────────────────────────────────
 case "${1:-help}" in
     install)      install      ;;
@@ -196,16 +227,20 @@ case "${1:-help}" in
     apache_setup) apache_setup ;;
     db_export)    db_export    ;;
     db_import)    db_import    ;;
+    dev)          dev          ;;
+    dev-docker)   dev_docker   ;;
     logs)         logs         ;;
     status)       status       ;;
     *)
-        echo "Usage: $0 {install|update|apache_setup|db_export|db_import|logs|status}"
+        echo "Usage: $0 {install|update|apache_setup|db_export|db_import|dev|dev-docker|logs|status}"
         echo ""
         echo "  install      — first deploy on a fresh Pi"
         echo "  update       — rebuild and restart after a git pull"
         echo "  apache_setup — configure Apache2 + certbot SSL"
         echo "  db_export    — backup and export current SQLite database"
         echo "  db_import    — import a local database file (.db) with auto-permissions"
+        echo "  dev          — start Next.js dev server on http://localhost:3000 (hot reload)"
+        echo "  dev-docker   — start Next.js dev in Docker with hot reload"
         echo "  logs         — follow live logs"
         echo "  status       — container status and resource usage"
         ;;
