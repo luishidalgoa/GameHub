@@ -11,32 +11,6 @@ function getSecret(): Uint8Array {
   return new TextEncoder().encode(secret)
 }
 
-// ── LAN IP detection ─────────────────────────────────────────────────────────
-
-/** Returns true for RFC-1918 private ranges and loopback. */
-export function isLanIp(ip: string): boolean {
-  const clean = ip.trim().split(',')[0].trim().replace(/^::ffff:/i, '')
-  if (clean === '127.0.0.1' || clean === '::1') return true
-  if (clean.startsWith('192.168.')) return true
-  if (clean.startsWith('10.')) return true
-  const parts = clean.split('.')
-  if (parts.length === 4 && parts[0] === '172') {
-    const b = parseInt(parts[1], 10)
-    if (b >= 16 && b <= 31) return true
-  }
-  return false
-}
-
-/** Extract client IP from a plain Request (not NextRequest). */
-export function clientIpFromPlainRequest(req: Request): string {
-  const h = req.headers as unknown as { get: (k: string) => string | null }
-  return (
-    h.get('x-real-ip') ??
-    h.get('x-forwarded-for') ??
-    '127.0.0.1'
-  )
-}
-
 // ── Public IP detection ───────────────────────────────────────────────────────
 
 export function isPublicIp(clientIp: string): boolean {

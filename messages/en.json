@@ -153,15 +153,7 @@
     "maxDownloadsHint": "Recommended: 1–3 for a home server.",
     "nginxConfig": "nginx rate limiting config ↓",
     "browseFolder": "Browse…",
-    "scanDlcLabel": "Detect Updates & DLC (Title ID)",
-    "tinfoilTitle": "Tinfoil Shop (LAN)",
-    "tinfoilDesc": "Exposes your Switch library as a Tinfoil-compatible HTTP shop. Only accessible from devices on the same local network.",
-    "tinfoilPassword": "Shop password",
-    "tinfoilPasswordPlaceholder": "Leave blank for no password…",
-    "tinfoilPasswordHint": "If set, Tinfoil will prompt for credentials. Username can be anything; only the password is checked.",
-    "tinfoilSetup": "How to add in Tinfoil:",
-    "tinfoilStep1": "Open Tinfoil → File Browser → New location",
-    "tinfoilStep2": "Set Protocol: http · Host: <raspberry-ip> · Port: 3000 · Path: /api/tinfoil"
+    "scanDlcLabel": "Detect Updates & DLC (Title ID)"
   },
   "DonationSettings": {
     "title": "Donations",

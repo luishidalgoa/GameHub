@@ -63,8 +63,7 @@ export function SettingsForm({ platforms: initial, settings }: Props) {
   const [s3AccessKey,  setS3AccessKey]  = useState(settings['s3_access_key']        ?? '')
   const [s3SecretKey,  setS3SecretKey]  = useState(settings['s3_secret_key']        ?? '')
   const [s3Bucket,     setS3Bucket]     = useState(settings['s3_bucket_name']       ?? '')
-  const [s3Region,        setS3Region]        = useState(settings['s3_region']         ?? '')
-  const [tinfoilPassword, setTinfoilPassword] = useState(settings['tinfoil_password'] ?? '')
+  const [s3Region,     setS3Region]     = useState(settings['s3_region']            ?? '')
   const [appUrl,       setAppUrl]       = useState(settings['app_url']            ?? process.env.NEXT_PUBLIC_APP_URL ?? '')
 
   const [saving,   setSaving]   = useState(false)
@@ -119,7 +118,6 @@ export function SettingsForm({ platforms: initial, settings }: Props) {
           s3_secret_key:            s3SecretKey,
           s3_bucket_name:           s3Bucket,
           s3_region:                s3Region,
-          tinfoil_password:         tinfoilPassword,
         }),
       }),
     ])
@@ -629,31 +627,6 @@ export function SettingsForm({ platforms: initial, settings }: Props) {
             className="w-24 bg-secondary border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
           />
           <p className="text-xs text-muted-foreground mt-1.5">{t('maxDownloadsHint')}</p>
-        </div>
-      </div>
-
-      {/* Tinfoil Shop */}
-      <div className="bg-card border border-border rounded-xl p-6 space-y-4">
-        <div>
-          <h3 className="font-semibold">{t('tinfoilTitle')}</h3>
-          <p className="text-sm text-muted-foreground mt-0.5">{t('tinfoilDesc')}</p>
-        </div>
-        <div>
-          <label className="block text-sm font-medium mb-1.5">{t('tinfoilPassword')}</label>
-          <input
-            type="password"
-            value={tinfoilPassword}
-            onChange={(e) => setTinfoilPassword(e.target.value)}
-            placeholder={t('tinfoilPasswordPlaceholder')}
-            className="w-full max-w-sm bg-secondary border border-border rounded-md px-3 py-2 text-sm font-mono placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-          />
-          <p className="text-xs text-muted-foreground mt-1">{t('tinfoilPasswordHint')}</p>
-        </div>
-        <div className="text-xs font-mono bg-secondary/60 rounded-lg px-4 py-3 space-y-1 text-muted-foreground">
-          <p className="font-medium text-foreground text-sm mb-2">{t('tinfoilSetup')}</p>
-          <p>1. {t('tinfoilStep1')}</p>
-          <p>2. {t('tinfoilStep2')}</p>
-          <p className="pt-1 text-foreground">http://&lt;raspberry-ip&gt;:3000/api/tinfoil</p>
         </div>
       </div>
 
