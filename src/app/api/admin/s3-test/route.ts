@@ -1,6 +1,6 @@
 /**
  * GET /api/admin/s3-test
- * LAN-only.  Tests the current MinIO / S3 configuration end-to-end:
+ * Admin-session protected.  Tests the current MinIO / S3 config end-to-end:
  *   1. Reads config from DB / env
  *   2. Tries a HeadBucket to verify credentials + bucket exists
  *   3. Writes a tiny test object and reads it back
@@ -11,14 +11,14 @@
 import { NextResponse }                            from 'next/server'
 import { S3Client, HeadBucketCommand, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3'
 import { getS3Config, makeS3Client }               from '@/lib/s3'
-import { isLanIp, clientIpFromPlainRequest }       from '@/lib/auth'
+import { isAdminSession }                          from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
 
-export async function GET(req: Request) {
-  const clientIp = clientIpFromPlainRequest(req)
-  if (!isLanIp(clientIp)) {
-    return NextResponse.json({ error: 'LAN access only' }, { status: 403 })
+export async function GET() {
+  const authenticated = await isAdminSession()
+  if (!authenticated) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
   const config = await getS3Config()
