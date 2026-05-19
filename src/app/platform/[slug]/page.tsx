@@ -4,6 +4,7 @@ import { db } from '@/lib/db'
 import { isAdminSession } from '@/lib/auth'
 import { resolveCoverPath } from '@/lib/s3'
 import { GameGrid } from '@/components/platform/GameGrid'
+import { BulkExtrasDownload } from '@/components/platform/BulkExtrasDownload'
 
 export const dynamic = 'force-dynamic'
 
@@ -58,6 +59,9 @@ export default async function PlatformPage({ params }: Props) {
         <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">{platform.name}</h1>
         <p className="text-muted-foreground mt-1">{t('games', { count: gameCount })}</p>
       </div>
+
+      {/* Bulk DLC/update/mod download — admin only */}
+      {isAdmin && <BulkExtrasDownload platformSlug={params.slug} />}
 
       <GameGrid
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
