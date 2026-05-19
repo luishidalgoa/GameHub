@@ -21,13 +21,15 @@ export async function middleware(req: NextRequest) {
 
   // --- Protect admin pages ---
   if (pathname.startsWith(ADMIN_PAGE_PREFIX)) {
-    // Login page: accessible from anywhere (no IP restriction)
-    if (pathname === '/admin/login') {
+    // Login page: accessible from anywhere (no IP restriction).
+    // Use startsWith to tolerate trailing slashes or sub-paths.
+    if (pathname === '/admin/login' || pathname.startsWith('/admin/login/')) {
       return NextResponse.next()
     }
 
     // Admin pages: accessible from configured public IP OR any LAN IP
     const clientIp = req.headers.get('x-real-ip') ?? req.headers.get('x-forwarded-for') ?? req.ip ?? ''
+    console.log(`[MIDDLEWARE] Admin request to ${pathname} from IP: "${clientIp}" (x-real-ip=${req.headers.get('x-real-ip')} x-fwd=${req.headers.get('x-forwarded-for')} req.ip=${req.ip})`)
     if (!isPublicIpRequest(req) && !isLanIp(clientIp)) {
       console.log(`[MIDDLEWARE] Admin access denied from IP: ${clientIp}`)
       return NextResponse.redirect(new URL('/', req.url))
@@ -36,7 +38,9 @@ export async function middleware(req: NextRequest) {
     const authenticated = await getSessionFromRequest(req)
     if (!authenticated) {
       const loginUrl = new URL('/admin/login', req.url)
-      loginUrl.searchParams.set('from', pathname)
+      // Never set `from` to the login page itself — that would cause an infinite loop
+      const safeFrom = pathname.startsWith('/admin/login') ? '/admin' : pathname
+      loginUrl.searchParams.set('from', safeFrom)
       return NextResponse.redirect(loginUrl)
     }
     return NextResponse.next()

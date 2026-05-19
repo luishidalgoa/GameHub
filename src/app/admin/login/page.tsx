@@ -8,7 +8,9 @@ import { Gamepad2, Lock, Loader2, Eye, EyeOff } from 'lucide-react'
 function LoginForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const from = searchParams.get('from') ?? '/admin'
+  // Sanitise: never redirect back to the login page after a successful login
+  const rawFrom = searchParams.get('from') ?? '/admin'
+  const from = rawFrom.startsWith('/admin/login') ? '/admin' : rawFrom
 
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
