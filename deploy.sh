@@ -26,13 +26,12 @@ install() {
     # check_deps # Descoméntalo si tienes la función definida arriba
 
     info "Creating app directory at $APP_DIR"
-    sudo mkdir -p "$APP_DIR"/{data,public/covers}
-    
-    # [CAMBIO CRÍTICO]: Inicializamos los permisos para que pertenezcan al UID 1001 (nextjs)
-    # Así, cuando Docker monte el volumen de la base de datos, Prisma podrá escribir sin fallos.
+    sudo mkdir -p "$APP_DIR/data"
+
+    # Prisma (UID 1001 inside the container) needs write access to the data volume.
     info "Setting up Docker volume permissions for Next.js (UID 1001)..."
-    sudo chown -R 1001:1001 "$APP_DIR/data" "$APP_DIR/public/covers"
-    sudo chmod -R 775 "$APP_DIR/data" "$APP_DIR/public/covers"
+    sudo chown -R 1001:1001 "$APP_DIR/data"
+    sudo chmod -R 775 "$APP_DIR/data"
 
     if [ ! -f "$APP_DIR/.env.production" ]; then
         warning ".env.production not found — copying template"
@@ -44,19 +43,15 @@ install() {
 
     info "Copying app files..."
     rsync -a --exclude='.git' --exclude='node_modules' --exclude='.next' \
-          --exclude='data' --exclude='public/covers' \
+          --exclude='data' \
           . "$APP_DIR/"
 
     cd "$APP_DIR"
     info "Building Docker image (this takes ~5 min on Pi 4)..."
     docker compose build
 
-    info "Starting container..."
-    docker compose up -d
-
-    info "Waiting for app to start..."
-    sleep 5
-    docker compose logs --tail=20
+    info "Starting container (waiting for healthcheck)..."
+    docker compose up -d --wait
 
     info "Done! App running at https://$DOMAIN"
     info "Now configure Apache2 + certbot: ./deploy.sh apache_setup"
@@ -70,13 +65,16 @@ update() {
     info "Pulling latest code..."
     git pull
 
-    info "Rebuilding image..."
+    # Build the new image WHILE the old container keeps serving traffic.
+    info "Building new image (service stays up during build)..."
     docker compose build
 
-    info "Restarting container..."
-    docker compose up -d
+    # Swap to the new image. --wait blocks until the healthcheck passes,
+    # so this command only returns once the new container is actually ready.
+    info "Swapping to new image (brief restart)..."
+    docker compose up -d --wait
 
-    info "Update complete!"
+    info "Update complete — service is healthy!"
     docker compose ps
 }
 

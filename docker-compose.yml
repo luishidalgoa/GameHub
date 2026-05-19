@@ -9,7 +9,7 @@ services:
     env_file: .env.production
 
     ports:
-      - "3000:3000"   # Nginx proxies to this; don't expose publicly if using nginx
+      - "3000:3000"   # Apache2 proxies to this; don't expose publicly if using a reverse proxy
 
     volumes:
       # ── Persistent data ──────────────────────────────────────────────────────
@@ -21,6 +21,20 @@ services:
       # Configure the actual per-platform paths in Admin → Settings.
       - /mnt/F:/mnt/F:ro
       - /mnt/nextcloud_hdd_1:/mnt/nextcloud_hdd_1:ro
+
+    # Give Next.js time to flush in-flight requests and close the SQLite
+    # connection before Docker kills the process during a redeploy.
+    stop_grace_period: 30s
+
+    # Docker marks the container healthy once the app is accepting requests.
+    # Used by deploy.sh --wait so the script only reports "done" when the new
+    # container is actually ready (not just "started").
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/api/auth/me >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 60s   # Next.js on Pi 4 takes ~30-50 s to cold-start
 
     # Expose Prometheus metrics to your existing Grafana/Node Exporter stack
     labels:
