@@ -79,7 +79,8 @@ export function resolveCoverPath(
 ): string | null {
   if (!coverPath) return null
   if (coverPath.startsWith('http://') || coverPath.startsWith('https://')) return coverPath
-  if (coverPath.startsWith('/covers/')) return coverPath // legacy local
+  // Legacy local path (public/covers/) — folder has been deleted; treat as no cover
+  if (coverPath.startsWith('/covers/')) return null
   // S3 key → serve through the Next.js proxy so it is always same-origin HTTPS
   return `/api/covers/proxy/${coverPath}`
 }

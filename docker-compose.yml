@@ -16,9 +16,6 @@ services:
       # SQLite database
       - ./data:/data
 
-      # Cover art cache (downloaded automatically by the app)
-      - ./public/covers:/app/public/covers
-
       # ── ROM directories ──────────────────────────────────────────────────────
       # Whole drives mounted at their root — the scanner reaches any subfolder.
       # Configure the actual per-platform paths in Admin → Settings.

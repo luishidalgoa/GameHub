@@ -24,6 +24,11 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { platform, dlcs, createdAt, id: _id, ...data } = body
 
+  // Null out legacy local cover paths (public/covers/ folder has been removed)
+  if (typeof data.coverPath === 'string' && data.coverPath.startsWith('/covers/')) {
+    data.coverPath = null
+  }
+
   const game = await db.game.update({ where: { id }, data })
   return NextResponse.json(serializeBigInt(game))
 }
