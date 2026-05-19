@@ -7,7 +7,7 @@ export interface FileEntry {
   fileSize:  bigint
   extension: string
   parentDir: string
-  type?: 'game' | 'update' | 'dlc'
+  type?: 'game' | 'update' | 'dlc' | 'mod'
 }
 
 // ── Generic recursive walker ──────────────────────────────────────────────────
