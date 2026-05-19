@@ -8,12 +8,12 @@
  * ZIP uses store mode (level 0) — ROM files are already compressed and the
  * Raspberry Pi CPU budget is limited.
  */
-import { NextResponse }   from 'next/server'
-import { db }             from '@/lib/db'
-import { isAdminSession } from '@/lib/auth'
-import archiver           from 'archiver'
-import fs                 from 'fs'
-import { PassThrough }    from 'stream'
+import { NextResponse }            from 'next/server'
+import { db }                      from '@/lib/db'
+import { consumeBulkToken, isBulkToken } from '@/lib/bulk-queue'
+import archiver                    from 'archiver'
+import fs                          from 'fs'
+import { PassThrough }             from 'stream'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -24,12 +24,22 @@ export async function GET(
   req: Request,
   { params }: { params: { slug: string } },
 ) {
-  if (!await isAdminSession()) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const { searchParams } = new URL(req.url)
+  const token = searchParams.get('token') ?? ''
+  const type  = searchParams.get('type') as DlcType | null
+
+  // Validate bulk token
+  if (!isBulkToken(token)) {
+    return NextResponse.json({ error: 'Valid token required' }, { status: 401 })
+  }
+  const bulkEntry = consumeBulkToken(token)
+  if (!bulkEntry) {
+    return NextResponse.json({ error: 'Token not found or expired' }, { status: 401 })
+  }
+  if (bulkEntry.platformSlug !== params.slug || bulkEntry.type !== type) {
+    return NextResponse.json({ error: 'Token mismatch' }, { status: 403 })
   }
 
-  const { searchParams } = new URL(req.url)
-  const type = searchParams.get('type') as DlcType | null
   if (!type || !['dlc', 'update', 'mod'].includes(type)) {
     return NextResponse.json({ error: 'type must be dlc | update | mod' }, { status: 400 })
   }

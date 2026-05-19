@@ -15,7 +15,7 @@ const nextConfig = {
     ],
   },
   experimental: {
-    serverComponentsExternalPackages: ['better-sqlite3', 'sharp'],
+    serverComponentsExternalPackages: ['better-sqlite3', 'sharp', 'archiver'],
     // Ensure the sharp native binaries are included in the standalone output
     outputFileTracingIncludes: {
       '/api/covers': ['./node_modules/sharp/**/*'],

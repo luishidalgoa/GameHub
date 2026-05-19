@@ -1,8 +1,9 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState }  from 'react'
+import { useRouter }             from 'next/navigation'
 import { Download, Package, RefreshCw, Wrench, Loader2 } from 'lucide-react'
-import { formatBytes } from '@/lib/utils'
+import { formatBytes }           from '@/lib/utils'
 
 interface ExtrasInfo {
   dlc:    { count: number; totalSize: string }
@@ -23,9 +24,10 @@ const TYPE_META: Record<DlcType, { label: string; icon: React.ReactNode; color: 
 }
 
 export function BulkExtrasDownload({ platformSlug }: Props) {
-  const [info, setInfo]         = useState<ExtrasInfo | null>(null)
-  const [loading, setLoading]   = useState(true)
-  const [downloading, setDownloading] = useState<DlcType | null>(null)
+  const router = useRouter()
+  const [info, setInfo]               = useState<ExtrasInfo | null>(null)
+  const [loading, setLoading]         = useState(true)
+  const [enqueueing, setEnqueueing]   = useState<DlcType | null>(null)
 
   useEffect(() => {
     fetch(`/api/platform-extras/${platformSlug}`)
@@ -34,24 +36,30 @@ export function BulkExtrasDownload({ platformSlug }: Props) {
       .catch(() => setLoading(false))
   }, [platformSlug])
 
-  // Nothing to show
   const hasAny = info && (info.dlc.count > 0 || info.update.count > 0 || info.mod.count > 0)
   if (!loading && !hasAny) return null
 
   const handleDownload = async (type: DlcType) => {
-    if (downloading) return
-    setDownloading(type)
+    if (enqueueing) return
+    setEnqueueing(type)
     try {
-      // Trigger browser download by navigating to the streaming endpoint
-      const a = document.createElement('a')
-      a.href = `/api/download/platform-extras/${platformSlug}?type=${type}`
-      a.download = `${platformSlug}-${type}s.zip`
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
+      const res = await fetch('/api/queue/bulk', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ platformSlug, type }),
+      })
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}))
+        alert(d.error ?? 'Error al encolar la descarga')
+        return
+      }
+      const { token } = await res.json()
+      // Navigate to the shared queue page — same flow as normal downloads
+      router.push(`/queue/${token}`)
+    } catch {
+      alert('Error al encolar la descarga')
     } finally {
-      // Give the browser a moment to start the download before re-enabling
-      setTimeout(() => setDownloading(null), 3000)
+      setEnqueueing(null)
     }
   }
 
@@ -74,27 +82,25 @@ export function BulkExtrasDownload({ platformSlug }: Props) {
             const { count, totalSize } = info[type]
             if (count === 0) return null
 
-            const isActive = downloading === type
+            const isActive = enqueueing === type
             return (
               <button
                 key={type}
                 onClick={() => handleDownload(type)}
-                disabled={!!downloading}
+                disabled={!!enqueueing}
                 className={`
                   flex items-center gap-2 px-3 py-1.5 rounded-lg border text-sm font-medium
                   bg-card transition-all
                   ${border}
                   ${isActive ? 'opacity-60 cursor-wait' : 'cursor-pointer'}
-                  ${!!downloading && !isActive ? 'opacity-40 cursor-not-allowed' : ''}
+                  ${!!enqueueing && !isActive ? 'opacity-40 cursor-not-allowed' : ''}
                 `}
               >
                 {isActive
                   ? <Loader2 className={`w-4 h-4 animate-spin ${color}`} />
                   : <span className={color}>{icon}</span>
                 }
-                <span className={color}>
-                  {label}
-                </span>
+                <span className={color}>{label}</span>
                 <span className="text-muted-foreground text-xs">
                   {count} · {formatBytes(BigInt(totalSize))}
                 </span>

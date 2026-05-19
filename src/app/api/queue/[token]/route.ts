@@ -1,5 +1,6 @@
-import { NextResponse } from 'next/server'
-import { getEntry } from '@/lib/download-queue'
+import { NextResponse }          from 'next/server'
+import { getEntry }              from '@/lib/download-queue'
+import { getBulkToken, isBulkToken } from '@/lib/bulk-queue'
 
 export const dynamic = 'force-dynamic'
 
@@ -7,6 +8,22 @@ export const dynamic = 'force-dynamic'
 export async function GET(req: Request, { params }: { params: { token: string } }) {
   const { token } = params
 
+  // ── Bulk download token (in-memory, admin-only) ────────────────────────────
+  if (isBulkToken(token)) {
+    const bulk = getBulkToken(token)
+    if (!bulk) {
+      return NextResponse.json({ error: 'Token not found or expired' }, { status: 404 })
+    }
+    return NextResponse.json({
+      token,
+      status:      'ready',
+      position:    0,
+      expiresAt:   bulk.expiresAt,
+      redirectUrl: `/api/download/platform-extras/${bulk.platformSlug}?type=${bulk.type}&token=${token}`,
+    })
+  }
+
+  // ── Regular game/DLC download token (DB-backed) ────────────────────────────
   let entry
   try {
     entry = await getEntry(token)
