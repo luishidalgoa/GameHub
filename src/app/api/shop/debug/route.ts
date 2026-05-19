@@ -1,8 +1,8 @@
 /**
  * GET /api/shop/debug
- * LAN-only diagnostic endpoint. Shows every game in the DB that could
- * potentially appear in the CyberFoil shop, with the reason it is included
- * or excluded. Useful to diagnose why some titles don't appear in the shop.
+ * LAN-only diagnostic endpoint. Shows:
+ *   - Every game in the DB with its shop inclusion status
+ *   - Every GameDlc (updates/DLC/mods) with its shop inclusion status
  *
  * Example: http://192.168.1.x:3000/api/shop/debug
  */
@@ -21,6 +21,7 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: 'LAN access only' }, { status: 403 })
   }
 
+  // ── Base games ───────────────────────────────────────────────────────────
   const games = await db.game.findMany({
     orderBy: { title: 'asc' },
     select: {
@@ -30,26 +31,24 @@ export async function GET(req: Request) {
       filePath: true,
       fileSize: true,
       isHidden: true,
-      platform: { select: { name: true, slug: true } },
+      platform: { select: { name: true } },
     },
   })
 
-  const results = games.map((g) => {
-    const ext        = g.fileName.slice(g.fileName.lastIndexOf('.')).toLowerCase()
+  const gameResults = games.map((g) => {
+    const ext         = g.fileName.slice(g.fileName.lastIndexOf('.')).toLowerCase()
     const isSwitchExt = SWITCH_EXTS.has(ext)
-    const hasFileSize = g.fileSize > 0
-    const fileExists  = !g.isHidden && hasFileSize ? fs.existsSync(g.filePath) : false
+    const hasFileSize = g.fileSize > BigInt(0)
+    const fileExists  = !g.isHidden && hasFileSize && isSwitchExt
+      ? fs.existsSync(g.filePath)
+      : false
 
-    let status: 'included' | 'excluded'
     const reasons: string[] = []
-
-    if (g.isHidden)       reasons.push('isHidden=true (marked stale by scanner)')
-    if (!hasFileSize)     reasons.push('fileSize=0 (stub entry — no base game file)')
-    if (!isSwitchExt)     reasons.push(`extension "${ext}" not in Switch list (.nsp/.nsz/.xci/.xcz)`)
+    if (g.isHidden)   reasons.push('isHidden=true (marked stale by scanner)')
+    if (!hasFileSize) reasons.push('fileSize=0 (stub — no base game file)')
+    if (!isSwitchExt) reasons.push(`extension "${ext}" not in Switch list (.nsp/.nsz/.xci/.xcz)`)
     if (hasFileSize && !g.isHidden && isSwitchExt && !fileExists)
-                          reasons.push(`file not found on disk: ${g.filePath}`)
-
-    status = reasons.length === 0 ? 'included' : 'excluded'
+                      reasons.push(`file not found on disk: ${g.filePath}`)
 
     return {
       id:       g.id,
@@ -58,16 +57,59 @@ export async function GET(req: Request) {
       filePath: g.filePath,
       fileSize: g.fileSize.toString(),
       platform: g.platform?.name ?? '—',
-      status,
+      status:   reasons.length === 0 ? 'included' : 'excluded',
       reasons,
     }
   })
 
-  const included = results.filter((r) => r.status === 'included').length
-  const excluded = results.filter((r) => r.status === 'excluded').length
+  // ── DLC / Updates / Mods ─────────────────────────────────────────────────
+  const dlcs = await db.gameDlc.findMany({
+    orderBy: [{ type: 'asc' }, { fileName: 'asc' }],
+    select: {
+      id:       true,
+      fileName: true,
+      filePath: true,
+      fileSize: true,
+      type:     true,
+      game:     { select: { title: true, isHidden: true } },
+    },
+  })
+
+  const dlcResults = dlcs.map((d) => {
+    const ext         = d.fileName.slice(d.fileName.lastIndexOf('.')).toLowerCase()
+    const isSwitchExt = SWITCH_EXTS.has(ext)
+    const fileExists  = isSwitchExt ? fs.existsSync(d.filePath) : false
+
+    const reasons: string[] = []
+    if (d.game.isHidden) reasons.push('parent game isHidden=true')
+    if (!isSwitchExt)    reasons.push(`extension "${ext}" not in Switch list`)
+    if (isSwitchExt && !fileExists)
+                         reasons.push(`file not found on disk: ${d.filePath}`)
+
+    return {
+      id:        d.id,
+      type:      d.type,
+      fileName:  d.fileName,
+      filePath:  d.filePath,
+      fileSize:  d.fileSize.toString(),
+      gameTitle: d.game.title,
+      status:    reasons.length === 0 ? 'included' : 'excluded',
+      reasons,
+    }
+  })
+
+  const gIncluded = gameResults.filter((r) => r.status === 'included').length
+  const uIncluded = dlcResults.filter((r) => r.status === 'included' && r.type === 'update').length
+  const dIncluded = dlcResults.filter((r) => r.status === 'included' && r.type === 'dlc').length
 
   return NextResponse.json({
-    summary: { total: results.length, included, excluded },
-    games: results,
-  }, { status: 200 })
+    summary: {
+      games:   { total: gameResults.length, included: gIncluded },
+      updates: { total: dlcResults.filter(r => r.type === 'update').length, included: uIncluded },
+      dlcs:    { total: dlcResults.filter(r => r.type === 'dlc').length,    included: dIncluded },
+      mods:    { total: dlcResults.filter(r => r.type === 'mod').length },
+    },
+    games:   gameResults,
+    extras:  dlcResults,
+  })
 }
