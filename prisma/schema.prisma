@@ -97,15 +97,16 @@ model Setting {
 }
 
 model ScanLog {
-  id           Int       @id @default(autoincrement())
-  startedAt    DateTime  @default(now())
-  finishedAt   DateTime?
-  gamesFound   Int       @default(0)
-  gamesAdded   Int       @default(0)
-  gamesUpdated Int       @default(0)
-  gamesStale   Int       @default(0)
-  errors       String?
-  triggeredBy  String    @default("manual")
+  id                Int       @id @default(autoincrement())
+  startedAt         DateTime  @default(now())
+  finishedAt        DateTime?
+  gamesFound        Int       @default(0)
+  gamesAdded        Int       @default(0)
+  gamesUpdated      Int       @default(0)
+  gamesStale        Int       @default(0)
+  errors            String?
+  triggeredBy       String    @default("manual")
+  platformBreakdown String?   // JSON: PlatformScanSummary[]
 }
 
 model RequestLog {

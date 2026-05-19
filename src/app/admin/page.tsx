@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { formatBytes } from '@/lib/utils'
 import { ScanPanel } from '@/components/admin/ScanPanel'
 import { MetadataBatchPanel } from '@/components/admin/MetadataBatchPanel'
+import { ScanLogsTable } from '@/components/admin/ScanLogsTable'
 import { Gamepad2, Monitor, HardDrive, ImageOff, FileQuestion } from 'lucide-react'
 
 export const dynamic = 'force-dynamic'
@@ -44,39 +45,25 @@ export default async function AdminPage() {
       {scanLogs.length > 0 && (
         <div className="bg-card border border-border rounded-xl p-6">
           <h3 className="font-semibold mb-4">{t('recentScans')}</h3>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left text-muted-foreground border-b border-border">
-                  <th className="pb-2 pr-4 font-medium">{t('date')}</th>
-                  <th className="pb-2 pr-4 font-medium">{t('duration')}</th>
-                  <th className="pb-2 pr-4 font-medium">{t('found')}</th>
-                  <th className="pb-2 pr-4 font-medium text-green-500">{t('added')}</th>
-                  <th className="pb-2 pr-4 font-medium text-blue-500">{t('updated')}</th>
-                  <th className="pb-2 font-medium text-amber-500">{t('stale')}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {scanLogs.map((log) => {
-                  const duration = log.finishedAt
-                    ? `${Math.round((log.finishedAt.getTime() - log.startedAt.getTime()) / 1000)}s`
-                    : '—'
-                  return (
-                    <tr key={log.id} className="border-b border-border/50 last:border-0">
-                      <td className="py-2 pr-4 text-muted-foreground">
-                        {log.startedAt.toLocaleString()}
-                      </td>
-                      <td className="py-2 pr-4 text-muted-foreground">{duration}</td>
-                      <td className="py-2 pr-4">{log.gamesFound}</td>
-                      <td className="py-2 pr-4 text-green-500">{log.gamesAdded}</td>
-                      <td className="py-2 pr-4 text-blue-500">{log.gamesUpdated}</td>
-                      <td className="py-2 text-amber-500">{log.gamesStale}</td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
+          <ScanLogsTable
+            logs={scanLogs.map(l => ({
+              id:           l.id,
+              startedAt:    l.startedAt.toISOString(),
+              finishedAt:   l.finishedAt?.toISOString() ?? null,
+              gamesFound:   l.gamesFound,
+              gamesAdded:   l.gamesAdded,
+              gamesUpdated: l.gamesUpdated,
+              gamesStale:   l.gamesStale,
+            }))}
+            labels={{
+              date:     t('date'),
+              duration: t('duration'),
+              found:    t('found'),
+              added:    t('added'),
+              updated:  t('updated'),
+              stale:    t('stale'),
+            }}
+          />
         </div>
       )}
     </div>

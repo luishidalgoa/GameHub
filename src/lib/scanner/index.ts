@@ -73,12 +73,23 @@ async function upsertFolderGame(
 /** Yield control to the event loop so SSE and other I/O can flush. */
 const tick = () => new Promise<void>(r => setImmediate(r))
 
+export interface PlatformScanSummary {
+  platform:     string
+  gamesAdded:   number
+  gamesUpdated: number
+  gamesStale:   number
+  dlcsFound:    number
+  updatesFound: number
+  modsFound:    number
+}
+
 export async function runScan(triggeredBy = 'manual', platformSlug?: string) {
   const scanStart = new Date()
   emit({ type: 'scan_start' })
 
   let totalFound = 0, totalAdded = 0, totalUpdated = 0, totalStale = 0
   const errors: string[] = []
+  const breakdown: PlatformScanSummary[] = []
 
   const log = await db.scanLog.create({
     data: { triggeredBy, startedAt: scanStart },
@@ -95,6 +106,7 @@ export async function runScan(triggeredBy = 'manual', platformSlug?: string) {
     emit({ type: 'platform_start', platform: platform.name })
 
     let found = 0, added = 0, updated = 0
+    let dlcsFound = 0, updatesFound = 0, modsFound = 0
     const extensions = platform.extensions.split(',').map(e => e.trim()).filter(Boolean)
     // Support multiple scan paths separated by '|' (pipe)
     const scanPaths = platform.scanPath.split('|').map(p => p.trim()).filter(Boolean)
@@ -121,6 +133,11 @@ export async function runScan(triggeredBy = 'manual', platformSlug?: string) {
           if (!folder.baseFile && folder.dlcFiles.length === 0) continue
           const { added: a, updated: u } = await upsertFolderGame(folder, platform.id, scanStart, errors, emit, platform.name)
           found++; added += a; updated += u
+          for (const dlc of folder.dlcFiles) {
+            if (dlc.type === 'mod')    modsFound++
+            else if (dlc.type === 'update') updatesFound++
+            else dlcsFound++
+          }
           if (found % 20 === 0) await tick()
         }
 
@@ -186,6 +203,9 @@ export async function runScan(triggeredBy = 'manual', platformSlug?: string) {
           } catch (err) { errors.push(`Error processing ${file.filePath}: ${err}`) }
           if (found % 20 === 0) await tick()
         }
+
+        updatesFound += updates.length
+        dlcsFound    += dlcs.length
 
         // Pass 2: link updates/DLCs to their base game via matching Title ID key
         for (const dlc of [...updates, ...dlcs]) {
@@ -259,6 +279,16 @@ export async function runScan(triggeredBy = 'manual', platformSlug?: string) {
     totalAdded += added
     totalUpdated += updated
 
+    breakdown.push({
+      platform:     platform.name,
+      gamesAdded:   added,
+      gamesUpdated: updated,
+      gamesStale:   stale,
+      dlcsFound,
+      updatesFound,
+      modsFound,
+    })
+
     emit({
       type: 'platform_done',
       platform: platform.name,
@@ -273,11 +303,12 @@ export async function runScan(triggeredBy = 'manual', platformSlug?: string) {
     where: { id: log.id },
     data: {
       finishedAt,
-      gamesFound: totalFound,
-      gamesAdded: totalAdded,
-      gamesUpdated: totalUpdated,
-      gamesStale: totalStale,
-      errors: errors.length > 0 ? JSON.stringify(errors) : null,
+      gamesFound:        totalFound,
+      gamesAdded:        totalAdded,
+      gamesUpdated:      totalUpdated,
+      gamesStale:        totalStale,
+      errors:            errors.length > 0 ? JSON.stringify(errors) : null,
+      platformBreakdown: JSON.stringify(breakdown),
     },
   })
 
