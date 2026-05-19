@@ -6,7 +6,10 @@ node_modules
 /generated/prisma
 .claude
 # SQLite database (user data — never commit)
-prisma
+gamehub.db
+*.db-journal
+prisma/*.db
+prisma/*.db-journal
 .next
 data
 public/covers/

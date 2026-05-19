@@ -4,7 +4,6 @@ import { db } from '@/lib/db'
 import { isAdminSession } from '@/lib/auth'
 import { resolveCoverPath } from '@/lib/s3'
 import { GameGrid } from '@/components/platform/GameGrid'
-import { BulkExtrasDownload } from '@/components/platform/BulkExtrasDownload'
 
 export const dynamic = 'force-dynamic'
 
@@ -60,10 +59,7 @@ export default async function PlatformPage({ params }: Props) {
         <p className="text-muted-foreground mt-1">{t('games', { count: gameCount })}</p>
       </div>
 
-      {/* Bulk DLC/update/mod download — admin only */}
-      {isAdmin && <BulkExtrasDownload platformSlug={params.slug} />}
-
-      <GameGrid
+<GameGrid
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         games={resolvedGames.map((g) => ({ ...g, fileSize: g.fileSize.toString(), metadataFetchedAt: g.metadataFetchedAt?.toISOString() ?? null })) as any}
         platformSlug={params.slug}

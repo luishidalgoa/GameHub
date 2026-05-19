@@ -1,18 +1,18 @@
 /**
- * In-memory token store for bulk (platform-extras) downloads.
+ * In-memory token store for bulk (game-extras) downloads.
  *
- * Bulk ZIPs are admin-only and ephemeral — no need to persist them in the DB.
- * Tokens expire after 15 min (same window as regular download tokens).
+ * Bulk ZIPs are ephemeral — no need to persist in the DB.
+ * Tokens expire after 15 min (same as regular download tokens).
  */
 
 export type BulkType = 'dlc' | 'update' | 'mod'
 
 export interface BulkToken {
-  token:        string
-  platformSlug: string
-  type:         BulkType
-  createdAt:    number
-  expiresAt:    number
+  token:     string
+  gameId:    number
+  type:      BulkType
+  createdAt: number
+  expiresAt: number
 }
 
 const TTL_MS = 15 * 60_000
@@ -30,12 +30,12 @@ function pruneExpired() {
   }
 }
 
-export function createBulkToken(platformSlug: string, type: BulkType): BulkToken {
+export function createBulkToken(gameId: number, type: BulkType): BulkToken {
   pruneExpired()
-  const now   = Date.now()
+  const now = Date.now()
   const entry: BulkToken = {
     token: generateToken(),
-    platformSlug,
+    gameId,
     type,
     createdAt: now,
     expiresAt: now + TTL_MS,

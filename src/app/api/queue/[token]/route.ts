@@ -19,7 +19,7 @@ export async function GET(req: Request, { params }: { params: { token: string } 
       status:      'ready',
       position:    0,
       expiresAt:   bulk.expiresAt,
-      redirectUrl: `/api/download/platform-extras/${bulk.platformSlug}?type=${bulk.type}&token=${token}`,
+      redirectUrl: `/api/download/game-extras/${bulk.gameId}?type=${bulk.type}&token=${token}`,
     })
   }
 

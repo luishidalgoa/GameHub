@@ -261,20 +261,7 @@ function TrailerEmbed({ url, watchLabel }: { url: string; watchLabel: string }) 
   const [origin, setOrigin] = useState<string>('')
 
   useEffect(() => {
-    let mounted = true
-    // Prefer configured app_url from DB; fallback to window.location.origin
-    fetch('/api/settings')
-      .then((r) => r.json())
-      .then((map) => {
-        if (!mounted) return
-        const fromDb = map?.app_url || map?.APP_URL
-        if (fromDb) setOrigin(fromDb)
-        else if (typeof window !== 'undefined') setOrigin(window.location.origin)
-      })
-      .catch(() => {
-        if (typeof window !== 'undefined') setOrigin(window.location.origin)
-      })
-    return () => { mounted = false }
+    setOrigin(window.location.origin)
   }, [])
 
   const getYouTubeId = (u: string) => {

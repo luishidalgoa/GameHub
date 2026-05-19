@@ -5,7 +5,8 @@ import { ArrowLeft, Calendar, Tag, User, Building2, HardDrive, Pencil } from 'lu
 import { db } from '@/lib/db'
 import { resolveCoverPath } from '@/lib/s3'
 import { formatBytes } from '@/lib/utils'
-import { DownloadButton } from '@/components/shared/DownloadButton'
+import { DownloadButton }     from '@/components/shared/DownloadButton'
+import { BulkDownloadButton } from '@/components/shared/BulkDownloadButton'
 import { ScreenshotCarousel } from '@/components/game/ScreenshotCarousel'
 import { isAdminSession } from '@/lib/auth'
 import { getRawgProvider } from '@/lib/metadata/rawg'
@@ -145,9 +146,12 @@ export default async function GamePage({ params }: Props) {
       {/* Updates */}
       {game.dlcs.filter((d) => d.type === 'update').length > 0 && (
         <div className="mt-8">
-          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">
-            Updates ({game.dlcs.filter((d) => d.type === 'update').length})
-          </h2>
+          <div className="flex items-center gap-3 mb-3">
+            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
+              Updates ({game.dlcs.filter((d) => d.type === 'update').length})
+            </h2>
+            <BulkDownloadButton gameId={game.id} type="update" count={game.dlcs.filter(d => d.type === 'update').length} />
+          </div>
           <div className="space-y-1.5">
             {game.dlcs.filter((d) => d.type === 'update').map((dlc) => (
               <div key={dlc.id} className="flex items-center gap-3 bg-secondary/50 rounded-lg px-4 py-2.5 text-sm">
@@ -163,9 +167,12 @@ export default async function GamePage({ params }: Props) {
       {/* DLCs */}
       {game.dlcs.filter((d) => d.type === 'dlc').length > 0 && (
         <div className="mt-8">
-          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">
-            DLC ({game.dlcs.filter((d) => d.type === 'dlc').length})
-          </h2>
+          <div className="flex items-center gap-3 mb-3">
+            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
+              DLC ({game.dlcs.filter((d) => d.type === 'dlc').length})
+            </h2>
+            <BulkDownloadButton gameId={game.id} type="dlc" count={game.dlcs.filter(d => d.type === 'dlc').length} />
+          </div>
           <div className="space-y-1.5">
             {game.dlcs.filter((d) => d.type === 'dlc').map((dlc) => (
               <div key={dlc.id} className="flex items-center gap-3 bg-secondary/50 rounded-lg px-4 py-2.5 text-sm">
@@ -181,9 +188,12 @@ export default async function GamePage({ params }: Props) {
       {/* Mods */}
       {game.dlcs.filter((d) => d.type === 'mod').length > 0 && (
         <div className="mt-8">
-          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">
-            Mods ({game.dlcs.filter((d) => d.type === 'mod').length})
-          </h2>
+          <div className="flex items-center gap-3 mb-3">
+            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
+              Mods ({game.dlcs.filter((d) => d.type === 'mod').length})
+            </h2>
+            <BulkDownloadButton gameId={game.id} type="mod" count={game.dlcs.filter(d => d.type === 'mod').length} />
+          </div>
           <div className="space-y-1.5">
             {game.dlcs.filter((d) => d.type === 'mod').map((mod) => (
               <div key={mod.id} className="flex items-center gap-3 bg-secondary/50 rounded-lg px-4 py-2.5 text-sm">

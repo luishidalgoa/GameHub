@@ -1,10 +1,10 @@
 {
   "/_not-found/page": "app/_not-found/page.js",
-  "/api/auth/me/route": "app/api/auth/me/route.js",
-  "/page": "app/page.js",
-  "/api/platforms/route": "app/api/platforms/route.js",
-  "/game/[id]/page": "app/game/[id]/page.js",
   "/platform/[slug]/page": "app/platform/[slug]/page.js",
-  "/admin/games/[id]/page": "app/admin/games/[id]/page.js",
+  "/api/auth/me/route": "app/api/auth/me/route.js",
+  "/api/auth/is-admin-ip/route": "app/api/auth/is-admin-ip/route.js",
+  "/api/platform-extras/[slug]/route": "app/api/platform-extras/[slug]/route.js",
+  "/api/platforms/route": "app/api/platforms/route.js",
+  "/queue/[token]/page": "app/queue/[token]/page.js",
   "/admin/settings/page": "app/admin/settings/page.js"
 }
