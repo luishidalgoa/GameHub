@@ -43,6 +43,7 @@
     "notes": "Notes",
     "updates": "Updates ({count})",
     "dlc": "DLC ({count})",
+    "mods": "Mods ({count})",
     "notFound": "Game not found",
     "watchTrailer": "Watch trailer",
     "close": "Close"

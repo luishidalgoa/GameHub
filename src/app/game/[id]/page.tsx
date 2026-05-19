@@ -72,7 +72,9 @@ export default async function GamePage({ params }: Props) {
           <div className="flex items-start justify-between gap-4">
             <h1 className="text-3xl font-bold leading-tight">{game.title}</h1>
             <div className="flex-shrink-0 flex items-center gap-2">
-              <DownloadButton gameId={game.id} fileSize={game.fileSize.toString()} />
+              {game.fileSize > 0n && (
+                <DownloadButton gameId={game.id} fileSize={game.fileSize.toString()} />
+              )}
               {isAdmin && (
                 <Link
                   href={`/admin/games/${game.id}`}
@@ -103,7 +105,9 @@ export default async function GamePage({ params }: Props) {
             {game.genre && <MetaRow icon={<Tag className="w-4 h-4" />} label="Genre" value={game.genre} />}
             {game.developer && <MetaRow icon={<User className="w-4 h-4" />} label="Developer" value={game.developer} />}
             {game.publisher && <MetaRow icon={<Building2 className="w-4 h-4" />} label="Publisher" value={game.publisher} />}
-            <MetaRow icon={<HardDrive className="w-4 h-4" />} label="Size" value={formatBytes(game.fileSize)} />
+            {game.fileSize > 0n && (
+              <MetaRow icon={<HardDrive className="w-4 h-4" />} label="Size" value={formatBytes(game.fileSize)} />
+            )}
           </div>
 
           {game.description && (
@@ -158,17 +162,35 @@ export default async function GamePage({ params }: Props) {
       )}
 
       {/* DLCs */}
-      {game.dlcs.filter((d) => d.type !== 'update').length > 0 && (
+      {game.dlcs.filter((d) => d.type === 'dlc').length > 0 && (
         <div className="mt-8">
           <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">
-            DLC ({game.dlcs.filter((d) => d.type !== 'update').length})
+            DLC ({game.dlcs.filter((d) => d.type === 'dlc').length})
           </h2>
           <div className="space-y-1.5">
-            {game.dlcs.filter((d) => d.type !== 'update').map((dlc) => (
+            {game.dlcs.filter((d) => d.type === 'dlc').map((dlc) => (
               <div key={dlc.id} className="flex items-center gap-3 bg-secondary/50 rounded-lg px-4 py-2.5 text-sm">
                 <span className="flex-1 text-foreground/80 truncate">{dlc.title ?? dlc.fileName}</span>
                 <span className="text-muted-foreground text-xs mr-2">{formatBytes(dlc.fileSize)}</span>
                 <DownloadButton gameId={game.id} dlcId={dlc.id} label="DLC" fileSize={dlc.fileSize.toString()} variant="secondary" />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Mods */}
+      {game.dlcs.filter((d) => d.type === 'mod').length > 0 && (
+        <div className="mt-8">
+          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">
+            Mods ({game.dlcs.filter((d) => d.type === 'mod').length})
+          </h2>
+          <div className="space-y-1.5">
+            {game.dlcs.filter((d) => d.type === 'mod').map((mod) => (
+              <div key={mod.id} className="flex items-center gap-3 bg-secondary/50 rounded-lg px-4 py-2.5 text-sm">
+                <span className="flex-1 text-foreground/80 truncate">{mod.title ?? mod.fileName}</span>
+                <span className="text-muted-foreground text-xs mr-2">{formatBytes(mod.fileSize)}</span>
+                <DownloadButton gameId={game.id} dlcId={mod.id} label="Mod" fileSize={mod.fileSize.toString()} variant="secondary" />
               </div>
             ))}
           </div>

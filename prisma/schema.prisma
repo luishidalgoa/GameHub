@@ -85,7 +85,7 @@ model GameDlc {
   fileName String
   fileSize BigInt
   title    String?
-  type     String @default("dlc")   // "dlc" | "update"
+  type     String @default("dlc")   // "dlc" | "update" | "mod"
 
   @@index([gameId])
 }

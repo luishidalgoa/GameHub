@@ -1,4 +1,5 @@
 import path from 'path'
+import fs from 'fs'
 import { db } from '@/lib/db'
 import { cleanTitle, extractRegion, toSortTitle } from '@/lib/utils'
 import { walkDirectory, scanSwitchFolders, scanPortsFolders, walkFlatWithDlcDetection, extractGameKey } from './walker'
@@ -22,9 +23,14 @@ async function upsertFolderGame(
   platformName: string,
   titleOverride?: string,
 ): Promise<{ added: number; updated: number }> {
-  const baseFile = folder.baseFile!
-  const title    = titleOverride ?? cleanTitle(folder.folderName)
-  const region   = extractRegion(folder.folderName)
+  const title  = titleOverride ?? cleanTitle(folder.folderName)
+  const region = extractRegion(folder.folderName)
+
+  // When there is no base file, use the folder path itself as the unique key
+  // so updates / DLC / mods without a base game are still catalogued.
+  const filePath = folder.baseFile?.filePath ?? folder.folderPath
+  const fileName = folder.baseFile?.fileName ?? ''
+  const fileSize = folder.baseFile?.fileSize ?? BigInt(0)
 
   const upsertDlcs = async (gameId: number) => {
     for (const dlc of folder.dlcFiles) {
@@ -44,22 +50,22 @@ async function upsertFolderGame(
   }
 
   try {
-    const existing = await db.game.findUnique({ where: { filePath: baseFile.filePath } })
+    const existing = await db.game.findUnique({ where: { filePath } })
     if (!existing) {
       const game = await db.game.create({
-        data: { filePath: baseFile.filePath, fileName: baseFile.fileName, fileSize: baseFile.fileSize, platformId, title, sortTitle: toSortTitle(title), region, lastSeenAt: scanStart },
+        data: { filePath, fileName, fileSize, platformId, title, sortTitle: toSortTitle(title), region, lastSeenAt: scanStart },
       })
       await upsertDlcs(game.id)
-      emitFn({ type: 'file_found', filePath: baseFile.filePath, isNew: true, platform: platformName })
+      emitFn({ type: 'file_found', filePath, isNew: true, platform: platformName })
       return { added: 1, updated: 0 }
     } else {
-      await db.game.update({ where: { id: existing.id }, data: { fileSize: baseFile.fileSize, lastSeenAt: scanStart, isHidden: false } })
+      await db.game.update({ where: { id: existing.id }, data: { fileSize, lastSeenAt: scanStart, isHidden: false } })
       await upsertDlcs(existing.id)
-      emitFn({ type: 'file_found', filePath: baseFile.filePath, isNew: false, platform: platformName })
+      emitFn({ type: 'file_found', filePath, isNew: false, platform: platformName })
       return { added: 0, updated: 1 }
     }
   } catch (err) {
-    errors.push(`Error processing ${baseFile.filePath}: ${err}`)
+    errors.push(`Error processing ${filePath}: ${err}`)
     return { added: 0, updated: 0 }
   }
 }
@@ -92,16 +98,27 @@ export async function runScan(triggeredBy = 'manual', platformSlug?: string) {
     const extensions = platform.extensions.split(',').map(e => e.trim()).filter(Boolean)
     // Support multiple scan paths separated by '|' (pipe)
     const scanPaths = platform.scanPath.split('|').map(p => p.trim()).filter(Boolean)
+    // Track whether all paths were accessible — skip stale marking if any were unreachable
+    let allPathsAccessible = true
 
     try {
       const mode = (platform.scanMode ?? 'flat') as 'flat' | 'folder' | 'ports'
 
       for (const scanPath of scanPaths) {
+      // Verify the path is accessible before scanning
+      if (!fs.existsSync(scanPath)) {
+        const msg = `[WARN] Scan path not found or inaccessible: "${scanPath}" (platform: ${platform.name})`
+        errors.push(msg)
+        allPathsAccessible = false
+        continue
+      }
+
       if (mode === 'folder') {
         // ── Folder-style: one folder = one game (Switch) ─────────────────────
         const folders = scanSwitchFolders(scanPath, extensions, /dlc|update|patch/i)
         for (const folder of folders) {
-          if (!folder.baseFile) continue
+          // Process even when there is no base game file (updates/DLC/mods only)
+          if (!folder.baseFile && folder.dlcFiles.length === 0) continue
           const { added: a, updated: u } = await upsertFolderGame(folder, platform.id, scanStart, errors, emit, platform.name)
           found++; added += a; updated += u
           if (found % 20 === 0) await tick()
@@ -131,7 +148,7 @@ export async function runScan(triggeredBy = 'manual', platformSlug?: string) {
         }
 
         for (const folder of folders) {
-          if (!folder.baseFile) continue
+          if (!folder.baseFile && folder.dlcFiles.length === 0) continue
           const { added: a, updated: u } = await upsertFolderGame(
             folder, platform.id, scanStart, errors, emit, platform.name,
             cleanTitle(folder.folderName),
@@ -221,16 +238,22 @@ export async function runScan(triggeredBy = 'manual', platformSlug?: string) {
       errors.push(msg)
     }
 
-    // Mark stale games for this platform (not seen in this scan)
-    const staleResult = await db.game.updateMany({
-      where: {
-        platformId: platform.id,
-        lastSeenAt: { lt: scanStart },
-      },
-      data: { isHidden: true },
-    })
-
-    const stale = staleResult.count
+    // Mark stale games only when every scan path was accessible.
+    // If any path was unreachable (e.g. network share offline), skip stale marking
+    // so we don't accidentally hide games from inaccessible paths.
+    let stale = 0
+    if (allPathsAccessible) {
+      const staleResult = await db.game.updateMany({
+        where: {
+          platformId: platform.id,
+          lastSeenAt: { lt: scanStart },
+        },
+        data: { isHidden: true },
+      })
+      stale = staleResult.count
+    } else {
+      errors.push(`[INFO] Stale-marking skipped for "${platform.name}" because one or more scan paths were inaccessible.`)
+    }
     totalStale += stale
     totalFound += found
     totalAdded += added

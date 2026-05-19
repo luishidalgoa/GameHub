@@ -14,7 +14,7 @@ export interface FileEntry {
 
 export function* walkDirectory(
   dir: string,
-  extensions: string[],
+  extensions: string[],   // empty array = accept ALL extensions
   maxDepth = 5,
   currentDepth = 0,
 ): Generator<FileEntry> {
@@ -24,6 +24,8 @@ export function* walkDirectory(
   let entries: fs.Dirent[]
   try { entries = fs.readdirSync(dir, { withFileTypes: true }) } catch { return }
 
+  const anyExt = extensions.length === 0
+
   for (const entry of entries) {
     if (entry.name.startsWith('.')) continue
     const fullPath = path.join(dir, entry.name)
@@ -32,7 +34,7 @@ export function* walkDirectory(
       yield* walkDirectory(fullPath, extensions, maxDepth, currentDepth + 1)
     } else if (entry.isFile()) {
       const ext = path.extname(entry.name).toLowerCase()
-      if (extensions.includes(ext)) {
+      if (anyExt || extensions.includes(ext)) {
         let size = BigInt(0)
         try { size = BigInt(fs.statSync(fullPath).size) } catch { /* ignore */ }
         yield { filePath: fullPath, fileName: entry.name, fileSize: size, extension: ext, parentDir: dir }
@@ -80,11 +82,14 @@ export function scanSwitchFolders(
       if (sub.isDirectory()) {
         const subNameLower = sub.name.toLowerCase()
         const isUpdateFolder = subNameLower === 'update' || subNameLower === 'updates'
+        const isModFolder    = subNameLower === 'mod'    || subNameLower === 'mods'
         const isDlcFolder    = subNameLower === 'dlc'    || subNameLower === 'dlcs' || dlcPattern.test(sub.name)
 
-        if (isUpdateFolder || isDlcFolder) {
-          const fileType = isUpdateFolder ? 'update' : 'dlc'
-          for (const f of walkDirectory(subPath, extensions, 2)) {
+        if (isUpdateFolder || isModFolder || isDlcFolder) {
+          const fileType = isUpdateFolder ? 'update' : isModFolder ? 'mod' : 'dlc'
+          // Mod folders accept any file extension (zips, archives, etc.)
+          const walkExt = isModFolder ? [] : extensions
+          for (const f of walkDirectory(subPath, walkExt, 2)) {
             dlcFiles.push({ ...f, type: fileType })
           }
         }

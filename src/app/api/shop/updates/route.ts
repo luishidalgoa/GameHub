@@ -3,6 +3,7 @@
  * Sub-index listing only update patches — navigable as a directory in CyberFoil.
  */
 import { NextResponse } from 'next/server'
+import fs from 'fs'
 import { db } from '@/lib/db'
 import { isLanIp, clientIpFromPlainRequest } from '@/lib/auth'
 
@@ -18,12 +19,13 @@ export async function GET(req: Request) {
 
   const updates = await db.gameDlc.findMany({
     where: { type: 'update', game: { isHidden: false } },
-    select: { id: true, fileName: true, fileSize: true },
+    select: { id: true, filePath: true, fileName: true, fileSize: true },
   })
 
   const host = req.headers.get('host') ?? 'localhost'
   const switchUpdates = updates.filter((u) =>
-    SWITCH_EXTS.has(u.fileName.slice(u.fileName.lastIndexOf('.')).toLowerCase()),
+    SWITCH_EXTS.has(u.fileName.slice(u.fileName.lastIndexOf('.')).toLowerCase()) &&
+    fs.existsSync(u.filePath),
   )
 
   const files = switchUpdates.map((u) => ({

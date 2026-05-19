@@ -3,6 +3,7 @@
  * Sub-index listing only DLC files — navigable as a directory in CyberFoil.
  */
 import { NextResponse } from 'next/server'
+import fs from 'fs'
 import { db } from '@/lib/db'
 import { isLanIp, clientIpFromPlainRequest } from '@/lib/auth'
 
@@ -18,12 +19,13 @@ export async function GET(req: Request) {
 
   const dlcs = await db.gameDlc.findMany({
     where: { type: 'dlc', game: { isHidden: false } },
-    select: { id: true, fileName: true, fileSize: true },
+    select: { id: true, filePath: true, fileName: true, fileSize: true },
   })
 
   const host = req.headers.get('host') ?? 'localhost'
   const switchDlcs = dlcs.filter((d) =>
-    SWITCH_EXTS.has(d.fileName.slice(d.fileName.lastIndexOf('.')).toLowerCase()),
+    SWITCH_EXTS.has(d.fileName.slice(d.fileName.lastIndexOf('.')).toLowerCase()) &&
+    fs.existsSync(d.filePath),
   )
 
   const files = switchDlcs.map((d) => ({

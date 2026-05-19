@@ -11,6 +11,7 @@
  *   success    – message shown in the app UI
  */
 import { NextResponse } from 'next/server'
+import fs from 'fs'
 import { db } from '@/lib/db'
 import { isLanIp, clientIpFromPlainRequest } from '@/lib/auth'
 
@@ -60,6 +61,7 @@ export async function GET(req: Request) {
     where: { isHidden: false },
     select: {
       id:          true,
+      filePath:    true,
       fileName:    true,
       fileSize:    true,
       title:       true,
@@ -72,8 +74,13 @@ export async function GET(req: Request) {
     },
   })
 
+  // Games that have an actual downloadable file with a Switch extension AND the
+  // file is currently accessible on disk. This prevents listing titles whose
+  // storage (e.g. a network share) is temporarily unreachable.
   const switchGames = games.filter((g) =>
-    SWITCH_EXTS.has(g.fileName.slice(g.fileName.lastIndexOf('.')).toLowerCase()),
+    g.fileSize > 0 &&
+    SWITCH_EXTS.has(g.fileName.slice(g.fileName.lastIndexOf('.')).toLowerCase()) &&
+    fs.existsSync(g.filePath),
   )
 
   const host = req.headers.get('host') ?? 'localhost'
@@ -102,8 +109,10 @@ export async function GET(req: Request) {
   }
 
   // ── directories: separate DLC and update sub-indexes ─────────────────────
-  const hasDlc     = switchGames.some((g) => g.dlcs.some((d) => d.type === 'dlc'))
-  const hasUpdates = switchGames.some((g) => g.dlcs.some((d) => d.type === 'update'))
+  // Check ALL games (including stubs without a base file) so DLC/updates from
+  // games that only have extras still surface in the sub-index links.
+  const hasDlc     = games.some((g) => g.dlcs.some((d) => d.type === 'dlc'))
+  const hasUpdates = games.some((g) => g.dlcs.some((d) => d.type === 'update'))
 
   const directories: string[] = []
   if (hasDlc)     directories.push(`${base}/api/shop/dlc`)
