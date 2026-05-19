@@ -63,8 +63,9 @@ export function SettingsForm({ platforms: initial, settings }: Props) {
   const [s3AccessKey,  setS3AccessKey]  = useState(settings['s3_access_key']        ?? '')
   const [s3SecretKey,  setS3SecretKey]  = useState(settings['s3_secret_key']        ?? '')
   const [s3Bucket,     setS3Bucket]     = useState(settings['s3_bucket_name']       ?? '')
-  const [s3Region,     setS3Region]     = useState(settings['s3_region']            ?? '')
-  const [appUrl,       setAppUrl]       = useState(settings['app_url']            ?? process.env.NEXT_PUBLIC_APP_URL ?? '')
+  const [s3Region,      setS3Region]      = useState(settings['s3_region']      ?? '')
+  const [shopPassword,  setShopPassword]  = useState(settings['shop_password']  ?? '')
+  const [appUrl,        setAppUrl]        = useState(settings['app_url']        ?? process.env.NEXT_PUBLIC_APP_URL ?? '')
 
   const [saving,   setSaving]   = useState(false)
   const [saved,    setSaved]    = useState(false)
@@ -118,6 +119,7 @@ export function SettingsForm({ platforms: initial, settings }: Props) {
           s3_secret_key:            s3SecretKey,
           s3_bucket_name:           s3Bucket,
           s3_region:                s3Region,
+          shop_password:            shopPassword,
         }),
       }),
     ])
@@ -627,6 +629,31 @@ export function SettingsForm({ platforms: initial, settings }: Props) {
             className="w-24 bg-secondary border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
           />
           <p className="text-xs text-muted-foreground mt-1.5">{t('maxDownloadsHint')}</p>
+        </div>
+      </div>
+
+      {/* CyberFoil / Tinfoil Shop */}
+      <div className="bg-card border border-border rounded-xl p-6 space-y-4">
+        <div>
+          <h3 className="font-semibold">{t('shopTitle')}</h3>
+          <p className="text-sm text-muted-foreground mt-0.5">{t('shopDesc')}</p>
+        </div>
+        <div>
+          <label className="block text-sm font-medium mb-1.5">{t('shopPassword')}</label>
+          <input
+            type="password"
+            value={shopPassword}
+            onChange={(e) => setShopPassword(e.target.value)}
+            placeholder={t('shopPasswordPlaceholder')}
+            className="w-full max-w-sm bg-secondary border border-border rounded-md px-3 py-2 text-sm font-mono placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+          />
+          <p className="text-xs text-muted-foreground mt-1">{t('shopPasswordHint')}</p>
+        </div>
+        <div className="text-xs font-mono bg-secondary/60 rounded-lg px-4 py-3 space-y-1.5 text-muted-foreground">
+          <p className="font-medium text-foreground text-sm mb-2">{t('shopSetup')}</p>
+          <p>1. {t('shopStep1')}</p>
+          <p>2. {t('shopStep2')}</p>
+          <p className="pt-1 text-foreground">http://&lt;raspberry-ip&gt;:3000/api/shop</p>
         </div>
       </div>
 
