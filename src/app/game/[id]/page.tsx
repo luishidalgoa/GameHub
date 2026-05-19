@@ -72,7 +72,7 @@ export default async function GamePage({ params }: Props) {
           <div className="flex items-start justify-between gap-4">
             <h1 className="text-3xl font-bold leading-tight">{game.title}</h1>
             <div className="flex-shrink-0 flex items-center gap-2">
-              {game.fileSize > 0n && (
+              {game.fileSize > BigInt(0) && (
                 <DownloadButton gameId={game.id} fileSize={game.fileSize.toString()} />
               )}
               {isAdmin && (
@@ -105,7 +105,7 @@ export default async function GamePage({ params }: Props) {
             {game.genre && <MetaRow icon={<Tag className="w-4 h-4" />} label="Genre" value={game.genre} />}
             {game.developer && <MetaRow icon={<User className="w-4 h-4" />} label="Developer" value={game.developer} />}
             {game.publisher && <MetaRow icon={<Building2 className="w-4 h-4" />} label="Publisher" value={game.publisher} />}
-            {game.fileSize > 0n && (
+            {game.fileSize > BigInt(0) && (
               <MetaRow icon={<HardDrive className="w-4 h-4" />} label="Size" value={formatBytes(game.fileSize)} />
             )}
           </div>
