@@ -57,6 +57,11 @@ COPY --from=builder --chown=nextjs:nodejs /app/node_modules/.prisma    ./node_mo
 COPY --from=builder --chown=nextjs:nodejs /app/node_modules/@prisma    ./node_modules/@prisma
 COPY --from=builder --chown=nextjs:nodejs /app/node_modules/prisma     ./node_modules/prisma
 
+# sharp is a native addon used for cover-art processing.
+# Next.js standalone output may not trace its platform-specific binaries
+# correctly, so we copy it explicitly from the build stage.
+COPY --from=deps --chown=nextjs:nodejs /app/node_modules/sharp         ./node_modules/sharp
+
 # Data directory (SQLite lives here, mounted as volume)
 RUN mkdir -p /data && chown nextjs:nodejs /data
 

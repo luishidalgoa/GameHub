@@ -65,25 +65,32 @@ export function makeS3Client(config: S3Config): S3Client {
  *  - null / undefined         → null
  *  - already http/https URL   → return as-is (external cover like coverUrl)
  *  - starts with /covers/     → return as-is (legacy local path, dev-only)
- *  - S3 key (e.g. covers/…)   → build full public URL
+ *  - S3 key (e.g. covers/…)   → route through /api/covers/proxy/… so the
+ *    image is always served over the same origin (HTTPS), avoiding
+ *    mixed-content blocks when the MinIO endpoint is plain HTTP.
+ *
+ * The `config` parameter is kept for backwards-compat but is no longer
+ * needed for the proxy path.
  */
 export function resolveCoverPath(
   coverPath: string | null | undefined,
-  config: S3Config,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  config?: S3Config,
 ): string | null {
   if (!coverPath) return null
   if (coverPath.startsWith('http://') || coverPath.startsWith('https://')) return coverPath
   if (coverPath.startsWith('/covers/')) return coverPath // legacy local
-  const base = config.publicEndpoint.replace(/\/$/, '')
-  return `${base}/${config.bucketName}/${coverPath}`
+  // S3 key → serve through the Next.js proxy so it is always same-origin HTTPS
+  return `/api/covers/proxy/${coverPath}`
 }
 
 /** Convenience: resolve a single game's cover (prefers coverPath over coverUrl). */
 export function resolveGameCover<T extends { coverPath: string | null; coverUrl: string | null }>(
   game: T,
-  config: S3Config,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  config?: S3Config,
 ): string | null {
-  return resolveCoverPath(game.coverPath, config) ?? game.coverUrl ?? null
+  return resolveCoverPath(game.coverPath) ?? game.coverUrl ?? null
 }
 
 // ── S3 operations ─────────────────────────────────────────────────────────────
@@ -114,24 +121,36 @@ export async function uploadToS3(
 }
 
 /**
- * Upload buffer as both display and original.
- * The original is only written once (preserved across crop adjustments).
+ * Upload buffer as both display key and original key.
+ *
+ * @param replaceOriginal
+ *   true  (default) — always overwrite the original.  Use this when the
+ *          user deliberately picks a new cover image.
+ *   false — preserve the existing original if it already exists.  Use this
+ *          for crop-adjustment re-uploads so the full-res source is kept.
  */
 export async function uploadCoverToS3(
-  buffer:      Buffer,
-  key:         string,
-  originalKey: string,
-  config?:     S3Config,
+  buffer:          Buffer,
+  key:             string,
+  originalKey:     string,
+  config?:         S3Config,
+  replaceOriginal  = true,
 ): Promise<void> {
   const cfg    = config ?? await getS3Config()
   const client = makeS3Client(cfg)
   const bucket = cfg.bucketName
 
-  const alreadyHasOriginal = await objectExists(client, bucket, originalKey)
-
-  if (!alreadyHasOriginal) {
+  if (replaceOriginal) {
+    // Always write the original so the crop tool uses the freshest source.
     await client.send(new PutObjectCommand({ Bucket: bucket, Key: originalKey, Body: buffer, ContentType: 'image/webp' }))
+  } else {
+    // Preserve the existing original (crop-adjustment path).
+    const alreadyHasOriginal = await objectExists(client, bucket, originalKey)
+    if (!alreadyHasOriginal) {
+      await client.send(new PutObjectCommand({ Bucket: bucket, Key: originalKey, Body: buffer, ContentType: 'image/webp' }))
+    }
   }
+
   await client.send(new PutObjectCommand({ Bucket: bucket, Key: key, Body: buffer, ContentType: 'image/webp' }))
 }
 

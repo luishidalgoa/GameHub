@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useTranslations } from 'next-intl'
-import { Save, Loader2, Plus, Trash2, ChevronDown, ChevronUp, FolderPlus, X, FolderOpen } from 'lucide-react'
+import { Save, Loader2, Plus, Trash2, ChevronDown, ChevronUp, FolderPlus, X, FolderOpen, Wifi, CheckCircle2, XCircle, AlertCircle } from 'lucide-react'
 import { FolderPickerModal } from './FolderPickerModal'
 
 const splitPaths = (s: string) => s.split('|').map(p => p.trim()).filter(Boolean)
@@ -72,6 +72,29 @@ export function SettingsForm({ platforms: initial, settings }: Props) {
   const [deleting, setDeleting] = useState<number | null>(null)
   const [addOpen,  setAddOpen]  = useState(false)
   const [adding,   setAdding]   = useState(false)
+
+  // MinIO connection test
+  type S3TestStep = { step: string; ok: boolean; detail?: string }
+  type S3TestResult = { ok: boolean; config: Record<string, string>; steps: S3TestStep[] }
+  const [s3Testing,    setS3Testing]    = useState(false)
+  const [s3TestResult, setS3TestResult] = useState<S3TestResult | null>(null)
+  const [s3TestError,  setS3TestError]  = useState<string | null>(null)
+
+  const testS3 = async () => {
+    setS3Testing(true)
+    setS3TestResult(null)
+    setS3TestError(null)
+    try {
+      const res  = await fetch('/api/admin/s3-test')
+      const data = await res.json()
+      if (!res.ok) setS3TestError(data.error ?? `HTTP ${res.status}`)
+      else         setS3TestResult(data as S3TestResult)
+    } catch (err) {
+      setS3TestError(err instanceof Error ? err.message : 'Network error')
+    } finally {
+      setS3Testing(false)
+    }
+  }
 
   // New platform draft
   const [newPlatform, setNewPlatform] = useState(emptyNewPlatform)
@@ -614,6 +637,73 @@ export function SettingsForm({ platforms: initial, settings }: Props) {
             </span>
           </p>
         )}
+
+        {/* ── MinIO connection test ──────────────────────────────────────── */}
+        <div className="border-t border-border pt-4">
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={testS3}
+              disabled={s3Testing}
+              className="flex items-center gap-2 px-4 py-2 bg-secondary border border-border rounded-md text-sm hover:bg-accent transition-colors disabled:opacity-50"
+            >
+              {s3Testing
+                ? <Loader2 className="w-4 h-4 animate-spin" />
+                : <Wifi className="w-4 h-4" />}
+              {s3Testing ? 'Comprobando…' : 'Comprobar conexión MinIO'}
+            </button>
+
+            {s3TestResult && !s3Testing && (
+              <span className={`flex items-center gap-1.5 text-sm font-medium ${s3TestResult.ok ? 'text-green-400' : 'text-red-400'}`}>
+                {s3TestResult.ok
+                  ? <CheckCircle2 className="w-4 h-4" />
+                  : <XCircle className="w-4 h-4" />}
+                {s3TestResult.ok ? 'Conexión OK' : 'Error de conexión'}
+              </span>
+            )}
+            {s3TestError && !s3Testing && (
+              <span className="flex items-center gap-1.5 text-sm font-medium text-red-400">
+                <XCircle className="w-4 h-4" /> {s3TestError}
+              </span>
+            )}
+          </div>
+
+          {/* Detailed results */}
+          {s3TestResult && (
+            <div className="mt-3 rounded-lg border border-border bg-secondary/40 p-3 space-y-1.5 text-xs font-mono">
+              {/* Config summary */}
+              <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-muted-foreground mb-2">
+                <span>endpoint interno: <span className="text-foreground">{s3TestResult.config.internalEndpoint}</span></span>
+                <span>bucket: <span className="text-foreground">{s3TestResult.config.bucketName}</span></span>
+                <span>access key: <span className="text-foreground">{s3TestResult.config.accessKey}</span></span>
+                <span>region: <span className="text-foreground">{s3TestResult.config.region}</span></span>
+              </div>
+              <div className="border-t border-border/50 pt-2 space-y-1">
+                {s3TestResult.steps.map((step, i) => (
+                  <div key={i} className="flex items-start gap-2">
+                    {step.ok
+                      ? <CheckCircle2 className="w-3.5 h-3.5 text-green-400 mt-0.5 shrink-0" />
+                      : <XCircle     className="w-3.5 h-3.5 text-red-400   mt-0.5 shrink-0" />}
+                    <span className={step.ok ? 'text-foreground' : 'text-red-300'}>
+                      {step.step}
+                      {step.detail && <span className="ml-2 text-muted-foreground">({step.detail})</span>}
+                    </span>
+                  </div>
+                ))}
+              </div>
+              {!s3TestResult.ok && (
+                <div className="border-t border-border/50 pt-2 flex items-start gap-1.5 text-amber-400">
+                  <AlertCircle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+                  <span>
+                    Asegúrate de que el endpoint interno sea accesible desde el contenedor Docker
+                    (p.ej. <span className="text-foreground">http://192.168.1.x:9000</span> en lugar de <span className="text-foreground">http://minio:9000</span>
+                    si MinIO está en una red Docker diferente).
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Download Queue */}

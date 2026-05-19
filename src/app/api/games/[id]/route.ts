@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { serializeBigInt } from '@/lib/serialize'
-import { getS3Config, resolveCoverPath } from '@/lib/s3'
+import { resolveCoverPath } from '@/lib/s3'
 
 export const dynamic = 'force-dynamic'
 
@@ -12,8 +12,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     include: { platform: true, dlcs: true },
   })
   if (!game) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-  const config = await getS3Config()
-  const resolved = { ...game, coverPath: resolveCoverPath(game.coverPath, config) }
+  const resolved = { ...game, coverPath: resolveCoverPath(game.coverPath) }
   return NextResponse.json(serializeBigInt(resolved))
 }
 

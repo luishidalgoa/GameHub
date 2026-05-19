@@ -15,9 +15,12 @@ export async function downloadAndCacheCover(
 }
 
 export async function saveCoverFromBuffer(
-  buffer:       Buffer,
-  platformSlug: string,
-  gameId:       number,
+  buffer:          Buffer,
+  platformSlug:    string,
+  gameId:          number,
+  /** When true (default), replace the stored original so the crop tool sees the
+   *  freshest source.  Pass false for crop-adjustment re-uploads. */
+  replaceOriginal  = true,
 ): Promise<string> {
   const key         = `${S3_PREFIX}/${platformSlug}/${gameId}.webp`
   const originalKey = `${S3_PREFIX}/${platformSlug}/${gameId}.original.webp`
@@ -27,7 +30,7 @@ export async function saveCoverFromBuffer(
     .webp({ quality: 90 })
     .toBuffer()
 
-  await uploadCoverToS3(processed, key, originalKey)
+  await uploadCoverToS3(processed, key, originalKey, undefined, replaceOriginal)
 
   return key // S3 key stored in DB
 }

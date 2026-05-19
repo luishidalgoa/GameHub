@@ -1,6 +1,6 @@
 import { getTranslations } from 'next-intl/server'
 import { db } from '@/lib/db'
-import { getS3Config, resolveCoverPath } from '@/lib/s3'
+import { resolveCoverPath } from '@/lib/s3'
 import { formatBytes } from '@/lib/utils'
 import { DeleteGameButton, PurgeAllButton, RecoverMetadataButton } from '@/components/admin/GraveyardClient'
 import Image from 'next/image'
@@ -39,7 +39,6 @@ export default async function GraveyardPage({ searchParams }: Props) {
   ])
 
   const totalPages = Math.ceil(total / pageSize)
-  const s3Config   = await getS3Config()
 
   return (
     <div>
@@ -116,7 +115,7 @@ export default async function GraveyardPage({ searchParams }: Props) {
               </thead>
               <tbody>
                 {games.map((game) => {
-                  const coverSrc = resolveCoverPath(game.coverPath, s3Config) ?? game.coverUrl ?? null
+                  const coverSrc = resolveCoverPath(game.coverPath) ?? game.coverUrl ?? null
 
                   return (
                     <tr

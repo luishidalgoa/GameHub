@@ -39,7 +39,7 @@ export function CoverUploader({ gameId, gameTitle = '', currentCover, onUploaded
   const [searchTab, setSearchTab]   = useState<'rawg' | 'sgdb'>('sgdb')
 
   // RAWG tab
-  const [rawgQuery, setRawgQuery]     = useState(gameTitle)
+  const [rawgQuery, setRawgQuery]     = useState('')
   const [rawgSearching, setRawgSearching] = useState(false)
   const [rawgResults, setRawgResults] = useState<RawgResult[]>([])
   const [applyingRawg, setApplyingRawg] = useState<number | null>(null)
@@ -58,18 +58,23 @@ export function CoverUploader({ gameId, gameTitle = '', currentCover, onUploaded
 
   // ── Upload helpers ─────────────────────────────────────────────────────────
 
-  const uploadFile = async (file: File) => {
+  const uploadFile = async (file: File, adjusted = false) => {
     setLoading(true)
     setError(null)
     try {
       const form = new FormData()
       form.append('gameId', String(gameId))
       form.append('file', file)
+      if (adjusted) form.append('adjusted', 'true')
       const res  = await fetch('/api/covers', { method: 'POST', body: form })
       const data = await res.json()
       setLoading(false)
-      if (res.ok) { setPreview(data.coverPath + `?t=${Date.now()}`); onUploaded(data.coverPath) }
-      else setError(data.error || 'Upload failed')
+      if (res.ok) {
+        // Use resolved URL for the preview; pass S3 key to parent so the
+        // game editor stores the stable key (not a full URL) in the DB.
+        setPreview(data.coverPath + `?t=${Date.now()}`)
+        onUploaded(data.key ?? data.coverPath)
+      } else setError(data.error || 'Upload failed')
     } catch (err) {
       setLoading(false)
       const msg = err instanceof Error ? err.message : 'Network error'
@@ -91,7 +96,7 @@ export function CoverUploader({ gameId, gameTitle = '', currentCover, onUploaded
       setLoading(false)
       if (res.ok) {
         setPreview(data.coverPath + `?t=${Date.now()}`)
-        onUploaded(data.coverPath)
+        onUploaded(data.key ?? data.coverPath)
         setUrlInput('')
         setSearchOpen(false)
       }
@@ -128,12 +133,25 @@ export function CoverUploader({ gameId, gameTitle = '', currentCover, onUploaded
     if (file && file.type.startsWith('image/')) uploadFile(file)
   }
 
-  const getOriginalCoverUrl = (path: string) =>
-    path.split('?')[0].replace(/\.webp$/, '.original.webp') + `?t=${Date.now()}`
+  const getOriginalCoverUrl = (path: string) => {
+    // Strip any ?t=… cache-buster, then replace .webp → .original.webp
+    const base = path.split('?')[0].replace(/\.webp$/, '.original.webp')
+    // If the path is already a proxy URL just keep it as-is (relative)
+    // If it's a full MinIO URL convert it to the proxy URL
+    if (base.startsWith('http://') || base.startsWith('https://')) {
+      // Extract the key portion after the bucket name
+      const match = base.match(/\/covers\/.*$/)
+      if (match) return `/api/covers/proxy${match[0]}?t=${Date.now()}`
+    }
+    return `${base}?t=${Date.now()}`
+  }
 
   const handleAdjustedSave = async (blob: Blob) => {
     setAdjusting(false)
-    await uploadFile(new File([blob], `cover_${gameId}_adjusted.webp`, { type: 'image/webp' }))
+    await uploadFile(
+      new File([blob], `cover_${gameId}_adjusted.webp`, { type: 'image/webp' }),
+      true, // adjusted = true → preserve original in MinIO
+    )
   }
 
   // ── RAWG cover search ──────────────────────────────────────────────────────

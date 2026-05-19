@@ -3,7 +3,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { ArrowLeft, Calendar, Tag, User, Building2, HardDrive, Pencil } from 'lucide-react'
 import { db } from '@/lib/db'
-import { getS3Config, resolveCoverPath } from '@/lib/s3'
+import { resolveCoverPath } from '@/lib/s3'
 import { formatBytes } from '@/lib/utils'
 import { DownloadButton } from '@/components/shared/DownloadButton'
 import { ScreenshotCarousel } from '@/components/game/ScreenshotCarousel'
@@ -18,11 +18,10 @@ interface Props {
 
 export default async function GamePage({ params }: Props) {
   const id = parseInt(params.id, 10)
-  const [game, isAdmin, rawgSetting, s3Config] = await Promise.all([
+  const [game, isAdmin, rawgSetting] = await Promise.all([
     db.game.findUnique({ where: { id }, include: { platform: true, dlcs: true } }),
     isAdminSession(),
     db.setting.findUnique({ where: { key: 'rawg_api_key' } }),
-    getS3Config(),
   ])
 
   if (!game) notFound()
@@ -36,7 +35,7 @@ export default async function GamePage({ params }: Props) {
     }
   }
 
-  const cover = resolveCoverPath(game.coverPath, s3Config) ?? game.coverUrl
+  const cover = resolveCoverPath(game.coverPath) ?? game.coverUrl
   const thumbW = game.platform?.thumbnailWidth  ?? 200
   const thumbH = game.platform?.thumbnailHeight ?? 300
 
