@@ -30,7 +30,7 @@ services:
     # Used by deploy.sh --wait so the script only reports "done" when the new
     # container is actually ready (not just "started").
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/api/auth/me >/dev/null 2>&1 || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/api/auth/me >/dev/null 2>&1 || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 6
