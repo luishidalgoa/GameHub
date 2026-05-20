@@ -14,11 +14,14 @@ export async function GET(req: Request) {
   const page = parseInt(searchParams.get('page') ?? '1', 10)
   const pageSize = parseInt(searchParams.get('pageSize') ?? '100', 10)
 
+  const region = searchParams.get('region') ?? ''
+
   const where = {
     isHidden: false,
     ...(platformSlug && { platform: { slug: platformSlug } }),
-    ...(search && { title: { contains: search } }),
+    ...(search    && { title: { contains: search } }),
     ...(favorites && { isFavorite: true }),
+    ...(region    && { region }),
   }
 
   const orderBy =

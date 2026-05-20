@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import Image from 'next/image'
 import { Heart, Pencil, Info } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -14,9 +15,16 @@ interface Props {
   thumbnailHeight?: number
 }
 
-export function GameCard({ game, onSelect, onToggleFavorite, isAdmin = false, thumbnailWidth = 200, thumbnailHeight = 300 }: Props) {
+export function GameCard({
+  game,
+  onSelect,
+  onToggleFavorite,
+  isAdmin = false,
+  thumbnailWidth = 200,
+  thumbnailHeight = 300,
+}: Props) {
   const cover = game.coverPath ?? game.coverUrl
-  const aspectRatio = (thumbnailWidth / thumbnailHeight).toFixed(2)
+  const [imgLoaded, setImgLoaded] = useState(false)
 
   return (
     <div
@@ -24,17 +32,30 @@ export function GameCard({ game, onSelect, onToggleFavorite, isAdmin = false, th
       onClick={() => onSelect(game.id)}
     >
       {/* Cover */}
-      <div style={{ aspectRatio: `${thumbnailWidth}/${thumbnailHeight}` }} className="relative bg-secondary">
+      <div
+        style={{ aspectRatio: `${thumbnailWidth}/${thumbnailHeight}` }}
+        className="relative bg-secondary overflow-hidden"
+      >
         {cover ? (
-          <Image
-            src={cover}
-            alt={game.title}
-            fill
-            className="object-cover"
-            sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 16vw"
-            loading="lazy"
-            unoptimized
-          />
+          <>
+            {/* Skeleton shimmer — visible until image loads */}
+            {!imgLoaded && (
+              <div className="absolute inset-0 bg-secondary animate-pulse" />
+            )}
+            <Image
+              src={cover}
+              alt={game.title}
+              fill
+              className={cn(
+                'object-cover transition-opacity duration-500',
+                imgLoaded ? 'opacity-100' : 'opacity-0',
+              )}
+              sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 16vw"
+              loading="lazy"
+              unoptimized
+              onLoad={() => setImgLoaded(true)}
+            />
+          </>
         ) : (
           <div className="w-full h-full flex items-center justify-center">
             <span className="text-4xl font-bold text-muted-foreground/30 select-none">
@@ -43,20 +64,17 @@ export function GameCard({ game, onSelect, onToggleFavorite, isAdmin = false, th
           </div>
         )}
 
-        {/* Desktop hover overlay (hidden on touch screens) */}
+        {/* Desktop hover overlay */}
         <div className="absolute inset-0 bg-black/70 opacity-0 group-hover:opacity-100 transition-opacity hidden sm:flex items-end p-2">
           <div className="flex gap-1.5 w-full justify-end">
             {isAdmin && (
               <button
-                onClick={(e) => {
-                  e.stopPropagation()
-                  onToggleFavorite(game.id, game.isFavorite)
-                }}
+                onClick={(e) => { e.stopPropagation(); onToggleFavorite(game.id, game.isFavorite) }}
                 className={cn(
                   'p-2 rounded-md transition-colors',
                   game.isFavorite
                     ? 'bg-red-600/80 text-white'
-                    : 'bg-white/10 text-white/70 hover:bg-red-600/80 hover:text-white'
+                    : 'bg-white/10 text-white/70 hover:bg-red-600/80 hover:text-white',
                 )}
                 aria-label={game.isFavorite ? 'Remove from favorites' : 'Add to favorites'}
               >
@@ -83,18 +101,15 @@ export function GameCard({ game, onSelect, onToggleFavorite, isAdmin = false, th
           </div>
         </div>
 
-        {/* Favorite toggle — only for admins */}
+        {/* Favorite toggle — admin only */}
         {isAdmin && (
           <button
-            onClick={(e) => {
-              e.stopPropagation()
-              onToggleFavorite(game.id, game.isFavorite)
-            }}
+            onClick={(e) => { e.stopPropagation(); onToggleFavorite(game.id, game.isFavorite) }}
             className={cn(
               'absolute top-1.5 right-1.5 w-8 h-8 rounded-full flex items-center justify-center z-10 touch-manipulation transition-colors',
               game.isFavorite
                 ? 'bg-red-600 text-white'
-                : 'bg-black/40 text-white/60 hover:bg-red-600/80 hover:text-white sm:opacity-0 sm:group-hover:opacity-100'
+                : 'bg-black/40 text-white/60 hover:bg-red-600/80 hover:text-white sm:opacity-0 sm:group-hover:opacity-100',
             )}
             aria-label={game.isFavorite ? 'Remove from favorites' : 'Add to favorites'}
           >
@@ -109,6 +124,28 @@ export function GameCard({ game, onSelect, onToggleFavorite, isAdmin = false, th
         {game.releaseYear && (
           <p className="text-xs text-muted-foreground mt-0.5">{game.releaseYear}</p>
         )}
+      </div>
+    </div>
+  )
+}
+
+/** Full-card skeleton shown while a new page is loading. */
+export function SkeletonCard({
+  thumbnailWidth = 200,
+  thumbnailHeight = 300,
+}: {
+  thumbnailWidth?: number
+  thumbnailHeight?: number
+}) {
+  return (
+    <div className="rounded-lg overflow-hidden border border-border bg-card animate-pulse">
+      <div
+        style={{ aspectRatio: `${thumbnailWidth}/${thumbnailHeight}` }}
+        className="bg-muted"
+      />
+      <div className="p-2 space-y-1.5">
+        <div className="h-3 bg-muted rounded w-4/5" />
+        <div className="h-2.5 bg-muted rounded w-1/3" />
       </div>
     </div>
   )
