@@ -17,7 +17,10 @@ export interface BulkToken {
 
 const TTL_MS = 15 * 60_000
 
-const store = new Map<string, BulkToken>()
+// Survive Next.js HMR module reloads in dev by pinning the store to globalThis
+const g = globalThis as typeof globalThis & { _bulkTokenStore?: Map<string, BulkToken> }
+if (!g._bulkTokenStore) g._bulkTokenStore = new Map()
+const store = g._bulkTokenStore
 
 function generateToken(): string {
   return 'bulk_' + Math.random().toString(36).slice(2) + Date.now().toString(36)

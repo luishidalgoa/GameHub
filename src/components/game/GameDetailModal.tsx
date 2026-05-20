@@ -7,7 +7,8 @@ import useSWR from 'swr'
 import { useTranslations } from 'next-intl'
 import { X, Heart, Pencil, ExternalLink, HardDrive, Calendar, Tag, User, Building2 } from 'lucide-react'
 import { formatBytes } from '@/lib/utils'
-import { DownloadButton } from '@/components/shared/DownloadButton'
+import { DownloadButton }     from '@/components/shared/DownloadButton'
+import { BulkDownloadButton } from '@/components/shared/BulkDownloadButton'
 import { ScreenshotCarousel } from '@/components/game/ScreenshotCarousel'
 import type { Game } from '@/types/game'
 
@@ -199,9 +200,12 @@ export function GameDetailModal({ gameId, onClose }: Props) {
             {/* Updates */}
             {game.dlcs && game.dlcs.filter((d) => d.type === 'update').length > 0 && (
               <div className="mb-6">
-                <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-                  {t('updates', { count: game.dlcs.filter((d) => d.type === 'update').length })}
-                </h4>
+                <div className="flex items-center gap-2 mb-2">
+                  <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
+                    {t('updates', { count: game.dlcs.filter((d) => d.type === 'update').length })}
+                  </h4>
+                  <BulkDownloadButton gameId={game.id} type="update" count={game.dlcs.filter(d => d.type === 'update').length} />
+                </div>
                 <div className="space-y-1">
                   {game.dlcs.filter((d) => d.type === 'update').map((dlc) => (
                     <div key={dlc.id} className="flex items-center gap-2 text-xs text-muted-foreground bg-secondary/50 rounded px-3 py-1.5">
@@ -215,17 +219,41 @@ export function GameDetailModal({ gameId, onClose }: Props) {
             )}
 
             {/* DLCs */}
-            {game.dlcs && game.dlcs.filter((d) => d.type !== 'update').length > 0 && (
+            {game.dlcs && game.dlcs.filter((d) => d.type === 'dlc').length > 0 && (
               <div className="mb-6">
-                <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-                  {t('dlc', { count: game.dlcs.filter((d) => d.type !== 'update').length })}
-                </h4>
+                <div className="flex items-center gap-2 mb-2">
+                  <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
+                    {t('dlc', { count: game.dlcs.filter((d) => d.type === 'dlc').length })}
+                  </h4>
+                  <BulkDownloadButton gameId={game.id} type="dlc" count={game.dlcs.filter(d => d.type === 'dlc').length} />
+                </div>
                 <div className="space-y-1">
-                  {game.dlcs.filter((d) => d.type !== 'update').map((dlc) => (
+                  {game.dlcs.filter((d) => d.type === 'dlc').map((dlc) => (
                     <div key={dlc.id} className="flex items-center gap-2 text-xs text-muted-foreground bg-secondary/50 rounded px-3 py-1.5">
                       <span className="flex-1 truncate">{dlc.title ?? dlc.fileName}</span>
                       <span className="flex-shrink-0">{formatBytes(BigInt(dlc.fileSize))}</span>
                       <DownloadButton gameId={game.id} dlcId={dlc.id} label="DLC" variant="secondary" />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Mods */}
+            {game.dlcs && game.dlcs.filter((d) => d.type === 'mod').length > 0 && (
+              <div className="mb-6">
+                <div className="flex items-center gap-2 mb-2">
+                  <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
+                    Mods ({game.dlcs.filter((d) => d.type === 'mod').length})
+                  </h4>
+                  <BulkDownloadButton gameId={game.id} type="mod" count={game.dlcs.filter(d => d.type === 'mod').length} />
+                </div>
+                <div className="space-y-1">
+                  {game.dlcs.filter((d) => d.type === 'mod').map((mod) => (
+                    <div key={mod.id} className="flex items-center gap-2 text-xs text-muted-foreground bg-secondary/50 rounded px-3 py-1.5">
+                      <span className="flex-1 truncate">{mod.title ?? mod.fileName}</span>
+                      <span className="flex-shrink-0">{formatBytes(BigInt(mod.fileSize))}</span>
+                      <DownloadButton gameId={game.id} dlcId={mod.id} label="Mod" variant="secondary" />
                     </div>
                   ))}
                 </div>
