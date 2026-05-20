@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { serializeBigInt } from '@/lib/serialize'
 import { getClientIp } from '@/lib/tracker'
+import { resolveCoverPath } from '@/lib/s3'
 
 export const dynamic = 'force-dynamic'
 
@@ -63,5 +64,7 @@ export async function GET(req: Request) {
     db.game.count({ where }),
   ])
 
-  return NextResponse.json(serializeBigInt({ games, total, page, pageSize }))
+  const resolvedGames = games.map(g => ({ ...g, coverPath: resolveCoverPath(g.coverPath) }))
+
+  return NextResponse.json(serializeBigInt({ games: resolvedGames, total, page, pageSize }))
 }
