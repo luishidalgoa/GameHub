@@ -9,7 +9,12 @@ export interface RecentGame {
   coverPath: string | null
   coverUrl:  string | null
   releaseYear: number | null
-  platform: { slug: string; name: string }
+  platform: {
+    slug: string
+    name: string
+    thumbnailWidth:  number | null
+    thumbnailHeight: number | null
+  }
 }
 
 export function RecentStrip({ games }: { games: RecentGame[] }) {
@@ -29,13 +34,18 @@ export function RecentStrip({ games }: { games: RecentGame[] }) {
       >
         {games.map((game) => {
           const cover = game.coverPath ?? game.coverUrl
+          const w = game.platform.thumbnailWidth  ?? 2
+          const h = game.platform.thumbnailHeight ?? 3
           return (
             <Link
               key={game.id}
               href={`/game/${game.id}`}
               className="group shrink-0 w-[72px] focus:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-md"
             >
-              <div className="w-full aspect-[2/3] rounded-md overflow-hidden bg-secondary relative mb-1.5 ring-0 group-hover:ring-1 ring-primary/50 transition-all duration-150">
+              <div
+                className="w-full rounded-md overflow-hidden bg-secondary relative mb-1.5 ring-0 group-hover:ring-1 ring-primary/50 transition-all duration-150"
+                style={{ aspectRatio: `${w}/${h}` }}
+              >
                 {cover ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img

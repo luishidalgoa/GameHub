@@ -22,7 +22,7 @@ export default async function HomePage() {
       take:    16,
       select: {
         id: true, title: true, coverPath: true, coverUrl: true, releaseYear: true,
-        platform: { select: { slug: true, name: true } },
+        platform: { select: { slug: true, name: true, thumbnailWidth: true, thumbnailHeight: true } },
       },
     }),
     db.downloadLog.groupBy({

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getRawgProvider, cleanTitle } from '@/lib/metadata/rawg'
 import { downloadAndCacheCover } from '@/lib/covers'
+import { fetchSteamGridDBCover } from '@/lib/metadata/steamgriddb'
 import { searchYouTubeTrailer } from '@/lib/youtube'
 import { serializeBigInt } from '@/lib/serialize'
 
@@ -46,9 +47,12 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   const meta = await provider.fetchById(rawgLookup)
   if (!meta) return NextResponse.json({ error: 'Not found on RAWG' }, { status: 404 })
 
+  // Try SteamGridDB first for better cover art; fall back to RAWG cover URL
   let coverPath: string | undefined
-  if (meta.coverUrl) {
-    try { coverPath = await downloadAndCacheCover(meta.coverUrl, game.platform.slug, gameId) } catch { /* non-fatal */ }
+  const sgdbUrl = await fetchSteamGridDBCover(meta.title)
+  const coverSourceUrl = sgdbUrl ?? meta.coverUrl
+  if (coverSourceUrl) {
+    try { coverPath = await downloadAndCacheCover(coverSourceUrl, game.platform.slug, gameId) } catch { /* non-fatal */ }
   }
 
   // Auto-search YouTube trailer (only if not already set)
