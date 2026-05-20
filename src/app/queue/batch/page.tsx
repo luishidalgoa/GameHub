@@ -1,9 +1,9 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
-import { useRouter }                    from 'next/navigation'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { useRouter }                                  from 'next/navigation'
 import { Download, CheckCircle2, Clock, Loader2, AlertCircle, ArrowLeft } from 'lucide-react'
-import { formatBytes }                  from '@/lib/utils'
+import { formatBytes }                                from '@/lib/utils'
 
 interface BatchItem {
   token:    string
@@ -15,13 +15,19 @@ interface BatchItem {
   redirectUrl?: string
 }
 
-const POLL_MS = 2000
+const POLL_MS       = 2000
+/** Minimum gap between consecutive download triggers (ms). */
+const DOWNLOAD_GAP  = 3000
 
 export default function BatchQueuePage() {
   const router                      = useRouter()
   const [items, setItems]           = useState<BatchItem[]>([])
   const [loaded, setLoaded]         = useState(false)
   const downloadedRef               = useRef<Set<string>>(new Set())
+  /** FIFO queue of items waiting to be triggered one-by-one. */
+  const dlQueue     = useRef<Array<{ token: string; redirectUrl: string; fileName: string }>>([])
+  /** True while a download has been triggered and the gap timer is running. */
+  const dlActiveRef = useRef(false)
 
   // Load batch from sessionStorage
   useEffect(() => {
@@ -71,28 +77,45 @@ export default function BatchQueuePage() {
     return () => clearTimeout(timer)
   }, [items, loaded])
 
-  // Auto-trigger download when a token becomes ready
+  /** Trigger the next queued download (if not already busy). */
+  const processQueue = useCallback(() => {
+    if (dlActiveRef.current) return
+    if (dlQueue.current.length === 0) return
+
+    const next = dlQueue.current.shift()!
+    dlActiveRef.current = true
+
+    const a = document.createElement('a')
+    a.href     = next.redirectUrl
+    a.download = next.fileName
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+
+    // Optimistically mark as downloading
+    setItems(prev => prev.map(i =>
+      i.token === next.token ? { ...i, status: 'downloading' } : i
+    ))
+
+    // Wait before allowing the next one so the browser doesn't block concurrent downloads
+    setTimeout(() => {
+      dlActiveRef.current = false
+      processQueue()
+    }, DOWNLOAD_GAP)
+  }, [])
+
+  // Enqueue newly-ready tokens and kick off the sequential processor
   useEffect(() => {
+    let enqueued = false
     for (const item of items) {
       if (item.status === 'ready' && item.redirectUrl && !downloadedRef.current.has(item.token)) {
         downloadedRef.current.add(item.token)
-        // Small stagger so browser doesn't block multiple simultaneous downloads
-        const delay = [...downloadedRef.current].indexOf(item.token) * 800
-        setTimeout(() => {
-          const a = document.createElement('a')
-          a.href = item.redirectUrl!
-          a.download = item.fileName
-          document.body.appendChild(a)
-          a.click()
-          document.body.removeChild(a)
-          // Optimistically mark as downloading
-          setItems(prev => prev.map(i =>
-            i.token === item.token ? { ...i, status: 'downloading' } : i
-          ))
-        }, delay)
+        dlQueue.current.push({ token: item.token, redirectUrl: item.redirectUrl, fileName: item.fileName })
+        enqueued = true
       }
     }
-  }, [items])
+    if (enqueued) processQueue()
+  }, [items, processQueue])
 
   if (!loaded) return null
 
