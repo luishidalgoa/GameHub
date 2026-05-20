@@ -69,22 +69,27 @@ export async function POST(req: Request) {
         }
 
         if (newGame) {
-          await db.game.update({
-            where: { id: newGame.id },
-            data: {
-              description:       old.description,
-              releaseYear:       old.releaseYear,
-              genre:             old.genre,
-              developer:         old.developer,
-              publisher:         old.publisher,
-              rawgId:            old.rawgId,
-              rawgSlug:          old.rawgSlug,
-              coverUrl:          old.coverUrl,
-              coverPath:         old.coverPath,
-              trailerUrl:        old.trailerUrl,
-              metadataFetchedAt: old.metadataFetchedAt,
-            },
-          })
+          await db.$transaction([
+            db.game.update({
+              where: { id: newGame.id },
+              data: {
+                description:       old.description,
+                releaseYear:       old.releaseYear,
+                genre:             old.genre,
+                developer:         old.developer,
+                publisher:         old.publisher,
+                rawgId:            old.rawgId,
+                rawgSlug:          old.rawgSlug,
+                coverUrl:          old.coverUrl,
+                coverPath:         old.coverPath,
+                trailerUrl:        old.trailerUrl,
+                metadataFetchedAt: old.metadataFetchedAt,
+              },
+            }),
+            // Metadata transferred — remove the graveyard entry
+            db.downloadLog.deleteMany({ where: { gameId: old.id } }),
+            db.game.delete({ where: { id: old.id } }),
+          ])
           result.recovered++
           result.details.push({ graveyardId: old.id, newId: newGame.id, title: old.title, success: true, matchedBy })
         } else {
@@ -117,22 +122,27 @@ export async function POST(req: Request) {
     if (!graveyardGame) return NextResponse.json({ error: 'Graveyard game not found' }, { status: 404 })
 
     try {
-      const updated = await db.game.update({
-        where: { id: newGameId },
-        data: {
-          description:       graveyardGame.description,
-          releaseYear:       graveyardGame.releaseYear,
-          genre:             graveyardGame.genre,
-          developer:         graveyardGame.developer,
-          publisher:         graveyardGame.publisher,
-          rawgId:            graveyardGame.rawgId,
-          rawgSlug:          graveyardGame.rawgSlug,
-          coverUrl:          graveyardGame.coverUrl,
-          coverPath:         graveyardGame.coverPath,
-          trailerUrl:        graveyardGame.trailerUrl,
-          metadataFetchedAt: graveyardGame.metadataFetchedAt,
-        },
-      })
+      const [updated] = await db.$transaction([
+        db.game.update({
+          where: { id: newGameId },
+          data: {
+            description:       graveyardGame.description,
+            releaseYear:       graveyardGame.releaseYear,
+            genre:             graveyardGame.genre,
+            developer:         graveyardGame.developer,
+            publisher:         graveyardGame.publisher,
+            rawgId:            graveyardGame.rawgId,
+            rawgSlug:          graveyardGame.rawgSlug,
+            coverUrl:          graveyardGame.coverUrl,
+            coverPath:         graveyardGame.coverPath,
+            trailerUrl:        graveyardGame.trailerUrl,
+            metadataFetchedAt: graveyardGame.metadataFetchedAt,
+          },
+        }),
+        // Metadata transferred — remove the graveyard entry
+        db.downloadLog.deleteMany({ where: { gameId: graveyardId } }),
+        db.game.delete({ where: { id: graveyardId } }),
+      ])
       return NextResponse.json({ success: true, updated })
     } catch (error) {
       return NextResponse.json({ error: String(error) }, { status: 500 })
