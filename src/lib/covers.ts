@@ -22,7 +22,7 @@ export async function saveCoverFromBuffer(
    *  freshest source.  Pass false for crop-adjustment re-uploads. */
   replaceOriginal  = true,
 ): Promise<string> {
-  const key         = `${S3_PREFIX}/${platformSlug}/${gameId}.webp`
+  const s3Key       = `${S3_PREFIX}/${platformSlug}/${gameId}.webp`
   const originalKey = `${S3_PREFIX}/${platformSlug}/${gameId}.original.webp`
 
   const processed = await sharp(buffer)
@@ -30,9 +30,12 @@ export async function saveCoverFromBuffer(
     .webp({ quality: 90 })
     .toBuffer()
 
-  await uploadCoverToS3(processed, key, originalKey, undefined, replaceOriginal)
+  await uploadCoverToS3(processed, s3Key, originalKey, undefined, replaceOriginal)
 
-  return key // S3 key stored in DB
+  // Append a version timestamp so the stored DB key changes on every upload.
+  // resolveCoverPath() forwards this as a query param in the proxy URL, which
+  // busts any browser / CDN cache without changing the actual MinIO object key.
+  return `${s3Key}?v=${Date.now()}`
 }
 
 /** Convert a display key/URL to its .original counterpart. */
