@@ -26,6 +26,37 @@ export function Shell({ children }: { children: React.ReactNode }) {
         {children}
       </main>
 
+      <footer className="md:ml-56 border-t border-border px-4 sm:px-6 py-3">
+        <p className="text-xs text-muted-foreground text-center flex flex-wrap items-center justify-center gap-x-1.5 gap-y-1">
+          <span>Hecho por</span>
+          <a
+            href="https://luishidalgoa.vercel.app/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-semibold text-foreground hover:text-primary transition-colors"
+          >
+            Luis Hidalgo
+          </a>
+          <span className="text-border">·</span>
+          <a
+            href="https://luishidalgoa.vercel.app/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hover:text-foreground transition-colors"
+          >
+            portfolio →
+          </a>
+          <span className="text-border">·</span>
+          <a href="/privacy" className="hover:text-foreground transition-colors">
+            Privacidad y cookies
+          </a>
+          <span className="text-border">·</span>
+          <a href="/donate" className="hover:text-foreground transition-colors">
+            Apoyar
+          </a>
+        </p>
+      </footer>
+
       <CommandPalette />
     </div>
   )
