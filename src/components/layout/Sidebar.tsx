@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useTranslations } from 'next-intl'
 import useSWR from 'swr'
-import { Gamepad2, Settings, LayoutDashboard, Home, X, Heart, Shield } from 'lucide-react'
+import { Gamepad2, Settings, LayoutDashboard, Home, X, Heart, Shield, User } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { LanguageSwitcher } from '@/components/shared/LanguageSwitcher'
 import type { Platform } from '@/types/platform'
@@ -97,6 +97,14 @@ export function Sidebar({ open, onClose }: Props) {
 
       {/* Bottom links */}
       <div className="border-t border-border px-2 py-3 space-y-1">
+        {/* Hecho por */}
+        <NavItem
+          href="/about"
+          icon={<User className="w-4 h-4" />}
+          label={t('madeBy')}
+          pathname={pathname}
+          onNavigate={onClose}
+        />
         {/* Donate — always visible */}
         <NavItem
           href="/donate"

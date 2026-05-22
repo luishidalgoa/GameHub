@@ -6,7 +6,8 @@
     "privacy": "Privacy",
     "admin": "Admin",
     "settings": "Settings",
-    "closeMenu": "Close menu"
+    "closeMenu": "Close menu",
+    "madeBy": "Made by"
   },
   "Home": {
     "title": "Your Library",
