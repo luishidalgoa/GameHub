@@ -117,6 +117,20 @@ switch ($Command) {
                 Copy-Item $selected $DB_PATH -Force
                 Write-Ok "Imported $($candidates[$index].Name) → $DB_PATH"
                 Write-Ok "Run '.\local.ps1 db migrate' to apply any pending migrations."
+
+                Write-Host ""
+                Write-Warn "Was this DB exported from a different system (e.g. the Raspberry Pi)?"
+                Write-Warn "If so, the game paths need remapping to this machine's drives."
+                $remap = Read-Host "Remap scan/file paths now? (y/N)"
+                if ($remap -eq 'y') {
+                    Load-Env
+                    npx tsx scripts/remap-paths.ts
+                }
+            }
+
+            'remap' {
+                Load-Env
+                npx tsx scripts/remap-paths.ts
             }
 
             default {
@@ -128,6 +142,7 @@ switch ($Command) {
                 Write-Host "  studio    open Prisma Studio in browser"
                 Write-Host "  export    backup gamehub.db to current folder"
                 Write-Host "  import    replace gamehub.db from a .db file here"
+                Write-Host "  remap     rewrite game paths for this OS / disk roots"
             }
         }
     }
@@ -143,5 +158,6 @@ switch ($Command) {
         Write-Host "  db studio        open Prisma Studio"
         Write-Host "  db export        backup gamehub.db to current folder"
         Write-Host "  db import        replace gamehub.db from a .db file here"
+        Write-Host "  db remap         rewrite game paths for this OS / disk roots"
     }
 }

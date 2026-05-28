@@ -11,7 +11,8 @@
     "scan": "tsx scripts/scan.ts",
     "seed": "tsx scripts/seed-platforms.ts",
     "db:studio": "prisma studio",
-    "db:migrate": "prisma migrate dev"
+    "db:migrate": "prisma migrate dev",
+    "db:remap": "tsx scripts/remap-paths.ts"
   },
   "keywords": [],
   "author": "",
