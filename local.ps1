@@ -84,55 +84,6 @@ switch ($Command) {
                 npx prisma studio
             }
 
-            'export' {
-                if (-not (Test-Path $DB_PATH)) { Write-Err "No database found at $DB_PATH" }
-                $timestamp = Get-Date -Format "yyyy-MM-dd_HHmmss"
-                $dest      = ".\gamehub_backup_$timestamp.db"
-                Copy-Item $DB_PATH $dest
-                Write-Ok "Exported to $dest"
-            }
-
-            'import' {
-                $candidates = Get-ChildItem -Path "." -Filter "*.db" | Where-Object { $_.Name -ne "gamehub.db" }
-                if ($candidates.Count -eq 0) { Write-Err "No .db files found in current directory." }
-
-                Write-Host ""
-                Write-Host "Available databases:"
-                for ($i = 0; $i -lt $candidates.Count; $i++) {
-                    Write-Host "  [$($i+1)] $($candidates[$i].Name)"
-                }
-                Write-Host ""
-                $choice = Read-Host "Select number"
-                $index  = [int]$choice - 1
-
-                if ($index -lt 0 -or $index -ge $candidates.Count) { Write-Err "Invalid selection." }
-                $selected = $candidates[$index].FullName
-
-                if (Test-Path $DB_PATH) {
-                    $backupPath = "$DB_PATH.bak"
-                    Copy-Item $DB_PATH $backupPath -Force
-                    Write-Ok "Existing DB backed up to gamehub.db.bak"
-                }
-
-                Copy-Item $selected $DB_PATH -Force
-                Write-Ok "Imported $($candidates[$index].Name) → $DB_PATH"
-                Write-Ok "Run '.\local.ps1 db migrate' to apply any pending migrations."
-
-                Write-Host ""
-                Write-Warn "Was this DB exported from a different system (e.g. the Raspberry Pi)?"
-                Write-Warn "If so, the game paths need remapping to this machine's drives."
-                $remap = Read-Host "Remap scan/file paths now? (y/N)"
-                if ($remap -eq 'y') {
-                    Load-Env
-                    npx tsx scripts/remap-paths.ts
-                }
-            }
-
-            'remap' {
-                Load-Env
-                npx tsx scripts/remap-paths.ts
-            }
-
             default {
                 Write-Host ""
                 Write-Host "Usage: .\local.ps1 db <subcommand>"
@@ -140,9 +91,10 @@ switch ($Command) {
                 Write-Host "  migrate   apply pending Prisma migrations"
                 Write-Host "  reset     drop and recreate the database (destructive!)"
                 Write-Host "  studio    open Prisma Studio in browser"
-                Write-Host "  export    backup gamehub.db to current folder"
-                Write-Host "  import    replace gamehub.db from a .db file here"
-                Write-Host "  remap     rewrite game paths for this OS / disk roots"
+                Write-Host ""
+                Write-Host "  Export / import (with path remapping) are npm scripts:"
+                Write-Host "    npm run db:export"
+                Write-Host "    npm run db:import"
             }
         }
     }
@@ -156,8 +108,8 @@ switch ($Command) {
         Write-Host "  db migrate       apply pending migrations"
         Write-Host "  db reset         reset database (destructive!)"
         Write-Host "  db studio        open Prisma Studio"
-        Write-Host "  db export        backup gamehub.db to current folder"
-        Write-Host "  db import        replace gamehub.db from a .db file here"
-        Write-Host "  db remap         rewrite game paths for this OS / disk roots"
+        Write-Host ""
+        Write-Host "  DB export/import (with path remapping) are npm scripts:"
+        Write-Host "    npm run db:export   ·   npm run db:import"
     }
 }

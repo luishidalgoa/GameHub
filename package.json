@@ -12,7 +12,8 @@
     "seed": "tsx scripts/seed-platforms.ts",
     "db:studio": "prisma studio",
     "db:migrate": "prisma migrate dev",
-    "db:remap": "tsx scripts/remap-paths.ts"
+    "db:export": "tsx scripts/db-export.ts",
+    "db:import": "tsx scripts/db-import.ts"
   },
   "keywords": [],
   "author": "",
