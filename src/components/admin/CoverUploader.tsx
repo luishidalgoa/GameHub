@@ -5,6 +5,7 @@ import Image from 'next/image'
 import { useTranslations } from 'next-intl'
 import { Upload, Link as LinkIcon, Loader2, Crop, Search, ChevronDown, ChevronUp, ArrowLeft } from 'lucide-react'
 import { CoverAdjustModal } from './CoverAdjustModal'
+import { resolveCoverPath } from '@/lib/cover-url'
 
 interface Props {
   gameId: number
@@ -30,7 +31,10 @@ export function CoverUploader({ gameId, gameTitle = '', currentCover, onUploaded
   const t = useTranslations('CoverUploader')
   const [urlInput, setUrlInput]   = useState('')
   const [loading, setLoading]     = useState(false)
-  const [preview, setPreview]     = useState(currentCover)
+  // currentCover is the raw stored value (an S3 key like "covers/switch/1.webp").
+  // Resolve it to the proxy URL for display — otherwise the browser treats it as
+  // a relative path (e.g. /admin/games/123/covers/…) and 404s.
+  const [preview, setPreview]     = useState<string | null>(() => resolveCoverPath(currentCover))
   const [adjusting, setAdjusting] = useState(false)
   const [error, setError]         = useState<string | null>(null)
 

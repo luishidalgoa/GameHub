@@ -5,6 +5,10 @@ import {
   HeadObjectCommand,
 } from '@aws-sdk/client-s3'
 import { db } from './db'
+import { resolveCoverPath } from './cover-url'
+
+// Re-exported so existing server-side imports (`@/lib/s3`) keep working.
+export { resolveCoverPath } from './cover-url'
 
 export interface S3Config {
   internalEndpoint: string
@@ -57,32 +61,6 @@ export function makeS3Client(config: S3Config): S3Client {
     credentials:    { accessKeyId: config.accessKey, secretAccessKey: config.secretKey },
     forcePathStyle: true, // required for MinIO
   })
-}
-
-/**
- * Resolve a stored coverPath value to a public-facing URL.
- *
- *  - null / undefined         → null
- *  - already http/https URL   → return as-is (external cover like coverUrl)
- *  - starts with /covers/     → return as-is (legacy local path, dev-only)
- *  - S3 key (e.g. covers/…)   → route through /api/covers/proxy/… so the
- *    image is always served over the same origin (HTTPS), avoiding
- *    mixed-content blocks when the MinIO endpoint is plain HTTP.
- *
- * The `config` parameter is kept for backwards-compat but is no longer
- * needed for the proxy path.
- */
-export function resolveCoverPath(
-  coverPath: string | null | undefined,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  config?: S3Config,
-): string | null {
-  if (!coverPath) return null
-  if (coverPath.startsWith('http://') || coverPath.startsWith('https://')) return coverPath
-  // Legacy local path (public/covers/) — folder has been deleted; treat as no cover
-  if (coverPath.startsWith('/covers/')) return null
-  // S3 key → serve through the Next.js proxy so it is always same-origin HTTPS
-  return `/api/covers/proxy/${coverPath}`
 }
 
 /** Convenience: resolve a single game's cover (prefers coverPath over coverUrl). */
