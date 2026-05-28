@@ -5,12 +5,13 @@ import Image from 'next/image'
 import Link from 'next/link'
 import useSWR from 'swr'
 import { useTranslations } from 'next-intl'
-import { X, Heart, Pencil, ExternalLink, HardDrive, Calendar, Tag, User, Building2 } from 'lucide-react'
+import { X, Heart, Pencil, HardDrive, Calendar, Tag, User, Building2 } from 'lucide-react'
 import { formatBytes } from '@/lib/utils'
 import { DownloadButton }     from '@/components/shared/DownloadButton'
 import { BulkDownloadButton } from '@/components/shared/BulkDownloadButton'
 import { ScreenshotCarousel } from '@/components/game/ScreenshotCarousel'
 import { ExternalLinks }      from '@/components/game/ExternalLinks'
+import { YouTubeEmbed }       from '@/components/shared/YouTubeEmbed'
 import type { Game } from '@/types/game'
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
@@ -178,7 +179,7 @@ export function GameDetailModal({ gameId, onClose }: Props) {
             {game.trailerUrl && (
               <div className="mb-6">
                 <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-2">{t('trailer')}</h4>
-                <TrailerEmbed url={game.trailerUrl} watchLabel={t('watchTrailer')} />
+                <YouTubeEmbed url={game.trailerUrl} watchLabel={t('watchTrailer')} className="aspect-video rounded-lg overflow-hidden" />
               </div>
             )}
 
@@ -289,42 +290,3 @@ function MetaRow({ icon, label, value }: { icon: React.ReactNode; label: string;
   )
 }
 
-function TrailerEmbed({ url, watchLabel }: { url: string; watchLabel: string }) {
-  const [origin, setOrigin] = useState<string>('')
-
-  useEffect(() => {
-    setOrigin(window.location.origin)
-  }, [])
-
-  const getYouTubeId = (u: string) => {
-    const m = u.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/))([a-zA-Z0-9_-]{11})/)
-    return m?.[1]
-  }
-
-  const videoId = getYouTubeId(url)
-
-  if (videoId) {
-    return (
-      <div className="aspect-video rounded-lg overflow-hidden">
-        <iframe
-          src={`https://www.youtube.com/embed/${videoId}?origin=${encodeURIComponent(origin)}`}
-          className="w-full h-full"
-          allowFullScreen
-          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-        />
-      </div>
-    )
-  }
-
-  return (
-    <a
-      href={url}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="flex items-center gap-2 text-sm text-primary hover:underline"
-    >
-      <ExternalLink className="w-4 h-4" />
-      {watchLabel}
-    </a>
-  )
-}

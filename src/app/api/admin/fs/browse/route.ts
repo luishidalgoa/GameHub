@@ -32,16 +32,37 @@ export async function GET(req: NextRequest) {
 }
 
 function browse(browsePath: string) {
-  try {
-    const entries = fs.readdirSync(browsePath, { withFileTypes: true })
-    const dirs = entries
-      .filter((e) => e.isDirectory() && !e.name.startsWith('.') && !HIDDEN.has(e.name))
-      .map((e) => ({ name: e.name, path: path.join(browsePath, e.name) }))
-      .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }))
-
-    const parent = path.dirname(browsePath) === browsePath ? null : path.dirname(browsePath)
-    return NextResponse.json({ path: browsePath, parent, entries: dirs })
-  } catch {
-    return NextResponse.json({ error: 'Cannot read directory' }, { status: 400 })
+  // Try the path as-is, then NFC / NFD normalized variants. Accented folder
+  // names (e.g. "Preservación") can be stored in a different Unicode
+  // normalization than what arrives in the URL, which makes readdir throw
+  // ENOENT even though the folder exists.
+  const attempts = [browsePath]
+  for (const form of ['NFC', 'NFD'] as const) {
+    try {
+      const norm = browsePath.normalize(form)
+      if (norm !== browsePath && !attempts.includes(norm)) attempts.push(norm)
+    } catch { /* ignore */ }
   }
+
+  let lastErr: NodeJS.ErrnoException | null = null
+  for (const p of attempts) {
+    try {
+      const entries = fs.readdirSync(p, { withFileTypes: true })
+      const dirs = entries
+        .filter((e) => e.isDirectory() && !e.name.startsWith('.') && !HIDDEN.has(e.name))
+        .map((e) => ({ name: e.name, path: path.join(p, e.name) }))
+        .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }))
+
+      const parent = path.dirname(p) === p ? null : path.dirname(p)
+      return NextResponse.json({ path: p, parent, entries: dirs })
+    } catch (err) {
+      lastErr = err as NodeJS.ErrnoException
+    }
+  }
+
+  // Surface the real reason so it's debuggable (ENOENT / EACCES / ENOTDIR…)
+  return NextResponse.json(
+    { error: 'Cannot read directory', code: lastErr?.code ?? 'EUNKNOWN', path: browsePath },
+    { status: 400 },
+  )
 }

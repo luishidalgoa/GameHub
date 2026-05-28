@@ -8,6 +8,8 @@ import { formatBytes } from '@/lib/utils'
 import { DownloadButton }     from '@/components/shared/DownloadButton'
 import { BulkDownloadButton } from '@/components/shared/BulkDownloadButton'
 import { ScreenshotCarousel } from '@/components/game/ScreenshotCarousel'
+import { ExternalLinks }      from '@/components/game/ExternalLinks'
+import { YouTubeEmbed }       from '@/components/shared/YouTubeEmbed'
 import { isAdminSession } from '@/lib/auth'
 import { getRawgProvider } from '@/lib/metadata/rawg'
 
@@ -131,7 +133,7 @@ export default async function GamePage({ params }: Props) {
       {game.trailerUrl && (
         <div className="mt-8">
           <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">Trailer</h2>
-          <TrailerBlock url={game.trailerUrl} />
+          <YouTubeEmbed url={game.trailerUrl} watchLabel="Ver tráiler" className="aspect-video rounded-xl overflow-hidden max-w-2xl" />
         </div>
       )}
 
@@ -142,6 +144,11 @@ export default async function GamePage({ params }: Props) {
           <p className="text-sm text-foreground/70 leading-relaxed whitespace-pre-line">{game.customNotes}</p>
         </div>
       )}
+
+      {/* External links (community mods, translations…) */}
+      <div className="mt-8">
+        <ExternalLinks raw={game.externalLinks} title="Links" />
+      </div>
 
       {/* Updates */}
       {game.dlcs.filter((d) => d.type === 'update').length > 0 && (
@@ -225,20 +232,3 @@ function MetaRow({ icon, label, value }: { icon: React.ReactNode; label: string;
   )
 }
 
-function TrailerBlock({ url }: { url: string }) {
-  const m = url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/))([a-zA-Z0-9_-]{11})/)
-  const videoId = m?.[1]
-
-  if (!videoId) return null
-
-  return (
-    <div className="aspect-video rounded-xl overflow-hidden max-w-2xl">
-      <iframe
-        src={`https://www.youtube.com/embed/${videoId}?origin=${encodeURIComponent(typeof window !== 'undefined' ? window.location.origin : '')}`}
-        className="w-full h-full"
-        allowFullScreen
-        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-      />
-    </div>
-  )
-}

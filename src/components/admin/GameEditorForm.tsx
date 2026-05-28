@@ -9,6 +9,7 @@ import { CoverUploader } from './CoverUploader'
 import { MetadataFetchButton } from './MetadataFetchButton'
 import { ScreenshotCarousel } from '@/components/game/ScreenshotCarousel'
 import { parseExternalLinks, type ExternalLinkItem } from '@/components/game/ExternalLinks'
+import { YouTubeEmbed } from '@/components/shared/YouTubeEmbed'
 import type { Game } from '@/types/game'
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
@@ -334,7 +335,7 @@ export function GameEditorForm({ game, thumbnailWidth = 200, thumbnailHeight = 3
           </Field>
 
           {form.trailerUrl && (
-            <TrailerPreview url={form.trailerUrl} />
+            <YouTubeEmbed url={form.trailerUrl} className="aspect-video rounded-lg overflow-hidden" />
           )}
 
           {/* RAWG Screenshots */}
@@ -598,19 +599,3 @@ function Toggle({
   )
 }
 
-function TrailerPreview({ url }: { url: string }) {
-  const m = url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/))([a-zA-Z0-9_-]{11})/)
-  const videoId = m?.[1]
-  if (!videoId) return null
-
-  return (
-    <div className="aspect-video rounded-lg overflow-hidden">
-      <iframe
-        src={`https://www.youtube.com/embed/${videoId}`}
-        className="w-full h-full"
-        allowFullScreen
-        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-      />
-    </div>
-  )
-}
