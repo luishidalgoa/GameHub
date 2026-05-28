@@ -47,6 +47,7 @@
     "mods": "Mods ({count})",
     "notFound": "Game not found",
     "watchTrailer": "Watch trailer",
+    "links": "Links",
     "close": "Close"
   },
   "CookieConsent": {
@@ -161,9 +162,10 @@
     "shopPassword": "Shop password",
     "shopPasswordPlaceholder": "Leave blank for no password…",
     "shopPasswordHint": "If set, CyberFoil will prompt for credentials. Username can be anything; only the password is checked.",
-    "shopSetup": "How to add in CyberFoil:",
-    "shopStep1": "Open CyberFoil → eShop → Add shop",
-    "shopStep2": "Set Protocol: http · Host: <raspberry-ip> · Port: 3000 · Path: /api/shop"
+    "shopSetup": "How to add in Tinfoil / DBI / CyberFoil:",
+    "shopStep1": "Tinfoil: File Browser → press - (minus) → Add Source. DBI: Network install.",
+    "shopStep2": "Protocol http · Host = Raspberry LAN IP · Port = the server's (3000 direct, or whatever your proxy exposes) · Path /api/shop",
+    "shopStep3": "If you set a password below, enter it in the source (username can be anything). LAN-only access."
   },
   "DonationSettings": {
     "title": "Donations",
@@ -395,7 +397,17 @@
     "metadataFetched": "Metadata fetched",
     "screenshots": "Screenshots",
     "screenshotsHint": "click to use as cover",
-    "screenshotsUseCover": "Use as cover"
+    "screenshotsUseCover": "Use as cover",
+    "externalLinks": "External links",
+    "addLink": "Add link",
+    "externalLinksHint": "Add links to mods, community translations or GitHub projects. GitHub links get custom styling.",
+    "linkTitlePlaceholder": "Title (e.g. Spanish translation)",
+    "linkDescPlaceholder": "Optional description…",
+    "mergeTitle": "Merge duplicate",
+    "mergeHint": "If this game is split across several cards (base on one disk, DLC/update on another), find the other card and absorb it into this one.",
+    "mergeSearchPlaceholder": "Search another card of the same game…",
+    "mergeAbsorb": "Absorb",
+    "merging": "Merging…"
   },
   "MetadataFetch": {
     "button": "Auto-fill from RAWG",

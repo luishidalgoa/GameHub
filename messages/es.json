@@ -47,6 +47,7 @@
     "mods": "Mods ({count})",
     "notFound": "Juego no encontrado",
     "watchTrailer": "Ver tráiler",
+    "links": "Enlaces",
     "close": "Cerrar"
   },
   "CookieConsent": {
@@ -161,9 +162,10 @@
     "shopPassword": "Contraseña de la tienda",
     "shopPasswordPlaceholder": "Dejar en blanco para no requerir contraseña…",
     "shopPasswordHint": "Si se configura, CyberFoil pedirá credenciales. El usuario puede ser cualquier cosa; solo se verifica la contraseña.",
-    "shopSetup": "Cómo añadir en CyberFoil:",
-    "shopStep1": "Abre CyberFoil → eShop → Añadir tienda",
-    "shopStep2": "Configura Protocolo: http · Host: <ip-raspberry> · Puerto: 3000 · Ruta: /api/shop"
+    "shopSetup": "Cómo añadir en Tinfoil / DBI / CyberFoil:",
+    "shopStep1": "En Tinfoil: File Browser → pulsa - (menos) → Add Source. En DBI: Network install.",
+    "shopStep2": "Protocolo http · Host = IP local de la Raspberry · Puerto = el del servidor (3000 directo, o el que exponga tu proxy) · Ruta /api/shop",
+    "shopStep3": "Si configuras contraseña abajo, indícala en la fuente (el usuario puede ser cualquiera). Solo funciona dentro de la red local."
   },
   "DonationSettings": {
     "title": "Donaciones",
@@ -395,7 +397,17 @@
     "metadataFetched": "Metadatos obtenidos",
     "screenshots": "Capturas de pantalla",
     "screenshotsHint": "haz clic para usar como portada",
-    "screenshotsUseCover": "Usar como portada"
+    "screenshotsUseCover": "Usar como portada",
+    "externalLinks": "Enlaces externos",
+    "addLink": "Añadir enlace",
+    "externalLinksHint": "Añade enlaces a mods, traducciones de la comunidad o proyectos de GitHub. Los de GitHub se muestran con estilo propio.",
+    "linkTitlePlaceholder": "Título (ej. Traducción al español)",
+    "linkDescPlaceholder": "Descripción opcional…",
+    "mergeTitle": "Fusionar duplicado",
+    "mergeHint": "Si este juego aparece partido en varias fichas (base en un disco, DLC/update en otro), busca la otra ficha y absórbela en esta.",
+    "mergeSearchPlaceholder": "Buscar otra ficha del mismo juego…",
+    "mergeAbsorb": "Absorber",
+    "merging": "Fusionando…"
   },
   "MetadataFetch": {
     "button": "Autorellenar desde RAWG",

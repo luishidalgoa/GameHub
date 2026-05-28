@@ -3,11 +3,12 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useTranslations } from 'next-intl'
-import { Save, Loader2, ArrowLeft, Heart, EyeOff, Search, ChevronDown, ImageIcon } from 'lucide-react'
+import { Save, Loader2, ArrowLeft, Heart, EyeOff, Search, ChevronDown, ImageIcon, Link2, Github, Plus, Trash2, GitMerge } from 'lucide-react'
 import useSWR from 'swr'
 import { CoverUploader } from './CoverUploader'
 import { MetadataFetchButton } from './MetadataFetchButton'
 import { ScreenshotCarousel } from '@/components/game/ScreenshotCarousel'
+import { parseExternalLinks, type ExternalLinkItem } from '@/components/game/ExternalLinks'
 import type { Game } from '@/types/game'
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
@@ -72,6 +73,42 @@ export function GameEditorForm({ game, thumbnailWidth = 200, thumbnailHeight = 3
   const set = (key: keyof typeof form, value: string | boolean) =>
     setForm((prev) => ({ ...prev, [key]: value }))
 
+  // ── External links ─────────────────────────────────────────────────────────
+  const [links, setLinks] = useState<ExternalLinkItem[]>(parseExternalLinks(game.externalLinks))
+  const addLink    = () => setLinks((p) => [...p, { title: '', description: '', url: '' }])
+  const removeLink = (i: number) => setLinks((p) => p.filter((_, idx) => idx !== i))
+  const setLink    = (i: number, key: keyof ExternalLinkItem, value: string) =>
+    setLinks((p) => p.map((l, idx) => (idx === i ? { ...l, [key]: value } : l)))
+
+  // ── Merge / absorb a duplicate game ──────────────────────────────────────────
+  const [mergeQuery, setMergeQuery] = useState('')
+  const [merging, setMerging] = useState(false)
+  const { data: mergeResults } = useSWR<{ games: Array<{ id: number; title: string; fileSize: string }> }>(
+    mergeQuery.trim().length > 1 && game.platform?.slug
+      ? `/api/games?platform=${game.platform.slug}&search=${encodeURIComponent(mergeQuery)}&pageSize=10`
+      : null,
+    fetcher,
+  )
+
+  const absorbGame = async (sourceId: number, sourceTitle: string) => {
+    if (!confirm(`¿Fusionar "${sourceTitle}" dentro de "${game.title}"? Sus archivos pasarán a este juego y la otra ficha se eliminará. Esta acción no se puede deshacer.`)) return
+    setMerging(true)
+    const res = await fetch('/api/games/merge', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ targetId: game.id, sourceId }),
+    })
+    setMerging(false)
+    if (res.ok) {
+      setMergeQuery('')
+      router.refresh()
+      window.location.reload()
+    } else {
+      const err = await res.json().catch(() => ({}))
+      alert(`No se pudo fusionar: ${err.error ?? res.statusText}`)
+    }
+  }
+
   const searchTrailers = async (query: string = trailerSearchQuery) => {
     if (!query.trim()) return
     setTrailerSearching(true)
@@ -103,6 +140,7 @@ export function GameEditorForm({ game, thumbnailWidth = 200, thumbnailHeight = 3
         ...form,
         releaseYear: form.releaseYear ? parseInt(form.releaseYear, 10) : null,
         coverPath,
+        externalLinks: JSON.stringify(links.filter((l) => l.url.trim())),
       }),
     })
     setSaving(false)
@@ -338,6 +376,70 @@ export function GameEditorForm({ game, thumbnailWidth = 200, thumbnailHeight = 3
             </div>
           )}
 
+          {/* External links (community mods, translations, GitHub projects…) */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-sm font-medium flex items-center gap-2">
+                <Link2 className="w-4 h-4 text-muted-foreground" />
+                {t('externalLinks')}
+              </p>
+              <button
+                type="button"
+                onClick={addLink}
+                className="flex items-center gap-1 px-2.5 py-1 text-xs rounded-md bg-secondary border border-border hover:bg-accent transition-colors text-muted-foreground hover:text-foreground"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                {t('addLink')}
+              </button>
+            </div>
+
+            {links.length === 0 ? (
+              <p className="text-xs text-muted-foreground/60 bg-secondary/40 border border-border rounded-lg px-3 py-3">
+                {t('externalLinksHint')}
+              </p>
+            ) : (
+              <div className="space-y-3">
+                {links.map((link, i) => {
+                  const isGithub = /(^|\.)github\.com/i.test(link.url)
+                  return (
+                    <div key={i} className="bg-secondary/40 border border-border rounded-lg p-3 space-y-2">
+                      <div className="flex items-center gap-2">
+                        {isGithub ? <Github className="w-4 h-4 text-foreground flex-shrink-0" /> : <Link2 className="w-4 h-4 text-primary flex-shrink-0" />}
+                        <input
+                          value={link.title}
+                          onChange={(e) => setLink(i, 'title', e.target.value)}
+                          placeholder={t('linkTitlePlaceholder')}
+                          className="flex-1 bg-secondary border border-border rounded-md px-2.5 py-1.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => removeLink(i)}
+                          className="p-1.5 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                          aria-label="Remove link"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                      <input
+                        value={link.url}
+                        onChange={(e) => setLink(i, 'url', e.target.value)}
+                        placeholder="https://github.com/usuario/proyecto"
+                        className="w-full bg-secondary border border-border rounded-md px-2.5 py-1.5 text-sm font-mono placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                      />
+                      <textarea
+                        value={link.description ?? ''}
+                        onChange={(e) => setLink(i, 'description', e.target.value)}
+                        placeholder={t('linkDescPlaceholder')}
+                        rows={2}
+                        className="w-full bg-secondary border border-border rounded-md px-2.5 py-1.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring resize-y"
+                      />
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+
           {/* File path (read-only) */}
           <div className="bg-secondary/50 rounded-lg px-4 py-3">
             <p className="text-xs text-muted-foreground mb-1 font-medium uppercase tracking-wide">{t('filePath')}</p>
@@ -392,6 +494,52 @@ export function GameEditorForm({ game, thumbnailWidth = 200, thumbnailHeight = 3
               )}
             </div>
           )}
+
+          {/* Merge / absorb duplicate */}
+          <div className="bg-secondary/50 rounded-xl p-4 space-y-3">
+            <p className="text-sm font-medium flex items-center gap-2">
+              <GitMerge className="w-4 h-4 text-muted-foreground" />
+              {t('mergeTitle')}
+            </p>
+            <p className="text-xs text-muted-foreground leading-relaxed">{t('mergeHint')}</p>
+
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
+              <input
+                value={mergeQuery}
+                onChange={(e) => setMergeQuery(e.target.value)}
+                placeholder={t('mergeSearchPlaceholder')}
+                className="w-full bg-secondary border border-border rounded-md pl-8 pr-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+              />
+            </div>
+
+            {merging && (
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Loader2 className="w-3.5 h-3.5 animate-spin" /> {t('merging')}
+              </div>
+            )}
+
+            {mergeResults?.games && mergeResults.games.length > 0 && (
+              <div className="space-y-1 max-h-56 overflow-y-auto">
+                {mergeResults.games
+                  .filter((g) => g.id !== game.id)
+                  .map((g) => (
+                    <div key={g.id} className="flex items-center gap-2 bg-secondary rounded-md px-2.5 py-1.5">
+                      <span className="flex-1 truncate text-xs">{g.title}</span>
+                      <button
+                        type="button"
+                        onClick={() => absorbGame(g.id, g.title)}
+                        disabled={merging}
+                        className="flex items-center gap-1 px-2 py-1 text-xs rounded bg-primary/15 text-primary hover:bg-primary/25 disabled:opacity-50 transition-colors flex-shrink-0"
+                      >
+                        <GitMerge className="w-3 h-3" />
+                        {t('mergeAbsorb')}
+                      </button>
+                    </div>
+                  ))}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>

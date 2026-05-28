@@ -6,6 +6,7 @@ import { getSessionFromRequest, isPublicIpRequest, isLanIp } from '@/lib/auth'
 const ADMIN_PAGE_PREFIX = '/admin'
 const PROTECTED_API_PATTERNS = [
   { method: 'POST',   path: '/api/scanner' },
+  { method: 'POST',   path: '/api/games/merge' },
   { method: 'POST',   path: '/api/covers' },
   { method: 'POST',   path: '/api/metadata' },
   { method: 'PUT',    path: '/api/settings' },

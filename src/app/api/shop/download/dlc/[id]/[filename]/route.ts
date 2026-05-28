@@ -5,10 +5,12 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { isLanIp, clientIpFromPlainRequest } from '@/lib/auth'
+import { createFileWebStream } from '@/lib/stream'
 import fs from 'fs'
 import path from 'path'
 
 export const dynamic = 'force-dynamic'
+export const runtime = 'nodejs'
 
 function unauthorized() {
   return new NextResponse('Unauthorized', {
@@ -35,18 +37,6 @@ function parseRange(header: string, size: number): [number, number] | null {
   const end   = m[2] ? parseInt(m[2], 10) : size - 1
   if (isNaN(start) || isNaN(end) || start > end || end >= size) return null
   return [start, end]
-}
-
-function streamFile(filePath: string, start?: number, end?: number): ReadableStream {
-  const nodeStream = fs.createReadStream(filePath, start !== undefined ? { start, end } : undefined)
-  return new ReadableStream({
-    start(controller) {
-      nodeStream.on('data',  (chunk) => controller.enqueue(chunk))
-      nodeStream.on('end',   ()      => controller.close())
-      nodeStream.on('error', (err)   => controller.error(err))
-    },
-    cancel() { nodeStream.destroy() },
-  })
 }
 
 export async function GET(
@@ -83,13 +73,13 @@ export async function GET(
       return new NextResponse(null, { status: 416, headers: { 'Content-Range': `bytes */${fileSize}` } })
     }
     const [start, end] = range
-    return new NextResponse(streamFile(dlc.filePath, start, end), {
+    return new NextResponse(createFileWebStream(dlc.filePath, { start, end }), {
       status: 206,
       headers: { ...baseHeaders, 'Content-Range': `bytes ${start}-${end}/${fileSize}`, 'Content-Length': String(end - start + 1) },
     })
   }
 
-  return new NextResponse(streamFile(dlc.filePath), {
+  return new NextResponse(createFileWebStream(dlc.filePath), {
     status: 200,
     headers: { ...baseHeaders, 'Content-Length': String(fileSize) },
   })

@@ -30,6 +30,8 @@ export interface Game {
   screenshotPaths: string | null
   description: string | null
   customNotes: string | null
+  externalLinks: string | null
+  groupKey: string | null
   igdbId: number | null
   rawgId: number | null
   rawgSlug: string | null

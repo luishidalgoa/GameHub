@@ -5,6 +5,7 @@ import { db } from '@/lib/db'
 import { getEntry, markDownloading, markDone } from '@/lib/download-queue'
 import { logDownloadStart, logDownloadComplete } from '@/lib/traffic'
 import { computeSha256 } from '@/lib/hash'
+import { createFileWebStream } from '@/lib/stream'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -106,14 +107,8 @@ export async function GET(req: Request, { params }: { params: { gameId: string }
       fileSize: BigInt(chunkSize),
     })
 
-    const fileStream    = fs.createReadStream(filePath, { start, end })
-    const readableStream = new ReadableStream({
-      start(controller) {
-        fileStream.on('data',  (chunk) => controller.enqueue(chunk))
-        fileStream.on('end',   ()      => { controller.close(); logDownloadComplete(logId) })
-        fileStream.on('error', (err)   => controller.error(err))
-      },
-      cancel() { fileStream.destroy() },
+    const readableStream = createFileWebStream(filePath, { start, end }, {
+      onEnd: () => logDownloadComplete(logId),
     })
 
     return new Response(readableStream, {
@@ -138,24 +133,19 @@ export async function GET(req: Request, { params }: { params: { gameId: string }
     fileSize: BigInt(fileSize),
   })
 
-  const fileStream     = fs.createReadStream(filePath)
-  const readableStream = new ReadableStream({
-    start(controller) {
-      fileStream.on('data',  (chunk) => controller.enqueue(chunk))
-      fileStream.on('end',   () => {
-        controller.close()
-        markDone(token)
-        logDownloadComplete(logId)
-        // Compute and cache SHA-256 lazily after first successful full download
-        if (!game.sha256) {
-          computeSha256(filePath)
-            .then((sha256) => db.game.update({ where: { id: gameId }, data: { sha256 } }))
-            .catch(() => {/* non-critical */ })
-        }
-      })
-      fileStream.on('error', (err) => { controller.error(err); markDone(token) })
+  const readableStream = createFileWebStream(filePath, undefined, {
+    // 'close' fires on both successful completion and client abort → always
+    // free the queue slot and promote the next waiting download.
+    onClose: () => markDone(token),
+    onEnd: () => {
+      logDownloadComplete(logId)
+      // Compute and cache SHA-256 lazily after first successful full download
+      if (!game.sha256) {
+        computeSha256(filePath)
+          .then((sha256) => db.game.update({ where: { id: gameId }, data: { sha256 } }))
+          .catch(() => {/* non-critical */ })
+      }
     },
-    cancel() { fileStream.destroy(); markDone(token) },
   })
 
   return new Response(readableStream, {

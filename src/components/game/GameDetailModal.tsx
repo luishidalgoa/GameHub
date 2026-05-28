@@ -10,6 +10,7 @@ import { formatBytes } from '@/lib/utils'
 import { DownloadButton }     from '@/components/shared/DownloadButton'
 import { BulkDownloadButton } from '@/components/shared/BulkDownloadButton'
 import { ScreenshotCarousel } from '@/components/game/ScreenshotCarousel'
+import { ExternalLinks }      from '@/components/game/ExternalLinks'
 import type { Game } from '@/types/game'
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
@@ -196,6 +197,9 @@ export function GameDetailModal({ gameId, onClose }: Props) {
                 <p className="text-sm text-foreground/70 leading-relaxed whitespace-pre-line">{game.customNotes}</p>
               </div>
             )}
+
+            {/* External links (community mods, translations…) */}
+            <ExternalLinks raw={game.externalLinks} title={t('links')} />
 
             {/* Updates */}
             {game.dlcs && game.dlcs.filter((d) => d.type === 'update').length > 0 && (

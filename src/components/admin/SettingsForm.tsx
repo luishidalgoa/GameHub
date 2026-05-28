@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useTranslations } from 'next-intl'
 import { Save, Loader2, Plus, Trash2, ChevronDown, ChevronUp, FolderPlus, X, FolderOpen, Wifi, CheckCircle2, XCircle, AlertCircle } from 'lucide-react'
@@ -8,6 +8,13 @@ import { FolderPickerModal } from './FolderPickerModal'
 
 const splitPaths = (s: string) => s.split('|').map(p => p.trim()).filter(Boolean)
 const joinPaths  = (arr: string[]) => arr.filter(Boolean).join('|')
+
+/** Shows the live shop URL using the host the admin is currently browsing. */
+function ShopUrl() {
+  const [host, setHost] = useState('<raspberry-ip>')
+  useEffect(() => { if (typeof window !== 'undefined') setHost(window.location.host) }, [])
+  return <>http://{host}/api/shop</>
+}
 
 interface Platform {
   id: number
@@ -743,7 +750,8 @@ export function SettingsForm({ platforms: initial, settings }: Props) {
           <p className="font-medium text-foreground text-sm mb-2">{t('shopSetup')}</p>
           <p>1. {t('shopStep1')}</p>
           <p>2. {t('shopStep2')}</p>
-          <p className="pt-1 text-foreground">http://&lt;raspberry-ip&gt;:3000/api/shop</p>
+          <p>3. {t('shopStep3')}</p>
+          <p className="pt-1 text-foreground"><ShopUrl /></p>
         </div>
       </div>
 

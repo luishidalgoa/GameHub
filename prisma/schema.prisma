@@ -51,6 +51,16 @@ model Game {
   description String?
   customNotes String?
 
+  // External links (community mods, translations, etc.) — JSON array of
+  // { title, description, url }. Rendered with GitHub-aware styling on the UI.
+  externalLinks String?
+
+  // Unification key for games split across multiple scan directories.
+  // For Switch: the base Application ID derived from Title IDs.
+  // Fallback: normalized folder/file name. Games sharing (platformId, groupKey)
+  // are merged into a single card.
+  groupKey String?
+
   igdbId   Int?
   rawgId   Int?
   rawgSlug String?
@@ -75,6 +85,7 @@ model Game {
   @@index([title])
   @@index([isFavorite])
   @@index([lastSeenAt])
+  @@index([platformId, groupKey])
 }
 
 model GameDlc {
