@@ -44,18 +44,29 @@ export async function fetchSteamGridDBCover(title: string): Promise<string | nul
 
     const sgdbGameId = games[0].id
 
-    // ── Step 2: fetch portrait grid covers (600×900 or 342×482) ─────────────
-    const gridRes = await fetch(
-      `${BASE}/grids/game/${sgdbGameId}?dimensions=600x900,342x482&nsfw=false`,
-      { headers },
-    )
-    if (!gridRes.ok) return null
+    // ── Step 2: prefer portrait box-art (600×900 / 342×482) ─────────────────
+    const portrait = await fetchGrid(sgdbGameId, headers, '&dimensions=600x900,342x482')
+    if (portrait) return portrait
 
-    const gridData = await gridRes.json()
-    const covers: Array<{ url: string }> = gridData.data ?? []
-    if (covers.length === 0) return null
+    // ── Step 3: fall back to ANY cover (helps GBA and other non-portrait box
+    //    art — better a square cover than dropping to the RAWG image) ─────────
+    return await fetchGrid(sgdbGameId, headers, '')
+  } catch {
+    return null
+  }
+}
 
-    return covers[0].url
+async function fetchGrid(
+  gameId: number,
+  headers: Record<string, string>,
+  dimensionsParam: string,
+): Promise<string | null> {
+  try {
+    const res = await fetch(`${BASE}/grids/game/${gameId}?nsfw=false${dimensionsParam}`, { headers })
+    if (!res.ok) return null
+    const data = await res.json()
+    const covers: Array<{ url: string }> = data.data ?? []
+    return covers[0]?.url ?? null
   } catch {
     return null
   }

@@ -9,6 +9,75 @@ import { FolderPickerModal } from './FolderPickerModal'
 const splitPaths = (s: string) => s.split('|').map(p => p.trim()).filter(Boolean)
 const joinPaths  = (arr: string[]) => arr.filter(Boolean).join('|')
 
+/**
+ * Reusable scan-path list editor. Defined at module scope (NOT inside
+ * SettingsForm) so React keeps the same component identity across renders —
+ * otherwise every keystroke remounts the inputs and they lose focus.
+ */
+function PathEditor({
+  paths,
+  platformId,
+  slug,
+  onChange,
+  onBrowse,
+  t,
+}: {
+  paths: string[]
+  platformId: number   // -1 for new platform form
+  slug: string
+  onChange: (paths: string[]) => void
+  onBrowse: (platformId: number, pathIndex: number) => void
+  t: ReturnType<typeof useTranslations>
+}) {
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-center justify-between">
+        <span className="text-xs text-muted-foreground font-medium">{t('scanPaths')}</span>
+        <button
+          type="button"
+          onClick={() => onChange([...paths, ''])}
+          className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+        >
+          <FolderPlus className="w-3.5 h-3.5" /> {t('addPath')}
+        </button>
+      </div>
+      {paths.length === 0 && (
+        <p className="text-xs text-amber-500/80 italic">{t('noPaths')}</p>
+      )}
+      {paths.map((path, idx) => (
+        <div key={idx} className="flex items-center gap-2">
+          <input
+            type="text"
+            value={path}
+            onChange={(e) => {
+              const next = [...paths]
+              next[idx] = e.target.value
+              onChange(next)
+            }}
+            placeholder={`e.g. /mnt/F/${slug.toUpperCase()}/Games`}
+            className="flex-1 min-w-0 bg-secondary border border-border rounded-md px-3 py-1.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-ring"
+          />
+          <button
+            type="button"
+            onClick={() => onBrowse(platformId, idx)}
+            className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-accent transition-colors flex-shrink-0"
+            title={t('browseFolder')}
+          >
+            <FolderOpen className="w-3.5 h-3.5" />
+          </button>
+          <button
+            type="button"
+            onClick={() => onChange(paths.filter((_, i) => i !== idx))}
+            className="p-1.5 rounded text-muted-foreground hover:text-red-400 hover:bg-red-950/30 transition-colors flex-shrink-0"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 /** Shows the live shop URL using the host the admin is currently browsing. */
 function ShopUrl() {
   const [host, setHost] = useState('<raspberry-ip>')
@@ -28,6 +97,8 @@ interface Platform {
   thumbnailWidth?: number
   thumbnailHeight?: number
   scanDlc: boolean
+  emulatorName?: string | null
+  emulatorUrl?: string | null
 }
 
 interface Props {
@@ -130,6 +201,8 @@ export function SettingsForm({ platforms: initial, settings }: Props) {
             thumbnailWidth:  p.thumbnailWidth ?? 200,
             thumbnailHeight: p.thumbnailHeight ?? 300,
             scanDlc:         p.scanDlc,
+            emulatorName:    p.emulatorName ?? null,
+            emulatorUrl:     p.emulatorUrl ?? null,
           }),
         })
       ),
@@ -194,67 +267,6 @@ export function SettingsForm({ platforms: initial, settings }: Props) {
     setPathsMap((prev) => { const next = { ...prev }; delete next[id]; return next })
     setDeleting(null)
     router.refresh()
-  }
-
-  // Reusable path list editor — used for both existing platforms and new platform form
-  function PathEditor({
-    paths,
-    platformId,
-    slug,
-    onChange,
-  }: {
-    paths: string[]
-    platformId: number   // -1 for new platform form
-    slug: string
-    onChange: (paths: string[]) => void
-  }) {
-    return (
-      <div className="space-y-1.5">
-        <div className="flex items-center justify-between">
-          <span className="text-xs text-muted-foreground font-medium">{t('scanPaths')}</span>
-          <button
-            type="button"
-            onClick={() => onChange([...paths, ''])}
-            className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
-          >
-            <FolderPlus className="w-3.5 h-3.5" /> {t('addPath')}
-          </button>
-        </div>
-        {paths.length === 0 && (
-          <p className="text-xs text-amber-500/80 italic">{t('noPaths')}</p>
-        )}
-        {paths.map((path, idx) => (
-          <div key={idx} className="flex items-center gap-2">
-            <input
-              type="text"
-              value={path}
-              onChange={(e) => {
-                const next = [...paths]
-                next[idx] = e.target.value
-                onChange(next)
-              }}
-              placeholder={`e.g. /mnt/F/${slug.toUpperCase()}/Games`}
-              className="flex-1 bg-secondary border border-border rounded-md px-3 py-1.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-ring"
-            />
-            <button
-              type="button"
-              onClick={() => setFolderPicker({ platformId, pathIndex: idx })}
-              className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-              title={t('browseFolder')}
-            >
-              <FolderOpen className="w-3.5 h-3.5" />
-            </button>
-            <button
-              type="button"
-              onClick={() => onChange(paths.filter((_, i) => i !== idx))}
-              className="p-1.5 rounded text-muted-foreground hover:text-red-400 hover:bg-red-950/30 transition-colors"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        ))}
-      </div>
-    )
   }
 
   return (
@@ -325,6 +337,8 @@ export function SettingsForm({ platforms: initial, settings }: Props) {
                 platformId={p.id}
                 slug={p.slug}
                 onChange={(paths) => setPaths(p.id, paths)}
+                onBrowse={(platformId, pathIndex) => setFolderPicker({ platformId, pathIndex })}
+                t={t}
               />
 
               {/* Extensions */}
@@ -357,6 +371,30 @@ export function SettingsForm({ platforms: initial, settings }: Props) {
                     value={p.thumbnailHeight ?? 300}
                     onChange={(e) => updateField(p.id, 'thumbnailHeight', parseInt(e.target.value))}
                     className="w-full bg-secondary border border-border rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                  />
+                </div>
+              </div>
+
+              {/* Emulator download link (shown on the platform page) */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="sm:col-span-1">
+                  <label className="block text-xs font-medium text-muted-foreground mb-1">{t('emulatorName')}</label>
+                  <input
+                    type="text"
+                    value={p.emulatorName ?? ''}
+                    onChange={(e) => updateField(p.id, 'emulatorName', e.target.value)}
+                    placeholder={t('emulatorNamePlaceholder')}
+                    className="w-full bg-secondary border border-border rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                  />
+                </div>
+                <div className="sm:col-span-2">
+                  <label className="block text-xs font-medium text-muted-foreground mb-1">{t('emulatorUrl')}</label>
+                  <input
+                    type="url"
+                    value={p.emulatorUrl ?? ''}
+                    onChange={(e) => updateField(p.id, 'emulatorUrl', e.target.value)}
+                    placeholder="https://…"
+                    className="w-full bg-secondary border border-border rounded-md px-3 py-1.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-ring"
                   />
                 </div>
               </div>
@@ -423,6 +461,8 @@ export function SettingsForm({ platforms: initial, settings }: Props) {
               platformId={-1}
               slug={newPlatform.slug || 'platform'}
               onChange={setNewPaths}
+              onBrowse={(platformId, pathIndex) => setFolderPicker({ platformId, pathIndex })}
+              t={t}
             />
 
             {/* Extensions */}

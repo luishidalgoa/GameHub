@@ -1,7 +1,7 @@
 'use client'
 
-import { useRef, useState, useCallback } from 'react'
-import { X, ZoomIn, ZoomOut, Check, RotateCcw, MoveHorizontal, MoveVertical } from 'lucide-react'
+import { useRef, useState, useEffect, useCallback } from 'react'
+import { X, Check, RotateCcw } from 'lucide-react'
 
 interface Props {
   src: string
@@ -11,141 +11,129 @@ interface Props {
   thumbnailHeight?: number
 }
 
+/** Crop rectangle in the image's natural pixel coordinates. */
+interface Rect { x: number; y: number; w: number; h: number }
+type Mode = 'move' | 'nw' | 'ne' | 'sw' | 'se'
+
 export function CoverAdjustModal({ src, onSave, onClose, thumbnailWidth = 200, thumbnailHeight = 300 }: Props) {
-  // Calculate output dimensions maintaining aspect ratio based on thumbnail config
-  // Use a reasonable maximum while maintaining the aspect ratio
-  const aspectRatio = thumbnailWidth / thumbnailHeight
-  const OUT_W = Math.min(1200, thumbnailWidth * 6) // Scale up but keep reasonable
-  const OUT_H = Math.round(OUT_W / aspectRatio)
-  const containerRef = useRef<HTMLDivElement>(null)
+  const aspect = thumbnailWidth / thumbnailHeight        // target cover aspect (w/h)
+  const OUT_W  = Math.min(1200, thumbnailWidth * 6)
+  const OUT_H  = Math.round(OUT_W / aspect)
+
+  const wrapperRef   = useRef<HTMLDivElement>(null)
   const imgRef       = useRef<HTMLImageElement>(null)
   const canvasRef    = useRef<HTMLCanvasElement>(null)
 
   const [loaded, setLoaded]       = useState(false)
   const [corsError, setCorsError] = useState(false)
-  const [naturalW, setNaturalW]   = useState(0)
-  const [naturalH, setNaturalH]   = useState(0)
-  const [zoom, setZoom]           = useState(1)
-  const [minZoom, setMinZoom]     = useState(1)
-  const [coverZoom, setCoverZoom] = useState(1)
-  const [pan, setPan]             = useState({ x: 0, y: 0 })
+  const [nat, setNat]             = useState({ w: 0, h: 0 })   // natural image size
+  const [disp, setDisp]           = useState({ w: 0, h: 0 })   // on-screen image size
+  const [crop, setCrop]           = useState<Rect>({ x: 0, y: 0, w: 0, h: 0 })
 
-  const dragging   = useRef(false)
-  const dragOrigin = useRef({ mx: 0, my: 0, px: 0, py: 0 })
+  const drag = useRef<{ mode: Mode; sx: number; sy: number; start: Rect } | null>(null)
 
-  // ── Max pan computed from current zoom (no clamping — free pan) ────────────
-
-  const getMaxPan = useCallback((z: number) => {
-    const img  = imgRef.current
-    const cont = containerRef.current
-    if (!img || !cont) return { maxX: 0, maxY: 0 }
-    return {
-      maxX: Math.max(0, (naturalW * z - cont.clientWidth)  / 2),
-      maxY: Math.max(0, (naturalH * z - cont.clientHeight) / 2),
-    }
-  }, [naturalW, naturalH])
-
-  const clamp = useCallback((px: number, py: number, z: number) => {
-    const { maxX, maxY } = getMaxPan(z)
-    return {
-      x: Math.max(-maxX, Math.min(maxX, px)),
-      y: Math.max(-maxY, Math.min(maxY, py)),
-    }
-  }, [getMaxPan])
-
-  const applyZoom = useCallback((newZ: number) => {
-    const z = Math.max(minZoom, Math.min(10, newZ))
-    setPan(p => clamp(p.x, p.y, z))
-    setZoom(z)
-  }, [minZoom, clamp])
-
-  // ── Image load ─────────────────────────────────────────────────────────────
+  // Largest aspect-correct rectangle, centered in the image.
+  const maxCrop = useCallback((nw: number, nh: number): Rect => {
+    let w = nw, h = nw / aspect
+    if (h > nh) { h = nh; w = nh * aspect }
+    return { x: (nw - w) / 2, y: (nh - h) / 2, w, h }
+  }, [aspect])
 
   const onLoad = () => {
-    const img  = imgRef.current!
-    const cont = containerRef.current!
-    const fitZ = Math.min(
-      cont.clientWidth  / img.naturalWidth,
-      cont.clientHeight / img.naturalHeight,
-    )
-    const covZ = Math.max(
-      cont.clientWidth  / img.naturalWidth,
-      cont.clientHeight / img.naturalHeight,
-    )
-    setNaturalW(img.naturalWidth)
-    setNaturalH(img.naturalHeight)
-    setMinZoom(fitZ)
-    setCoverZoom(covZ)
-    setZoom(covZ)
-    setPan({ x: 0, y: 0 })
+    const img = imgRef.current!
+    setNat({ w: img.naturalWidth, h: img.naturalHeight })
+    setCrop(maxCrop(img.naturalWidth, img.naturalHeight))
     setLoaded(true)
   }
 
-  // ── Pointer drag ───────────────────────────────────────────────────────────
+  // Fit the image inside the modal (width-bound + 52vh height cap), preserving aspect.
+  useEffect(() => {
+    if (!loaded || !nat.w || !nat.h) return
+    const compute = () => {
+      const maxW = wrapperRef.current?.clientWidth ?? 320
+      const maxH = Math.round(window.innerHeight * 0.52)
+      const r    = nat.w / nat.h
+      let w = maxW, h = maxW / r
+      if (h > maxH) { h = maxH; w = maxH * r }
+      setDisp({ w: Math.round(w), h: Math.round(h) })
+    }
+    compute()
+    const ro = new ResizeObserver(compute)
+    if (wrapperRef.current) ro.observe(wrapperRef.current)
+    window.addEventListener('resize', compute)
+    return () => { ro.disconnect(); window.removeEventListener('resize', compute) }
+  }, [loaded, nat.w, nat.h])
 
-  const onPointerDown = (e: React.PointerEvent) => {
-    dragging.current = true
-    dragOrigin.current = { mx: e.clientX, my: e.clientY, px: pan.x, py: pan.y }
+  const scale = disp.w && nat.w ? disp.w / nat.w : 1   // natural px * scale = screen px
+  const minW  = Math.max(20, Math.max(nat.w, nat.h) * 0.08)
+
+  // ── Pointer interaction ─────────────────────────────────────────────────────
+
+  const startDrag = (mode: Mode) => (e: React.PointerEvent) => {
+    e.preventDefault(); e.stopPropagation()
+    drag.current = { mode, sx: e.clientX, sy: e.clientY, start: { ...crop } }
     ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
   }
 
   const onPointerMove = (e: React.PointerEvent) => {
-    if (!dragging.current) return
-    const { mx, my, px, py } = dragOrigin.current
-    setPan(clamp(px + (e.clientX - mx), py + (e.clientY - my), zoom))
+    const d = drag.current
+    if (!d || !scale) return
+    const dxN = (e.clientX - d.sx) / scale
+    const dyN = (e.clientY - d.sy) / scale
+    const s   = d.start
+
+    if (d.mode === 'move') {
+      setCrop({
+        ...s,
+        x: Math.max(0, Math.min(nat.w - s.w, s.x + dxN)),
+        y: Math.max(0, Math.min(nat.h - s.h, s.y + dyN)),
+      })
+      return
+    }
+
+    // Resize from the opposite (anchor) corner, keeping the target aspect.
+    const anchorX = (d.mode === 'nw' || d.mode === 'sw') ? s.x + s.w : s.x
+    const anchorY = (d.mode === 'nw' || d.mode === 'ne') ? s.y + s.h : s.y
+    const dirX    = (d.mode === 'se' || d.mode === 'ne') ? 1 : -1
+    const dirY    = (d.mode === 'se' || d.mode === 'sw') ? 1 : -1
+    const mouseX  = ((d.mode === 'se' || d.mode === 'ne') ? s.x + s.w : s.x) + dxN
+    // (mouseY not needed — height is derived from width to keep aspect)
+
+    let w = Math.max(minW, (mouseX - anchorX) * dirX)
+    w = Math.min(w, dirX > 0 ? nat.w - anchorX : anchorX)
+    let h = w / aspect
+    const maxHy = dirY > 0 ? nat.h - anchorY : anchorY
+    if (h > maxHy) { h = maxHy; w = h * aspect }
+
+    setCrop({
+      x: dirX > 0 ? anchorX : anchorX - w,
+      y: dirY > 0 ? anchorY : anchorY - h,
+      w, h,
+    })
   }
 
-  const onPointerUp = () => { dragging.current = false }
+  const onPointerUp = () => { drag.current = null }
 
-  const onWheel = (e: React.WheelEvent) => {
-    e.preventDefault()
-    applyZoom(zoom * (e.deltaY < 0 ? 1.07 : 0.93))
-  }
-
-  // ── Reset / Apply ──────────────────────────────────────────────────────────
-
-  const reset = () => {
-    setZoom(coverZoom)
-    setPan({ x: 0, y: 0 })
-  }
+  const reset = () => setCrop(maxCrop(nat.w, nat.h))
 
   const apply = () => {
-    const img    = imgRef.current!
-    const cont   = containerRef.current!
-    const canvas = canvasRef.current!
-    const ctx    = canvas.getContext('2d')!
-
-    const cW = cont.clientWidth
-    const cH = cont.clientHeight
-
-    const srcX = naturalW / 2 - cW / (2 * zoom) - pan.x / zoom
-    const srcY = naturalH / 2 - cH / (2 * zoom) - pan.y / zoom
-    const srcW = cW / zoom
-    const srcH = cH / zoom
-
-    canvas.width  = OUT_W
-    canvas.height = OUT_H
-
+    const img = imgRef.current!, canvas = canvasRef.current!
+    const ctx = canvas.getContext('2d')!
+    canvas.width = OUT_W; canvas.height = OUT_H
     try {
-      ctx.drawImage(img, srcX, srcY, srcW, srcH, 0, 0, OUT_W, OUT_H)
-      canvas.toBlob(blob => { if (blob) onSave(blob) }, 'image/webp', 0.92)
-    } catch {
-      setCorsError(true)
-    }
+      ctx.drawImage(img, crop.x, crop.y, crop.w, crop.h, 0, 0, OUT_W, OUT_H)
+      canvas.toBlob(b => { if (b) onSave(b) }, 'image/webp', 0.92)
+    } catch { setCorsError(true) }
   }
 
-  // ── Derived pan limits for sliders ─────────────────────────────────────────
-
-  const { maxX, maxY } = getMaxPan(zoom)
-
-  // ── Render ─────────────────────────────────────────────────────────────────
+  // Crop rectangle in screen pixels.
+  const r = { x: crop.x * scale, y: crop.y * scale, w: crop.w * scale, h: crop.h * scale }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
 
-      <div className="relative z-10 bg-card border border-border rounded-xl shadow-2xl flex flex-col w-full max-w-sm">
-
+      <div className="relative z-10 bg-card border border-border rounded-xl shadow-2xl flex flex-col w-full max-w-md">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-3 border-b border-border">
           <h3 className="font-semibold text-sm">Adjust Cover</h3>
@@ -154,132 +142,92 @@ export function CoverAdjustModal({ src, onSave, onClose, thumbnailWidth = 200, t
           </button>
         </div>
 
-        {/* Canvas preview */}
+        {/* Crop area */}
         <div className="px-4 pt-4">
-          <p className="text-xs text-muted-foreground text-center mb-2">
-            Drag to reposition · scroll or sliders to zoom
+          <p className="text-xs text-muted-foreground text-center mb-3">
+            Arrastra el recuadro para mover · tira de las esquinas para ajustar
           </p>
 
-          <div
-            ref={containerRef}
-            style={{ aspectRatio: `${thumbnailWidth}/${thumbnailHeight}` }}
-            className="relative w-full overflow-hidden rounded-lg bg-black cursor-grab active:cursor-grabbing select-none"
-            onPointerDown={onPointerDown}
-            onPointerMove={onPointerMove}
-            onPointerUp={onPointerUp}
-            onPointerCancel={onPointerUp}
-            onWheel={onWheel}
-          >
-            <img
-              ref={imgRef}
-              src={src}
-              alt=""
-              crossOrigin="anonymous"
-              onLoad={onLoad}
-              onError={() => setCorsError(true)}
-              draggable={false}
-              className="absolute top-1/2 left-1/2 pointer-events-none"
+          <div ref={wrapperRef} className="flex justify-center">
+            <div
+              className="relative overflow-hidden rounded-lg bg-black select-none touch-none"
               style={{
-                width:           naturalW || 'auto',
-                height:          naturalH || 'auto',
-                transform:       `translate(calc(-50% + ${pan.x}px), calc(-50% + ${pan.y}px)) scale(${zoom})`,
-                transformOrigin: 'center',
-                display:         loaded ? 'block' : 'none',
+                width:  loaded && disp.w ? disp.w : '100%',
+                height: loaded && disp.h ? disp.h : 240,
               }}
-            />
+              onPointerMove={onPointerMove}
+              onPointerUp={onPointerUp}
+              onPointerCancel={onPointerUp}
+            >
+              <img
+                ref={imgRef}
+                src={src}
+                alt=""
+                crossOrigin="anonymous"
+                onLoad={onLoad}
+                onError={() => setCorsError(true)}
+                draggable={false}
+                className="absolute inset-0 w-full h-full object-fill pointer-events-none"
+                style={{ display: loaded ? 'block' : 'none' }}
+              />
 
-            {!loaded && !corsError && (
-              <div className="absolute inset-0 flex items-center justify-center text-sm text-muted-foreground">
-                Loading…
-              </div>
-            )}
+              {!loaded && !corsError && (
+                <div className="absolute inset-0 flex items-center justify-center text-sm text-muted-foreground">Loading…</div>
+              )}
 
-            {corsError && (
-              <div className="absolute inset-0 flex flex-col items-center justify-center text-sm text-destructive text-center px-4 gap-2">
-                <span>Cannot adjust this image</span>
-                <span className="text-xs text-muted-foreground">(blocked by CORS policy)</span>
-                <span className="text-xs text-muted-foreground">Upload a local file copy to use this tool.</span>
-              </div>
-            )}
+              {corsError && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center text-sm text-destructive text-center px-4 gap-2">
+                  <span>Cannot adjust this image</span>
+                  <span className="text-xs text-muted-foreground">(blocked by CORS policy)</span>
+                </div>
+              )}
 
-            {loaded && (
-              <div className="absolute inset-0 pointer-events-none">
-                <div className="absolute top-1/3 inset-x-0 border-t border-white/10" />
-                <div className="absolute top-2/3 inset-x-0 border-t border-white/10" />
-                <div className="absolute inset-y-0 left-1/3 border-l border-white/10" />
-                <div className="absolute inset-y-0 left-2/3 border-l border-white/10" />
-              </div>
-            )}
+              {/* Crop box */}
+              {loaded && !corsError && disp.w > 0 && (
+                <div
+                  className="absolute border-2 border-white/90 cursor-move"
+                  style={{ left: r.x, top: r.y, width: r.w, height: r.h, boxShadow: '0 0 0 9999px rgba(0,0,0,0.55)' }}
+                  onPointerDown={startDrag('move')}
+                >
+                  {/* rule-of-thirds guides */}
+                  <div className="absolute inset-0 pointer-events-none">
+                    <div className="absolute top-1/3 inset-x-0 border-t border-white/30" />
+                    <div className="absolute top-2/3 inset-x-0 border-t border-white/30" />
+                    <div className="absolute inset-y-0 left-1/3 border-l border-white/30" />
+                    <div className="absolute inset-y-0 left-2/3 border-l border-white/30" />
+                  </div>
+                  {/* corner handles */}
+                  {(['nw', 'ne', 'sw', 'se'] as Mode[]).map(c => (
+                    <div
+                      key={c}
+                      onPointerDown={startDrag(c)}
+                      className="absolute w-4 h-4 bg-white rounded-sm border border-black/40 shadow"
+                      style={{
+                        left:   c.includes('w') ? -9 : undefined,
+                        right:  c.includes('e') ? -9 : undefined,
+                        top:    c.includes('n') ? -9 : undefined,
+                        bottom: c.includes('s') ? -9 : undefined,
+                        cursor: c === 'nw' || c === 'se' ? 'nwse-resize' : 'nesw-resize',
+                      }}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </div>
-
-        {/* Controls */}
-        {loaded && !corsError && (
-          <div className="px-4 pt-3 pb-1 space-y-2">
-            {zoom < coverZoom && (
-              <p className="text-xs text-amber-500/80 text-center">
-                Zoom out — black bars will appear in output. Zoom in to fill the frame.
-              </p>
-            )}
-
-            {/* Zoom */}
-            <div className="flex items-center gap-2">
-              <button type="button" onClick={() => applyZoom(zoom * 0.93)}
-                className="text-muted-foreground hover:text-foreground p-1 transition-colors flex-shrink-0">
-                <ZoomOut className="w-4 h-4" />
-              </button>
-              <input
-                type="range" className="flex-1 accent-primary h-1"
-                min={minZoom} max={coverZoom * 8} step={0.001}
-                value={zoom}
-                onChange={e => applyZoom(parseFloat(e.target.value))}
-              />
-              <button type="button" onClick={() => applyZoom(zoom * 1.07)}
-                className="text-muted-foreground hover:text-foreground p-1 transition-colors flex-shrink-0">
-                <ZoomIn className="w-4 h-4" />
-              </button>
-            </div>
-
-            {/* X axis */}
-            <div className="flex items-center gap-2">
-              <MoveHorizontal className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-              <input
-                type="range" className="flex-1 accent-primary h-1"
-                min={-Math.max(maxX, 1)} max={Math.max(maxX, 1)} step={0.5}
-                value={pan.x}
-                disabled={maxX === 0}
-                onChange={e => setPan(p => clamp(parseFloat(e.target.value), p.y, zoom))}
-              />
-            </div>
-
-            {/* Y axis */}
-            <div className="flex items-center gap-2">
-              <MoveVertical className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-              <input
-                type="range" className="flex-1 accent-primary h-1"
-                min={-Math.max(maxY, 1)} max={Math.max(maxY, 1)} step={0.5}
-                value={pan.y}
-                disabled={maxY === 0}
-                onChange={e => setPan(p => clamp(p.x, parseFloat(e.target.value), zoom))}
-              />
-            </div>
-
-          </div>
-        )}
 
         {/* Actions */}
         <div className="flex gap-2 px-4 py-4">
           <button
-            type="button" onClick={reset}
-            disabled={!loaded || corsError}
+            type="button" onClick={reset} disabled={!loaded || corsError}
             className="flex items-center gap-1.5 px-3 py-2 text-sm bg-secondary border border-border rounded-md hover:bg-accent transition-colors disabled:opacity-40"
           >
             <RotateCcw className="w-3.5 h-3.5" />
             Reset
           </button>
           <button
-            type="button" onClick={apply}
-            disabled={!loaded || corsError}
+            type="button" onClick={apply} disabled={!loaded || corsError}
             className="flex-1 flex items-center justify-center gap-2 px-4 py-2 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors disabled:opacity-40"
           >
             <Check className="w-4 h-4" />

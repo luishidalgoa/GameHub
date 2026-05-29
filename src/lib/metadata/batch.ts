@@ -1,6 +1,7 @@
 import { db } from '@/lib/db'
 import { downloadAndCacheCover } from '@/lib/covers'
 import { getRawgProvider, cleanTitle, RAWG_PLATFORM_IDS } from './rawg'
+import { fetchSteamGridDBCover } from './steamgriddb'
 import { searchYouTubeTrailer } from '@/lib/youtube'
 import type { MetadataResult } from './provider'
 
@@ -167,12 +168,16 @@ export async function runMetadataBatch(opts: {
         continue
       }
 
-      // ── 4. Optionally download cover ──────────────────────────────────────
+      // ── 4. Optionally download cover (SteamGridDB first, RAWG fallback) ────
       let coverPath: string | undefined
-      if (withCovers && meta.coverUrl) {
-        try {
-          coverPath = await downloadAndCacheCover(meta.coverUrl, game.platform.slug, game.id)
-        } catch { /* cover download failure is non-fatal */ }
+      if (withCovers) {
+        const sgdbUrl       = await fetchSteamGridDBCover(meta.title)
+        const coverSourceUrl = sgdbUrl ?? meta.coverUrl
+        if (coverSourceUrl) {
+          try {
+            coverPath = await downloadAndCacheCover(coverSourceUrl, game.platform.slug, game.id)
+          } catch { /* cover download failure is non-fatal */ }
+        }
       }
 
       // ── 5. Optionally search YouTube trailer ──────────────────────────────

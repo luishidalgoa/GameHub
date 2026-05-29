@@ -143,12 +143,12 @@ export function GameGrid({
           className="w-full sm:w-48 bg-secondary border border-border rounded-md px-3 py-2.5 sm:py-1.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
         />
 
-        {/* Controls row */}
-        <div className="flex items-center gap-2 sm:contents">
+        {/* Controls row — 2-col grid on mobile (no X-overflow), inline on desktop */}
+        <div className="grid grid-cols-2 gap-2 sm:contents">
           <select
             value={sort}
             onChange={e => setSort(e.target.value as SortKey)}
-            className="flex-1 sm:flex-none bg-secondary border border-border rounded-md px-3 py-2.5 sm:py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring touch-manipulation"
+            className="w-full sm:w-auto min-w-0 sm:flex-none bg-secondary border border-border rounded-md px-3 py-2.5 sm:py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring touch-manipulation"
           >
             <option value="title">{t('sortTitle')}</option>
             <option value="year">{t('sortYear')}</option>
@@ -159,7 +159,7 @@ export function GameGrid({
             <select
               value={region}
               onChange={e => setRegion(e.target.value)}
-              className={`flex-1 sm:flex-none bg-secondary border rounded-md px-3 py-2.5 sm:py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring touch-manipulation transition-colors ${
+              className={`w-full sm:w-auto min-w-0 sm:flex-none bg-secondary border rounded-md px-3 py-2.5 sm:py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring touch-manipulation transition-colors ${
                 region ? 'border-primary/60 text-foreground' : 'border-border text-muted-foreground'
               }`}
             >
@@ -170,7 +170,7 @@ export function GameGrid({
 
           <button
             onClick={() => setFavOnly(v => !v)}
-            className={`flex-1 sm:flex-none px-3 py-2.5 sm:py-1.5 text-sm rounded-md border transition-colors touch-manipulation ${
+            className={`w-full sm:w-auto min-w-0 sm:flex-none px-3 py-2.5 sm:py-1.5 text-sm rounded-md border transition-colors touch-manipulation whitespace-nowrap truncate ${
               favOnly
                 ? 'bg-red-600/20 border-red-600/40 text-red-400'
                 : 'bg-secondary border-border text-muted-foreground hover:text-foreground'
@@ -180,7 +180,7 @@ export function GameGrid({
           </button>
 
           {/* Loaded / total counter */}
-          <span className="text-sm text-muted-foreground whitespace-nowrap sm:ml-auto">
+          <span className="col-span-2 sm:col-span-1 self-center text-sm text-muted-foreground whitespace-nowrap text-center sm:text-left sm:ml-auto">
             {isLoadingInitial ? '…' : `${games.length}/${total}`}
           </span>
         </div>

@@ -20,6 +20,8 @@ model Platform {
   thumbnailWidth   Int      @default(200)
   thumbnailHeight  Int      @default(300)
   scanDlc          Boolean  @default(false)
+  emulatorName     String?
+  emulatorUrl      String?
   games            Game[]
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt

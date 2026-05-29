@@ -52,9 +52,9 @@ export default async function GamePage({ params }: Props) {
         Back to {game.platform?.name ?? 'Library'}
       </Link>
 
-      <div className="flex gap-8 lg:gap-12">
+      <div className="flex gap-4 sm:gap-8 lg:gap-12">
         {/* Cover — aspect ratio from platform thumbnail settings, wider on large screens */}
-        <div className="flex-shrink-0 w-40 sm:w-48 lg:w-64">
+        <div className="flex-shrink-0 w-28 sm:w-44 lg:w-64">
           <div
             className="relative rounded-xl overflow-hidden bg-secondary shadow-2xl"
             style={{ aspectRatio: `${thumbW} / ${thumbH}` }}
@@ -71,8 +71,8 @@ export default async function GamePage({ params }: Props) {
 
         {/* Content */}
         <div className="flex-1 min-w-0">
-          <div className="flex items-start justify-between gap-4">
-            <h1 className="text-3xl font-bold leading-tight">{game.title}</h1>
+          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+            <h1 className="text-2xl sm:text-3xl font-bold leading-tight break-words">{game.title}</h1>
             <div className="flex-shrink-0 flex items-center gap-2">
               {game.fileSize > BigInt(0) && (
                 <DownloadButton gameId={game.id} fileSize={game.fileSize.toString()} />
@@ -102,7 +102,7 @@ export default async function GamePage({ params }: Props) {
             )}
           </div>
 
-          <div className="mt-5 grid grid-cols-2 gap-2 text-sm">
+          <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
             {game.releaseYear && <MetaRow icon={<Calendar className="w-4 h-4" />} label="Year" value={String(game.releaseYear)} />}
             {game.genre && <MetaRow icon={<Tag className="w-4 h-4" />} label="Genre" value={game.genre} />}
             {game.developer && <MetaRow icon={<User className="w-4 h-4" />} label="Developer" value={game.developer} />}

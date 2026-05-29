@@ -17,7 +17,9 @@
     "topDownloadsAll": "Todos"
   },
   "Platform": {
-    "games": "{count, plural, one {# juego} other {# juegos}}"
+    "games": "{count, plural, one {# juego} other {# juegos}}",
+    "downloadEmulator": "Descargar emulador",
+    "downloadEmulatorNamed": "Descargar {name}"
   },
   "GameGrid": {
     "search": "Buscar…",
@@ -120,6 +122,9 @@
     "extensions": "Extensiones",
     "thumbWidth": "Ancho de miniatura (px)",
     "thumbHeight": "Alto de miniatura (px)",
+    "emulatorName": "Emulador (nombre)",
+    "emulatorNamePlaceholder": "ej. Ryujinx, mGBA…",
+    "emulatorUrl": "Enlace de descarga del emulador",
     "deletePlatform": "Eliminar plataforma",
     "displayName": "Nombre visible (ej. PlayStation 2)",
     "slug": "slug (ej. ps2)",
