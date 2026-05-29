@@ -224,19 +224,22 @@ npm run dev
 - No extra spaces around password
 - Restart server after changing
 
-## Next Steps
+## Technical documentation
 
-- 📖 [Full Documentation](../wiki/)
-- 🎮 [Game Management Guide](../wiki/03-game-management.md)
-- 👨‍💼 [Admin Panel Guide](../wiki/04-admin-panel.md)
-- 🚀 [Deployment Guide](../wiki/06-deployment.md)
-- 🐛 [Troubleshooting](../wiki/07-troubleshooting.md)
+Full technical wiki in **[`docs/`](docs/README.md)**:
+
+- 🏗️ [Architecture](docs/architecture.md)
+- 🚀 [Deployment](docs/deployment/README.md) — Docker, Apache/SSL, DB migration
+- ⚙️ [Environment & settings](docs/configuration/environment.md)
+- 🎮 [Scanner](docs/features/scanner.md) · [Covers & metadata](docs/features/covers-metadata.md) · [Downloads](docs/features/downloads-queue.md)
+- 🛒 [Switch shop API (Tinfoil/DBI)](docs/features/switch-shop.md)
+- 📊 [Metrics, Prometheus & Grafana](docs/observability/metrics-grafana.md)
+- 📚 [Database schema](docs/reference/database.md) · [API reference](docs/reference/api.md)
 
 ## Support
 
-- **Docs**: Check the [Wiki](../wiki/)
+- **Docs**: [Technical wiki](docs/README.md)
 - **Issues**: [GitHub Issues](../../issues)
-- **Discussions**: [GitHub Discussions](../../discussions)
 
 ---
 
