@@ -126,6 +126,7 @@
     "emulatorNamePlaceholder": "e.g. Ryujinx, mGBA…",
     "emulatorUrl": "Emulator download link",
     "emulatorsLabel": "Emulators per OS (the visitor's is auto-detected)",
+    "emulatorReuse": "Reuse an emulator already entered",
     "deletePlatform": "Delete platform",
     "displayName": "Display name (e.g. PlayStation 2)",
     "slug": "slug (e.g. ps2)",

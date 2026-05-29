@@ -2,7 +2,7 @@ import { db } from '@/lib/db'
 import { downloadAndCacheCover } from '@/lib/covers'
 import { getRawgProvider, cleanTitle, RAWG_PLATFORM_IDS } from './rawg'
 import { fetchSteamGridDBCover } from './steamgriddb'
-import { searchYouTubeTrailer } from '@/lib/youtube'
+import { searchYouTubeTrailer, YouTubeApiError } from '@/lib/youtube'
 import type { MetadataResult } from './provider'
 
 // ── Confidence thresholds ────────────────────────────────────────────────────
@@ -91,14 +91,17 @@ const delay = (ms: number) => new Promise(r => setTimeout(r, ms))
 // ── Main batch processor ──────────────────────────────────────────────────────
 
 export async function runMetadataBatch(opts: {
-  emit:          (event: BatchEvent) => void
-  signal:        AbortSignal
-  withCovers?:   boolean
-  withTrailers?: boolean
-  rateMs?:       number
-  apiKey?:       string
+  emit:             (event: BatchEvent) => void
+  signal:           AbortSignal
+  withCovers?:      boolean
+  withTrailers?:    boolean
+  /** Also backfill trailers for games that ALREADY have metadata but no trailer
+   *  (without touching their metadata). Used by the admin "Auto Metadata Fetch". */
+  backfillTrailers?: boolean
+  rateMs?:          number
+  apiKey?:          string
 }) {
-  const { emit, signal, withCovers = true, withTrailers = false, rateMs = 350, apiKey } = opts
+  const { emit, signal, withCovers = true, withTrailers = false, backfillTrailers = false, rateMs = 350, apiKey } = opts
 
   const provider = getRawgProvider(apiKey)
   if (!provider) {
@@ -107,9 +110,17 @@ export async function runMetadataBatch(opts: {
     return
   }
 
-  // Fetch all games without metadata, including their platform
+  // Games missing metadata, plus (optionally) games that have metadata but no
+  // trailer yet — those only get a trailer backfilled, their metadata is left
+  // untouched.
   const games = await db.game.findMany({
-    where:   { isHidden: false, metadataFetchedAt: null },
+    where: {
+      isHidden: false,
+      OR: [
+        { metadataFetchedAt: null },
+        ...(withTrailers && backfillTrailers ? [{ trailerUrl: null }] : []),
+      ],
+    },
     include: { platform: true },
     orderBy: { title: 'asc' },
   })
@@ -118,6 +129,9 @@ export async function runMetadataBatch(opts: {
   emit({ type: 'start', total })
 
   let applied = 0, skipped = 0, failed = 0
+  // Once the YouTube API errors (quota / bad key / network), stop searching
+  // trailers for the rest of the run instead of failing every game.
+  let youtubeDisabled = false
 
   for (let i = 0; i < games.length; i++) {
     if (signal.aborted) break
@@ -125,8 +139,47 @@ export async function runMetadataBatch(opts: {
     const game = games[i]
     const processed = i + 1
 
+    // ── Trailer-only backfill: game already has metadata, just needs a trailer ─
+    if (game.metadataFetchedAt !== null) {
+      if (!withTrailers || game.trailerUrl) {
+        // nothing to do (shouldn't normally be selected) — count as skipped silently
+        skipped++
+        emit({ type: 'skipped', gameId: game.id, title: game.title, reason: 'has_metadata', processed, total, applied, skipped, failed })
+        continue
+      }
+      if (youtubeDisabled) {
+        skipped++
+        emit({ type: 'skipped', gameId: game.id, title: game.title, reason: 'youtube_disabled', processed, total, applied, skipped, failed })
+        continue
+      }
+      try {
+        await delay(rateMs)
+        if (signal.aborted) break
+        const url = await searchYouTubeTrailer(game.title)
+        if (url) {
+          await db.game.update({ where: { id: game.id }, data: { trailerUrl: url } })
+          applied++
+          emit({ type: 'applied', gameId: game.id, title: game.title, matchedTitle: game.title, trailerFound: true, processed, total, applied, skipped, failed })
+        } else {
+          skipped++
+          emit({ type: 'skipped', gameId: game.id, title: game.title, reason: 'no_trailer', processed, total, applied, skipped, failed })
+        }
+      } catch (err) {
+        if (err instanceof YouTubeApiError) {
+          youtubeDisabled = true
+          skipped++
+          emit({ type: 'skipped', gameId: game.id, title: game.title, reason: 'youtube_error', processed, total, applied, skipped, failed })
+        } else {
+          failed++
+          emit({ type: 'failed', gameId: game.id, title: game.title, reason: err instanceof Error ? err.message : 'unknown_error', processed, total, applied, skipped, failed })
+        }
+      }
+      continue
+    }
+
+    // ── Full flow: game has no metadata ───────────────────────────────────────
     try {
-      // ── 1. Search RAWG ────────────────────────────────────────────────────
+      // 1. Search RAWG
       await delay(rateMs)
       if (signal.aborted) break
 
@@ -138,7 +191,7 @@ export async function runMetadataBatch(opts: {
         continue
       }
 
-      // ── 2. Score every result, pick the best ─────────────────────────────
+      // 2. Score every result, pick the best
       const scored = results
         .map(r => ({ ...r, confidence: calcConfidence(game.title, game.platform.slug, r) }))
         .sort((a, b) => b.confidence - a.confidence)
@@ -157,7 +210,7 @@ export async function runMetadataBatch(opts: {
         continue
       }
 
-      // ── 3. Fetch full details ─────────────────────────────────────────────
+      // 3. Fetch full details
       await delay(rateMs)
       if (signal.aborted) break
 
@@ -168,10 +221,10 @@ export async function runMetadataBatch(opts: {
         continue
       }
 
-      // ── 4. Optionally download cover (SteamGridDB first, RAWG fallback) ────
+      // 4. Cover (SteamGridDB first, RAWG fallback)
       let coverPath: string | undefined
       if (withCovers) {
-        const sgdbUrl       = await fetchSteamGridDBCover(meta.title)
+        const sgdbUrl        = await fetchSteamGridDBCover(meta.title)
         const coverSourceUrl = sgdbUrl ?? meta.coverUrl
         if (coverSourceUrl) {
           try {
@@ -180,19 +233,21 @@ export async function runMetadataBatch(opts: {
         }
       }
 
-      // ── 5. Optionally search YouTube trailer ──────────────────────────────
+      // 5. YouTube trailer (skipped once the API has errored this run)
       let trailerUrl: string | undefined
       let trailerFound = false
-      if (withTrailers) {
+      if (withTrailers && !youtubeDisabled) {
         try {
           const url = await searchYouTubeTrailer(meta.title)
           if (url) { trailerUrl = url; trailerFound = true }
-        } catch { /* non-fatal */ }
+        } catch (err) {
+          if (err instanceof YouTubeApiError) youtubeDisabled = true
+        }
         await delay(rateMs)
         if (signal.aborted) break
       }
 
-      // ── 6. Persist to DB ──────────────────────────────────────────────────
+      // 6. Persist
       await db.game.update({
         where: { id: game.id },
         data: {
@@ -203,8 +258,8 @@ export async function runMetadataBatch(opts: {
           developer:         meta.developer,
           publisher:         meta.publisher,
           coverUrl:          meta.coverUrl,
-          rawgId:   meta.id,
-          rawgSlug: meta.slug,
+          rawgId:            meta.id,
+          rawgSlug:          meta.slug,
           ...(coverPath  && { coverPath }),
           ...(trailerUrl && { trailerUrl }),
           metadataFetchedAt: new Date(),

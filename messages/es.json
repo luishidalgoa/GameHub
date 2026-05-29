@@ -125,6 +125,7 @@
     "emulatorName": "Emulador (nombre)",
     "emulatorNamePlaceholder": "ej. Ryujinx, mGBA…",
     "emulatorsLabel": "Emuladores por sistema (se detecta el del visitante)",
+    "emulatorReuse": "Reutilizar un emulador ya escrito",
     "emulatorUrl": "Enlace de descarga del emulador",
     "deletePlatform": "Eliminar plataforma",
     "displayName": "Nombre visible (ej. PlayStation 2)",

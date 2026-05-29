@@ -5,8 +5,11 @@ import type { BatchEvent } from '@/lib/metadata/batch'
 export const dynamic = 'force-dynamic'
 
 export async function GET(req: Request) {
-  const sp         = new URL(req.url).searchParams
-  const withCovers = sp.get('covers') !== 'false'
+  const sp           = new URL(req.url).searchParams
+  const withCovers   = sp.get('covers') !== 'false'
+  // Auto Metadata Fetch also backfills YouTube trailers (incl. games that
+  // already have metadata but no trailer). Disable with ?trailers=false.
+  const withTrailers = sp.get('trailers') !== 'false'
 
   const setting = await db.setting.findUnique({ where: { key: 'rawg_api_key' } })
   const apiKey  = setting?.value || undefined
@@ -21,7 +24,7 @@ export async function GET(req: Request) {
         } catch { /* client disconnected */ }
       }
 
-      await runMetadataBatch({ emit: send, signal: req.signal, withCovers, apiKey })
+      await runMetadataBatch({ emit: send, signal: req.signal, withCovers, withTrailers, backfillTrailers: true, apiKey })
 
       try { controller.close() } catch { /* already closed */ }
     },

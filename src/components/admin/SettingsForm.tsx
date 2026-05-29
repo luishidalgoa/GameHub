@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { useTranslations } from 'next-intl'
 import { Save, Loader2, Plus, Trash2, ChevronDown, ChevronUp, FolderPlus, X, FolderOpen, Wifi, CheckCircle2, XCircle, AlertCircle } from 'lucide-react'
@@ -153,6 +153,25 @@ export function SettingsForm({ platforms: initial, settings }: Props) {
       const entry = { ...(cur[os] ?? { url: '' }), [field]: value }
       return { ...prev, [id]: { ...cur, [os]: entry } }
     })
+  const setEmuEntry = (id: number, os: EmulatorOS, entry: { name?: string; url: string }) =>
+    setEmulatorsMap((prev) => ({ ...prev, [id]: { ...(prev[id] ?? {}), [os]: entry } }))
+
+  // Distinct emulators already entered across all platforms — offered for reuse.
+  const existingEmulators = useMemo(() => {
+    const seen = new Map<string, { name?: string; url: string }>()
+    for (const set of Object.values(emulatorsMap)) {
+      for (const os of OS_ORDER) {
+        const e = set[os]
+        const url = e?.url?.trim()
+        if (url) {
+          const name = e?.name?.trim() || undefined
+          const key  = `${name ?? ''}|${url}`
+          if (!seen.has(key)) seen.set(key, { name, url })
+        }
+      }
+    }
+    return [...seen.values()]
+  }, [emulatorsMap])
 
   const [rawgKey,       setRawgKey]       = useState(settings['rawg_api_key']             ?? '')
   const [googleApiKey,  setGoogleApiKey]  = useState(settings['google_search_api_key']    ?? '')
@@ -423,6 +442,22 @@ export function SettingsForm({ platforms: initial, settings }: Props) {
                       placeholder="https://…"
                       className="flex-1 min-w-0 bg-secondary border border-border rounded-md px-2.5 py-1.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-ring"
                     />
+                    {existingEmulators.length > 0 && (
+                      <select
+                        value=""
+                        onChange={(e) => {
+                          const em = existingEmulators[Number(e.target.value)]
+                          if (em) setEmuEntry(p.id, os, { name: em.name, url: em.url })
+                        }}
+                        title={t('emulatorReuse')}
+                        className="flex-shrink-0 w-9 bg-secondary border border-border rounded-md px-1 py-1.5 text-sm text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring cursor-pointer"
+                      >
+                        <option value="">↺</option>
+                        {existingEmulators.map((em, i) => (
+                          <option key={i} value={i}>{em.name ?? em.url}</option>
+                        ))}
+                      </select>
+                    )}
                   </div>
                 ))}
               </div>
