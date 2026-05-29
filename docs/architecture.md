@@ -69,7 +69,7 @@ src/
 prisma/                     # schema + migrations + sqlite db
 scripts/                    # tsx scripts: scan, seed, db-export, db-import
 apache2/                    # vhost templates (HTTP + HTTPS)
-deploy.sh                   # Pi deploy/update/apache/db helper (bash)
+deploy.sh                   # Pi deploy/update/apache helper (bash)
 local.ps1                   # Windows dev helper (PowerShell)
 docker-compose.yml, Dockerfile
 messages/                   # i18n (es.json, en.json)

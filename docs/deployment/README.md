@@ -16,22 +16,31 @@ Internet ──> :443 Apache vhost ──proxy──> 127.0.0.1:3001 ──> con
 
 ```bash
 ./deploy.sh install        # first deploy on a fresh host
-./deploy.sh update         # git pull + rebuild + restart (zero-ish downtime)
+./deploy.sh update         # git pull + rebuild + restart (service stays up during build)
 ./deploy.sh apache_setup   # configure Apache2 + certbot SSL
-./deploy.sh db_export      # back up the live DB to the current folder
-./deploy.sh db_import      # import a .db file into the live DB (+ permissions)
+./deploy.sh restart        # recreate the container (apply .env.production changes)
+./deploy.sh rebuild        # rebuild from scratch (--no-cache) + restart
+./deploy.sh migrate        # apply pending Prisma migrations in the running container
 ./deploy.sh logs           # follow container logs
 ./deploy.sh status         # container status + resource usage
+./deploy.sh shell          # shell inside the container
 ```
 
-`deploy.sh` uses two constants at the top of the file — adjust them for your host:
+`DOMAIN` and `APP_DIR` default in the script but can be overridden via env:
 
-- `DOMAIN` — the public hostname served by Apache.
-- `APP_DIR` — where the app lives on the host (default `/home/<user>/services/GameHub`).
+```bash
+DOMAIN=games.example.net APP_DIR=/opt/gamehub ./deploy.sh update
+```
+
+(Defaults: `DOMAIN` = the configured hostname, `APP_DIR` = `$HOME/services/GameHub`.)
 
 The SQLite DB lives in a Docker volume at `APP_DIR/data` and must be owned by
 UID/GID **1001:1001** (the non-root `nextjs` user inside the container).
-`deploy.sh install` sets this up; `db_import` re-applies it.
+`deploy.sh install` sets this up. If you ever swap the DB file manually, re-apply
+it: `sudo chown -R 1001:1001 "$APP_DIR/data" && sudo chmod -R 775 "$APP_DIR/data"`.
+
+> **Database backup/restore is not in `deploy.sh`** — use `npm run db:export` /
+> `npm run db:import` (see [database-migration.md](database-migration.md)).
 
 ## Typical first deploy
 

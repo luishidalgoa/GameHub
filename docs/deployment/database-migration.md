@@ -34,26 +34,36 @@ Everything *after* the root is preserved verbatim, so a disk that lives at
 
 Example (Pi → Windows): map `/mnt/F` → `F:\` and `/mnt/nextcloud_hdd_1` → `E:\`.
 
-## On the Raspberry Pi — `deploy.sh`
+## On the Raspberry Pi
+
+The npm scripts target `prisma/gamehub.db`; on the Pi the **live DB is the Docker
+volume** at `$APP_DIR/data/gamehub.db`. So manage it directly with `cp`:
 
 ```bash
-./deploy.sh db_export      # copies APP_DIR/data/gamehub.db to the current folder, chowned to you
-./deploy.sh db_import      # stops the container, swaps in a .db, restores 1001:1001 perms, restarts
+# Back up the live DB
+cp "$APP_DIR/data/gamehub.db" ~/gamehub_backup_$(date +%F).db
+
+# Restore / swap in a .db (stop first to avoid corrupting SQLite in flight)
+cd "$APP_DIR"
+docker compose stop gamehub
+cp /path/to/new.db data/gamehub.db
+sudo chown -R 1001:1001 data && sudo chmod -R 775 data   # Prisma needs UID 1001
+docker compose start gamehub
 ```
 
-`deploy.sh db_import` does **not** remap paths — on the Pi the paths are already
-Linux. Use the local `npm run db:import` when importing a Pi DB onto Windows (or
-vice-versa) so the remap step runs.
+The Pi's paths are already Linux, so no remap is needed there. The **remap only
+matters when crossing OSes** (Pi ⇄ Windows) — do that with `npm run db:import`
+on the non-Pi machine.
 
 ## Typical Pi → local workflow
 
 ```bash
 # on the Pi
-./deploy.sh db_export        # produces gamehub_backup_*.db
+cp "$APP_DIR/data/gamehub.db" ~/gamehub_backup.db
 # copy that file to your PC (scp / Samba / etc.), into the GameHub folder
 
 # on your PC
-npm run db:import            # choose the file, target OS = windows, map roots
+npm run db:import -- gamehub_backup.db   # target OS = windows, map roots (e.g. /mnt/F → F:\)
 npm run dev
 ```
 
