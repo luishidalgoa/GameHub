@@ -67,6 +67,11 @@ These power `/admin/traffic` and the Prometheus exporter.
 
 ## Working with the DB
 
+> The `.db` files are **not** committed to the repo. Generate the database the
+> first time with `npm run db:migrate` (creates `prisma/gamehub.db` from the
+> migrations) + `npm run seed` for the default platforms. In Docker it's created
+> automatically on container start.
+
 ```bash
 npm run db:studio     # Prisma Studio GUI
 npm run db:migrate    # create/apply a dev migration

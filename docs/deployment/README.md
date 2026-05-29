@@ -57,6 +57,11 @@ nano .env.production                        # set SESSION_SECRET, ADMIN_PASSWORD
 ./deploy.sh apache_setup
 ```
 
+The database is **not** shipped in the repo. You don't need to create it by hand
+on the Pi: the container runs `prisma migrate deploy` on start and creates
+`gamehub.db` in the `/data` volume on first boot. (For **local dev** you generate
+it yourself — see the root [README, "Generate the Database"](../../README.md#step-3-generate-the-database-1-min): `npm run db:migrate` + `npm run seed`.)
+
 Then open Admin → Settings and configure scan paths, API keys and the S3/MinIO
 endpoints (these can also come from env vars — see
 [../configuration/environment.md](../configuration/environment.md)).

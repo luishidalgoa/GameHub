@@ -32,12 +32,19 @@ ADMIN_PASSWORD="MySecurePass123!@#"
 NEXT_PUBLIC_APP_URL="http://localhost:3000"
 ```
 
-### Step 3: Initialize Database (1 min)
+### Step 3: Generate the Database (1 min)
+
+The repository does **not** include a database — you generate it from the Prisma
+migrations. This creates `prisma/gamehub.db` and applies the schema:
 
 ```bash
-npm run db:migrate
-npm run seed
+npm run db:migrate    # creates prisma/gamehub.db + applies all migrations
+npm run seed          # (optional) add the default platforms
 ```
+
+> In Docker/production you don't run this by hand: the container applies
+> migrations automatically on start (`prisma migrate deploy`), creating the DB in
+> the `/data` volume on first boot.
 
 ### Step 4: Start Server (1 min)
 
