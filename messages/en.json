@@ -92,7 +92,9 @@
     "updated": "Updated",
     "stale": "Stale",
     "errors": "Errors",
-    "done": "Done"
+    "done": "Done",
+    "scanningRoms": "Scanning ROMs…",
+    "metaProgress": "Metadata"
   },
   "MetadataBatch": {
     "title": "Auto Metadata Fetch",

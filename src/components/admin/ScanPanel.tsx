@@ -13,6 +13,8 @@ export function ScanPanel() {
   const [scanning, setScanning]         = useState(false)
   const [logs, setLogs]                 = useState<string[]>([])
   const [selectedSlug, setSelectedSlug] = useState<string>('all')
+  const [phase, setPhase]               = useState<'idle' | 'scanning' | 'metadata'>('idle')
+  const [meta, setMeta]                 = useState<{ done: number; total: number }>({ done: 0, total: 0 })
   const logRef = useRef<HTMLDivElement>(null)
 
   const { data: platforms } = useSWR<Platform[]>('/api/platforms', fetcher)
@@ -25,6 +27,8 @@ export function ScanPanel() {
 
   const startScan = () => {
     setScanning(true)
+    setPhase('scanning')
+    setMeta({ done: 0, total: 0 })
     setLogs(['Starting scan…'])
 
     // Open SSE first — only trigger the POST once the server confirms it's listening.
@@ -75,9 +79,12 @@ export function ScanPanel() {
             es.close()
             break
           case 'auto_meta_start':
+            setPhase('metadata')
+            setMeta({ done: 0, total: event.total ?? 0 })
             line = `\n🔍 Auto-metadata: ${event.total} game${event.total === 1 ? '' : 's'} to process`
             break
           case 'auto_meta_progress': {
+            setMeta({ done: event.processed ?? 0, total: event.total ?? 0 })
             const icon = event.metaStatus === 'applied' ? '✚' : event.metaStatus === 'failed' ? '✗' : '·'
             const trailer = event.trailerFound ? ' 🎬' : ''
             line = `  ${icon} [${event.processed}/${event.total}] ${event.gameTitle}${trailer}`
@@ -143,6 +150,34 @@ export function ScanPanel() {
           </button>
         </div>
       </div>
+
+      {/* Progress bar */}
+      {scanning && (
+        <div className="mb-4 space-y-1.5">
+          {phase === 'metadata' && meta.total > 0 ? (
+            <>
+              <div className="flex justify-between text-xs text-muted-foreground">
+                <span>{t('metaProgress')} {meta.done}/{meta.total}</span>
+                <span className="tabular-nums">{Math.round((meta.done / meta.total) * 100)}%</span>
+              </div>
+              <div className="h-1.5 bg-secondary rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-primary rounded-full transition-all duration-300"
+                  style={{ width: `${Math.round((meta.done / meta.total) * 100)}%` }}
+                />
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <RefreshCw className="w-3 h-3 animate-spin" />
+                <span>{t('scanningRoms')}</span>
+              </div>
+              <div className="relative h-1.5 bg-secondary rounded-full overflow-hidden bar-indeterminate" />
+            </>
+          )}
+        </div>
+      )}
 
       {logs.length > 0 && (
         <div

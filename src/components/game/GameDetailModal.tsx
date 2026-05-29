@@ -1,12 +1,12 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import useSWR from 'swr'
 import { useTranslations } from 'next-intl'
 import { X, Heart, Pencil, HardDrive, Calendar, Tag, User, Building2 } from 'lucide-react'
-import { formatBytes } from '@/lib/utils'
+import { formatBytes, cn } from '@/lib/utils'
 import { DownloadButton }     from '@/components/shared/DownloadButton'
 import { BulkDownloadButton } from '@/components/shared/BulkDownloadButton'
 import { ScreenshotCarousel } from '@/components/game/ScreenshotCarousel'
@@ -46,6 +46,35 @@ export function GameDetailModal({ gameId, onClose }: Props) {
 
   const cover = game?.coverPath ?? game?.coverUrl
 
+  // ── Swipe-down to dismiss (mobile bottom sheet) ─────────────────────────────
+  const [dragY, setDragY]       = useState(0)
+  const [dragging, setDragging] = useState(false)
+  const [entered, setEntered]   = useState(false)
+  const dragStart = useRef(0)
+
+  // After the enter animation finishes, drop the animate-in classes so our
+  // drag transform isn't overridden by the animation's filled end-state.
+  useEffect(() => {
+    const id = setTimeout(() => setEntered(true), 320)
+    return () => clearTimeout(id)
+  }, [])
+
+  const onHandleDown = (e: React.PointerEvent) => {
+    dragStart.current = e.clientY
+    setDragging(true)
+    ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
+  }
+  const onHandleMove = (e: React.PointerEvent) => {
+    if (!dragging) return
+    const dy = e.clientY - dragStart.current
+    setDragY(dy > 0 ? dy : 0)
+  }
+  const onHandleUp = () => {
+    setDragging(false)
+    if (dragY > 110) onClose()
+    else setDragY(0)
+  }
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-end sm:items-start sm:justify-end"
@@ -55,10 +84,30 @@ export function GameDetailModal({ gameId, onClose }: Props) {
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
 
       {/* Sheet — bottom sheet on mobile, right panel on desktop */}
-      <div className="relative z-10 w-full sm:h-full sm:max-w-2xl max-h-[92dvh] sm:max-h-full rounded-t-2xl sm:rounded-none bg-card border-t sm:border-t-0 sm:border-l border-border overflow-y-auto shadow-2xl flex flex-col animate-in slide-in-from-bottom sm:slide-in-from-right duration-300">
-        {/* Drag handle — mobile only */}
-        <div className="sm:hidden flex-shrink-0 flex justify-center pt-3 pb-1">
-          <div className="w-10 h-1 rounded-full bg-border" />
+      <div
+        className={cn(
+          'relative z-10 w-full sm:h-full sm:max-w-2xl max-h-[92dvh] sm:max-h-full rounded-t-2xl sm:rounded-none bg-card border-t sm:border-t-0 sm:border-l border-border overflow-y-auto shadow-2xl flex flex-col',
+          !entered && 'animate-in slide-in-from-bottom sm:slide-in-from-right duration-300',
+        )}
+        style={{
+          transform:  dragY ? `translateY(${dragY}px)` : undefined,
+          transition: dragging ? 'none' : 'transform 0.25s ease',
+        }}
+      >
+        {/* Loading bar */}
+        {loading && (
+          <div className="absolute top-0 left-0 right-0 h-0.5 bg-secondary overflow-hidden bar-indeterminate z-20" />
+        )}
+
+        {/* Drag handle — mobile only (swipe down to dismiss) */}
+        <div
+          className="sm:hidden flex-shrink-0 flex justify-center pt-3 pb-2 cursor-grab active:cursor-grabbing touch-none"
+          onPointerDown={onHandleDown}
+          onPointerMove={onHandleMove}
+          onPointerUp={onHandleUp}
+          onPointerCancel={onHandleUp}
+        >
+          <div className="w-10 h-1.5 rounded-full bg-border" />
         </div>
         {/* Header */}
         <div className="flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 border-b border-border sticky top-0 bg-card z-10">

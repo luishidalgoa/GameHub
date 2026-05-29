@@ -64,3 +64,20 @@
   background-size: 200% 100%;
   animation: shimmer 1.5s infinite;
 }
+
+/* Indeterminate progress bar (a sliding segment) — used while a job has no
+   known total yet (e.g. ROM scanning before metadata). */
+@keyframes indeterminate-bar {
+  0%   { left: -45%; width: 45%; }
+  50%  { left: 25%;  width: 55%; }
+  100% { left: 100%; width: 45%; }
+}
+.bar-indeterminate::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-radius: 9999px;
+  background: hsl(var(--primary));
+  animation: indeterminate-bar 1.15s ease-in-out infinite;
+}

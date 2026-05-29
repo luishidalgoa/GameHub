@@ -92,7 +92,9 @@
     "updated": "Actualizados",
     "stale": "Desaparecidos",
     "errors": "Errores",
-    "done": "Hecho"
+    "done": "Hecho",
+    "scanningRoms": "Buscando ROMs…",
+    "metaProgress": "Metadatos"
   },
   "MetadataBatch": {
     "title": "Metadatos automáticos",
