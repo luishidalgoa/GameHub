@@ -20,8 +20,9 @@ model Platform {
   thumbnailWidth   Int      @default(200)
   thumbnailHeight  Int      @default(300)
   scanDlc          Boolean  @default(false)
-  emulatorName     String?
-  emulatorUrl      String?
+  emulatorName     String?  // deprecated — kept as fallback, superseded by `emulators`
+  emulatorUrl      String?  // deprecated — kept as fallback, superseded by `emulators`
+  emulators        String?  // JSON: { windows?: {name,url}, android?: {name,url}, ios?: {name,url} }
   games            Game[]
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt

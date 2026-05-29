@@ -124,6 +124,7 @@
     "thumbHeight": "Alto de miniatura (px)",
     "emulatorName": "Emulador (nombre)",
     "emulatorNamePlaceholder": "ej. Ryujinx, mGBA…",
+    "emulatorsLabel": "Emuladores por sistema (se detecta el del visitante)",
     "emulatorUrl": "Enlace de descarga del emulador",
     "deletePlatform": "Eliminar plataforma",
     "displayName": "Nombre visible (ej. PlayStation 2)",

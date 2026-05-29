@@ -5,9 +5,21 @@ import { useRouter } from 'next/navigation'
 import { useTranslations } from 'next-intl'
 import { Save, Loader2, Plus, Trash2, ChevronDown, ChevronUp, FolderPlus, X, FolderOpen, Wifi, CheckCircle2, XCircle, AlertCircle } from 'lucide-react'
 import { FolderPickerModal } from './FolderPickerModal'
+import { parseEmulators, OS_ORDER, OS_LABEL, type EmulatorSet, type EmulatorOS } from '@/components/platform/EmulatorLinks'
 
 const splitPaths = (s: string) => s.split('|').map(p => p.trim()).filter(Boolean)
 const joinPaths  = (arr: string[]) => arr.filter(Boolean).join('|')
+
+/** Serialize an EmulatorSet to JSON, keeping only entries with a real URL. */
+const serializeEmulators = (set: EmulatorSet): string => {
+  const out: EmulatorSet = {}
+  for (const os of OS_ORDER) {
+    const e   = set[os]
+    const url = e?.url?.trim()
+    if (url) out[os] = { url, ...(e?.name?.trim() ? { name: e.name.trim() } : {}) }
+  }
+  return JSON.stringify(out)
+}
 
 /**
  * Reusable scan-path list editor. Defined at module scope (NOT inside
@@ -99,6 +111,7 @@ interface Platform {
   scanDlc: boolean
   emulatorName?: string | null
   emulatorUrl?: string | null
+  emulators?: string | null
 }
 
 interface Props {
@@ -128,6 +141,18 @@ export function SettingsForm({ platforms: initial, settings }: Props) {
   const getPaths  = (id: number) => pathsMap[id] ?? []
   const setPaths  = (id: number, paths: string[]) =>
     setPathsMap((prev) => ({ ...prev, [id]: paths }))
+
+  // Per-OS emulator links (migrates the deprecated single emulatorName/Url too)
+  const [emulatorsMap, setEmulatorsMap] = useState<Record<number, EmulatorSet>>(() =>
+    Object.fromEntries(initial.map((p) => [p.id, parseEmulators(p.emulators, p.emulatorName, p.emulatorUrl)]))
+  )
+  const getEmu = (id: number) => emulatorsMap[id] ?? {}
+  const setEmu = (id: number, os: EmulatorOS, field: 'name' | 'url', value: string) =>
+    setEmulatorsMap((prev) => {
+      const cur   = prev[id] ?? {}
+      const entry = { ...(cur[os] ?? { url: '' }), [field]: value }
+      return { ...prev, [id]: { ...cur, [os]: entry } }
+    })
 
   const [rawgKey,       setRawgKey]       = useState(settings['rawg_api_key']             ?? '')
   const [googleApiKey,  setGoogleApiKey]  = useState(settings['google_search_api_key']    ?? '')
@@ -201,8 +226,10 @@ export function SettingsForm({ platforms: initial, settings }: Props) {
             thumbnailWidth:  p.thumbnailWidth ?? 200,
             thumbnailHeight: p.thumbnailHeight ?? 300,
             scanDlc:         p.scanDlc,
-            emulatorName:    p.emulatorName ?? null,
-            emulatorUrl:     p.emulatorUrl ?? null,
+            emulators:       serializeEmulators(getEmu(p.id)),
+            // Clear the deprecated single fields once migrated into `emulators`
+            emulatorName:    null,
+            emulatorUrl:     null,
           }),
         })
       ),
@@ -375,28 +402,29 @@ export function SettingsForm({ platforms: initial, settings }: Props) {
                 </div>
               </div>
 
-              {/* Emulator download link (shown on the platform page) */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div className="sm:col-span-1">
-                  <label className="block text-xs font-medium text-muted-foreground mb-1">{t('emulatorName')}</label>
-                  <input
-                    type="text"
-                    value={p.emulatorName ?? ''}
-                    onChange={(e) => updateField(p.id, 'emulatorName', e.target.value)}
-                    placeholder={t('emulatorNamePlaceholder')}
-                    className="w-full bg-secondary border border-border rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                  />
-                </div>
-                <div className="sm:col-span-2">
-                  <label className="block text-xs font-medium text-muted-foreground mb-1">{t('emulatorUrl')}</label>
-                  <input
-                    type="url"
-                    value={p.emulatorUrl ?? ''}
-                    onChange={(e) => updateField(p.id, 'emulatorUrl', e.target.value)}
-                    placeholder="https://…"
-                    className="w-full bg-secondary border border-border rounded-md px-3 py-1.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-ring"
-                  />
-                </div>
+              {/* Emulator download links per OS (shown on the platform page; the
+                  visitor's OS is auto-detected). */}
+              <div className="space-y-1.5">
+                <span className="text-xs text-muted-foreground font-medium">{t('emulatorsLabel')}</span>
+                {OS_ORDER.map((os) => (
+                  <div key={os} className="flex items-center gap-2">
+                    <span className="w-16 text-xs text-muted-foreground flex-shrink-0">{OS_LABEL[os]}</span>
+                    <input
+                      type="text"
+                      value={getEmu(p.id)[os]?.name ?? ''}
+                      onChange={(e) => setEmu(p.id, os, 'name', e.target.value)}
+                      placeholder={t('emulatorNamePlaceholder')}
+                      className="w-28 sm:w-32 flex-shrink-0 bg-secondary border border-border rounded-md px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                    />
+                    <input
+                      type="url"
+                      value={getEmu(p.id)[os]?.url ?? ''}
+                      onChange={(e) => setEmu(p.id, os, 'url', e.target.value)}
+                      placeholder="https://…"
+                      className="flex-1 min-w-0 bg-secondary border border-border rounded-md px-2.5 py-1.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-ring"
+                    />
+                  </div>
+                ))}
               </div>
 
               {/* DLC / Update scan toggle */}
