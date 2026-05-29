@@ -57,6 +57,45 @@ docker compose pull && docker compose up -d --wait
 - Database migrations still run automatically on container start.
 - `--wait` blocks until the healthcheck passes.
 
+## Automatic deploy (Watchtower)
+
+GitHub Actions only builds and **publishes** to GHCR — it does **not** deploy to
+the Pi (the runners can't reach your home network). To make the Pi update itself,
+the `docker-compose.prod.example.yml` includes a **Watchtower** service:
+
+```yaml
+  watchtower:
+    image: containrrr/watchtower
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      WATCHTOWER_LABEL_ENABLE: "true"   # only update containers with the enable label
+      WATCHTOWER_CLEANUP: "true"        # prune the old image after updating
+      WATCHTOWER_POLL_INTERVAL: "300"   # poll GHCR every 5 minutes
+```
+
+and the `gamehub` service opts in with:
+
+```yaml
+    labels:
+      com.centurylinklabs.watchtower.enable: "true"
+```
+
+How it works: Watchtower polls GHCR every 5 min; when `:latest` has a new digest
+it pulls the image, recreates the `gamehub` container (migrations run on start),
+and removes the old image. It's **pull-based** — the Pi reaches out, nothing is
+exposed inbound, no SSH keys in CI. Mounting `/var/run/docker.sock` grants it
+control of Docker on the host (standard for Watchtower; fine on a personal Pi).
+
+So the full chain becomes automatic:
+
+```
+git push main → Actions builds arm64 → GHCR :latest → Watchtower (≤5 min) pulls + recreates on the Pi
+```
+
+`./deploy.sh update` is still available for an immediate, manual update.
+
 ## Pinning / rollback
 
 `latest` always points at the newest `main` build. To pin or roll back, set a
