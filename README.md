@@ -88,6 +88,9 @@ You should see:
 ## Common Commands
 
 ```bash
+# Show all commands + the release process (3 bundles)
+npm run help
+
 # Start development
 npm run dev
 

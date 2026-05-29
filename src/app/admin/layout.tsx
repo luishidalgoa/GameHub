@@ -1,14 +1,16 @@
 import Link from 'next/link'
 import { getTranslations } from 'next-intl/server'
-import { LayoutDashboard, Gamepad2, Settings, BarChart2, Heart, Ghost, ChevronRight } from 'lucide-react'
+import { LayoutDashboard, Gamepad2, Settings, BarChart2, Heart, Ghost, ChevronRight, Tag } from 'lucide-react'
 import { LogoutButton } from '@/components/admin/LogoutButton'
 import { db } from '@/lib/db'
+import { getAppVersion, type AppVersionInfo } from '@/lib/version'
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const [t, missingCount] = await Promise.all([
     getTranslations('AdminLayout'),
     db.game.count({ where: { isHidden: true } }),
   ])
+  const version = getAppVersion()
 
   return (
     <div>
@@ -30,6 +32,49 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       </div>
 
       {children}
+
+      <AdminVersionFooter info={version} />
+    </div>
+  )
+}
+
+function AdminVersionFooter({ info }: { info: AppVersionInfo }) {
+  const label = info.isSemver ? `v${info.version}` : info.version
+  const tooltip = [
+    info.isReleaseBuild ? 'Release build' : 'Local / dev build',
+    info.commit ? `commit ${info.commit}` : null,
+    info.buildTime ? `built ${info.buildTime}` : null,
+  ]
+    .filter(Boolean)
+    .join(' · ')
+
+  const inner = (
+    <span className="inline-flex items-center gap-1.5">
+      <Tag className="w-3 h-3" />
+      GameHub {label}
+      {!info.isReleaseBuild && (
+        <span className="text-[10px] uppercase tracking-wide opacity-70">dev</span>
+      )}
+    </span>
+  )
+
+  return (
+    <div className="mt-12 pt-4 border-t border-border flex justify-end">
+      {info.releaseUrl ? (
+        <a
+          href={info.releaseUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          title={tooltip}
+          className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+        >
+          {inner}
+        </a>
+      ) : (
+        <span title={tooltip} className="text-xs text-muted-foreground">
+          {inner}
+        </span>
+      )}
     </div>
   )
 }

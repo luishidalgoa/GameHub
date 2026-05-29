@@ -1,24 +1,36 @@
 name: Build & publish Docker image
 
 # Builds the production image for the Raspberry Pi (linux/arm64) and pushes it
-# to GitHub Container Registry (GHCR). The Pi then just `docker compose pull`s
-# it — no building on the device. See docs/deployment/ci-registry.md.
+# to GitHub Container Registry (GHCR), then publishes a GitHub Release.
+#
+# IMPORTANT: this does NOT run on every push to main. It runs only when you
+# declare a public version by pushing a tag `vX.Y.Z` (see RELEASING below), or
+# when you trigger it manually from the Actions tab. The Pi then just
+# `docker compose pull`s the image — no building on the device.
+# See docs/deployment/ci-registry.md.
+#
+#   RELEASING — to cut a public version:
+#     npm version <patch|minor|major>     # bumps package.json + creates the v<x.y.z> tag
+#     git push --follow-tags              # pushes the commit AND the tag → triggers this workflow
+#   (or by hand:  git tag v1.2.0 && git push origin v1.2.0)
 
 on:
   push:
-    branches: [main]
-    tags: ['v*']
-  workflow_dispatch: {}          # allow manual runs from the Actions tab
+    tags: ['v*']                 # only version tags trigger a build — NOT plain pushes to main
+  workflow_dispatch: {}          # allow manual test builds from the Actions tab
 
 env:
   IMAGE: ghcr.io/luishidalgoa/gamehub
 
 jobs:
   build:
+    name: Build & push image
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write            # push to GHCR with the built-in GITHUB_TOKEN
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -43,11 +55,19 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: ${{ env.IMAGE }}
+          # latest=auto: `latest` is set for clean semver tags (vX.Y.Z) but NOT
+          # for pre-releases (vX.Y.Z-rc.1) — so a release candidate won't deploy.
+          flavor: |
+            latest=auto
           tags: |
-            type=raw,value=latest,enable={{is_default_branch}}
-            type=sha,format=short
-            type=semver,pattern={{version}}
-            type=ref,event=tag
+            type=semver,pattern={{version}}                 # 1.2.3   (the public version)
+            type=semver,pattern={{major}}.{{minor}}          # 1.2
+            type=sha,format=short                            # sha-1a2b3c4  (rollback pin)
+            type=ref,event=branch                            # e.g. "main" — only for manual dispatch builds
+
+      - name: Build timestamp
+        id: ts
+        run: echo "value=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
 
       - name: Build & push (linux/arm64)
         uses: docker/build-push-action@v6
@@ -57,5 +77,40 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          # Baked into the image and shown in /admin (steps.meta.outputs.version
+          # is "X.Y.Z" on a v* tag, the branch name on a manual dispatch).
+          build-args: |
+            APP_VERSION=${{ steps.meta.outputs.version }}
+            APP_COMMIT=${{ github.sha }}
+            APP_BUILD_TIME=${{ steps.ts.outputs.value }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+  # Only on a version tag: publish a GitHub Release with auto-generated notes
+  # and the pull instructions. The image itself lives in GHCR; the Release is the
+  # human-facing changelog + pointer to the version.
+  release:
+    name: GitHub Release
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write            # create the GitHub Release
+    steps:
+      - name: Create the Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true     # changelog from merged PRs / commits
+          body: |
+            ## 🐳 Docker image
+
+            Published to GHCR for `linux/arm64`:
+
+            ```bash
+            docker pull ghcr.io/luishidalgoa/gamehub:${{ needs.build.outputs.version }}
+            # rolling tag Watchtower follows:
+            docker pull ghcr.io/luishidalgoa/gamehub:latest
+            ```
+
+            On the Raspberry Pi the deploy is automatic — Watchtower picks up the
+            new `:latest` within ~5 min. To apply it immediately: `./deploy.sh update`.

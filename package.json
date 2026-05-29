@@ -2,8 +2,13 @@
   "name": "gamehub",
   "version": "1.0.0",
   "description": "",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/luishidalgoa/GameHub"
+  },
   "main": "index.js",
   "scripts": {
+    "help": "tsx scripts/help.ts",
     "dev": "next dev",
     "build": "next build",
     "start": "next start",

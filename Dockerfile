@@ -40,6 +40,15 @@ ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
+# Version metadata passed by CI (from the published vX.Y.Z tag) and surfaced in
+# /admin. Empty for plain local builds → the app falls back to package.json.
+ARG APP_VERSION=""
+ARG APP_COMMIT=""
+ARG APP_BUILD_TIME=""
+ENV APP_VERSION=$APP_VERSION
+ENV APP_COMMIT=$APP_COMMIT
+ENV APP_BUILD_TIME=$APP_BUILD_TIME
+
 # Non-root user for security
 RUN addgroup --system --gid 1001 nodejs \
  && adduser  --system --uid 1001 nextjs
