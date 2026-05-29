@@ -144,7 +144,7 @@ export function SettingsForm({ platforms: initial, settings }: Props) {
 
   // Per-OS emulator links (migrates the deprecated single emulatorName/Url too)
   const [emulatorsMap, setEmulatorsMap] = useState<Record<number, EmulatorSet>>(() =>
-    Object.fromEntries(initial.map((p) => [p.id, parseEmulators(p.emulators, p.emulatorName, p.emulatorUrl)]))
+    Object.fromEntries(initial.map((p) => [p.id, parseEmulators(p.emulators)]))
   )
   const getEmu = (id: number) => emulatorsMap[id] ?? {}
   const setEmu = (id: number, os: EmulatorOS, field: 'name' | 'url', value: string) =>

@@ -46,8 +46,6 @@ export default async function PlatformPage({ params }: Props) {
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">{platform.name}</h1>
           <EmulatorLinks
             raw={platform.emulators}
-            fallbackName={platform.emulatorName}
-            fallbackUrl={platform.emulatorUrl}
             label={t('downloadEmulator')}
           />
         </div>

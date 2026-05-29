@@ -10,13 +10,9 @@ export type EmulatorSet = Partial<Record<EmulatorOS, EmulatorEntry>>
 export const OS_ORDER: EmulatorOS[] = ['windows', 'android', 'ios']
 export const OS_LABEL: Record<EmulatorOS, string> = { windows: 'Windows', android: 'Android', ios: 'iOS' }
 
-/** Parse the Platform.emulators JSON, migrating the deprecated single
- *  emulatorName/emulatorUrl into the Windows slot when nothing else is set. */
-export function parseEmulators(
-  raw: string | null | undefined,
-  fallbackName?: string | null,
-  fallbackUrl?: string | null,
-): EmulatorSet {
+/** Parse the Platform.emulators JSON. The JSON is the single source of truth:
+ *  if it's empty/unset, no emulator is shown (no implicit fallbacks). */
+export function parseEmulators(raw: string | null | undefined): EmulatorSet {
   const set: EmulatorSet = {}
   if (raw) {
     try {
@@ -28,9 +24,6 @@ export function parseEmulators(
         }
       }
     } catch { /* ignore malformed JSON */ }
-  }
-  if (Object.keys(set).length === 0 && fallbackUrl && fallbackUrl.trim()) {
-    set.windows = { name: fallbackName ?? undefined, url: fallbackUrl }
   }
   return set
 }
@@ -48,14 +41,12 @@ function detectOS(): EmulatorOS | 'other' {
 
 interface Props {
   raw: string | null | undefined
-  fallbackName?: string | null
-  fallbackUrl?: string | null
   /** Base label, e.g. "Descargar emulador". */
   label: string
 }
 
-export function EmulatorLinks({ raw, fallbackName, fallbackUrl, label }: Props) {
-  const emulators = parseEmulators(raw, fallbackName, fallbackUrl)
+export function EmulatorLinks({ raw, label }: Props) {
+  const emulators = parseEmulators(raw)
   const [os, setOs] = useState<EmulatorOS | 'other'>('other')
   useEffect(() => { setOs(detectOS()) }, [])
 
