@@ -1,0 +1,31 @@
+# Production compose — uses the prebuilt image from GHCR (no build on the Pi).
+#
+# On the Raspberry Pi:
+#   cp docker-compose.prod.example.yml docker-compose.yml
+#   # edit ports + ROM mounts below, then:
+#   docker compose pull && docker compose up -d --wait
+#
+# (Your real docker-compose.yml is git-ignored, so it won't be overwritten by
+#  git pull. This template is committed for reference.)
+
+services:
+  gamehub:
+    image: ghcr.io/luishidalgoa/gamehub:latest   # pulled from GHCR; no `build:`
+    container_name: gamehub
+    restart: unless-stopped
+
+    env_file: .env.production
+
+    ports:
+      - "3001:3000"          # host:container — Apache proxies to host 3001
+
+    volumes:
+      - ./data:/data         # SQLite DB (DATABASE_URL=file:/data/gamehub.db)
+      # ROM drives, read-only, mounted at the same path as on the host:
+      - /mnt/F:/mnt/F:ro
+      - /mnt/nextcloud_hdd_1:/mnt/nextcloud_hdd_1:ro
+
+    stop_grace_period: 30s
+
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/api/auth/me >/dev/null 2>&1 || exit 1"]

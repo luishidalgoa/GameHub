@@ -1,5 +1,10 @@
 # Docker & compose
 
+> In production the image is **built by CI and pulled from GHCR** — the Pi does
+> not build. This page documents the image/compose internals; see
+> [ci-registry.md](ci-registry.md) for the build-and-publish flow. Local builds
+> (`docker compose build` / `./deploy.sh rebuild`) remain available as a fallback.
+
 ## Image (`Dockerfile`)
 
 Multi-stage build producing a Next.js **standalone** image:

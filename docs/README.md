@@ -14,6 +14,7 @@ download queue, a Tinfoil/DBI-compatible Switch shop, and Prometheus metrics.
 
 ### Deployment
 - [Deployment overview](deployment/README.md) — Raspberry Pi + Docker + Apache
+- [CI build + GHCR registry](deployment/ci-registry.md) — image built in CI, Pi only pulls (no build on device)
 - [Docker & compose](deployment/docker.md) — image, volumes, healthcheck, `deploy.sh`
 - [Apache reverse proxy + SSL](deployment/apache-ssl.md)
 - [Moving the database between machines](deployment/database-migration.md) — `db:export` / `db:import` + path remap

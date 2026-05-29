@@ -3,7 +3,7 @@
 #
 # Usage:
 #   ./deploy.sh install        first deploy on a fresh Pi
-#   ./deploy.sh update         git pull + rebuild + restart (service stays up during build)
+#   ./deploy.sh update         pull the latest image from GHCR + restart (no build on the Pi)
 #   ./deploy.sh apache_setup   configure Apache2 + certbot SSL
 #   ./deploy.sh restart        recreate the container (picks up .env.production changes)
 #   ./deploy.sh rebuild        rebuild from scratch (--no-cache) + restart
@@ -62,13 +62,21 @@ install() {
         exit 1
     fi
 
-    info "Copying app files..."
+    info "Copying support files (deploy.sh, compose template, docs)..."
     rsync -a --exclude='.git' --exclude='node_modules' --exclude='.next' \
           --exclude='data' \
           . "$APP_DIR/"
 
-    info "Building Docker image (this takes ~5 min on a Pi 4)..."
-    dc build
+    if [ ! -f "$APP_DIR/docker-compose.yml" ]; then
+        warning "docker-compose.yml not found — copying the registry template"
+        cp docker-compose.prod.example.yml "$APP_DIR/docker-compose.yml"
+        warning "EDIT $APP_DIR/docker-compose.yml (ports + ROM mounts) before continuing!"
+        echo "  → nano $APP_DIR/docker-compose.yml"
+        exit 1
+    fi
+
+    info "Pulling the prebuilt image from GHCR..."
+    dc pull
 
     info "Starting container (waiting for healthcheck)..."
     dc up -d --wait
@@ -83,16 +91,18 @@ update() {
     require_app_dir
     cd "$APP_DIR"
 
-    info "Pulling latest code..."
-    git pull
+    # Keep deploy.sh / the compose template / docs in sync (the real
+    # docker-compose.yml and .env are git-ignored, so they're never touched).
+    info "Syncing repo files..."
+    git pull --ff-only 2>/dev/null || warning "Not a git checkout (or pull failed) — skipping repo sync"
 
-    # Build the new image WHILE the old container keeps serving traffic.
-    info "Building new image (service stays up during build)..."
-    docker compose build
+    # Image is built in CI and published to GHCR; the Pi only downloads it.
+    info "Pulling the latest image from GHCR..."
+    docker compose pull
 
     # --wait blocks until the healthcheck passes, so this only returns once the
-    # new container is actually ready.
-    info "Swapping to new image (brief restart)..."
+    # new container is actually ready. Migrations run on container start.
+    info "Restarting with the new image (waiting for healthcheck)..."
     docker compose up -d --wait
 
     info "Update complete — service is healthy!"
@@ -186,10 +196,10 @@ case "${1:-help}" in
         echo "Usage: $0 {install|update|apache_setup|restart|rebuild|migrate|logs|status|shell}"
         echo ""
         echo "  install      — first deploy on a fresh Pi"
-        echo "  update       — git pull, rebuild and restart (service stays up during build)"
+        echo "  update       — pull the latest image from GHCR and restart (no build on the Pi)"
         echo "  apache_setup — configure Apache2 + certbot SSL"
         echo "  restart      — recreate the container (apply .env.production changes)"
-        echo "  rebuild      — rebuild from scratch (--no-cache) and restart"
+        echo "  rebuild      — build the image locally from scratch (--no-cache) + restart (fallback; CI normally builds it)"
         echo "  migrate      — apply pending Prisma migrations in the running container"
         echo "  logs         — follow live logs"
         echo "  status       — container status and resource usage"

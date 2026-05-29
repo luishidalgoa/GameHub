@@ -4,6 +4,10 @@ GameHub runs as a Docker container behind Apache (HTTPS) on a Raspberry Pi (or
 any Linux host). The repo ships a helper script, `deploy.sh`, that automates the
 common operations.
 
+> **The Pi does not build the image.** CI (GitHub Actions) builds the arm64
+> image and pushes it to GHCR; the Pi only `docker compose pull`s it. See
+> [CI build + GHCR registry](ci-registry.md).
+
 ## Topology
 
 ```
@@ -15,11 +19,11 @@ Internet ──> :443 Apache vhost ──proxy──> 127.0.0.1:3001 ──> con
 ## `deploy.sh` (run on the Pi)
 
 ```bash
-./deploy.sh install        # first deploy on a fresh host
-./deploy.sh update         # git pull + rebuild + restart (service stays up during build)
+./deploy.sh install        # first deploy on a fresh host (pulls the image)
+./deploy.sh update         # git pull (repo files) + docker compose pull + restart — no build
 ./deploy.sh apache_setup   # configure Apache2 + certbot SSL
 ./deploy.sh restart        # recreate the container (apply .env.production changes)
-./deploy.sh rebuild        # rebuild from scratch (--no-cache) + restart
+./deploy.sh rebuild        # build the image locally (--no-cache) + restart (fallback)
 ./deploy.sh migrate        # apply pending Prisma migrations in the running container
 ./deploy.sh logs           # follow container logs
 ./deploy.sh status         # container status + resource usage
@@ -61,16 +65,18 @@ endpoints (these can also come from env vars — see
 
 ```bash
 cd "$APP_DIR"
-git pull && docker compose up -d --build
+docker compose pull && docker compose up -d --wait
 # or:
 ./deploy.sh update
 ```
 
-Database migrations run automatically on container start (`prisma migrate
+No build runs on the Pi — it just downloads the new image from GHCR (built by
+CI). Database migrations run automatically on container start (`prisma migrate
 deploy`, see [docker.md](docker.md)). No manual migration step is needed.
 
 ## Detail pages
 
+- [CI build + GHCR registry](ci-registry.md) — how the image is built & pulled
 - [Docker image, compose, volumes, healthcheck](docker.md)
 - [Apache reverse proxy + Let's Encrypt](apache-ssl.md)
 - [Moving the database between machines](database-migration.md)
