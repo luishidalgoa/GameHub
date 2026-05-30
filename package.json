@@ -15,6 +15,7 @@
     "lint": "next lint",
     "scan": "tsx scripts/scan.ts",
     "seed": "tsx scripts/seed-platforms.ts",
+    "launchbox:platforms": "tsx scripts/launchbox-platforms.ts",
     "db:studio": "prisma studio",
     "db:migrate": "prisma migrate dev",
     "db:export": "tsx scripts/db-export.ts",

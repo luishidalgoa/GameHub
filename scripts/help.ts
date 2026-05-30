@@ -51,6 +51,7 @@ cmd('db:import', 'Importa una BBDD y remapea rutas entre máquinas')
 
 section('🎮  Contenido')
 cmd('scan', 'Escanea las rutas configuradas y añade juegos')
+cmd('launchbox:platforms', 'Refresca el mapeo de plataformas de LaunchBox DB')
 
 section('🚀  Despliegue — proceso de release   ' + dim('(docs/deployment/ci-registry.md)'))
 console.log('')

@@ -6,11 +6,12 @@ docker-compose.yml
 .env.production
 /generated/prisma
 .claude
-# SQLite database (user data — never commit)
-gamehub.db
+# SQLite database (user data — never commit). The repo ships NO .db file;
+# they're generated locally / live in the Docker volume. Match every variant
+# (gamehub.db, prisma/*.db, gamehub_backup_*.db, dev.db, …).
+*.db
 *.db-journal
-prisma/*.db
-prisma/*.db-journal
+*.db.bak
 .next
 data
 public/covers/
