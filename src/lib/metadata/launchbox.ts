@@ -119,13 +119,14 @@ async function lbFetch(url: string, attempt = 0): Promise<string> {
 // ── Small HTML helpers ────────────────────────────────────────────────────────
 function decodeEntities(s: string): string {
   return s
-    .replace(/&amp;/g, '&')
-    .replace(/&#39;/g, "'")
-    .replace(/&#x27;/g, "'")
+    // Numeric entities: &#43; (dec) and &#x2B; (hex) → the actual char.
+    .replace(/&#x([0-9a-f]+);/gi, (_, h) => String.fromCodePoint(parseInt(h, 16)))
+    .replace(/&#(\d+);/g, (_, d) => String.fromCodePoint(parseInt(d, 10)))
     .replace(/&quot;/g, '"')
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')
     .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&') // last: so "&amp;#39;" doesn't double-decode
     .trim()
 }
 
@@ -326,7 +327,7 @@ export function parseLaunchBoxPlatformOptions(html: string): LaunchBoxPlatform[]
   const re = /<option[^>]*value="(\d+)"[^>]*>\s*([^<]+?)\s*<\/option>/gi
   let m: RegExpExecArray | null
   while ((m = re.exec(scope)) !== null) {
-    out.push({ id: Number(m[1]), name: m[2].replace(/\s+/g, ' ').trim() })
+    out.push({ id: Number(m[1]), name: decodeEntities(m[2].replace(/\s+/g, ' ')) })
   }
   return out
 }

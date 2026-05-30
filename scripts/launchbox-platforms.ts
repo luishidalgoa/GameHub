@@ -1,79 +1,134 @@
 /* eslint-disable no-console */
-// Re-scan the LaunchBox platform list and refresh the slug→name mapping.
+// Refresh the LaunchBox platform list and auto-map YOUR GameHub platforms to it.
 //
-// Run after first install, or any time LaunchBox might have renamed a platform:
 //   npm run launchbox:platforms
 //
-// It stores two DB settings:
-//   launchbox_platforms     — JSON [{id,name}]   the full canonical list
-//   launchbox_platform_map  — JSON {slug:name}   GameHub slug → LaunchBox name
-//
-// The map is seeded from the built-in defaults, merged with any existing custom
-// entries, and each mapped name is validated against the fresh list so you get a
-// warning if LaunchBox changed a name.
+// What it does:
+//   1. Fetches the canonical LaunchBox platform list (≈189) and caches it in the
+//      `launchbox_platforms` setting.
+//   2. Reads your actual GameHub platforms from the DB.
+//   3. For each one, resolves the matching LaunchBox name, in order:
+//        a) an existing manual override in `launchbox_platform_map`
+//        b) the built-in seed map (by slug)         — LAUNCHBOX_PLATFORM_NAMES
+//        c) an exact name match against the live list (case-insensitive)
+//        d) a fuzzy token-overlap match (best guess)
+//   4. Saves `launchbox_platform_map` (slug → LaunchBox name) and reports each
+//      platform with HOW it matched, so you can spot anything that needs a manual
+//      fix in Admin → Settings.
 import { db as prisma } from '../src/lib/db'
 import { fetchLaunchBoxPlatforms, LAUNCHBOX_PLATFORM_NAMES } from '../src/lib/metadata/launchbox'
 
+type Live = { id: number; name: string }
+
+const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim()
+const tokens = (s: string) => new Set(norm(s).split(' ').filter(Boolean))
+
+/** Token-overlap score (Jaccard-ish), 0..1. */
+function score(a: string, b: string): number {
+  const ta = tokens(a), tb = tokens(b)
+  if (ta.size === 0 || tb.size === 0) return 0
+  const inter = [...ta].filter(t => tb.has(t)).length
+  return inter / Math.max(ta.size, tb.size)
+}
+
+function bestFuzzy(name: string, live: Live[]): { live: Live; score: number } | null {
+  let best: { live: Live; score: number } | null = null
+  for (const l of live) {
+    const s = score(name, l.name)
+    if (!best || s > best.score) best = { live: l, score: s }
+  }
+  return best
+}
+
 async function main() {
   console.log('Fetching LaunchBox platform list…')
-  const platforms = await fetchLaunchBoxPlatforms()
-  if (platforms.length === 0) {
+  const live = await fetchLaunchBoxPlatforms()
+  if (live.length === 0) {
     console.error('No platforms parsed — the site markup may have changed, or the request was blocked.')
     process.exit(1)
   }
-  console.log(`Found ${platforms.length} platforms on LaunchBox.`)
+  console.log(`Found ${live.length} platforms on LaunchBox.`)
 
-  // Persist the canonical list.
   await prisma.setting.upsert({
     where:  { key: 'launchbox_platforms' },
-    create: { key: 'launchbox_platforms', value: JSON.stringify(platforms) },
-    update: { value: JSON.stringify(platforms) },
+    create: { key: 'launchbox_platforms', value: JSON.stringify(live) },
+    update: { value: JSON.stringify(live) },
   })
 
-  // Build the slug→name map: defaults + any existing custom overrides.
+  const liveByName = new Map(live.map(l => [l.name.toLowerCase(), l.name]))
   const existing = await prisma.setting.findUnique({ where: { key: 'launchbox_platform_map' } })
-  const current: Record<string, string> = existing?.value ? JSON.parse(existing.value) : {}
-  const merged: Record<string, string> = { ...LAUNCHBOX_PLATFORM_NAMES, ...current }
+  const overrides: Record<string, string> = existing?.value ? JSON.parse(existing.value) : {}
 
-  // Validate every mapped name against the fresh list (case-insensitive).
-  const liveNames = new Set(platforms.map(p => p.name.toLowerCase()))
-  let warnings = 0
-  for (const [slug, name] of Object.entries(merged)) {
-    if (!liveNames.has(name.toLowerCase())) {
-      warnings++
-      // Suggest the closest live name by simple token overlap.
-      const suggestion = platforms
-        .map(p => ({ name: p.name, score: overlap(name, p.name) }))
-        .sort((a, b) => b.score - a.score)[0]
-      console.warn(
-        `  ! "${slug}" → "${name}" not found on LaunchBox.` +
-          (suggestion && suggestion.score > 0 ? `  Closest: "${suggestion.name}"` : ''),
-      )
+  const platforms = await prisma.platform.findMany({
+    select: { slug: true, name: true },
+    orderBy: { sortOrder: 'asc' },
+  })
+
+  if (platforms.length === 0) {
+    console.warn('No GameHub platforms in the DB yet — run the seed/scan first.')
+  }
+
+  const map: Record<string, string> = {}
+  const rows: { slug: string; chosen: string | null; how: string }[] = []
+
+  for (const p of platforms) {
+    let chosen: string | null = null
+    let how = ''
+
+    // a) manual override (only if it still exists live)
+    const ov = overrides[p.slug]
+    if (ov && liveByName.has(ov.toLowerCase())) { chosen = liveByName.get(ov.toLowerCase())!; how = 'override' }
+
+    // b) seed map by slug (only if valid live)
+    if (!chosen) {
+      const seed = LAUNCHBOX_PLATFORM_NAMES[p.slug]
+      if (seed && liveByName.has(seed.toLowerCase())) { chosen = liveByName.get(seed.toLowerCase())!; how = 'seed' }
     }
+
+    // c) exact name match (GameHub platform name == a live name)
+    if (!chosen && liveByName.has(p.name.toLowerCase())) { chosen = liveByName.get(p.name.toLowerCase())!; how = 'exact-name' }
+
+    // d) fuzzy best guess
+    if (!chosen) {
+      const f = bestFuzzy(p.name, live)
+      if (f && f.score >= 0.5) { chosen = f.live.name; how = `fuzzy(${f.score.toFixed(2)})` }
+      else if (f && f.score > 0) { how = `unsure → closest "${f.live.name}" (${f.score.toFixed(2)})` }
+      else how = 'no match'
+    }
+
+    if (chosen) map[p.slug] = chosen
+    rows.push({ slug: p.slug, chosen, how })
+  }
+
+  // Keep any prior overrides for slugs not currently present (don't lose manual work).
+  for (const [slug, name] of Object.entries(overrides)) {
+    if (!(slug in map) && liveByName.has(name.toLowerCase())) map[slug] = liveByName.get(name.toLowerCase())!
   }
 
   await prisma.setting.upsert({
     where:  { key: 'launchbox_platform_map' },
-    create: { key: 'launchbox_platform_map', value: JSON.stringify(merged) },
-    update: { value: JSON.stringify(merged) },
+    create: { key: 'launchbox_platform_map', value: JSON.stringify(map) },
+    update: { value: JSON.stringify(map) },
   })
 
-  console.log(`Saved. Mapping has ${Object.keys(merged).length} platforms, ${warnings} need attention.`)
-  if (warnings > 0) {
-    console.log('Edit "launchbox_platform_map" in Admin → Settings (or the DB) to fix any mismatches.')
+  console.log('\nYour GameHub platforms → LaunchBox:')
+  let needAttention = 0
+  for (const r of rows) {
+    if (r.chosen) {
+      console.log(`  ✓ ${r.slug.padEnd(14)} → "${r.chosen}"   [${r.how}]`)
+    } else {
+      needAttention++
+      console.log(`  ! ${r.slug.padEnd(14)} → (sin asignar)   ${r.how}`)
+    }
+  }
+
+  console.log(`\nSaved ${Object.keys(map).length} mapping(s). ${needAttention} need manual attention.`)
+  if (needAttention > 0) {
+    console.log('Fix them in Admin → Settings (or edit the "launchbox_platform_map" setting):')
+    console.log('  set the slug to the exact LaunchBox platform name from the list above.')
   }
 }
 
-// crude token-overlap score for suggestions
-function overlap(a: string, b: string): number {
-  const t = (s: string) => new Set(s.toLowerCase().replace(/[^a-z0-9 ]/g, ' ').split(/\s+/).filter(Boolean))
-  const sa = t(a), sb = t(b)
-  return [...sa].filter(x => sb.has(x)).length
-}
-
 main()
-  .catch(err => {
-    console.error(err)
-    process.exit(1)
-  })
+  .catch(err => { console.error(err); process.exit(1) })
   .finally(() => prisma.$disconnect())
