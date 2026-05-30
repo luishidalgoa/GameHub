@@ -433,17 +433,22 @@
     "merging": "Merging…"
   },
   "MetadataFetch": {
-    "button": "Auto-fill from RAWG",
-    "modalTitle": "Select Metadata Source",
-    "searchPlaceholder": "Search title or paste rawg.io/games/slug…",
-    "lookup": "Lookup",
+    "button": "Fill metadata",
+    "buttonHint": "Auto-fill using your configured providers",
+    "manual": "Search manually",
+    "manualHint": "Pick a specific match if the automatic one is wrong",
+    "modalTitle": "Search metadata",
+    "searchingIn": "Searching in",
+    "searchPlaceholder": "Search by name…",
     "search": "Search",
-    "slugHint": "Direct lookup by RAWG slug — bypasses search ranking",
-    "slugLabel": "Slug:",
     "resultsFor": "Results for:",
-    "searching": "Searching RAWG…",
+    "searching": "Searching…",
     "noResults": "No results found.",
-    "noResultsHint": "Try pasting the RAWG URL directly:"
+    "appliedFrom": "Filled from",
+    "field_cover": "Cover",
+    "field_info": "Info",
+    "field_description": "Description",
+    "field_screenshots": "Screenshots"
   },
   "CommandPalette": {
     "placeholder": "Search games or platforms…",

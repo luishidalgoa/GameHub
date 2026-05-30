@@ -189,6 +189,8 @@ export async function runMetadataBatch(opts: {
           ...(meta.rawgSlug && { rawgSlug: meta.rawgSlug }),
           ...(coverPath  && { coverPath }),
           ...(trailerUrl && { trailerUrl }),
+          // Per-field provenance (powers the editor's source badges).
+          metadataSources: JSON.stringify(meta.sources),
           metadataFetchedAt: new Date(),
         },
       })

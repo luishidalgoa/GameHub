@@ -74,6 +74,10 @@ export function GameEditorForm({ game, thumbnailWidth = 200, thumbnailHeight = 3
   const set = (key: keyof typeof form, value: string | boolean) =>
     setForm((prev) => ({ ...prev, [key]: value }))
 
+  // ── Metadata provenance (per-field source badges) ───────────────────────────
+  const sources: Partial<Record<'cover' | 'info' | 'description' | 'screenshots', 'launchbox' | 'rawg' | 'steamgriddb'>> =
+    (() => { try { return game.metadataSources ? JSON.parse(game.metadataSources) : {} } catch { return {} } })()
+
   // ── External links ─────────────────────────────────────────────────────────
   const [links, setLinks] = useState<ExternalLinkItem[]>(parseExternalLinks(game.externalLinks))
   const addLink    = () => setLinks((p) => [...p, { title: '', description: '', url: '' }])
@@ -198,7 +202,7 @@ export function GameEditorForm({ game, thumbnailWidth = 200, thumbnailHeight = 3
             />
           </Field>
 
-          <Field label={t('fieldDescription')}>
+          <Field label={t('fieldDescription')} badge={<SourceBadge source={sources.description} />}>
             <textarea
               value={form.description}
               onChange={(e) => set('description', e.target.value)}
@@ -218,19 +222,19 @@ export function GameEditorForm({ game, thumbnailWidth = 200, thumbnailHeight = 3
           </Field>
 
           <div className="grid grid-cols-2 gap-4">
-            <Field label={t('fieldGenre')}>
+            <Field label={t('fieldGenre')} badge={<SourceBadge source={sources.info} />}>
               <input value={form.genre} onChange={(e) => set('genre', e.target.value)} className={inputCls} placeholder={t('fieldGenrePlaceholder')} />
             </Field>
             <Field label={t('fieldRegion')}>
               <input value={form.region} onChange={(e) => set('region', e.target.value)} className={inputCls} placeholder={t('fieldRegionPlaceholder')} />
             </Field>
-            <Field label={t('fieldYear')}>
+            <Field label={t('fieldYear')} badge={<SourceBadge source={sources.info} />}>
               <input value={form.releaseYear} onChange={(e) => set('releaseYear', e.target.value)} className={inputCls} type="number" min="1970" max="2030" />
             </Field>
-            <Field label={t('fieldDeveloper')}>
+            <Field label={t('fieldDeveloper')} badge={<SourceBadge source={sources.info} />}>
               <input value={form.developer} onChange={(e) => set('developer', e.target.value)} className={inputCls} />
             </Field>
-            <Field label={t('fieldPublisher')} className="col-span-2">
+            <Field label={t('fieldPublisher')} className="col-span-2" badge={<SourceBadge source={sources.info} />}>
               <input value={form.publisher} onChange={(e) => set('publisher', e.target.value)} className={inputCls} />
             </Field>
           </div>
@@ -344,6 +348,7 @@ export function GameEditorForm({ game, thumbnailWidth = 200, thumbnailHeight = 3
               <p className="text-sm font-medium mb-2 flex items-center gap-2">
                 <ImageIcon className="w-4 h-4 text-muted-foreground" />
                 {t('screenshots')}
+                <SourceBadge source={sources.screenshots} />
                 <span className="text-xs text-muted-foreground font-normal">— {t('screenshotsHint')}</span>
               </p>
               <div
@@ -451,7 +456,10 @@ export function GameEditorForm({ game, thumbnailWidth = 200, thumbnailHeight = 3
         {/* Right: cover + flags (1/3) */}
         <div className="space-y-6">
           <div>
-            <p className="text-sm font-medium mb-3">{t('coverArt')}</p>
+            <p className="flex items-center gap-2 text-sm font-medium mb-3">
+              {t('coverArt')}
+              <SourceBadge source={sources.cover} />
+            </p>
             <CoverUploader
               gameId={game.id}
               gameTitle={game.title}
@@ -486,12 +494,22 @@ export function GameEditorForm({ game, thumbnailWidth = 200, thumbnailHeight = 3
             />
           </div>
 
-          {/* Metadata info */}
+          {/* Metadata info + provenance */}
           {game.metadataFetchedAt && (
-            <div className="text-xs text-muted-foreground">
-              {t('metadataFetched')} {new Date(game.metadataFetchedAt).toLocaleDateString()}
-              {game.rawgSlug && (
-                <span className="ml-1 text-muted-foreground/50">· RAWG: {game.rawgSlug}</span>
+            <div className="text-xs text-muted-foreground space-y-1">
+              <div>{t('metadataFetched')} {new Date(game.metadataFetchedAt).toLocaleDateString()}</div>
+              {(['cover', 'info', 'description', 'screenshots'] as const).some(k => sources[k]) && (
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="text-muted-foreground/50">{t('sourcesLabel')}</span>
+                  {(['cover', 'info', 'description', 'screenshots'] as const)
+                    .filter(k => sources[k])
+                    .map(k => (
+                      <span key={k} className="inline-flex items-center gap-1">
+                        <span className="text-muted-foreground/50">{t(`source_${k}`)}</span>
+                        <SourceBadge source={sources[k]} />
+                      </span>
+                    ))}
+                </div>
               )}
             </div>
           )}
@@ -554,16 +572,37 @@ function Field({
   label,
   children,
   className = '',
+  badge,
 }: {
   label: string
   children: React.ReactNode
   className?: string
+  badge?: React.ReactNode
 }) {
   return (
     <div className={className}>
-      <label className="block text-sm font-medium mb-1.5">{label}</label>
+      <label className="flex items-center gap-2 text-sm font-medium mb-1.5">
+        {label}
+        {badge}
+      </label>
       {children}
     </div>
+  )
+}
+
+const PROVIDER_LABEL: Record<string, string> = {
+  launchbox: 'LaunchBox',
+  rawg: 'RAWG',
+  steamgriddb: 'SteamGridDB',
+}
+
+/** Small pill showing which provider supplied a field (or nothing if unknown). */
+function SourceBadge({ source }: { source?: 'launchbox' | 'rawg' | 'steamgriddb' }) {
+  if (!source) return null
+  return (
+    <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-violet-500/15 text-violet-300 leading-none">
+      {PROVIDER_LABEL[source] ?? source}
+    </span>
   )
 }
 

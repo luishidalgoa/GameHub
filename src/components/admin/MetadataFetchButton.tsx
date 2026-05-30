@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import Image from 'next/image'
 import { useTranslations } from 'next-intl'
-import { Sparkles, X, Check, Loader2, Search, Link2 } from 'lucide-react'
+import { Sparkles, X, Check, Loader2, Search } from 'lucide-react'
 import type { MetadataResult } from '@/lib/metadata/provider'
 
 interface Props {
@@ -11,94 +11,151 @@ interface Props {
   onApplied: () => void
 }
 
-function extractSlug(input: string): string | null {
-  const trimmed = input.trim()
-  const urlMatch = trimmed.match(/rawg\.io\/games\/([a-z0-9-]+)/i)
-  if (urlMatch) return urlMatch[1].toLowerCase()
-  if (/^[a-z0-9][a-z0-9-]*[a-z0-9]$/i.test(trimmed) && trimmed.includes('-')) return trimmed.toLowerCase()
-  return null
+type Source = 'launchbox' | 'rawg' | 'steamgriddb'
+type Candidate = MetadataResult & { source: 'launchbox' | 'rawg' }
+type Sources = Partial<Record<'cover' | 'info' | 'description' | 'screenshots', Source>>
+
+const PROVIDER_LABEL: Record<Source, string> = {
+  launchbox: 'LaunchBox',
+  rawg: 'RAWG',
+  steamgriddb: 'SteamGridDB',
 }
 
 export function MetadataFetchButton({ gameId, onApplied }: Props) {
   const t = useTranslations('MetadataFetch')
-  const [open, setOpen]           = useState(false)
-  const [loading, setLoading]     = useState(false)
-  const [applying, setApplying]   = useState<number | null>(null)
-  const [results, setResults]     = useState<MetadataResult[]>([])
-  const [error, setError]         = useState('')
+
+  const [filling, setFilling] = useState(false)
+  const [summary, setSummary] = useState<Sources | null>(null)
+  const [topError, setTopError] = useState('')
+
+  // Manual search modal
+  const [open, setOpen] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [applying, setApplying] = useState<string | null>(null)
+  const [results, setResults] = useState<Candidate[]>([])
+  const [provider, setProvider] = useState<'launchbox' | 'rawg' | null>(null)
+  const [error, setError] = useState('')
   const [usedQuery, setUsedQuery] = useState('')
-  const [searchMode, setSearchMode] = useState<'search' | 'slug'>('search')
   const [manualQuery, setManualQuery] = useState('')
 
-  const doSearch = async (overrideQ?: string) => {
+  // ── One-click: apply the provider matrix ──
+  const fillNow = async () => {
+    setFilling(true)
+    setTopError('')
+    setSummary(null)
+    try {
+      const res = await fetch(`/api/metadata/${gameId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{}',
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setTopError(data.error ?? 'Failed')
+      } else {
+        setSummary(data.sources ?? {})
+        onApplied()
+      }
+    } catch {
+      setTopError('Network error')
+    } finally {
+      setFilling(false)
+    }
+  }
+
+  // ── Manual search (fallback) ──
+  const doSearch = async (q?: string) => {
     setLoading(true)
     setError('')
     setResults([])
-
-    const slug   = overrideQ ? extractSlug(overrideQ) : null
-    const apiUrl = slug
-      ? `/api/metadata/${gameId}?slug=${encodeURIComponent(slug)}`
-      : overrideQ
-        ? `/api/metadata/${gameId}?q=${encodeURIComponent(overrideQ)}`
-        : `/api/metadata/${gameId}`
-
-    const res  = await fetch(apiUrl)
+    const url = q ? `/api/metadata/${gameId}?q=${encodeURIComponent(q)}` : `/api/metadata/${gameId}`
+    const res = await fetch(url)
     const data = await res.json()
-
-    if (!res.ok) {
-      setError(data.error ?? 'Search failed')
-    } else {
+    if (!res.ok) setError(data.error ?? 'Search failed')
+    else {
       setResults(data.results ?? [])
-      setUsedQuery(data.usedQuery ?? overrideQ ?? '')
-      setSearchMode(data.mode ?? 'search')
+      setProvider(data.provider ?? null)
+      setUsedQuery(data.usedQuery ?? q ?? '')
     }
     setLoading(false)
   }
 
-  const search = () => { setOpen(true); doSearch() }
+  const openManual = () => { setOpen(true); doSearch() }
 
   const handleManualSearch = (e: React.FormEvent) => {
     e.preventDefault()
     if (manualQuery.trim()) doSearch(manualQuery.trim())
   }
 
-  const apply = async (result: MetadataResult) => {
-    setApplying(result.id)
-    const body = result.slug ? { rawgSlug: result.slug } : { rawgId: result.id }
-    const res  = await fetch(`/api/metadata/${gameId}`, {
-      method:  'POST',
+  const applyPick = async (r: Candidate) => {
+    setApplying(String(r.id))
+    const res = await fetch(`/api/metadata/${gameId}`, {
+      method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify(body),
+      body: JSON.stringify({ source: r.source, id: r.id }),
     })
     setApplying(null)
     if (res.ok) { setOpen(false); onApplied() }
     else {
-      const d = await res.json()
+      const d = await res.json().catch(() => ({}))
       setError(d.error ?? 'Apply failed')
     }
   }
 
-  const isSlug = manualQuery ? !!extractSlug(manualQuery) : false
+  const summaryLine = (s: Sources) =>
+    (['cover', 'info', 'description', 'screenshots'] as const)
+      .filter(k => s[k])
+      .map(k => `${t(`field_${k}`)}: ${PROVIDER_LABEL[s[k]!]}`)
+      .join('  ·  ')
 
   return (
-    <>
-      <button
-        type="button"
-        onClick={search}
-        className="flex items-center gap-2 px-4 py-2 bg-violet-600 hover:bg-violet-500 text-white rounded-md text-sm font-medium transition-colors"
-      >
-        <Sparkles className="w-4 h-4" />
-        {t('button')}
-      </button>
+    <div className="flex flex-col items-end gap-1">
+      <div className="flex items-center gap-2">
+        {/* One-click fill (follows the provider matrix) */}
+        <button
+          type="button"
+          onClick={fillNow}
+          disabled={filling}
+          className="flex items-center gap-2 px-4 py-2 bg-violet-600 hover:bg-violet-500 disabled:opacity-60 text-white rounded-md text-sm font-medium transition-colors"
+          title={t('buttonHint')}
+        >
+          {filling ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+          {t('button')}
+        </button>
+        {/* Manual fallback */}
+        <button
+          type="button"
+          onClick={openManual}
+          className="flex items-center gap-1.5 px-3 py-2 bg-secondary border border-border hover:bg-accent text-muted-foreground hover:text-foreground rounded-md text-sm transition-colors"
+          title={t('manualHint')}
+        >
+          <Search className="w-3.5 h-3.5" />
+          {t('manual')}
+        </button>
+      </div>
+
+      {/* Provenance summary after a one-click fill */}
+      {summary && (
+        <p className="text-xs text-muted-foreground max-w-md text-right">
+          {t('appliedFrom')} {summaryLine(summary) || '—'}
+        </p>
+      )}
+      {topError && <p className="text-xs text-destructive">{topError}</p>}
 
       {open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setOpen(false)} />
 
           <div className="relative z-10 bg-card border border-border rounded-xl shadow-2xl w-full max-w-lg max-h-[80vh] flex flex-col">
-
             <div className="flex items-center justify-between px-5 py-4 border-b border-border">
-              <h3 className="font-semibold">{t('modalTitle')}</h3>
+              <div>
+                <h3 className="font-semibold">{t('modalTitle')}</h3>
+                {provider && (
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {t('searchingIn')} {PROVIDER_LABEL[provider]}
+                  </p>
+                )}
+              </div>
               <button onClick={() => setOpen(false)} className="text-muted-foreground hover:text-foreground">
                 <X className="w-5 h-5" />
               </button>
@@ -106,10 +163,7 @@ export function MetadataFetchButton({ gameId, onApplied }: Props) {
 
             <form onSubmit={handleManualSearch} className="px-4 pt-3 pb-2 flex gap-2">
               <div className="relative flex-1">
-                {isSlug
-                  ? <Link2 className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-violet-400 pointer-events-none" />
-                  : <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
-                }
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
                 <input
                   type="text"
                   value={manualQuery}
@@ -123,20 +177,14 @@ export function MetadataFetchButton({ gameId, onApplied }: Props) {
                 disabled={loading || !manualQuery.trim()}
                 className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 transition-colors"
               >
-                {isSlug ? <Link2 className="w-3.5 h-3.5" /> : <Search className="w-3.5 h-3.5" />}
-                {isSlug ? t('lookup') : t('search')}
+                <Search className="w-3.5 h-3.5" />
+                {t('search')}
               </button>
             </form>
 
-            {isSlug && (
-              <p className="px-5 pb-1 text-xs text-violet-400 flex items-center gap-1.5">
-                <Link2 className="w-3 h-3" /> {t('slugHint')}
-              </p>
-            )}
             {usedQuery && !loading && (
               <p className="px-5 pb-1 text-xs text-muted-foreground">
-                {searchMode === 'slug' ? t('slugLabel') : t('resultsFor')}{' '}
-                <span className="text-foreground/70 font-medium">"{usedQuery}"</span>
+                {t('resultsFor')} <span className="text-foreground/70 font-medium">&quot;{usedQuery}&quot;</span>
               </p>
             )}
 
@@ -155,21 +203,15 @@ export function MetadataFetchButton({ gameId, onApplied }: Props) {
               )}
 
               {!loading && !error && results.length === 0 && (
-                <div className="text-sm text-muted-foreground text-center py-12 space-y-2">
-                  <p>{t('noResults')}</p>
-                  <p className="text-xs">
-                    {t('noResultsHint')}<br />
-                    <span className="font-mono text-muted-foreground/60">rawg.io/games/pokemon-x</span>
-                  </p>
-                </div>
+                <p className="text-sm text-muted-foreground text-center py-12">{t('noResults')}</p>
               )}
 
               <div className="space-y-2">
                 {results.map((r) => (
                   <button
-                    key={r.id}
-                    onClick={() => apply(r)}
-                    disabled={applying === r.id}
+                    key={`${r.source}-${r.id}`}
+                    onClick={() => applyPick(r)}
+                    disabled={applying === String(r.id)}
                     className="w-full flex items-center gap-4 p-3 rounded-lg hover:bg-accent transition-colors text-left disabled:opacity-50 group"
                   >
                     <div className="w-12 h-16 flex-shrink-0 rounded overflow-hidden bg-secondary">
@@ -185,10 +227,10 @@ export function MetadataFetchButton({ gameId, onApplied }: Props) {
                       <p className="font-medium text-sm">{r.title}</p>
                       <div className="flex items-center gap-2 mt-0.5">
                         {r.releaseYear && <span className="text-xs text-muted-foreground">{r.releaseYear}</span>}
-                        {r.slug && <span className="text-xs text-muted-foreground/50 font-mono">{r.slug}</span>}
+                        {r.platformName && <span className="text-xs text-muted-foreground/50">{r.platformName}</span>}
                       </div>
                     </div>
-                    {applying === r.id
+                    {applying === String(r.id)
                       ? <Loader2 className="w-4 h-4 animate-spin flex-shrink-0 text-muted-foreground" />
                       : <Check className="w-4 h-4 flex-shrink-0 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
                     }
@@ -199,6 +241,6 @@ export function MetadataFetchButton({ gameId, onApplied }: Props) {
           </div>
         </div>
       )}
-    </>
+    </div>
   )
 }

@@ -28,6 +28,7 @@ export interface Game {
   coverUrl: string | null
   trailerUrl: string | null
   screenshotPaths: string | null
+  metadataSources: string | null
   description: string | null
   customNotes: string | null
   externalLinks: string | null

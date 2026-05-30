@@ -51,6 +51,11 @@ model Game {
   trailerUrl      String?
   screenshotPaths String?
 
+  // Per-field provenance from the last metadata fetch: JSON
+  // { cover?, info?, description?, screenshots? } → 'launchbox' | 'rawg' | 'steamgriddb'.
+  // Powers the source badges in the game editor.
+  metadataSources String?
+
   description String?
   customNotes String?
 
