@@ -26,14 +26,20 @@ export function NavigationProgress() {
   }
 
   const start = () => {
-    clearAll()
-    setVisible(true)
-    setProgress(10)
-    trickle.current = setInterval(() => {
-      setProgress(p => (p < 90 ? p + Math.max(0.4, (90 - p) * 0.08) : p))
-    }, 180)
-    // Safety: if the route never changes (cancelled nav), auto-finish.
-    timers.current.push(setTimeout(() => finish(), 10_000))
+    // start() is invoked from our history.pushState patch, which Next calls from
+    // inside a useInsertionEffect — and React forbids scheduling state updates
+    // there ("useInsertionEffect must not schedule updates"). Defer to a
+    // microtask so the setState runs after the commit instead of during it.
+    queueMicrotask(() => {
+      clearAll()
+      setVisible(true)
+      setProgress(10)
+      trickle.current = setInterval(() => {
+        setProgress(p => (p < 90 ? p + Math.max(0.4, (90 - p) * 0.08) : p))
+      }, 180)
+      // Safety: if the route never changes (cancelled nav), auto-finish.
+      timers.current.push(setTimeout(() => finish(), 10_000))
+    })
   }
 
   const finish = () => {
