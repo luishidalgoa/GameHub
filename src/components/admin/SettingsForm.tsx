@@ -97,6 +97,29 @@ function ShopUrl() {
   return <>http://{host}/api/shop</>
 }
 
+/** Labelled <select> for choosing a metadata provider for one kind of data. */
+function ProviderSelect({ label, value, onChange, options }: {
+  label: string
+  value: string
+  onChange: (v: string) => void
+  options: { value: string; label: string }[]
+}) {
+  return (
+    <div>
+      <label className="block text-sm font-medium mb-1.5">{label}</label>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-full bg-secondary border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+      >
+        {options.map((o) => (
+          <option key={o.value} value={o.value}>{o.label}</option>
+        ))}
+      </select>
+    </div>
+  )
+}
+
 interface Platform {
   id: number
   slug: string
@@ -179,6 +202,12 @@ export function SettingsForm({ platforms: initial, settings }: Props) {
   const [youtubeKey,    setYoutubeKey]    = useState(settings['youtube_api_key']           ?? '')
   const [maxDownloads,  setMaxDownloads]  = useState(settings['max_concurrent_downloads'] ?? '1')
 
+  // Metadata provider matrix (which source supplies each kind of data)
+  const [provCover,       setProvCover]       = useState(settings['provider_cover']       ?? 'launchbox')
+  const [provInfo,        setProvInfo]        = useState(settings['provider_info']        ?? 'launchbox')
+  const [provDescription, setProvDescription] = useState(settings['provider_description'] ?? 'rawg')
+  const [provScreenshots, setProvScreenshots] = useState(settings['provider_screenshots'] ?? 'launchbox')
+
   // S3 / MinIO
   const [s3Internal,   setS3Internal]   = useState(settings['s3_endpoint_interno'] ?? '')
   const [s3Public,     setS3Public]     = useState(settings['s3_endpoint_publico']  ?? '')
@@ -260,6 +289,10 @@ export function SettingsForm({ platforms: initial, settings }: Props) {
           google_search_api_key:    googleApiKey,
           steamgriddb_key:          sgdbKey,
           youtube_api_key:          youtubeKey,
+          provider_cover:           provCover,
+          provider_info:            provInfo,
+          provider_description:     provDescription,
+          provider_screenshots:     provScreenshots,
           app_url:                  appUrl,
           max_concurrent_downloads: maxDownloads,
           s3_endpoint_interno:      s3Internal,
@@ -655,6 +688,54 @@ export function SettingsForm({ platforms: initial, settings }: Props) {
             onChange={(e) => setAppUrl(e.target.value)}
             placeholder="https://gamehub.example.com"
             className="w-full max-w-md bg-secondary border border-border rounded-md px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+          />
+        </div>
+      </div>
+
+      {/* Metadata provider matrix */}
+      <div className="bg-card border border-border rounded-xl p-6 space-y-5">
+        <div>
+          <h3 className="font-semibold">{t('providersTitle')}</h3>
+          <p className="text-xs text-muted-foreground mt-1">{t('providersDesc')}</p>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+          <ProviderSelect
+            label={t('providerCover')}
+            value={provCover}
+            onChange={setProvCover}
+            options={[
+              { value: 'launchbox',   label: t('srcLaunchbox') },
+              { value: 'steamgriddb', label: t('srcSteamgriddb') },
+              { value: 'rawg',        label: t('srcRawg') },
+            ]}
+          />
+          <ProviderSelect
+            label={t('providerInfo')}
+            value={provInfo}
+            onChange={setProvInfo}
+            options={[
+              { value: 'launchbox', label: t('srcLaunchbox') },
+              { value: 'rawg',      label: t('srcRawg') },
+            ]}
+          />
+          <ProviderSelect
+            label={t('providerDescription')}
+            value={provDescription}
+            onChange={setProvDescription}
+            options={[
+              { value: 'rawg',      label: t('srcRawg') },
+              { value: 'launchbox', label: t('srcLaunchbox') },
+            ]}
+          />
+          <ProviderSelect
+            label={t('providerScreenshots')}
+            value={provScreenshots}
+            onChange={setProvScreenshots}
+            options={[
+              { value: 'launchbox', label: t('srcLaunchbox') },
+              { value: 'rawg',      label: t('srcRawg') },
+              { value: 'none',      label: t('srcNone') },
+            ]}
           />
         </div>
       </div>
