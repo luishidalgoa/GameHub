@@ -40,7 +40,7 @@ export function CoverUploader({ gameId, gameTitle = '', currentCover, onUploaded
 
   // Panel state
   const [searchOpen, setSearchOpen] = useState(false)
-  const [searchTab, setSearchTab]   = useState<'rawg' | 'sgdb'>('sgdb')
+  const [searchTab, setSearchTab]   = useState<'rawg' | 'sgdb' | 'launchbox'>('launchbox')
 
   // RAWG tab
   const [rawgQuery, setRawgQuery]     = useState('')
@@ -57,6 +57,16 @@ export function CoverUploader({ gameId, gameTitle = '', currentCover, onUploaded
   const [sgdbCovers, setSgdbCovers]     = useState<SgdbCover[]>([])
   const [sgdbLoadingCovers, setSgdbLoadingCovers] = useState(false)
   const [applyingSgdb, setApplyingSgdb] = useState<string | null>(null)
+
+  // LaunchBox tab — same two-step shape as SteamGridDB
+  const [lbQuery, setLbQuery]           = useState(gameTitle)
+  const [lbSearching, setLbSearching]   = useState(false)
+  const [lbGames, setLbGames]           = useState<SgdbGame[]>([])
+  const [lbError, setLbError]           = useState('')
+  const [lbSelected, setLbSelected]     = useState<SgdbGame | null>(null)
+  const [lbCovers, setLbCovers]         = useState<SgdbCover[]>([])
+  const [lbLoadingCovers, setLbLoadingCovers] = useState(false)
+  const [applyingLb, setApplyingLb]     = useState<string | null>(null)
 
   const fileRef = useRef<HTMLInputElement>(null)
 
@@ -209,6 +219,38 @@ export function CoverUploader({ gameId, gameTitle = '', currentCover, onUploaded
     setApplyingSgdb(null)
   }
 
+  // ── LaunchBox ──────────────────────────────────────────────────────────────
+
+  const doLbSearch = async (q: string) => {
+    if (!q.trim()) return
+    setLbSearching(true)
+    setLbGames([])
+    setLbError('')
+    setLbSelected(null)
+    setLbCovers([])
+    const res  = await fetch(`/api/covers/launchbox?gameId=${gameId}&q=${encodeURIComponent(q.trim())}`)
+    const data = await res.json()
+    setLbSearching(false)
+    if (!res.ok) setLbError(data.message ?? data.error ?? 'Search failed')
+    else setLbGames(data.games ?? [])
+  }
+
+  const loadLbCovers = async (game: SgdbGame) => {
+    setLbSelected(game)
+    setLbLoadingCovers(true)
+    setLbCovers([])
+    const res  = await fetch(`/api/covers/launchbox?lbId=${game.id}`)
+    const data = await res.json()
+    setLbLoadingCovers(false)
+    if (res.ok) setLbCovers(data.covers ?? [])
+  }
+
+  const applyLbCover = async (thumb: string, url: string) => {
+    setApplyingLb(url)
+    await uploadFromUrl(url)
+    setApplyingLb(null)
+  }
+
   // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
@@ -309,7 +351,7 @@ export function CoverUploader({ gameId, gameTitle = '', currentCover, onUploaded
 
             {/* Tabs */}
             <div className="flex border-b border-border">
-              {(['sgdb', 'rawg'] as const).map((tab) => (
+              {(['launchbox', 'sgdb', 'rawg'] as const).map((tab) => (
                 <button
                   key={tab}
                   type="button"
@@ -320,12 +362,122 @@ export function CoverUploader({ gameId, gameTitle = '', currentCover, onUploaded
                       : 'text-muted-foreground hover:text-foreground'
                   }`}
                 >
-                  {tab === 'sgdb' ? 'SteamGridDB' : 'RAWG'}
+                  {tab === 'sgdb' ? 'SteamGridDB' : tab === 'rawg' ? 'RAWG' : 'LaunchBox'}
                 </button>
               ))}
             </div>
 
             <div className="p-3 space-y-3">
+
+              {/* ── LaunchBox tab ─────────────────────────────────────── */}
+              {searchTab === 'launchbox' && (
+                <>
+                  {lbSelected ? (
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => { setLbSelected(null); setLbCovers([]) }}
+                        className="p-1 rounded hover:bg-accent transition-colors text-muted-foreground hover:text-foreground"
+                      >
+                        <ArrowLeft className="w-3.5 h-3.5" />
+                      </button>
+                      <span className="text-xs font-medium text-foreground truncate">{lbSelected.name}</span>
+                    </div>
+                  ) : (
+                    <form
+                      onSubmit={(e) => { e.preventDefault(); doLbSearch(lbQuery) }}
+                      className="flex gap-2"
+                    >
+                      <input
+                        type="text"
+                        value={lbQuery}
+                        onChange={(e) => setLbQuery(e.target.value)}
+                        placeholder={t('gameTitlePlaceholder')}
+                        className="flex-1 bg-secondary border border-border rounded-md px-3 py-1.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                      />
+                      <button
+                        type="submit"
+                        disabled={lbSearching || !lbQuery.trim()}
+                        className="px-3 py-1.5 bg-primary text-primary-foreground rounded-md text-sm hover:bg-primary/90 disabled:opacity-50 transition-colors"
+                      >
+                        {lbSearching ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Search className="w-3.5 h-3.5" />}
+                      </button>
+                    </form>
+                  )}
+
+                  {lbError && (
+                    <p className="text-xs text-destructive bg-destructive/10 border border-destructive/20 rounded px-3 py-2">
+                      {lbError}
+                    </p>
+                  )}
+
+                  {/* Step 1: game list */}
+                  {!lbSelected && !lbSearching && lbGames.length > 0 && (
+                    <div className="space-y-1 max-h-48 overflow-y-auto">
+                      {lbGames.map((g) => (
+                        <button
+                          key={g.id}
+                          type="button"
+                          onClick={() => loadLbCovers(g)}
+                          className="w-full text-left px-3 py-2 text-sm rounded-md hover:bg-accent transition-colors text-foreground/80 hover:text-foreground flex items-center justify-between group"
+                        >
+                          <span className="truncate">{g.name}</span>
+                          <span className="text-xs text-muted-foreground group-hover:text-foreground ml-2 flex-shrink-0">{t('coversArrow')}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {lbSearching && (
+                    <div className="flex justify-center py-4">
+                      <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+                    </div>
+                  )}
+
+                  {!lbSearching && !lbError && lbGames.length === 0 && lbQuery && !lbSelected && (
+                    <p className="text-xs text-muted-foreground text-center py-3">{t('noGames')}</p>
+                  )}
+
+                  {/* Step 2: cover grid */}
+                  {lbSelected && (
+                    <>
+                      {lbLoadingCovers && (
+                        <div className="flex justify-center py-4">
+                          <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+                        </div>
+                      )}
+                      {!lbLoadingCovers && lbCovers.length === 0 && (
+                        <p className="text-xs text-muted-foreground text-center py-3">{t('noCoversForGame')}</p>
+                      )}
+                      {lbCovers.length > 0 && (
+                        <div className="grid grid-cols-3 gap-2 max-h-64 overflow-y-auto">
+                          {lbCovers.map((c) => (
+                            <button
+                              key={c.url}
+                              type="button"
+                              onClick={() => applyLbCover(c.thumb, c.url)}
+                              disabled={applyingLb === c.url || loading}
+                              className="relative group aspect-[2/3] rounded overflow-hidden bg-secondary border border-border hover:border-primary transition-colors disabled:opacity-60"
+                            >
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img src={c.thumb} alt="" className="w-full h-full object-cover" />
+                              {applyingLb === c.url ? (
+                                <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+                                  <Loader2 className="w-4 h-4 animate-spin text-white" />
+                                </div>
+                              ) : (
+                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                  <span className="text-white text-xs font-medium">{t('use')}</span>
+                                </div>
+                              )}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </>
+                  )}
+                </>
+              )}
 
               {/* ── SteamGridDB tab ───────────────────────────────────── */}
               {searchTab === 'sgdb' && (
