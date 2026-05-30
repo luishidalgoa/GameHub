@@ -60,20 +60,79 @@ export const LAUNCHBOX_PLATFORM_NAMES: Record<string, string> = {
   arcade:    'Arcade',
 }
 
+// ── Platform-name normalization / fuzzy matching ──────────────────────────────
+const normPlatform = (s: string) =>
+  s.toLowerCase().replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim()
+
+function platformTokenScore(a: string, b: string): number {
+  const ta = new Set(normPlatform(a).split(' ').filter(Boolean))
+  const tb = new Set(normPlatform(b).split(' ').filter(Boolean))
+  if (ta.size === 0 || tb.size === 0) return 0
+  const inter = [...ta].filter(t => tb.has(t)).length
+  return inter / Math.max(ta.size, tb.size)
+}
+
+// Cache the full LaunchBox catalog (the `launchbox_platforms` setting) in memory
+// so resolution doesn't re-read/parse the DB on every game during a scan.
+let _catalogCache: LaunchBoxPlatform[] | null = null
+
+/** Read the cached full LaunchBox platform catalog (refreshed by the re-scan script). */
+export async function getLaunchBoxCatalog(): Promise<LaunchBoxPlatform[]> {
+  if (_catalogCache) return _catalogCache
+  try {
+    const row = await db.setting.findUnique({ where: { key: 'launchbox_platforms' } })
+    if (row?.value) _catalogCache = JSON.parse(row.value) as LaunchBoxPlatform[]
+  } catch { /* no catalog cached yet */ }
+  return _catalogCache ?? []
+}
+
+/** Drop the in-memory catalog cache (called after a re-scan writes a fresh list). */
+export function clearLaunchBoxCatalogCache(): void {
+  _catalogCache = null
+}
+
 /**
- * Resolve a GameHub platform slug to the name LaunchBox uses.
- * Prefers the per-install map cached in the DB (Setting `launchbox_platform_map`,
- * JSON `{ slug: name }`), then the built-in defaults above.
+ * Resolve a GameHub platform slug to the LaunchBox platform name, in order:
+ *   1. manual override in `launchbox_platform_map` (Admin → Settings),
+ *   2. built-in alias for tricky slugs (gba → "Nintendo Game Boy Advance", …),
+ *   3. the FULL LaunchBox catalog (all ~189 platforms, refreshed by
+ *      `npm run launchbox:platforms`): exact name match, then a fuzzy token match
+ *      against the GameHub platform's display name.
+ * This means any platform LaunchBox has — not just a hardcoded few — can resolve.
  */
 export async function getLaunchBoxPlatformName(slug: string): Promise<string | null> {
+  // 1. manual override
   try {
     const row = await db.setting.findUnique({ where: { key: 'launchbox_platform_map' } })
     if (row?.value) {
       const map = JSON.parse(row.value) as Record<string, string>
       if (map[slug]) return map[slug]
     }
-  } catch { /* fall through to defaults */ }
-  return LAUNCHBOX_PLATFORM_NAMES[slug] ?? null
+  } catch { /* ignore */ }
+
+  // 2. built-in alias
+  if (LAUNCHBOX_PLATFORM_NAMES[slug]) return LAUNCHBOX_PLATFORM_NAMES[slug]
+
+  // 3. dynamic match against the full catalog, using the GameHub platform's name
+  try {
+    const [platform, catalog] = await Promise.all([
+      db.platform.findUnique({ where: { slug }, select: { name: true } }),
+      getLaunchBoxCatalog(),
+    ])
+    if (platform && catalog.length) {
+      const want = normPlatform(platform.name)
+      const exact = catalog.find(p => normPlatform(p.name) === want)
+      if (exact) return exact.name
+      let best: { name: string; score: number } | null = null
+      for (const p of catalog) {
+        const s = platformTokenScore(platform.name, p.name)
+        if (!best || s > best.score) best = { name: p.name, score: s }
+      }
+      if (best && best.score >= 0.5) return best.name
+    }
+  } catch { /* ignore */ }
+
+  return null
 }
 
 // ── HTTP helper ───────────────────────────────────────────────────────────────

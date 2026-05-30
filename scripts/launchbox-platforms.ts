@@ -1,22 +1,31 @@
 /* eslint-disable no-console */
-// Refresh the LaunchBox platform list and auto-map YOUR GameHub platforms to it.
+// Re-scan LaunchBox: cache its FULL platform catalog and auto-map your platforms.
 //
 //   npm run launchbox:platforms
 //
 // What it does:
-//   1. Fetches the canonical LaunchBox platform list (≈189) and caches it in the
-//      `launchbox_platforms` setting.
-//   2. Reads your actual GameHub platforms from the DB.
-//   3. For each one, resolves the matching LaunchBox name, in order:
-//        a) an existing manual override in `launchbox_platform_map`
-//        b) the built-in seed map (by slug)         — LAUNCHBOX_PLATFORM_NAMES
-//        c) an exact name match against the live list (case-insensitive)
-//        d) a fuzzy token-overlap match (best guess)
-//   4. Saves `launchbox_platform_map` (slug → LaunchBox name) and reports each
-//      platform with HOW it matched, so you can spot anything that needs a manual
-//      fix in Admin → Settings.
+//   1. Fetches the CANONICAL, COMPLETE LaunchBox platform catalog (~189) and
+//      stores it in the `launchbox_platforms` setting. This is the source of
+//      truth: ANY platform LaunchBox supports can now be resolved at runtime
+//      (getLaunchBoxPlatformName matches your platform name against this list),
+//      not just a hardcoded few. Re-run this whenever LaunchBox adds/renames
+//      platforms.
+//   2. Reads your GameHub platforms and writes a convenience override map
+//      (`launchbox_platform_map`, slug → LaunchBox name) so your specific
+//      consoles are pinned. Resolution order per slug:
+//        a) existing manual override in `launchbox_platform_map`
+//        b) the built-in alias map (by slug)        — LAUNCHBOX_PLATFORM_NAMES
+//        c) exact name match against the catalog (case-insensitive)
+//        d) fuzzy token-overlap best guess
+//   3. Reports each platform with HOW it matched, so you can fix any in
+//      Admin → Settings. (Even platforms NOT in the map still resolve via the
+//      catalog at runtime.)
 import { db as prisma } from '../src/lib/db'
-import { fetchLaunchBoxPlatforms, LAUNCHBOX_PLATFORM_NAMES } from '../src/lib/metadata/launchbox'
+import {
+  fetchLaunchBoxPlatforms,
+  LAUNCHBOX_PLATFORM_NAMES,
+  clearLaunchBoxCatalogCache,
+} from '../src/lib/metadata/launchbox'
 
 type Live = { id: number; name: string }
 
@@ -47,13 +56,14 @@ async function main() {
     console.error('No platforms parsed — the site markup may have changed, or the request was blocked.')
     process.exit(1)
   }
-  console.log(`Found ${live.length} platforms on LaunchBox.`)
+  console.log(`Found ${live.length} platforms on LaunchBox — caching the full catalog.`)
 
   await prisma.setting.upsert({
     where:  { key: 'launchbox_platforms' },
     create: { key: 'launchbox_platforms', value: JSON.stringify(live) },
     update: { value: JSON.stringify(live) },
   })
+  clearLaunchBoxCatalogCache()  // drop the in-memory cache so runtime re-reads the fresh list
 
   const liveByName = new Map(live.map(l => [l.name.toLowerCase(), l.name]))
   const existing = await prisma.setting.findUnique({ where: { key: 'launchbox_platform_map' } })
@@ -122,7 +132,8 @@ async function main() {
     }
   }
 
-  console.log(`\nSaved ${Object.keys(map).length} mapping(s). ${needAttention} need manual attention.`)
+  console.log(`\nCatalog: ${live.length} LaunchBox platforms cached (all resolvable at runtime).`)
+  console.log(`Pinned ${Object.keys(map).length} of your platform(s) in the override map. ${needAttention} need manual attention.`)
   if (needAttention > 0) {
     console.log('Fix them in Admin → Settings (or edit the "launchbox_platform_map" setting):')
     console.log('  set the slug to the exact LaunchBox platform name from the list above.')
