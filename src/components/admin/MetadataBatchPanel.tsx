@@ -90,6 +90,33 @@ export function MetadataBatchPanel({ platforms = [] }: { platforms?: PlatformOpt
         </div>
 
         <div className="flex items-center gap-3 flex-shrink-0 flex-wrap">
+          {/* Mode selector: missing only / fill gaps / redo from scratch */}
+          <select
+            value={mode}
+            onChange={e => setMode(e.target.value as Mode)}
+            disabled={state === 'running'}
+            title={t('modeHint')}
+            className="bg-secondary border border-border rounded-md px-2.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-60"
+          >
+            <option value="missing">{t('modeMissing')}</option>
+            <option value="fill">{t('modeFill')}</option>
+            <option value="redo">{t('modeRedo')}</option>
+          </select>
+
+          {/* Platform selector */}
+          <select
+            value={platform}
+            onChange={e => setPlatform(e.target.value)}
+            disabled={state === 'running'}
+            title={t('platformHint')}
+            className="bg-secondary border border-border rounded-md px-2.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-60"
+          >
+            <option value="">{t('allPlatforms')}</option>
+            {platforms.map(p => (
+              <option key={p.slug} value={p.slug}>{p.name}</option>
+            ))}
+          </select>
+
           {/* Cover toggle */}
           <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer select-none">
             <input
