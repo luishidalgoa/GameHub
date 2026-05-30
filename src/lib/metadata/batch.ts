@@ -42,8 +42,16 @@ export async function runMetadataBatch(opts: {
   backfillTrailers?: boolean
   rateMs?:          number
   apiKey?:          string
+  /** Which games to process:
+   *   'missing' — only games with no metadata (default; legacy behaviour),
+   *   'fill'    — games that have metadata but at least one empty field; only
+   *               the empty fields are filled in (existing data is kept),
+   *   'redo'    — every game, overwriting all fields from scratch. */
+  mode?:            'missing' | 'fill' | 'redo'
+  /** Restrict to a single platform slug. Undefined = all platforms. */
+  platformSlug?:    string
 }) {
-  const { emit, signal, withCovers = true, withTrailers = false, backfillTrailers = false, rateMs = 350, apiKey } = opts
+  const { emit, signal, withCovers = true, withTrailers = false, backfillTrailers = false, rateMs = 350, apiKey, mode = 'missing', platformSlug } = opts
 
   // Per-field provider matrix (LaunchBox / RAWG / SteamGridDB per category).
   const matrix = await getProviderMatrix()
@@ -64,17 +72,40 @@ export async function runMetadataBatch(opts: {
     return
   }
 
-  // Games missing metadata, plus (optionally) games that have metadata but no
-  // trailer yet — those only get a trailer backfilled, their metadata is left
-  // untouched.
+  // Fields considered "metadata" for the gap detection used by 'fill' mode.
+  const GAP_FIELDS = [
+    { description: null },
+    { genre: null },
+    { developer: null },
+    { publisher: null },
+    { releaseYear: null },
+    { coverPath: null },
+    { screenshotPaths: null },
+    ...(withTrailers ? [{ trailerUrl: null }] : []),
+  ]
+
+  const platformFilter = platformSlug ? { platform: { slug: platformSlug } } : {}
+
+  // Build the selection per mode:
+  //   missing → no metadata yet (+ optional trailer-only backfill for the rest)
+  //   fill    → has metadata but at least one empty field
+  //   redo    → every (visible) game
+  const where =
+    mode === 'redo'
+      ? { isHidden: false, ...platformFilter }
+      : mode === 'fill'
+        ? { isHidden: false, ...platformFilter, OR: GAP_FIELDS }
+        : {
+            isHidden: false,
+            ...platformFilter,
+            OR: [
+              { metadataFetchedAt: null },
+              ...(withTrailers && backfillTrailers ? [{ trailerUrl: null }] : []),
+            ],
+          }
+
   const games = await db.game.findMany({
-    where: {
-      isHidden: false,
-      OR: [
-        { metadataFetchedAt: null },
-        ...(withTrailers && backfillTrailers ? [{ trailerUrl: null }] : []),
-      ],
-    },
+    where,
     include: { platform: true },
     orderBy: { title: 'asc' },
   })
@@ -94,7 +125,8 @@ export async function runMetadataBatch(opts: {
     const processed = i + 1
 
     // ── Trailer-only backfill: game already has metadata, just needs a trailer ─
-    if (game.metadataFetchedAt !== null) {
+    // Only in 'missing' mode; 'fill'/'redo' send every game through the full flow.
+    if (mode === 'missing' && game.metadataFetchedAt !== null) {
       if (!withTrailers || game.trailerUrl) {
         // nothing to do (shouldn't normally be selected) — count as skipped silently
         skipped++

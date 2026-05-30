@@ -18,6 +18,12 @@ export default async function AdminPage() {
     db.scanLog.findMany({ orderBy: { startedAt: 'desc' }, take: 5 }),
   ])
 
+  const platforms = await db.platform.findMany({
+    where: { enabled: true },
+    select: { slug: true, name: true },
+    orderBy: { sortOrder: 'asc' },
+  })
+
   const sizeResult = await db.game.aggregate({
     _sum: { fileSize: true },
     where: { isHidden: false },
@@ -39,7 +45,7 @@ export default async function AdminPage() {
       <ScanPanel />
 
       {/* Auto metadata batch */}
-      <MetadataBatchPanel />
+      <MetadataBatchPanel platforms={platforms} />
 
       {/* Recent scan logs */}
       {scanLogs.length > 0 && (

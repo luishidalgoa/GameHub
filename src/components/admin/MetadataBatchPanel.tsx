@@ -14,13 +14,18 @@ interface LogEntry extends BatchEvent {
 }
 
 type RunState = 'idle' | 'running' | 'done'
+type Mode = 'missing' | 'fill' | 'redo'
 
-export function MetadataBatchPanel() {
+interface PlatformOpt { slug: string; name: string }
+
+export function MetadataBatchPanel({ platforms = [] }: { platforms?: PlatformOpt[] }) {
   const t = useTranslations('MetadataBatch')
   const [state, setState]           = useState<RunState>('idle')
   const [log, setLog]               = useState<LogEntry[]>([])
   const [summary, setSummary]       = useState<BatchEvent | null>(null)
   const [withCovers, setWithCovers] = useState(true)
+  const [mode, setMode]             = useState<Mode>('missing')
+  const [platform, setPlatform]     = useState('')
   const esRef   = useRef<EventSource | null>(null)
   const logEnd  = useRef<HTMLDivElement>(null)
   const keyRef  = useRef(0)
@@ -39,7 +44,9 @@ export function MetadataBatchPanel() {
     setSummary(null)
     setState('running')
 
-    const url = `/api/admin/metadata/batch?covers=${withCovers}`
+    const params = new URLSearchParams({ covers: String(withCovers), mode })
+    if (platform) params.set('platform', platform)
+    const url = `/api/admin/metadata/batch?${params.toString()}`
     const es  = new EventSource(url)
     esRef.current = es
 
@@ -182,7 +189,7 @@ function SummaryCard({ icon, label, value, color }: { icon: React.ReactNode; lab
 
 function LogLine({ ev }: { ev: BatchEvent }) {
   if (ev.type === 'start') {
-    return <p className="text-muted-foreground">→ Found <strong>{ev.total}</strong> games without metadata</p>
+    return <p className="text-muted-foreground">→ Found <strong>{ev.total}</strong> games to process</p>
   }
 
   if (ev.type === 'applied') {

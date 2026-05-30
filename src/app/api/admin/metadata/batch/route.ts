@@ -11,6 +11,11 @@ export async function GET(req: Request) {
   // already have metadata but no trailer). Disable with ?trailers=false.
   const withTrailers = sp.get('trailers') !== 'false'
 
+  // Scope: which games to (re)process and on which platform.
+  const modeParam    = sp.get('mode')
+  const mode         = modeParam === 'fill' || modeParam === 'redo' ? modeParam : 'missing'
+  const platformSlug = sp.get('platform')?.trim() || undefined
+
   const setting = await db.setting.findUnique({ where: { key: 'rawg_api_key' } })
   const apiKey  = setting?.value || undefined
 
@@ -24,7 +29,7 @@ export async function GET(req: Request) {
         } catch { /* client disconnected */ }
       }
 
-      await runMetadataBatch({ emit: send, signal: req.signal, withCovers, withTrailers, backfillTrailers: true, apiKey })
+      await runMetadataBatch({ emit: send, signal: req.signal, withCovers, withTrailers, backfillTrailers: true, apiKey, mode, platformSlug })
 
       try { controller.close() } catch { /* already closed */ }
     },
