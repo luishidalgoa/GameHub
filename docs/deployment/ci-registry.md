@@ -118,9 +118,33 @@ the `docker-compose.prod.example.yml` includes a **Watchtower** service:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     environment:
+      DOCKER_API_VERSION: "1.41"        # see troubleshooting below
       WATCHTOWER_LABEL_ENABLE: "true"   # only update containers with the enable label
       WATCHTOWER_CLEANUP: "true"        # prune the old image after updating
       WATCHTOWER_POLL_INTERVAL: "300"   # poll GHCR every 5 minutes
+```
+
+### Troubleshooting: Watchtower crash-loops with "client version 1.25 is too old"
+
+`containrrr/watchtower` bundles an old Docker SDK that negotiates Docker API
+**v1.25**. Modern Docker daemons reject that:
+
+```
+level=error msg="Error response from daemon: client version 1.25 is too old.
+Minimum supported API version is 1.40, please upgrade your client..."
+```
+
+Watchtower then exits and `restart: unless-stopped` relaunches it forever
+(`docker ps` shows it as `Restarting`), so it never actually checks GHCR and
+updates never land. Fix: pin a modern API version with
+`DOCKER_API_VERSION: "1.41"` (above), then `docker compose up -d watchtower`.
+
+Meanwhile you can always deploy by hand (no Watchtower needed):
+
+```bash
+docker compose pull gamehub && docker compose up -d --wait gamehub
+# verify the running version:
+docker inspect gamehub --format '{{range .Config.Env}}{{println .}}{{end}}' | grep APP_VERSION
 ```
 
 and the `gamehub` service opts in with:
