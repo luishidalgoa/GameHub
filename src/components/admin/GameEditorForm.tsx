@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { useTranslations } from 'next-intl'
 import { Save, Loader2, ArrowLeft, Heart, EyeOff, Search, ChevronDown, ImageIcon, Link2, Github, Plus, Trash2, GitMerge } from 'lucide-react'
@@ -32,12 +32,22 @@ export function GameEditorForm({ game, thumbnailWidth = 200, thumbnailHeight = 3
   const [trailerResults, setTrailerResults] = useState<Array<{ videoId: string; title: string; channel: string; thumbnail: string }>>([])
   const [trailerError, setTrailerError] = useState('')
 
-  // Screenshots from RAWG (only when game has been matched)
+  // Screenshots already stored on the game (e.g. fetched from LaunchBox/RAWG by
+  // the metadata job and saved to screenshotPaths). These take priority.
+  const storedScreenshots = useMemo<string[]>(() => {
+    try {
+      const arr = game.screenshotPaths ? JSON.parse(game.screenshotPaths) : []
+      return Array.isArray(arr) ? arr.filter((s: unknown): s is string => typeof s === 'string') : []
+    } catch { return [] }
+  }, [game.screenshotPaths])
+
+  // Fall back to a live RAWG fetch only when nothing is stored yet (and the game
+  // is matched on RAWG), so a RAWG-matched game without saved shots still shows some.
   const { data: ssData } = useSWR<{ screenshots: string[] }>(
-    game.rawgSlug ? `/api/games/${game.id}/screenshots` : null,
+    storedScreenshots.length === 0 && game.rawgSlug ? `/api/games/${game.id}/screenshots` : null,
     fetcher,
   )
-  const screenshots = ssData?.screenshots ?? []
+  const screenshots = storedScreenshots.length > 0 ? storedScreenshots : (ssData?.screenshots ?? [])
   const [settingCover, setSettingCover] = useState<string | null>(null)
 
   const useCoverFromScreenshot = async (url: string) => {
