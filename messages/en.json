@@ -451,6 +451,7 @@
     "manualHint": "Pick a specific match if the automatic one is wrong",
     "modalTitle": "Search metadata",
     "searchingIn": "Searching in",
+    "providerLabel": "Search in",
     "searchPlaceholder": "Search by name…",
     "search": "Search",
     "resultsFor": "Results for:",

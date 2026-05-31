@@ -38,7 +38,14 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
   const overrideQuery = sp.get('q') ?? undefined
   const usedQuery = overrideQuery ?? cleanTitle(game.title)
 
-  const source = await manualSearchSource()
+  // The admin can force which provider serves the manual search — the default,
+  // matrix-driven one may not list a given game. Falls back to the matrix choice
+  // when no valid override is given.
+  const overrideProvider = sp.get('provider')
+  const source: Source =
+    overrideProvider === 'launchbox' || overrideProvider === 'rawg'
+      ? overrideProvider
+      : await manualSearchSource()
 
   let results: Array<MetadataResult & { source: Source }> = []
   if (source === 'launchbox') {

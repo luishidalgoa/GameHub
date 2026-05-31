@@ -34,6 +34,8 @@ export function MetadataFetchButton({ gameId, onApplied }: Props) {
   const [applying, setApplying] = useState<string | null>(null)
   const [results, setResults] = useState<Candidate[]>([])
   const [provider, setProvider] = useState<'launchbox' | 'rawg' | null>(null)
+  // Provider the admin explicitly forced for the search (null = matrix default).
+  const [forcedProvider, setForcedProvider] = useState<'launchbox' | 'rawg' | null>(null)
   const [error, setError] = useState('')
   const [usedQuery, setUsedQuery] = useState('')
   const [manualQuery, setManualQuery] = useState('')
@@ -64,12 +66,18 @@ export function MetadataFetchButton({ gameId, onApplied }: Props) {
   }
 
   // ── Manual search (fallback) ──
-  const doSearch = async (q?: string) => {
+  // `prov` lets a provider-tab click search that source right away, without
+  // waiting for the forcedProvider state update to flush.
+  const doSearch = async (q?: string, prov?: 'launchbox' | 'rawg' | null) => {
     setLoading(true)
     setError('')
     setResults([])
-    const url = q ? `/api/metadata/${gameId}?q=${encodeURIComponent(q)}` : `/api/metadata/${gameId}`
-    const res = await fetch(url)
+    const chosen = prov !== undefined ? prov : forcedProvider
+    const qs = new URLSearchParams()
+    if (q) qs.set('q', q)
+    if (chosen) qs.set('provider', chosen)
+    const query = qs.toString()
+    const res = await fetch(`/api/metadata/${gameId}${query ? `?${query}` : ''}`)
     const data = await res.json()
     if (!res.ok) setError(data.error ?? 'Search failed')
     else {
@@ -80,11 +88,18 @@ export function MetadataFetchButton({ gameId, onApplied }: Props) {
     setLoading(false)
   }
 
-  const openManual = () => { setOpen(true); doSearch() }
+  const openManual = () => { setOpen(true); setForcedProvider(null); doSearch(undefined, null) }
 
   const handleManualSearch = (e: React.FormEvent) => {
     e.preventDefault()
     if (manualQuery.trim()) doSearch(manualQuery.trim())
+  }
+
+  // Switch which provider serves the results, re-running the current query.
+  const pickProvider = (p: 'launchbox' | 'rawg') => {
+    if (p === forcedProvider) return
+    setForcedProvider(p)
+    doSearch(manualQuery.trim() || undefined, p)
   }
 
   const applyPick = async (r: Candidate) => {
@@ -181,6 +196,32 @@ export function MetadataFetchButton({ gameId, onApplied }: Props) {
                 {t('search')}
               </button>
             </form>
+
+            {/* Provider selector — force which source serves the search (the
+                default one may not list this game). */}
+            <div className="px-4 pb-1 flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">{t('providerLabel')}</span>
+              <div className="flex gap-1">
+                {(['launchbox', 'rawg'] as const).map((p) => {
+                  const active = (forcedProvider ?? provider) === p
+                  return (
+                    <button
+                      key={p}
+                      type="button"
+                      onClick={() => pickProvider(p)}
+                      disabled={loading}
+                      className={`px-2.5 py-1 text-xs rounded-md border transition-colors disabled:opacity-50 ${
+                        active
+                          ? 'bg-primary text-primary-foreground border-primary'
+                          : 'bg-secondary border-border text-muted-foreground hover:text-foreground hover:bg-accent'
+                      }`}
+                    >
+                      {PROVIDER_LABEL[p]}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
 
             {usedQuery && !loading && (
               <p className="px-5 pb-1 text-xs text-muted-foreground">

@@ -451,6 +451,7 @@
     "manualHint": "Elige una coincidencia concreta si la automática no es correcta",
     "modalTitle": "Buscar metadatos",
     "searchingIn": "Buscando en",
+    "providerLabel": "Buscar en",
     "searchPlaceholder": "Busca por nombre…",
     "search": "Buscar",
     "resultsFor": "Resultados para:",
