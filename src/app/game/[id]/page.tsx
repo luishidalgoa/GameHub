@@ -29,9 +29,14 @@ export default async function GamePage({ params }: Props) {
 
   if (!game) notFound()
 
-  // Fetch RAWG screenshots if the game has been matched to RAWG
+  // Screenshots: prefer the ones stored on the game (LaunchBox/RAWG saved by the
+  // metadata job); fall back to a live RAWG fetch only when none are stored.
   let screenshots: string[] = []
-  if (game.rawgSlug) {
+  try {
+    const stored = game.screenshotPaths ? JSON.parse(game.screenshotPaths) : []
+    if (Array.isArray(stored)) screenshots = stored.filter((s: unknown): s is string => typeof s === 'string')
+  } catch { /* ignore malformed */ }
+  if (screenshots.length === 0 && game.rawgSlug) {
     const provider = getRawgProvider(rawgSetting?.value)
     if (provider) {
       screenshots = await provider.fetchScreenshots(game.rawgSlug).catch(() => [])
