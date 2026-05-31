@@ -19,10 +19,32 @@ export interface ScanJobParams {
   platformSlug?: string
 }
 
-// Active AbortControllers, shared across route bundles via globalThis.
-const g = globalThis as typeof globalThis & { __jobControllers?: Map<number, AbortController> }
+// Active AbortControllers + a small in-memory log ring buffer per job, shared
+// across route bundles via globalThis. The log is ephemeral (lives only in the
+// running process — never persisted), so the dashboard can show a live
+// terminal-style feed while polling, without bloating the DB.
+const g = globalThis as typeof globalThis & {
+  __jobControllers?: Map<number, AbortController>
+  __jobLogs?: Map<number, string[]>
+}
 if (!g.__jobControllers) g.__jobControllers = new Map()
+if (!g.__jobLogs) g.__jobLogs = new Map()
 const controllers = g.__jobControllers
+const jobLogs = g.__jobLogs
+
+const LOG_MAX = 120   // keep only the most recent lines
+
+function pushLog(jobId: number, line: string) {
+  const buf = jobLogs.get(jobId) ?? []
+  buf.push(line)
+  if (buf.length > LOG_MAX) buf.splice(0, buf.length - LOG_MAX)
+  jobLogs.set(jobId, buf)
+}
+
+/** Recent log lines for a job (newest last). Empty if none / process restarted. */
+export function getJobLog(jobId: number): string[] {
+  return jobLogs.get(jobId) ?? []
+}
 
 // ── DB helpers ────────────────────────────────────────────────────────────────
 
@@ -75,6 +97,7 @@ export async function startMetadataJob(params: MetadataJobParams, resumeJobId?: 
 
   const controller = new AbortController()
   controllers.set(job.id, controller)
+  if (!resumeJobId) jobLogs.set(job.id, [])   // fresh start → clear any stale log
 
   // Throttle DB writes: persist at most every ~1.5s (plus the final flush).
   let lastWrite = 0
@@ -96,6 +119,19 @@ export async function startMetadataJob(params: MetadataJobParams, resumeJobId?: 
 
   const emit = (ev: BatchEvent) => {
     pending = ev
+    // Append a terminal-style line to the in-memory log buffer.
+    if (ev.type === 'start') {
+      pushLog(job.id, `→ ${ev.total} game${ev.total === 1 ? '' : 's'} to process`)
+    } else if (ev.type === 'applied') {
+      const matched = ev.matchedTitle && ev.matchedTitle !== ev.title ? ` → ${ev.matchedTitle}` : ''
+      const conf = ev.confidence != null ? ` (${ev.confidence}%)` : ''
+      const tr = ev.trailerFound ? ' 🎬' : ''
+      pushLog(job.id, `✓ [${ev.processed}/${ev.total}] ${ev.title}${matched}${conf}${tr}`)
+    } else if (ev.type === 'skipped') {
+      pushLog(job.id, `– [${ev.processed}/${ev.total}] ${ev.title}${ev.reason ? ` — ${ev.reason}` : ''}`)
+    } else if (ev.type === 'failed' && ev.gameId) {
+      pushLog(job.id, `✗ [${ev.processed}/${ev.total}] ${ev.title} — ${ev.reason ?? 'error'}`)
+    }
     const now = Date.now()
     if (now - lastWrite >= 1500) {
       lastWrite = now

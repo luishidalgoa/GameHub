@@ -32,7 +32,9 @@ export function MetadataBatchPanel({ platforms = [] }: { platforms?: PlatformOpt
   const [mode, setMode]             = useState<Mode>('missing')
   const [platform, setPlatform]     = useState('')
   const [starting, setStarting]     = useState(false)
+  const [logLines, setLogLines]     = useState<string[]>([])
   const pollRef = useRef<ReturnType<typeof setInterval>>()
+  const logEnd  = useRef<HTMLDivElement>(null)
 
   const running = job?.status === 'running'
 
@@ -41,6 +43,10 @@ export function MetadataBatchPanel({ platforms = [] }: { platforms?: PlatformOpt
       const res = await fetch('/api/admin/jobs/active?type=metadata')
       const data = await res.json()
       setJob(data.job ?? null)
+      if (Array.isArray(data.log) && data.log.length) {
+        setLogLines(data.log)
+        setTimeout(() => logEnd.current?.scrollIntoView({ behavior: 'smooth' }), 30)
+      }
     } catch { /* transient — keep last state */ }
   }, [])
 
@@ -177,6 +183,17 @@ export function MetadataBatchPanel({ platforms = [] }: { platforms?: PlatformOpt
               <div className="h-full bar-indeterminate" />
             )}
           </div>
+        </div>
+      )}
+
+      {/* Live terminal-style log (like the ROM scanner) */}
+      {running && logLines.length > 0 && (
+        <div className="bg-black/40 rounded-lg p-4 h-56 overflow-y-auto font-mono text-xs text-green-400 leading-relaxed">
+          {logLines.map((line, i) => (
+            <div key={i} className="whitespace-pre-wrap">{line}</div>
+          ))}
+          <span className="animate-pulse">█</span>
+          <div ref={logEnd} />
         </div>
       )}
 

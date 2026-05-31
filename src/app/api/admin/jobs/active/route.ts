@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { getLatestJob, resumeInterruptedJobs, type JobType } from '@/lib/jobs/runner'
+import { getLatestJob, getJobLog, resumeInterruptedJobs, type JobType } from '@/lib/jobs/runner'
 
 export const dynamic = 'force-dynamic'
 
@@ -36,5 +36,7 @@ export async function GET(req: Request) {
       startedAt:  job.startedAt,
       finishedAt: job.finishedAt,
     },
+    // Live terminal-style log (in-memory, only while running this process).
+    log: job.status === 'running' ? getJobLog(job.id) : [],
   })
 }

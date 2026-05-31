@@ -72,11 +72,20 @@
   50%  { left: 25%;  width: 55%; }
   100% { left: 100%; width: 45%; }
 }
+.bar-indeterminate {
+  position: relative;
+  overflow: hidden;   /* clip the sliding segment so it never spills as a blob */
+}
 .bar-indeterminate::after {
   content: '';
   position: absolute;
   top: 0;
   bottom: 0;
+  /* Explicit initial geometry — without this the pseudo-element renders with
+     left/width:auto for the first paint, showing as a full-height rounded blob
+     before the animation takes over. */
+  left: -45%;
+  width: 45%;
   border-radius: 9999px;
   background: hsl(var(--primary));
   animation: indeterminate-bar 1.15s ease-in-out infinite;
