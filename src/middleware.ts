@@ -15,6 +15,7 @@ const PROTECTED_API_PATTERNS = [
   { method: 'DELETE', path: '/api/games' },
   { method: 'DELETE', path: '/api/admin/graveyard' },
   { method: 'POST',   path: '/api/admin/graveyard/recover' },
+  { method: 'POST',   path: '/api/admin/jobs' },   // start / cancel background jobs
 ]
 
 export async function middleware(req: NextRequest) {
@@ -73,5 +74,6 @@ export const config = {
     '/api/games/:path*',
     '/api/admin/fs/:path*',
     '/api/admin/graveyard/:path*',
+    '/api/admin/jobs/:path*',
   ],
 }

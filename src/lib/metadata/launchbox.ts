@@ -243,22 +243,70 @@ export function parseLaunchBoxResults(html: string): LaunchBoxCandidate[] {
 function buildResultsQuery(platformName: string | null, title: string): string {
   const parts: string[] = []
   if (platformName) parts.push(`platform=${platformName}`)
-  parts.push(`title=${cleanTitle(title)}`)
+  parts.push(`title=${title}`)
   return encodeURI(`?${parts.join('&')}`)
+}
+
+/** Strip subtitle/punctuation noise that often makes an exact match miss. */
+function sanitizeTitle(title: string): string {
+  return title
+    .replace(/[:：~–—_]/g, ' ')        // colons / tildes / dashes / underscores → space
+    .replace(/[™®©]/g, '')            // trademark glyphs
+    .replace(/\s{2,}/g, ' ')
+    .trim()
+}
+
+/**
+ * Build the ordered list of search terms to try, from most to least specific:
+ *   1. the cleaned title (ROM artifacts removed)
+ *   2. that, sanitized (no ":" etc.)
+ *   3. progressively fewer leading words: first 4, 3, 2, then 1
+ * Deduplicated, preserving order. The full title is still used for scoring, so
+ * a broad query just widens the candidate pool — it doesn't lower precision.
+ */
+export function launchBoxSearchTerms(rawTitle: string): string[] {
+  const cleaned = cleanTitle(rawTitle)
+  const sanitized = sanitizeTitle(cleaned)
+  const words = sanitized.split(/\s+/).filter(Boolean)
+
+  const terms: string[] = [cleaned, sanitized]
+  for (const n of [4, 3, 2, 1]) {
+    if (words.length > n) terms.push(words.slice(0, n).join(' '))
+  }
+  // Dedup (case-insensitive), keep order, drop empties.
+  const seen = new Set<string>()
+  return terms
+    .map(t => t.trim())
+    .filter(t => {
+      const k = t.toLowerCase()
+      if (!t || seen.has(k)) return false
+      seen.add(k)
+      return true
+    })
 }
 
 /**
  * Search LaunchBox for a title, optionally filtered to a platform name. Returns
  * candidates carrying the website id (used by fetchLaunchBoxGame).
+ *
+ * Uses a progressive fallback: if the exact (cleaned) title yields no results,
+ * it retries with a sanitized title and then with fewer leading words, stopping
+ * at the first term that returns candidates. Caller-side scoring against the
+ * FULL title then picks the closest one.
  */
 export async function searchLaunchBox(
   platformName: string | null,
   title: string,
 ): Promise<LaunchBoxCandidate[]> {
-  const query = buildResultsQuery(platformName, title)
-  const html = await lbFetch(`${LB_SITE}/games/results/${query}`)
-  if (!html) return []
-  return parseLaunchBoxResults(html)
+  const terms = launchBoxSearchTerms(title)
+  for (let i = 0; i < terms.length; i++) {
+    const html = await lbFetch(`${LB_SITE}/games/results/${buildResultsQuery(platformName, terms[i])}`)
+    const candidates = html ? parseLaunchBoxResults(html) : []
+    if (candidates.length > 0) return candidates
+    // Small pause between broadening attempts to stay polite with rate-limiting.
+    if (i < terms.length - 1) await new Promise(r => setTimeout(r, 400))
+  }
+  return []
 }
 
 // ── Detail ──────────────────────────────────────────────────────────────────

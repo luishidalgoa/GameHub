@@ -457,10 +457,11 @@ export function CoverUploader({ gameId, gameTitle = '', currentCover, onUploaded
                               type="button"
                               onClick={() => applyLbCover(c.thumb, c.url)}
                               disabled={applyingLb === c.url || loading}
-                              className="relative group aspect-[2/3] rounded overflow-hidden bg-secondary border border-border hover:border-primary transition-colors disabled:opacity-60"
+                              style={{ aspectRatio: `${thumbnailWidth}/${thumbnailHeight}` }}
+                              className="relative group rounded overflow-hidden bg-secondary border border-border hover:border-primary transition-colors disabled:opacity-60"
                             >
                               {/* eslint-disable-next-line @next/next/no-img-element */}
-                              <img src={c.thumb} alt="" className="w-full h-full object-cover" />
+                              <img src={c.thumb} alt="" className="w-full h-full object-contain" />
                               {applyingLb === c.url ? (
                                 <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
                                   <Loader2 className="w-4 h-4 animate-spin text-white" />
@@ -568,10 +569,11 @@ export function CoverUploader({ gameId, gameTitle = '', currentCover, onUploaded
                               type="button"
                               onClick={() => applySgdbCover(c.thumb, c.url)}
                               disabled={applyingSgdb === c.url || loading}
-                              className="relative group aspect-[2/3] rounded overflow-hidden bg-secondary border border-border hover:border-primary transition-colors disabled:opacity-60"
+                              style={{ aspectRatio: `${thumbnailWidth}/${thumbnailHeight}` }}
+                              className="relative group rounded overflow-hidden bg-secondary border border-border hover:border-primary transition-colors disabled:opacity-60"
                             >
                               {/* eslint-disable-next-line @next/next/no-img-element */}
-                              <img src={c.thumb} alt="" className="w-full h-full object-cover" />
+                              <img src={c.thumb} alt="" className="w-full h-full object-contain" />
                               {applyingSgdb === c.url ? (
                                 <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
                                   <Loader2 className="w-4 h-4 animate-spin text-white" />
@@ -631,10 +633,11 @@ export function CoverUploader({ gameId, gameTitle = '', currentCover, onUploaded
                           type="button"
                           onClick={() => applyRawgCover(r)}
                           disabled={applyingRawg === r.id || loading}
-                          className="relative group aspect-[2/3] rounded overflow-hidden bg-secondary border border-border hover:border-primary transition-colors disabled:opacity-60"
+                          style={{ aspectRatio: `${thumbnailWidth}/${thumbnailHeight}` }}
+                          className="relative group rounded overflow-hidden bg-secondary border border-border hover:border-primary transition-colors disabled:opacity-60"
                           title={r.title}
                         >
-                          <Image src={r.coverUrl!} alt={r.title} fill className="object-cover" unoptimized />
+                          <Image src={r.coverUrl!} alt={r.title} fill className="object-contain" unoptimized />
                           {applyingRawg === r.id ? (
                             <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
                               <Loader2 className="w-4 h-4 animate-spin text-white" />

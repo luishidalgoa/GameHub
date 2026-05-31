@@ -15,6 +15,7 @@ const nextConfig = {
     ],
   },
   experimental: {
+    instrumentationHook: true,   // run src/instrumentation.ts on server start (job auto-resume)
     serverComponentsExternalPackages: ['better-sqlite3', 'sharp', 'archiver'],
     // Ensure the sharp native binaries are included in the standalone output
     outputFileTracingIncludes: {

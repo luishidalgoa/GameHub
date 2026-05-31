@@ -25,19 +25,51 @@ export function ScanPanel() {
     }
   }, [logs])
 
+  // On mount (and every 3s while idle), check whether a scan job is already
+  // running in the background — e.g. you started it then navigated away, or the
+  // server resumed it after a restart. If so, reflect that and attach the SSE
+  // log so progress shows again.
+  useEffect(() => {
+    let cancelled = false
+    const check = async () => {
+      if (scanning) return
+      try {
+        const res = await fetch('/api/admin/jobs/active?type=scan')
+        const { job } = await res.json()
+        if (!cancelled && job?.status === 'running') {
+          setScanning(true)
+          setPhase('scanning')
+          setLogs(['↻ Reconnecting to a scan already in progress…'])
+          attachStream(false)
+        }
+      } catch { /* ignore */ }
+    }
+    check()
+    const iv = setInterval(check, 3000)
+    return () => { cancelled = true; clearInterval(iv) }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scanning])
+
   const startScan = () => {
     setScanning(true)
     setPhase('scanning')
     setMeta({ done: 0, total: 0 })
     setLogs(['Starting scan…'])
+    attachStream(true)
+  }
 
-    // Open SSE first — only trigger the POST once the server confirms it's listening.
-    // This prevents fast single-platform scans from emitting all events before the
-    // SSE connection is established (which would leave the UI stuck at "Starting scan…").
+  // Open the SSE stream and render progress. When `fresh` is true, start a new
+  // background scan job once the server confirms the listener is registered.
+  // When false (reconnecting to a running scan), we just listen — the job is
+  // already going.
+  const attachStream = (fresh: boolean) => {
+    // Open SSE first — only trigger the start once the server confirms it's
+    // listening, so fast single-platform scans don't emit everything before the
+    // SSE connection exists (which would leave the UI stuck at "Starting scan…").
     const es = new EventSource('/api/scanner/stream')
 
     const triggerPost = () =>
-      fetch('/api/scanner', {
+      fetch('/api/admin/jobs/scan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(selectedSlug !== 'all' ? { platformSlug: selectedSlug } : {}),
@@ -54,8 +86,9 @@ export function ScanPanel() {
 
         switch (event.type) {
           case 'connected':
-            // SSE listener is now registered on the server — safe to start the scan
-            triggerPost()
+            // SSE listener is now registered on the server.
+            // Fresh run → kick off the job; reconnect → just keep listening.
+            if (fresh) triggerPost()
             return
           case 'scan_start':
             line = '▶ Scan started'

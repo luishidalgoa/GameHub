@@ -216,3 +216,32 @@ model DownloadLog {
   @@index([startedAt])
   @@index([ip])
 }
+
+// Background job state for long-running tasks (scan / auto-metadata). Persisted
+// so the dashboard can show progress when you return, and so an interrupted job
+// (e.g. server restart) can be auto-resumed from where it left off.
+model Job {
+  id        Int      @id @default(autoincrement())
+  type      String                  // "scan" | "metadata"
+  status    String   @default("running")  // running | done | failed | cancelled
+  // JSON of the launch parameters, so a resumed job runs with the same options
+  // (e.g. metadata: { mode, platformSlug, withCovers, withTrailers }).
+  params    String?
+  phase     String?                 // human phase label (e.g. "scanning" | "metadata")
+  total     Int      @default(0)
+  processed Int      @default(0)
+  applied   Int      @default(0)
+  skipped   Int      @default(0)
+  failed    Int      @default(0)
+  // Resume cursor: the highest Game.id already handled this run. On resume we
+  // continue at id > cursorId so we don't reprocess everything.
+  cursorId  Int?
+  lastTitle String?                 // last game touched, for the "by X" hint
+  message   String?                 // final summary or error reason
+  startedAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  finishedAt DateTime?
+
+  @@index([type, status])
+  @@index([status])
+}

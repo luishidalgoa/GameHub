@@ -1,78 +1,82 @@
 'use client'
 
-import { useState, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useTranslations } from 'next-intl'
 import { Sparkles, StopCircle, CheckCircle2, XCircle, AlertTriangle, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import type { BatchEvent } from '@/lib/metadata/batch'
 
 const AUTO_THRESHOLD   = 68
 const REVIEW_THRESHOLD = 40
 
-interface LogEntry extends BatchEvent {
-  key: number
-}
-
-type RunState = 'idle' | 'running' | 'done'
-type Mode = 'missing' | 'fill' | 'redo'
+type Mode = 'missing' | 'fill' | 'redo' | 'wrong-provider'
 
 interface PlatformOpt { slug: string; name: string }
 
+// Shape returned by GET /api/admin/jobs/active
+interface JobState {
+  id: number
+  status: 'running' | 'done' | 'failed' | 'cancelled'
+  total: number
+  processed: number
+  applied: number
+  skipped: number
+  failed: number
+  lastTitle: string | null
+  message: string | null
+}
+
 export function MetadataBatchPanel({ platforms = [] }: { platforms?: PlatformOpt[] }) {
   const t = useTranslations('MetadataBatch')
-  const [state, setState]           = useState<RunState>('idle')
-  const [log, setLog]               = useState<LogEntry[]>([])
-  const [summary, setSummary]       = useState<BatchEvent | null>(null)
+  const [job, setJob]               = useState<JobState | null>(null)
   const [withCovers, setWithCovers] = useState(true)
   const [mode, setMode]             = useState<Mode>('missing')
   const [platform, setPlatform]     = useState('')
-  const esRef   = useRef<EventSource | null>(null)
-  const logEnd  = useRef<HTMLDivElement>(null)
-  const keyRef  = useRef(0)
+  const [starting, setStarting]     = useState(false)
+  const pollRef = useRef<ReturnType<typeof setInterval>>()
 
-  const push = useCallback((ev: BatchEvent) => {
-    setLog(prev => {
-      const next = [...prev, { ...ev, key: keyRef.current++ }]
-      return next.length > 300 ? next.slice(-300) : next
-    })
-    setTimeout(() => logEnd.current?.scrollIntoView({ behavior: 'smooth' }), 30)
+  const running = job?.status === 'running'
+
+  const fetchJob = useCallback(async () => {
+    try {
+      const res = await fetch('/api/admin/jobs/active?type=metadata')
+      const data = await res.json()
+      setJob(data.job ?? null)
+    } catch { /* transient — keep last state */ }
   }, [])
 
-  const start = () => {
-    if (state === 'running') return
-    setLog([])
-    setSummary(null)
-    setState('running')
+  // Poll while a job is running; also fetch once on mount so we pick up a job
+  // that's already in progress when you return to the dashboard.
+  useEffect(() => {
+    fetchJob()
+    pollRef.current = setInterval(fetchJob, 2000)
+    return () => { if (pollRef.current) clearInterval(pollRef.current) }
+  }, [fetchJob])
 
-    const params = new URLSearchParams({ covers: String(withCovers), mode })
-    if (platform) params.set('platform', platform)
-    const url = `/api/admin/metadata/batch?${params.toString()}`
-    const es  = new EventSource(url)
-    esRef.current = es
-
-    es.onmessage = (e) => {
-      const ev: BatchEvent = JSON.parse(e.data)
-      if (ev.type === 'done') {
-        setSummary(ev)
-        setState('done')
-        es.close()
-      } else {
-        push(ev)
-      }
-    }
-
-    es.onerror = () => {
-      push({ type: 'failed', reason: 'Connection to server lost' })
-      setState('done')
-      es.close()
+  const start = async () => {
+    if (running || starting) return
+    setStarting(true)
+    try {
+      await fetch('/api/admin/jobs/metadata', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode, platformSlug: platform || undefined, withCovers }),
+      })
+      await fetchJob()
+    } finally {
+      setStarting(false)
     }
   }
 
-  const stop = () => {
-    esRef.current?.close()
-    setState('done')
-    push({ type: 'failed', reason: 'Stopped manually' })
+  const stop = async () => {
+    await fetch('/api/admin/jobs/cancel', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'metadata' }),
+    })
+    await fetchJob()
   }
+
+  const pct = job && job.total > 0 ? Math.round((job.processed / job.total) * 100) : 0
 
   return (
     <div className="bg-card border border-border rounded-xl p-6 space-y-4">
@@ -90,24 +94,25 @@ export function MetadataBatchPanel({ platforms = [] }: { platforms?: PlatformOpt
         </div>
 
         <div className="flex items-center gap-3 flex-shrink-0 flex-wrap">
-          {/* Mode selector: missing only / fill gaps / redo from scratch */}
+          {/* Mode selector */}
           <select
             value={mode}
             onChange={e => setMode(e.target.value as Mode)}
-            disabled={state === 'running'}
+            disabled={running}
             title={t('modeHint')}
             className="bg-secondary border border-border rounded-md px-2.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-60"
           >
             <option value="missing">{t('modeMissing')}</option>
             <option value="fill">{t('modeFill')}</option>
             <option value="redo">{t('modeRedo')}</option>
+            <option value="wrong-provider">{t('modeWrongProvider')}</option>
           </select>
 
           {/* Platform selector */}
           <select
             value={platform}
             onChange={e => setPlatform(e.target.value)}
-            disabled={state === 'running'}
+            disabled={running}
             title={t('platformHint')}
             className="bg-secondary border border-border rounded-md px-2.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-60"
           >
@@ -123,13 +128,13 @@ export function MetadataBatchPanel({ platforms = [] }: { platforms?: PlatformOpt
               type="checkbox"
               checked={withCovers}
               onChange={e => setWithCovers(e.target.checked)}
-              disabled={state === 'running'}
+              disabled={running}
               className="accent-primary"
             />
             {t('downloadCovers')}
           </label>
 
-          {state === 'running' ? (
+          {running ? (
             <button
               onClick={stop}
               className="flex items-center gap-2 px-4 py-2 bg-destructive text-destructive-foreground text-sm rounded-md hover:bg-destructive/90 transition-colors"
@@ -140,60 +145,54 @@ export function MetadataBatchPanel({ platforms = [] }: { platforms?: PlatformOpt
           ) : (
             <button
               onClick={start}
-              className="flex items-center gap-2 px-4 py-2 bg-violet-600 hover:bg-violet-500 text-white text-sm rounded-md transition-colors"
+              disabled={starting}
+              className="flex items-center gap-2 px-4 py-2 bg-violet-600 hover:bg-violet-500 disabled:opacity-60 text-white text-sm rounded-md transition-colors"
             >
-              <Sparkles className="w-4 h-4" />
-              {state === 'done' ? t('runAgain') : t('start')}
+              {starting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+              {job && job.status !== 'running' ? t('runAgain') : t('start')}
             </button>
           )}
         </div>
       </div>
 
-      {/* Progress summary bar */}
-      {(state === 'running' || state === 'done') && log.length > 0 && (() => {
-        const last = [...log].reverse().find(e => e.total !== undefined)
-        if (!last?.total) return null
-        const pct = Math.round(((last.processed ?? 0) / last.total) * 100)
-        return (
-          <div className="space-y-1.5">
-            <div className="flex justify-between text-xs text-muted-foreground">
-              <span>{last.processed ?? 0} / {last.total} games</span>
-              <span className="flex gap-3">
-                <span className="text-green-400">✓ {last.applied ?? 0} {t('applied').toLowerCase()}</span>
-                <span className="text-amber-400">⚠ {last.skipped ?? 0} {t('skipped').toLowerCase()}</span>
-                <span className="text-red-400">✗ {last.failed ?? 0} {t('failed').toLowerCase()}</span>
-              </span>
-            </div>
-            <div className="h-1.5 bg-secondary rounded-full overflow-hidden">
-              <div
-                className={cn('h-full rounded-full transition-all duration-300', state === 'done' ? 'bg-green-500' : 'bg-violet-500')}
-                style={{ width: `${pct}%` }}
-              />
-            </div>
+      {/* Running progress (persisted — survives navigation / reload) */}
+      {running && (
+        <div className="space-y-1.5">
+          <div className="flex justify-between text-xs text-muted-foreground">
+            <span className="flex items-center gap-1.5">
+              <Loader2 className="w-3 h-3 animate-spin" />
+              {job!.total > 0 ? `${job!.processed} / ${job!.total}` : t('processing')}
+              {job!.lastTitle && <span className="text-foreground/60 truncate max-w-[220px]">· {job!.lastTitle}</span>}
+            </span>
+            <span className="flex gap-3">
+              <span className="text-green-400">✓ {job!.applied}</span>
+              <span className="text-amber-400">⚠ {job!.skipped}</span>
+              <span className="text-red-400">✗ {job!.failed}</span>
+            </span>
           </div>
-        )
-      })()}
-
-      {/* Done summary */}
-      {state === 'done' && summary && (
-        <div className="grid grid-cols-3 gap-3">
-          <SummaryCard icon={<CheckCircle2 className="w-4 h-4 text-green-400" />} label={t('applied')}  value={summary.applied  ?? 0} color="text-green-400" />
-          <SummaryCard icon={<AlertTriangle className="w-4 h-4 text-amber-400" />} label={t('skipped')} value={summary.skipped  ?? 0} color="text-amber-400" />
-          <SummaryCard icon={<XCircle className="w-4 h-4 text-red-400" />}         label={t('failed')}  value={summary.failed   ?? 0} color="text-red-400" />
+          <div className="h-1.5 bg-secondary rounded-full overflow-hidden">
+            {job!.total > 0 ? (
+              <div className="h-full bg-violet-500 rounded-full transition-all duration-300" style={{ width: `${pct}%` }} />
+            ) : (
+              <div className="h-full bar-indeterminate" />
+            )}
+          </div>
         </div>
       )}
 
-      {/* Live log */}
-      {log.length > 0 && (
-        <div className="bg-background/60 border border-border rounded-lg p-3 h-64 overflow-y-auto font-mono text-xs space-y-0.5">
-          {log.map(ev => <LogLine key={ev.key} ev={ev} />)}
-          {state === 'running' && (
-            <div className="flex items-center gap-2 text-muted-foreground py-0.5">
-              <Loader2 className="w-3 h-3 animate-spin" />
-              <span>{t('processing')}</span>
-            </div>
+      {/* Finished summary */}
+      {job && job.status !== 'running' && (
+        <div className="space-y-3">
+          {job.status === 'failed' && job.message && (
+            <p className="text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded-lg px-4 py-2">
+              {job.message}
+            </p>
           )}
-          <div ref={logEnd} />
+          <div className="grid grid-cols-3 gap-3">
+            <SummaryCard icon={<CheckCircle2 className="w-4 h-4 text-green-400" />} label={t('applied')} value={job.applied} color="text-green-400" />
+            <SummaryCard icon={<AlertTriangle className="w-4 h-4 text-amber-400" />} label={t('skipped')} value={job.skipped} color="text-amber-400" />
+            <SummaryCard icon={<XCircle className="w-4 h-4 text-red-400" />} label={t('failed')} value={job.failed} color="text-red-400" />
+          </div>
         </div>
       )}
     </div>
@@ -212,47 +211,4 @@ function SummaryCard({ icon, label, value, color }: { icon: React.ReactNode; lab
       </div>
     </div>
   )
-}
-
-function LogLine({ ev }: { ev: BatchEvent }) {
-  if (ev.type === 'start') {
-    return <p className="text-muted-foreground">→ Found <strong>{ev.total}</strong> games to process</p>
-  }
-
-  if (ev.type === 'applied') {
-    return (
-      <p className="text-green-400">
-        <span className="text-muted-foreground mr-2">[{ev.processed}/{ev.total}]</span>
-        ✓ <span className="text-foreground/80">{ev.title}</span>
-        {ev.matchedTitle && ev.matchedTitle !== ev.title && (
-          <span className="text-green-400/60"> → {ev.matchedTitle}</span>
-        )}
-        <span className="text-green-400/60"> ({ev.confidence}%)</span>
-      </p>
-    )
-  }
-
-  if (ev.type === 'skipped') {
-    const isUncertain = ev.reason === 'uncertain'
-    return (
-      <p className={cn(isUncertain ? 'text-amber-400' : 'text-muted-foreground/60')}>
-        <span className="text-muted-foreground mr-2">[{ev.processed}/{ev.total}]</span>
-        {isUncertain ? '⚠' : '–'} <span>{ev.title}</span>
-        {ev.matchedTitle && <span className="opacity-60"> (best: "{ev.matchedTitle}" {ev.confidence}%)</span>}
-        {ev.reason === 'no_results' && <span className="opacity-60"> — no results</span>}
-        {ev.reason === 'low_confidence' && <span className="opacity-60"> — too different</span>}
-      </p>
-    )
-  }
-
-  if (ev.type === 'failed') {
-    return (
-      <p className="text-red-400">
-        {ev.gameId && <span className="text-muted-foreground mr-2">[{ev.processed}/{ev.total}]</span>}
-        ✗ {ev.title ?? 'error'} — {ev.reason}
-      </p>
-    )
-  }
-
-  return null
 }

@@ -24,6 +24,8 @@ export interface BatchEvent {
   skipped?:      number
   failed?:       number
   trailerFound?: boolean
+  /** Highest Game.id handled so far — persisted as the resume cursor. */
+  cursorId?:     number
 }
 
 // ── Delay helper ──────────────────────────────────────────────────────────────
@@ -46,12 +48,24 @@ export async function runMetadataBatch(opts: {
    *   'missing' — only games with no metadata (default; legacy behaviour),
    *   'fill'    — games that have metadata but at least one empty field; only
    *               the empty fields are filled in (existing data is kept),
-   *   'redo'    — every game, overwriting all fields from scratch. */
-  mode?:            'missing' | 'fill' | 'redo'
+   *   'redo'    — every game, overwriting all fields from scratch,
+   *   'wrong-provider' — games whose stored provenance (metadataSources) does
+   *               not match the CURRENT provider matrix; reprocessed (overwrite)
+   *               so their data comes from the configured sources. */
+  mode?:            'missing' | 'fill' | 'redo' | 'wrong-provider'
   /** Restrict to a single platform slug. Undefined = all platforms. */
   platformSlug?:    string
+  /** Resume cursor: only process games with id > resumeAfterId (ordered by id).
+   *  Used to continue an interrupted job without redoing earlier games. */
+  resumeAfterId?:   number
 }) {
-  const { emit, signal, withCovers = true, withTrailers = false, backfillTrailers = false, rateMs = 350, apiKey, mode = 'missing', platformSlug } = opts
+  const { emit: rawEmit, signal, withCovers = true, withTrailers = false, backfillTrailers = false, rateMs = 350, apiKey, mode = 'missing', platformSlug, resumeAfterId } = opts
+
+  // Wrap emit so every per-game event also carries cursorId = the game's id.
+  // Games are processed in ascending id order, so the runner can persist this as
+  // the resume cursor (continue at id > cursorId after an interruption).
+  const emit = (event: BatchEvent) =>
+    rawEmit(event.gameId != null ? { cursorId: event.gameId, ...event } : event)
 
   // Per-field provider matrix (LaunchBox / RAWG / SteamGridDB per category).
   const matrix = await getProviderMatrix()
@@ -85,30 +99,57 @@ export async function runMetadataBatch(opts: {
   ]
 
   const platformFilter = platformSlug ? { platform: { slug: platformSlug } } : {}
+  // Resume: only games after the cursor (ordered by id, see below).
+  const resumeFilter = resumeAfterId ? { id: { gt: resumeAfterId } } : {}
 
   // Build the selection per mode:
-  //   missing → no metadata yet (+ optional trailer-only backfill for the rest)
-  //   fill    → has metadata but at least one empty field
-  //   redo    → every (visible) game
+  //   missing        → no metadata yet (+ optional trailer-only backfill)
+  //   fill           → has metadata but at least one empty field
+  //   redo           → every (visible) game
+  //   wrong-provider → has metadata; provenance filtered in JS below (JSON field)
   const where =
-    mode === 'redo'
-      ? { isHidden: false, ...platformFilter }
+    mode === 'redo' || mode === 'wrong-provider'
+      ? { isHidden: false, ...platformFilter, ...resumeFilter }
       : mode === 'fill'
-        ? { isHidden: false, ...platformFilter, OR: GAP_FIELDS }
+        ? { isHidden: false, ...platformFilter, ...resumeFilter, OR: GAP_FIELDS }
         : {
             isHidden: false,
             ...platformFilter,
+            ...resumeFilter,
             OR: [
               { metadataFetchedAt: null },
               ...(withTrailers && backfillTrailers ? [{ trailerUrl: null }] : []),
             ],
           }
 
-  const games = await db.game.findMany({
+  // Ordered by id so the resume cursor (id > resumeAfterId) is monotonic.
+  let games = await db.game.findMany({
     where,
     include: { platform: true },
-    orderBy: { title: 'asc' },
+    orderBy: { id: 'asc' },
   })
+
+  // 'wrong-provider': keep only games whose stored provenance disagrees with the
+  // current matrix (any field whose source ≠ the configured provider, or that
+  // was never recorded). Done in JS because metadataSources is a JSON string.
+  if (mode === 'wrong-provider') {
+    const wanted: Record<string, string> = {
+      cover:       matrix.cover,
+      info:        matrix.info,
+      description: matrix.description,
+      screenshots: matrix.screenshots,
+    }
+    games = games.filter(g => {
+      let src: Record<string, string> = {}
+      try { src = g.metadataSources ? JSON.parse(g.metadataSources) : {} } catch { /* treat as empty */ }
+      // Mismatch if any field that the matrix actively sources (≠ 'none') is
+      // missing from provenance or recorded from a different provider.
+      return (['cover', 'info', 'description', 'screenshots'] as const).some(f => {
+        if (wanted[f] === 'none') return false
+        return src[f] !== wanted[f]
+      })
+    })
+  }
 
   const total = games.length
   emit({ type: 'start', total })
@@ -183,18 +224,25 @@ export async function runMetadataBatch(opts: {
         continue
       }
 
-      // Cover: download the composed cover URL and cache to S3.
+      // In 'fill' mode we only touch fields that are currently empty and avoid
+      // re-downloading assets the game already has. 'redo'/'missing' overwrite.
+      const fillOnly = mode === 'fill'
+      const isEmpty = (v: unknown) => v === null || v === undefined || v === ''
+
+      // Cover: only (re)download when overwriting, or when the game has no cover.
+      // In fill mode an existing coverPath is left untouched.
       let coverPath: string | undefined
-      if (withCovers && meta.coverUrl) {
+      const needCover = !fillOnly || (isEmpty(game.coverPath) && isEmpty(game.coverUrl))
+      if (withCovers && meta.coverUrl && needCover) {
         try {
           coverPath = await downloadAndCacheCover(meta.coverUrl, game.platform.slug, game.id)
         } catch { /* cover download failure is non-fatal */ }
       }
 
-      // YouTube trailer (skipped once the API has errored this run).
+      // YouTube trailer (skipped once the API errors; in fill, only if missing).
       let trailerUrl: string | undefined
       let trailerFound = false
-      if (withTrailers && !youtubeDisabled) {
+      if (withTrailers && !youtubeDisabled && (!fillOnly || isEmpty(game.trailerUrl))) {
         try {
           const url = await searchYouTubeTrailer(meta.title)
           if (url) { trailerUrl = url; trailerFound = true }
@@ -205,26 +253,69 @@ export async function runMetadataBatch(opts: {
         if (signal.aborted) break
       }
 
-      // Persist.
+      const screenshotsJson = meta.screenshots.length > 0 ? JSON.stringify(meta.screenshots) : undefined
+
+      // Build the update: fill = only currently-empty fields; otherwise overwrite all.
+      const data = fillOnly
+        ? {
+            ...(isEmpty(game.description)     && meta.description         && { description: meta.description }),
+            ...(isEmpty(game.releaseYear)     && meta.releaseYear != null && { releaseYear: meta.releaseYear }),
+            ...(isEmpty(game.genre)           && meta.genre               && { genre: meta.genre }),
+            ...(isEmpty(game.developer)       && meta.developer           && { developer: meta.developer }),
+            ...(isEmpty(game.publisher)       && meta.publisher           && { publisher: meta.publisher }),
+            ...(isEmpty(game.coverUrl)        && meta.coverUrl            && { coverUrl: meta.coverUrl }),
+            ...(isEmpty(game.screenshotPaths) && screenshotsJson          && { screenshotPaths: screenshotsJson }),
+            ...(game.rawgId == null && meta.rawgId != null && { rawgId: meta.rawgId }),
+            ...(!game.rawgSlug && meta.rawgSlug && { rawgSlug: meta.rawgSlug }),
+            ...(coverPath  && { coverPath }),   // only set when needCover was true
+            ...(trailerUrl && { trailerUrl }),
+          }
+        : {
+            title:       meta.title,
+            description: meta.description,
+            releaseYear: meta.releaseYear,
+            genre:       meta.genre,
+            developer:   meta.developer,
+            publisher:   meta.publisher,
+            coverUrl:    meta.coverUrl,
+            ...(screenshotsJson && { screenshotPaths: screenshotsJson }),
+            ...(meta.rawgId   != null && { rawgId: meta.rawgId }),
+            ...(meta.rawgSlug && { rawgSlug: meta.rawgSlug }),
+            ...(coverPath  && { coverPath }),
+            ...(trailerUrl && { trailerUrl }),
+          }
+
+      // Provenance: in fill, merge new sources over the previous record so a
+      // field we didn't touch keeps its old source badge.
+      const prevSources = (() => {
+        try { return fillOnly && game.metadataSources ? JSON.parse(game.metadataSources) : {} }
+        catch { return {} }
+      })()
+      // Only attribute sources for fields we actually wrote in fill mode.
+      const writtenSources = fillOnly
+        ? Object.fromEntries(
+            Object.entries(meta.sources).filter(([k]) => {
+              if (k === 'cover')       return 'coverUrl' in data || 'coverPath' in data
+              if (k === 'description') return 'description' in data
+              if (k === 'screenshots') return 'screenshotPaths' in data
+              if (k === 'info')        return ['genre', 'developer', 'publisher', 'releaseYear'].some(f => f in data)
+              return false
+            }),
+          )
+        : meta.sources
+      const metadataSources = JSON.stringify(fillOnly ? { ...prevSources, ...writtenSources } : meta.sources)
+
+      // In fill mode, if nothing was actually empty, don't write (and don't bump
+      // metadataFetchedAt) — count it as skipped so we don't churn existing data.
+      if (fillOnly && Object.keys(data).length === 0) {
+        skipped++
+        emit({ type: 'skipped', gameId: game.id, title: game.title, reason: 'nothing_to_fill', processed, total, applied, skipped, failed })
+        continue
+      }
+
       await db.game.update({
         where: { id: game.id },
-        data: {
-          title:             meta.title,
-          description:       meta.description,
-          releaseYear:       meta.releaseYear,
-          genre:             meta.genre,
-          developer:         meta.developer,
-          publisher:         meta.publisher,
-          coverUrl:          meta.coverUrl,
-          ...(meta.screenshots.length > 0 && { screenshotPaths: JSON.stringify(meta.screenshots) }),
-          ...(meta.rawgId   != null && { rawgId: meta.rawgId }),
-          ...(meta.rawgSlug && { rawgSlug: meta.rawgSlug }),
-          ...(coverPath  && { coverPath }),
-          ...(trailerUrl && { trailerUrl }),
-          // Per-field provenance (powers the editor's source badges).
-          metadataSources: JSON.stringify(meta.sources),
-          metadataFetchedAt: new Date(),
-        },
+        data: { ...data, metadataSources, metadataFetchedAt: new Date() },
       })
 
       applied++
