@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, useMemo } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import useSWR from 'swr'
@@ -26,11 +26,19 @@ export function GameDetailModal({ gameId, onClose }: Props) {
   const [game, setGame] = useState<Game | null>(null)
   const [loading, setLoading] = useState(true)
   const { data: auth } = useSWR<{ admin: boolean }>('/api/auth/me', fetcher)
+  // Screenshots stored on the game (LaunchBox/RAWG saved by the metadata job)
+  // take priority; fall back to a live RAWG fetch only when none are stored.
+  const storedScreenshots = useMemo<string[]>(() => {
+    try {
+      const arr = game?.screenshotPaths ? JSON.parse(game.screenshotPaths) : []
+      return Array.isArray(arr) ? arr.filter((s: unknown): s is string => typeof s === 'string') : []
+    } catch { return [] }
+  }, [game?.screenshotPaths])
   const { data: ssData } = useSWR<{ screenshots: string[] }>(
-    game?.rawgSlug ? `/api/games/${gameId}/screenshots` : null,
+    storedScreenshots.length === 0 && game?.rawgSlug ? `/api/games/${gameId}/screenshots` : null,
     fetcher,
   )
-  const screenshots = ssData?.screenshots ?? []
+  const screenshots = storedScreenshots.length > 0 ? storedScreenshots : (ssData?.screenshots ?? [])
 
   useEffect(() => {
     fetch(`/api/games/${gameId}`)
