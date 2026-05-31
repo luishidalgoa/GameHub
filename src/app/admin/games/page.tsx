@@ -3,6 +3,7 @@ import { getTranslations } from 'next-intl/server'
 import { db } from '@/lib/db'
 import { formatBytes } from '@/lib/utils'
 import { Pencil } from 'lucide-react'
+import { ScrollRestorer } from '@/components/admin/ScrollRestorer'
 
 export const dynamic = 'force-dynamic'
 
@@ -39,6 +40,8 @@ export default async function AdminGamesPage({ searchParams }: Props) {
 
   return (
     <div>
+      {/* Restore scroll position when returning from a game editor */}
+      <ScrollRestorer storageKey={`admin-games:${search}:${platformSlug}:${page}`} />
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-xl font-semibold">{t('title')}</h2>
         <span className="text-sm text-muted-foreground">{t('gamesCount', { n: total })}</span>
