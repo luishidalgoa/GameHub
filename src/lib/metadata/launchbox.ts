@@ -39,7 +39,11 @@ export const LAUNCHBOX_PLATFORM_NAMES: Record<string, string> = {
   wiiu:      'Nintendo Wii U',
   switch:    'Nintendo Switch',
   n64:       'Nintendo 64',
-  snes:      'Super Nintendo Entertainment System (SNES)',
+  // LaunchBox's results filter expects the bare name — "…System (SNES)" returns 0.
+  snes:                                  'Super Nintendo Entertainment System',
+  'super-nintendo-entertainment-system': 'Super Nintendo Entertainment System',
+  'super-nintendo':                      'Super Nintendo Entertainment System',
+  sfc:                                   'Super Nintendo Entertainment System',
   nes:       'Nintendo Entertainment System',
   gba:       'Nintendo Game Boy Advance',
   gb:        'Nintendo Game Boy',
@@ -306,6 +310,12 @@ export async function searchLaunchBox(
   platformName: string | null,
   title: string,
 ): Promise<LaunchBoxCandidate[]> {
+  // Without a resolved platform, LaunchBox returns the title across EVERY system
+  // (Game Boy, Master System, NES…), which is worse than nothing — the admin
+  // can't tell which match belongs to this console. Bail out so the caller shows
+  // "no results" and the platform gets mapped (alias / Admin → Settings override)
+  // instead of silently mixing platforms.
+  if (!platformName) return []
   const terms = launchBoxSearchTerms(title)
   for (let i = 0; i < terms.length; i++) {
     const html = await lbFetch(`${LB_SITE}/games/results/${buildResultsQuery(platformName, terms[i])}`)
