@@ -1,4 +1,4 @@
-import { cleanTitle, RAWG_PLATFORM_IDS } from './rawg'
+import { cleanTitle, RAWG_PLATFORM_SLUGS } from './rawg'
 import type { MetadataResult } from './provider'
 
 // Confidence thresholds (max 100):
@@ -42,13 +42,28 @@ export function calcTitleConfidence(
   return Math.min(100, Math.round(score))
 }
 
-/** RAWG confidence — platform verified via RAWG numeric platform IDs. */
+/**
+ * RAWG confidence — platform verified via RAWG platform SLUGS.
+ *
+ * Crucially, when we KNOW the expected RAWG slug for this library platform and
+ * the candidate is NOT available on it, the candidate is REJECTED (score 0).
+ * Previously a wrong-platform game with an identical title still scored
+ * jaccard(50)+exact(20)=70 ≥ AUTO_THRESHOLD and got auto-applied — that's how a
+ * Game Boy cover landed on a SNES entry. We only reject when we have a mapping
+ * AND the candidate reports platforms; otherwise we fall back to title scoring
+ * so unmapped platforms still work (just without the platform guarantee).
+ */
 export function calcConfidence(
   gameTitle: string,
   platformSlug: string,
   result: MetadataResult,
 ): number {
-  const expectedId = RAWG_PLATFORM_IDS[platformSlug]
-  const platformMatched = Boolean(expectedId && result.platformIds?.includes(expectedId))
-  return calcTitleConfidence(gameTitle, result.title, platformMatched)
+  const expectedSlug = RAWG_PLATFORM_SLUGS[platformSlug]
+  const candidateSlugs = result.platformSlugs ?? []
+  if (expectedSlug && candidateSlugs.length > 0) {
+    if (!candidateSlugs.includes(expectedSlug)) return 0   // wrong console → discard
+    return calcTitleConfidence(gameTitle, result.title, true)
+  }
+  // No reliable platform info — score on title alone (no platform bonus).
+  return calcTitleConfidence(gameTitle, result.title, false)
 }

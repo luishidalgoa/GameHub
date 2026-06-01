@@ -21,6 +21,8 @@ export interface MetadataResult {
   source: MetadataSource
   /** RAWG numeric platform IDs (used for confidence scoring). */
   platformIds?: number[]
+  /** RAWG platform slugs (e.g. "snes", "game-boy") — used to reject wrong-console matches. */
+  platformSlugs?: string[]
 }
 
 export interface MetadataProvider {

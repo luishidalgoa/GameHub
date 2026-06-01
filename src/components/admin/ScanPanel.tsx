@@ -173,22 +173,22 @@ export function ScanPanel() {
 
   return (
     <div className="bg-card border border-border rounded-xl p-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
-        <div>
+      <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-3 mb-4">
+        <div className="min-w-0">
           <h3 className="font-semibold">{t('title')}</h3>
           <p className="text-sm text-muted-foreground mt-0.5">
             {t('description')}
           </p>
         </div>
 
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap xl:flex-shrink-0">
           {/* Platform selector */}
-          <div className="relative">
+          <div className="relative flex-1 min-w-[160px] xl:flex-none">
             <select
               value={selectedSlug}
               onChange={e => setSelectedSlug(e.target.value)}
               disabled={scanning}
-              className="appearance-none bg-secondary border border-border rounded-md pl-3 pr-8 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50 cursor-pointer"
+              className="w-full appearance-none bg-secondary border border-border rounded-md pl-3 pr-8 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50 cursor-pointer"
             >
               <option value="all">All platforms</option>
               {platforms?.map(p => (
@@ -202,7 +202,7 @@ export function ScanPanel() {
             <button
               onClick={stopScan}
               disabled={stopping}
-              className="flex items-center gap-2 px-4 py-2 bg-destructive text-destructive-foreground hover:bg-destructive/90 disabled:opacity-50 disabled:cursor-not-allowed rounded-md text-sm font-medium transition-colors"
+              className="flex items-center justify-center gap-2 px-4 py-2 bg-destructive text-destructive-foreground hover:bg-destructive/90 disabled:opacity-50 disabled:cursor-not-allowed rounded-md text-sm font-medium transition-colors flex-1 min-w-[120px] xl:flex-none"
             >
               {stopping ? <RefreshCw className="w-4 h-4 animate-spin" /> : <StopCircle className="w-4 h-4" />}
               {stopping ? t('stopping') : t('stop')}
@@ -210,7 +210,7 @@ export function ScanPanel() {
           ) : (
             <button
               onClick={startScan}
-              className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground hover:bg-primary/90 rounded-md text-sm font-medium transition-colors"
+              className="flex items-center justify-center gap-2 px-4 py-2 bg-primary text-primary-foreground hover:bg-primary/90 rounded-md text-sm font-medium transition-colors flex-1 min-w-[120px] xl:flex-none"
             >
               <Play className="w-4 h-4" />
               {t('runScan')}

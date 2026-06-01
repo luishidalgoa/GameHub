@@ -88,10 +88,10 @@ export function MetadataBatchPanel({ platforms = [] }: { platforms?: PlatformOpt
     <div className="bg-card border border-border rounded-xl p-6 space-y-4">
 
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
-        <div>
+      <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-3">
+        <div className="min-w-0">
           <h3 className="font-semibold flex items-center gap-2">
-            <Sparkles className="w-4 h-4 text-violet-400" />
+            <Sparkles className="w-4 h-4 text-violet-400 flex-shrink-0" />
             {t('title')}
           </h3>
           <p className="text-sm text-muted-foreground mt-0.5">
@@ -99,14 +99,14 @@ export function MetadataBatchPanel({ platforms = [] }: { platforms?: PlatformOpt
           </p>
         </div>
 
-        <div className="flex items-center gap-3 flex-shrink-0 flex-wrap">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3 xl:flex-shrink-0">
           {/* Mode selector */}
           <select
             value={mode}
             onChange={e => setMode(e.target.value as Mode)}
             disabled={running}
             title={t('modeHint')}
-            className="bg-secondary border border-border rounded-md px-2.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-60"
+            className="flex-1 min-w-[140px] xl:flex-none bg-secondary border border-border rounded-md px-2.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-60"
           >
             <option value="missing">{t('modeMissing')}</option>
             <option value="fill">{t('modeFill')}</option>
@@ -120,7 +120,7 @@ export function MetadataBatchPanel({ platforms = [] }: { platforms?: PlatformOpt
             onChange={e => setPlatform(e.target.value)}
             disabled={running}
             title={t('platformHint')}
-            className="bg-secondary border border-border rounded-md px-2.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-60"
+            className="flex-1 min-w-[140px] xl:flex-none bg-secondary border border-border rounded-md px-2.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-60"
           >
             <option value="">{t('allPlatforms')}</option>
             {platforms.map(p => (
@@ -129,7 +129,7 @@ export function MetadataBatchPanel({ platforms = [] }: { platforms?: PlatformOpt
           </select>
 
           {/* Cover toggle */}
-          <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer select-none">
+          <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer select-none whitespace-nowrap">
             <input
               type="checkbox"
               checked={withCovers}
@@ -143,7 +143,7 @@ export function MetadataBatchPanel({ platforms = [] }: { platforms?: PlatformOpt
           {running ? (
             <button
               onClick={stop}
-              className="flex items-center gap-2 px-4 py-2 bg-destructive text-destructive-foreground text-sm rounded-md hover:bg-destructive/90 transition-colors"
+              className="flex items-center justify-center gap-2 px-4 py-2 bg-destructive text-destructive-foreground text-sm rounded-md hover:bg-destructive/90 transition-colors flex-1 min-w-[120px] xl:flex-none"
             >
               <StopCircle className="w-4 h-4" />
               {t('stop')}
@@ -152,7 +152,7 @@ export function MetadataBatchPanel({ platforms = [] }: { platforms?: PlatformOpt
             <button
               onClick={start}
               disabled={starting}
-              className="flex items-center gap-2 px-4 py-2 bg-violet-600 hover:bg-violet-500 disabled:opacity-60 text-white text-sm rounded-md transition-colors"
+              className="flex items-center justify-center gap-2 px-4 py-2 bg-violet-600 hover:bg-violet-500 disabled:opacity-60 text-white text-sm rounded-md transition-colors flex-1 min-w-[120px] xl:flex-none"
             >
               {starting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
               {job && job.status !== 'running' ? t('runAgain') : t('start')}

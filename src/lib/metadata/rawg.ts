@@ -2,14 +2,35 @@ import type { MetadataProvider, MetadataResult } from './provider'
 
 const RAWG_BASE = 'https://api.rawg.io/api'
 
-// RAWG numeric platform IDs — verify at https://api.rawg.io/api/platforms?key=YOUR_KEY
-export const RAWG_PLATFORM_IDS: Record<string, number> = {
-  switch:  7,
-  '3ds':   49,
-  nds:     77,
-  wii:     11,
-  psp:     19,
-  psvita:  19,
+// Map a GameHub platform slug → the platform SLUG RAWG uses (verified against
+// rawg.io/platforms). Slugs are stable and self-documenting, unlike the numeric
+// ids we used before (which were partly wrong and lacked SNES). Used by the
+// confidence scorer to REJECT candidates from the wrong console (so e.g. a Game
+// Boy game can't be auto-applied to a SNES library entry). Keys cover both short
+// aliases and the long display-name slugs a user might create.
+export const RAWG_PLATFORM_SLUGS: Record<string, string> = {
+  switch:   'nintendo-switch',
+  '3ds':    'nintendo-3ds',
+  nds:      'nintendo-ds',
+  wii:      'wii',
+  wiiu:     'wii-u',
+  gamecube: 'gamecube',
+  n64:      'nintendo-64',
+  snes:                                   'snes',
+  'super-nintendo-entertainment-system':  'snes',
+  'super-nintendo':                       'snes',
+  sfc:                                    'snes',
+  nes:      'nes',
+  gba:      'game-boy-advance',
+  gb:       'game-boy',
+  gbc:      'game-boy-color',
+  psp:      'psp',
+  psvita:        'ps-vita',
+  'psvita-ports':'ps-vita',
+  ps1:      'playstation1',
+  ps2:      'playstation2',
+  ps3:      'playstation3',
+  pc:       'pc',
 }
 
 /**
@@ -81,8 +102,9 @@ export class RawgProvider implements MetadataProvider {
       releaseYear: g.released ? new Date(g.released).getFullYear() : undefined,
       coverUrl:    g.background_image ?? undefined,
       source:      'rawg' as const,
-      // Include platform IDs so the confidence scorer can verify platform match
-      platformIds: g.platforms?.map((p) => p.platform.id) ?? [],
+      // Include platform IDs + slugs so the confidence scorer can verify the match
+      platformIds:   g.platforms?.map((p) => p.platform.id) ?? [],
+      platformSlugs: g.platforms?.map((p) => p.platform.slug) ?? [],
     }))
   }
 
@@ -111,7 +133,8 @@ export class RawgProvider implements MetadataProvider {
       coverUrl:    g.background_image ?? undefined,
       rating:      g.rating,
       source:      'rawg',
-      platformIds: g.platforms?.map((p) => p.platform.id) ?? [],
+      platformIds:   g.platforms?.map((p) => p.platform.id) ?? [],
+      platformSlugs: g.platforms?.map((p) => p.platform.slug) ?? [],
     }
   }
 }
