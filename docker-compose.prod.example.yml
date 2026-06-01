@@ -25,9 +25,26 @@ services:
 
     volumes:
       - ./data:/data         # SQLite DB (DATABASE_URL=file:/data/gamehub.db)
-      # ROM drives, read-only, mounted at the same path as on the host:
-      - /mnt/F:/mnt/F:ro
-      - /mnt/nextcloud_hdd_1:/mnt/nextcloud_hdd_1:ro
+      # ROM drives, read-only. We bind-mount the PARENT /mnt (which always
+      # exists) instead of each leaf drive (/mnt/F, /mnt/nextcloud_hdd_1…).
+      #
+      # Why: a leaf bind like `/mnt/F:/mnt/F` forces Docker to bind that exact
+      # mountpoint at container start. If the network drive is disconnected,
+      # /mnt/F has "no such device" and the container fails to start
+      # (OCI runtime: "error mounting … no such device", Exited 128) — even
+      # though the app itself tolerates missing files at runtime (the scanner
+      # skips paths that don't exist).
+      #
+      # Mounting /mnt with `rslave` propagation makes it tolerant: the container
+      # always starts, and when a drive is (un)mounted on the host it propagates
+      # live into the container — no restart needed. Requires the host's /mnt (or
+      # /) to be a shared mount, which is the systemd default.
+      - type: bind
+        source: /mnt
+        target: /mnt
+        read_only: true
+        bind:
+          propagation: rslave
 
     stop_grace_period: 30s
 

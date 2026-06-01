@@ -200,6 +200,8 @@ export interface LaunchBoxCandidate {
   slug: string
   title: string
   platform?: string
+  /** Thumbnail (box art) shown on the results card — for search previews. */
+  coverUrl?: string
 }
 
 /**
@@ -225,11 +227,17 @@ export function parseLaunchBoxResults(html: string): LaunchBoxCandidate[] {
     seen.add(id)
     const title = card.match(/<h3[^>]*>\s*([^<]+?)\s*<\/h3>/)?.[1]
     const platform = card.match(/<\/h3>\s*<p[^>]*>\s*([^<]+?)\s*<\/p>/)?.[1]
+    // First CDN image inside the card is the box-art thumbnail — already in this
+    // results page, so no extra request is needed to preview it.
+    const cover = card.match(
+      new RegExp(`<img[^>]+src="(https?://${LB_IMG_HOST.replace(/\./g, '\\.')}/+[^"]+\\.(?:jpg|jpeg|png|gif))"`, 'i'),
+    )?.[1]?.replace(`${LB_IMG_HOST}//`, `${LB_IMG_HOST}/`)
     out.push({
       id,
       slug: link[2],
       title: title ? decodeEntities(title) : link[2].replace(/-/g, ' '),
       platform: platform ? decodeEntities(platform) : undefined,
+      coverUrl: cover,
     })
   }
   return out
@@ -456,6 +464,7 @@ class LaunchBoxProvider implements MetadataProvider {
       slug: c.slug,
       title: c.title,
       platformName: c.platform ?? this.platformName ?? undefined,
+      coverUrl: c.coverUrl,
       source: 'launchbox' as const,
     }))
   }
