@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { deletePlatformDeep, renamePlatformSlug } from '@/lib/platforms/maintenance'
 
 export const dynamic = 'force-dynamic'
 
@@ -36,13 +37,33 @@ export async function POST(req: Request) {
 
 export async function PATCH(req: Request) {
   const body = await req.json()
-  const { id, ...data } = body
+  const { id, slug, ...data } = body
+
+  // Renaming the slug is NOT a plain field update: cover object keys in MinIO and
+  // the launchbox_platform_map are keyed by slug, so it needs migration. Route it
+  // through renamePlatformSlug instead of a blind update.
+  if (slug !== undefined) {
+    try {
+      const result = await renamePlatformSlug(id, String(slug))
+      // Apply any other fields changed in the same request.
+      if (Object.keys(data).length) await db.platform.update({ where: { id }, data })
+      const platform = await db.platform.findUnique({ where: { id } })
+      return NextResponse.json({ ...platform, _rename: result })
+    } catch (err) {
+      return NextResponse.json({ error: err instanceof Error ? err.message : 'Rename failed' }, { status: 409 })
+    }
+  }
+
   const platform = await db.platform.update({ where: { id }, data })
   return NextResponse.json(platform)
 }
 
 export async function DELETE(req: Request) {
   const { id } = await req.json()
-  await db.platform.delete({ where: { id } })
-  return NextResponse.json({ ok: true })
+  try {
+    const result = await deletePlatformDeep(id)
+    return NextResponse.json({ ok: true, ...result })
+  } catch (err) {
+    return NextResponse.json({ error: err instanceof Error ? err.message : 'Delete failed' }, { status: 500 })
+  }
 }

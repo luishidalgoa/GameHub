@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { useTranslations } from 'next-intl'
-import { Save, Loader2, Plus, Trash2, ChevronDown, ChevronUp, FolderPlus, X, FolderOpen, Wifi, CheckCircle2, XCircle, AlertCircle } from 'lucide-react'
+import { Save, Loader2, Plus, Trash2, ChevronDown, ChevronUp, FolderPlus, X, FolderOpen, Wifi, CheckCircle2, XCircle, AlertCircle, Pencil, Check } from 'lucide-react'
 import { FolderPickerModal } from './FolderPickerModal'
 import { parseEmulators, OS_ORDER, OS_LABEL, type EmulatorSet, type EmulatorOS } from '@/components/platform/EmulatorLinks'
 
@@ -135,6 +135,7 @@ interface Platform {
   emulatorName?: string | null
   emulatorUrl?: string | null
   emulators?: string | null
+  _count?: { games: number }
 }
 
 interface Props {
@@ -258,6 +259,40 @@ export function SettingsForm({ platforms: initial, settings }: Props) {
     setPlatforms((prev) => prev.map((p) => (p.id === id ? { ...p, [field]: value } : p)))
   }
 
+  // ── Slug rename (dedicated action: migrates MinIO covers + launchbox map) ──
+  const [renamingId, setRenamingId] = useState<number | null>(null)
+  const [renameValue, setRenameValue] = useState('')
+  const [renameBusy, setRenameBusy] = useState(false)
+
+  const startRename = (id: number, current: string) => { setRenamingId(id); setRenameValue(current) }
+  const cancelRename = () => { setRenamingId(null); setRenameValue('') }
+
+  const commitRename = async (id: number) => {
+    const next = renameValue.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/^-+|-+$/g, '')
+    const current = platforms.find((p) => p.id === id)?.slug
+    if (!next || next === current) { cancelRename(); return }
+    setRenameBusy(true)
+    try {
+      const res = await fetch('/api/platforms', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, slug: next }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        alert(data.error ?? t('renameFailed'))
+      } else {
+        setPlatforms((prev) => prev.map((p) => (p.id === id ? { ...p, slug: next } : p)))
+        cancelRename()
+        router.refresh()
+      }
+    } catch {
+      alert(t('renameFailed'))
+    } finally {
+      setRenameBusy(false)
+    }
+  }
+
   const save = async () => {
     setSaving(true)
     await Promise.all([
@@ -336,12 +371,21 @@ export function SettingsForm({ platforms: initial, settings }: Props) {
   }
 
   const deletePlatform = async (id: number) => {
+    const p = platforms.find((x) => x.id === id)
+    const count = p?._count?.games ?? 0
+    if (!confirm(t('deleteConfirm', { name: p?.name ?? '', count }))) return
     setDeleting(id)
-    await fetch('/api/platforms', {
+    const res = await fetch('/api/platforms', {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id }),
     })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}))
+      alert(err.error ?? t('deleteFailed'))
+      setDeleting(null)
+      return
+    }
     setPlatforms((prev) => prev.filter((p) => p.id !== id))
     setPathsMap((prev) => { const next = { ...prev }; delete next[id]; return next })
     setDeleting(null)
@@ -510,11 +554,54 @@ export function SettingsForm({ platforms: initial, settings }: Props) {
                 <span className="text-xs text-muted-foreground">{t('scanDlcLabel')}</span>
               </label>
 
-              <p className="text-xs text-muted-foreground">
-                <span className="font-mono text-muted-foreground/70">{p.slug}</span>
-                {' · '}
-                {SCAN_MODES.find((m) => m.value === p.scanMode)?.desc}
-              </p>
+              <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
+                {renamingId === p.id ? (
+                  <span className="inline-flex items-center gap-1">
+                    <span className="text-muted-foreground/70">slug:</span>
+                    <input
+                      type="text"
+                      value={renameValue}
+                      autoFocus
+                      disabled={renameBusy}
+                      onChange={(e) => setRenameValue(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') { e.preventDefault(); commitRename(p.id) }
+                        if (e.key === 'Escape') cancelRename()
+                      }}
+                      className="font-mono bg-secondary border border-border rounded px-1.5 py-0.5 text-xs w-44 focus:outline-none focus:ring-2 focus:ring-ring"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => commitRename(p.id)}
+                      disabled={renameBusy}
+                      className="p-1 rounded text-green-500 hover:bg-green-950/30 disabled:opacity-40"
+                      title={t('renameApply')}
+                    >
+                      {renameBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={cancelRename}
+                      disabled={renameBusy}
+                      className="p-1 rounded text-muted-foreground hover:bg-accent disabled:opacity-40"
+                      title={t('renameCancel')}
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </span>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => startRename(p.id, p.slug)}
+                    className="inline-flex items-center gap-1 font-mono text-muted-foreground/70 hover:text-foreground transition-colors"
+                    title={t('renameSlug')}
+                  >
+                    {p.slug}
+                    <Pencil className="w-3 h-3 opacity-60" />
+                  </button>
+                )}
+                <span>· {SCAN_MODES.find((m) => m.value === p.scanMode)?.desc}</span>
+              </div>
             </div>
           ))}
         </div>

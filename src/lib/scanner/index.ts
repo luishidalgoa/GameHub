@@ -441,8 +441,10 @@ export async function runScan(triggeredBy = 'manual', platformSlug?: string) {
   })
 
   if (totalAdded > 0) {
-    // Fire auto-metadata in the background — don't await so the scan API returns immediately
-    triggerAutoMetadata(emit).catch((err) => {
+    // Fire auto-metadata in the background — don't await so the scan API returns
+    // immediately. Pass through the scanned platform so a single-platform scan
+    // only fetches metadata for THAT platform's games, not every game missing it.
+    triggerAutoMetadata(emit, platformSlug).catch((err) => {
       emit({ type: 'pipeline_done', message: `Auto-metadata error: ${err}` })
     })
   } else {

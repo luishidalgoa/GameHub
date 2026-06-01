@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { formatBytes } from '@/lib/utils'
 import { ScanPanel } from '@/components/admin/ScanPanel'
 import { MetadataBatchPanel } from '@/components/admin/MetadataBatchPanel'
+import { OrphanCoversPanel } from '@/components/admin/OrphanCoversPanel'
 import { ScanLogsTable } from '@/components/admin/ScanLogsTable'
 import { Gamepad2, Monitor, HardDrive, ImageOff, FileQuestion } from 'lucide-react'
 
@@ -46,6 +47,9 @@ export default async function AdminPage() {
 
       {/* Auto metadata batch */}
       <MetadataBatchPanel platforms={platforms} />
+
+      {/* Orphan cover cleanup */}
+      <OrphanCoversPanel />
 
       {/* Recent scan logs */}
       {scanLogs.length > 0 && (

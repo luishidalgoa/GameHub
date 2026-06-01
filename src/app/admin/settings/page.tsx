@@ -6,7 +6,10 @@ export const dynamic = 'force-dynamic'
 
 export default async function SettingsPage() {
   const [platforms, settings] = await Promise.all([
-    db.platform.findMany({ orderBy: { sortOrder: 'asc' } }),
+    db.platform.findMany({
+      orderBy: { sortOrder: 'asc' },
+      include: { _count: { select: { games: true } } },
+    }),
     db.setting.findMany(),
   ])
 

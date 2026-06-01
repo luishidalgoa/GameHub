@@ -7,7 +7,12 @@ import type { ScanEvent } from '@/lib/scanner/events'
  * Reads RAWG key from DB, runs the metadata batch with trailer search,
  * and emits progress back onto the scan bus using auto_meta_* event types.
  */
-export async function triggerAutoMetadata(emitScan: (e: ScanEvent) => void): Promise<void> {
+export async function triggerAutoMetadata(
+  emitScan: (e: ScanEvent) => void,
+  /** When the scan targeted a single platform, restrict auto-metadata to it so
+   *  we don't fetch metadata for games of OTHER platforms that happen to lack it. */
+  platformSlug?: string,
+): Promise<void> {
   const setting = await db.setting.findUnique({ where: { key: 'rawg_api_key' } })
   const apiKey  = setting?.value || process.env.RAWG_API_KEY
 
@@ -23,6 +28,7 @@ export async function triggerAutoMetadata(emitScan: (e: ScanEvent) => void): Pro
     withCovers:   true,
     withTrailers: true,
     apiKey,
+    platformSlug,
     emit(event) {
       switch (event.type) {
         case 'start':

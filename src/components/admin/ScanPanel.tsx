@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { useTranslations } from 'next-intl'
-import { Play, RefreshCw, ChevronDown } from 'lucide-react'
+import { Play, RefreshCw, ChevronDown, StopCircle } from 'lucide-react'
 import useSWR from 'swr'
 import type { Platform } from '@/types/platform'
 
@@ -11,6 +11,7 @@ const fetcher = (url: string) => fetch(url).then((r) => r.json())
 export function ScanPanel() {
   const t = useTranslations('ScanPanel')
   const [scanning, setScanning]         = useState(false)
+  const [stopping, setStopping]         = useState(false)
   const [logs, setLogs]                 = useState<string[]>([])
   const [selectedSlug, setSelectedSlug] = useState<string>('all')
   const [phase, setPhase]               = useState<'idle' | 'scanning' | 'metadata'>('idle')
@@ -52,10 +53,31 @@ export function ScanPanel() {
 
   const startScan = () => {
     setScanning(true)
+    setStopping(false)
     setPhase('scanning')
     setMeta({ done: 0, total: 0 })
     setLogs(['Starting scan…'])
     attachStream(true)
+  }
+
+  // Cancel a running scan (or its auto-metadata follow-up). The job runner aborts
+  // the job's AbortController; the SSE stream then ends and the UI resets.
+  const stopScan = async () => {
+    setStopping(true)
+    setLogs((prev) => [...prev, '⏹ Stopping…'])
+    try {
+      // Cancel both phases: a scan can already be in its auto-metadata step.
+      await Promise.all([
+        fetch('/api/admin/jobs/cancel', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type: 'scan' }),
+        }),
+        fetch('/api/admin/jobs/cancel', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type: 'metadata' }),
+        }),
+      ])
+    } catch { /* ignore */ }
   }
 
   // Open the SSE stream and render progress. When `fresh` is true, start a new
@@ -109,6 +131,7 @@ export function ScanPanel() {
           case 'scan_error':
             line = `❌ Error: ${event.message}`
             setScanning(false)
+            setStopping(false)
             es.close()
             break
           case 'auto_meta_start':
@@ -129,6 +152,7 @@ export function ScanPanel() {
           case 'pipeline_done':
             line = event.message ? `ℹ ${event.message}` : ''
             setScanning(false)
+            setStopping(false)
             es.close()
             break
           default:
@@ -142,6 +166,7 @@ export function ScanPanel() {
     es.onerror = () => {
       setLogs((prev) => [...prev, '⚠ Connection lost'])
       setScanning(false)
+      setStopping(false)
       es.close()
     }
   }
@@ -173,14 +198,24 @@ export function ScanPanel() {
             <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
           </div>
 
-          <button
-            onClick={startScan}
-            disabled={scanning}
-            className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed rounded-md text-sm font-medium transition-colors"
-          >
-            {scanning ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
-            {scanning ? t('scanning') : t('runScan')}
-          </button>
+          {scanning ? (
+            <button
+              onClick={stopScan}
+              disabled={stopping}
+              className="flex items-center gap-2 px-4 py-2 bg-destructive text-destructive-foreground hover:bg-destructive/90 disabled:opacity-50 disabled:cursor-not-allowed rounded-md text-sm font-medium transition-colors"
+            >
+              {stopping ? <RefreshCw className="w-4 h-4 animate-spin" /> : <StopCircle className="w-4 h-4" />}
+              {stopping ? t('stopping') : t('stop')}
+            </button>
+          ) : (
+            <button
+              onClick={startScan}
+              className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground hover:bg-primary/90 rounded-md text-sm font-medium transition-colors"
+            >
+              <Play className="w-4 h-4" />
+              {t('runScan')}
+            </button>
+          )}
         </div>
       </div>
 

@@ -87,6 +87,7 @@
     "description": "Scans configured paths and imports new ROM files into the library.",
     "runScan": "Run Scan",
     "stop": "Stop",
+    "stopping": "Stopping…",
     "scanning": "Scanning…",
     "added": "Added",
     "updated": "Updated",
@@ -195,7 +196,21 @@
     "shopSetup": "How to add in Tinfoil / DBI / CyberFoil:",
     "shopStep1": "Tinfoil: File Browser → press - (minus) → Add Source. DBI: Network install.",
     "shopStep2": "Protocol http · Host = Raspberry LAN IP · Port = the server's (3000 direct, or whatever your proxy exposes) · Path /api/shop",
-    "shopStep3": "If you set a password below, enter it in the source (username can be anything). LAN-only access."
+    "shopStep3": "If you set a password below, enter it in the source (username can be anything). LAN-only access.",
+    "renameSlug": "Rename slug (migrates covers)",
+    "renameApply": "Apply",
+    "renameCancel": "Cancel",
+    "renameFailed": "Could not rename the slug",
+    "deleteConfirm": "Delete platform \"{name}\" and its {count} games? They will be removed from the database and their covers from MinIO. ROM files on disk are NOT deleted. This cannot be undone.",
+    "deleteFailed": "Could not delete the platform"
+  },
+  "OrphanCovers": {
+    "title": "Clean orphan covers",
+    "description": "Deletes covers in MinIO that no longer belong to any game (after deleting games or platforms).",
+    "button": "Clean orphans",
+    "running": "Cleaning…",
+    "confirm": "Delete every cover in MinIO not referenced by any game? This cannot be undone.",
+    "result": "Scanned {scanned} · referenced {referenced} · deleted {deleted}"
   },
   "DonationSettings": {
     "title": "Donations",

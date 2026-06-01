@@ -2,7 +2,10 @@ import {
   S3Client,
   PutObjectCommand,
   DeleteObjectCommand,
+  DeleteObjectsCommand,
   HeadObjectCommand,
+  ListObjectsV2Command,
+  CopyObjectCommand,
 } from '@aws-sdk/client-s3'
 import { db } from './db'
 import { resolveCoverPath } from './cover-url'
@@ -140,4 +143,70 @@ export async function deleteFromS3(key: string, config?: S3Config): Promise<void
   try {
     await client.send(new DeleteObjectCommand({ Bucket: cfg.bucketName, Key: key }))
   } catch { /* ignore missing objects */ }
+}
+
+/** Normalize a stored coverPath into a bare S3 object key (drop ?v= and proxy/http forms). */
+export function coverPathToKey(coverPath: string | null | undefined): string | null {
+  if (!coverPath) return null
+  const key = coverPath.split('?')[0]
+  if (!key || key.startsWith('/') || key.startsWith('http')) return null
+  return key
+}
+
+/**
+ * Delete many objects in as few requests as possible (S3 DeleteObjects allows up
+ * to 1000 keys per call). Invalid/empty keys are skipped. Errors are swallowed
+ * per batch so cleanup never blocks the caller (e.g. a platform deletion).
+ */
+export async function deleteManyFromS3(keys: string[], config?: S3Config): Promise<number> {
+  const valid = [...new Set(keys.filter((k): k is string => !!k && !k.startsWith('/') && !k.startsWith('http')))]
+  if (valid.length === 0) return 0
+  const cfg    = config ?? await getS3Config()
+  const client = makeS3Client(cfg)
+  let deleted = 0
+  for (let i = 0; i < valid.length; i += 1000) {
+    const chunk = valid.slice(i, i + 1000)
+    try {
+      const res = await client.send(new DeleteObjectsCommand({
+        Bucket: cfg.bucketName,
+        Delete: { Objects: chunk.map(Key => ({ Key })), Quiet: true },
+      }))
+      deleted += chunk.length - (res.Errors?.length ?? 0)
+    } catch { /* ignore batch failure */ }
+  }
+  return deleted
+}
+
+/** List every object key under a prefix (paginated). Returns [] on any failure. */
+export async function listS3Keys(prefix: string, config?: S3Config): Promise<string[]> {
+  const cfg    = config ?? await getS3Config()
+  const client = makeS3Client(cfg)
+  const keys: string[] = []
+  let token: string | undefined
+  try {
+    do {
+      const res = await client.send(new ListObjectsV2Command({
+        Bucket: cfg.bucketName,
+        Prefix: prefix,
+        ContinuationToken: token,
+      }))
+      for (const o of res.Contents ?? []) if (o.Key) keys.push(o.Key)
+      token = res.IsTruncated ? res.NextContinuationToken : undefined
+    } while (token)
+  } catch { return [] }
+  return keys
+}
+
+/** Server-side copy of one object to a new key (used when migrating a slug). */
+export async function copyS3Object(srcKey: string, destKey: string, config?: S3Config): Promise<void> {
+  if (!srcKey || !destKey || srcKey === destKey) return
+  const cfg    = config ?? await getS3Config()
+  const client = makeS3Client(cfg)
+  try {
+    await client.send(new CopyObjectCommand({
+      Bucket:     cfg.bucketName,
+      CopySource: `${cfg.bucketName}/${srcKey}`,
+      Key:        destKey,
+    }))
+  } catch { /* ignore — caller falls back to re-download */ }
 }

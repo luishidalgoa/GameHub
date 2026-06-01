@@ -87,6 +87,7 @@
     "description": "Escanea las rutas configuradas e importa los nuevos archivos ROM a la biblioteca.",
     "runScan": "Escanear",
     "stop": "Detener",
+    "stopping": "Deteniendo…",
     "scanning": "Escaneando…",
     "added": "Añadidos",
     "updated": "Actualizados",
@@ -195,7 +196,21 @@
     "shopSetup": "Cómo añadir en Tinfoil / DBI / CyberFoil:",
     "shopStep1": "En Tinfoil: File Browser → pulsa - (menos) → Add Source. En DBI: Network install.",
     "shopStep2": "Protocolo http · Host = IP local de la Raspberry · Puerto = el del servidor (3000 directo, o el que exponga tu proxy) · Ruta /api/shop",
-    "shopStep3": "Si configuras contraseña abajo, indícala en la fuente (el usuario puede ser cualquiera). Solo funciona dentro de la red local."
+    "shopStep3": "Si configuras contraseña abajo, indícala en la fuente (el usuario puede ser cualquiera). Solo funciona dentro de la red local.",
+    "renameSlug": "Renombrar slug (migra las portadas)",
+    "renameApply": "Aplicar",
+    "renameCancel": "Cancelar",
+    "renameFailed": "No se pudo renombrar el slug",
+    "deleteConfirm": "¿Borrar la plataforma \"{name}\" y sus {count} juegos? Se eliminarán de la base de datos y sus portadas de MinIO. NO se borran los archivos ROM del disco. Esta acción no se puede deshacer.",
+    "deleteFailed": "No se pudo borrar la plataforma"
+  },
+  "OrphanCovers": {
+    "title": "Limpiar portadas huérfanas",
+    "description": "Borra de MinIO las portadas que ya no pertenecen a ningún juego (tras borrar juegos o plataformas).",
+    "button": "Limpiar huérfanas",
+    "running": "Limpiando…",
+    "confirm": "¿Borrar de MinIO todas las portadas no referenciadas por ningún juego? Esta acción no se puede deshacer.",
+    "result": "Revisadas {scanned} · en uso {referenced} · borradas {deleted}"
   },
   "DonationSettings": {
     "title": "Donaciones",
