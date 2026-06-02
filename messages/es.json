@@ -93,6 +93,13 @@
     "healthy": "Operativo",
     "degraded": "Con incidencias"
   },
+  "Autocomplete": {
+    "button": "Autocompletar notas",
+    "hint": "Busca la nota (RAWG → Metacritic → LaunchBox) de todos los juegos sin nota",
+    "stop": "Detener",
+    "found": "{n} rellenadas",
+    "done": "Hecho · {n} rellenadas"
+  },
   "AdminLayout": {
     "breadcrumb": "Admin",
     "dashboard": "Panel",

@@ -85,6 +85,10 @@ model Game {
   // present, else the user rating mapped ×20 (4.1★ → 82). Stored (not derived)
   // because the filter/sort run in SQL.
   rawgScore           Int?
+  // Where rawgScore came from: 'rawg' | 'metacritic' | 'launchbox' | 'manual'.
+  // Keeps provenance honest — a LaunchBox community rating must NOT be mislabeled
+  // as a Metacritic critic score.
+  scoreSource         String?
   popularityFetchedAt DateTime?
 
   isFavorite   Boolean   @default(false)

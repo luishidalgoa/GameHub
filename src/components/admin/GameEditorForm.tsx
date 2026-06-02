@@ -82,9 +82,12 @@ export function GameEditorForm({ game, thumbnailWidth = 200, thumbnailHeight = 3
     isHidden: game.isHidden,
   })
 
-  // "Buscar nota": scrape Metacritic for this game and fill the score field.
+  // "Buscar nota": run the score chain for this game and fill the score field.
   const [scoreSearching, setScoreSearching] = useState(false)
   const [scoreMsg, setScoreMsg] = useState('')
+  // Provenance of the score currently in the field: the source returned by the
+  // chain, or 'manual' once the admin types/changes it by hand.
+  const [scoreSource, setScoreSource] = useState<string | null>(game.scoreSource ?? null)
   const searchScore = async () => {
     setScoreSearching(true)
     setScoreMsg('')
@@ -93,6 +96,7 @@ export function GameEditorForm({ game, thumbnailWidth = 200, thumbnailHeight = 3
       const data = await res.json()
       if (res.ok && typeof data.score === 'number') {
         set('score', String(data.score))
+        setScoreSource(data.source ?? null)
         setScoreMsg(t('scoreFound', { score: data.score }))
       } else {
         setScoreMsg(t('scoreNotFound'))
@@ -171,11 +175,17 @@ export function GameEditorForm({ game, thumbnailWidth = 200, thumbnailHeight = 3
 
   const save = async () => {
     setSaving(true)
-    // The score field maps to rawgScore + rawgMetacritic (it IS a metascore), and
-    // we stamp popularityFetchedAt so the idempotent popularity batch won't
-    // overwrite a manually-set score on a later sync (unless "re-fetch").
+    // The score field maps to rawgScore (+ scoreSource for provenance). We stamp
+    // popularityFetchedAt so the idempotent popularity batch won't overwrite a
+    // saved score on a later sync (unless "re-fetch"). A LaunchBox community
+    // rating must NOT land in rawgMetacritic (which means "critic score"), so we
+    // only set rawgMetacritic when the source is a critic one.
     const { score, ...rest } = form
     const scoreNum = score === '' ? null : parseInt(score, 10)
+    const finalScore = Number.isNaN(scoreNum as number) ? null : scoreNum
+    // If the value changed from what the chain returned, it's a manual edit.
+    const effectiveSource = finalScore == null ? null : (scoreSource ?? 'manual')
+    const isCritic = effectiveSource === 'rawg' || effectiveSource === 'metacritic' || effectiveSource === 'manual'
     await fetch(`/api/games/${game.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
@@ -184,8 +194,9 @@ export function GameEditorForm({ game, thumbnailWidth = 200, thumbnailHeight = 3
         releaseYear: rest.releaseYear ? parseInt(rest.releaseYear, 10) : null,
         coverPath,
         externalLinks: JSON.stringify(links.filter((l) => l.url.trim())),
-        rawgScore:           Number.isNaN(scoreNum as number) ? null : scoreNum,
-        rawgMetacritic:      Number.isNaN(scoreNum as number) ? null : scoreNum,
+        rawgScore:           finalScore,
+        rawgMetacritic:      isCritic ? finalScore : null,
+        scoreSource:         effectiveSource,
         popularityFetchedAt: new Date().toISOString(),
       }),
     })
@@ -284,7 +295,7 @@ export function GameEditorForm({ game, thumbnailWidth = 200, thumbnailHeight = 3
               <div className="flex items-center gap-2">
                 <input
                   value={form.score}
-                  onChange={(e) => set('score', e.target.value)}
+                  onChange={(e) => { set('score', e.target.value); setScoreSource('manual') }}
                   className={`${inputCls} w-24`}
                   type="number"
                   min="0"

@@ -93,6 +93,13 @@
     "healthy": "Healthy",
     "degraded": "Degraded"
   },
+  "Autocomplete": {
+    "button": "Autocomplete scores",
+    "hint": "Finds the score (RAWG → Metacritic → LaunchBox) for every game without one",
+    "stop": "Stop",
+    "found": "{n} filled",
+    "done": "Done · {n} filled"
+  },
   "AdminLayout": {
     "breadcrumb": "Admin",
     "dashboard": "Dashboard",

@@ -448,6 +448,54 @@ export async function fetchLaunchBoxGame(id: number, slug?: string): Promise<Lau
   return parseLaunchBoxDetail(html, id, slug)
 }
 
+/**
+ * Parse the community rating (0–5) from a LaunchBox details `_payload.json`.
+ * The payload is a Nuxt-serialized array: one slot is a key→index map that
+ * includes `communityRating`/`totalVotes`, whose values live at those indices in
+ * the same flat array. Tolerant: returns null if the shape isn't found.
+ */
+export function parseLaunchBoxPayloadRating(raw: string): { rating: number; votes: number } | null {
+  if (!raw) return null
+  let arr: unknown[]
+  try { arr = JSON.parse(raw) } catch { return null }
+  if (!Array.isArray(arr)) return null
+  const map = arr.find(
+    (s): s is Record<string, number> =>
+      !!s && typeof s === 'object' && !Array.isArray(s) && 'communityRating' in (s as object),
+  )
+  if (!map) return null
+  const rating = arr[map.communityRating]
+  const votes  = arr[map.totalVotes]
+  if (typeof rating !== 'number' || rating <= 0) return null
+  return { rating, votes: typeof votes === 'number' ? votes : 0 }
+}
+
+/**
+ * Fetch a game's LaunchBox community rating mapped to 0–100, by title + platform.
+ * Resolves the platform name, searches for the game (best title match), then
+ * reads its details `_payload.json`. Returns null when no confident match or no
+ * rating. Used as the 3rd score fallback (after RAWG + Metacritic).
+ */
+export async function fetchLaunchBoxRating(title: string, platformSlug: string): Promise<number | null> {
+  const platformName = await getLaunchBoxPlatformName(platformSlug)
+  if (!platformName) return null
+
+  const candidates = await searchLaunchBox(platformName, title)
+  if (candidates.length === 0) return null
+
+  // Prefer an exact (normalized) title match; otherwise take the first result
+  // (search already filters to the platform, so the top hit is usually right).
+  const want = title.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
+  const best =
+    candidates.find(c => c.title.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim() === want)
+    ?? candidates[0]
+
+  const raw = await lbFetch(`${LB_SITE}/games/details/${best.id}/_payload.json`)
+  const parsed = parseLaunchBoxPayloadRating(raw)
+  if (!parsed) return null
+  return Math.round(parsed.rating * 20)
+}
+
 // ── Platform list (for the re-scan script) ────────────────────────────────────
 export interface LaunchBoxPlatform { id: number; name: string }
 

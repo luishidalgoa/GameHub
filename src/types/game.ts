@@ -40,6 +40,7 @@ export interface Game {
   rawgRating: number | null
   rawgMetacritic: number | null
   rawgScore: number | null
+  scoreSource: string | null
   isFavorite: boolean
   isHidden: boolean
   playCount: number

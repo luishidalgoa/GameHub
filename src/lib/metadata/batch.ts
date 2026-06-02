@@ -1,7 +1,7 @@
 import { db } from '@/lib/db'
 import { downloadAndCacheCover } from '@/lib/covers'
 import { getRawgProvider } from './rawg'
-import { fetchMetacriticScore } from './metacritic'
+import { fetchGameScore } from './scoreChain'
 import { unifiedScore } from './popularity'
 import { searchYouTubeTrailer, YouTubeApiError } from '@/lib/youtube'
 import { AUTO_THRESHOLD } from './scoring'
@@ -53,8 +53,10 @@ export async function runMetadataBatch(opts: {
    *   'redo'    — every game, overwriting all fields from scratch,
    *   'wrong-provider' — games whose stored provenance (metadataSources) does
    *               not match the CURRENT provider matrix; reprocessed (overwrite)
-   *               so their data comes from the configured sources. */
-  mode?:            'missing' | 'fill' | 'redo' | 'wrong-provider' | 'popularity'
+   *               so their data comes from the configured sources.
+   *   'autocomplete-scores' — fill ONLY the score (via the RAWG→Metacritic→
+   *               LaunchBox chain) for games that currently have no score. */
+  mode?:            'missing' | 'fill' | 'redo' | 'wrong-provider' | 'popularity' | 'autocomplete-scores'
   /** popularity mode only: re-fetch even games that already have metrics stored. */
   popularityRedo?:  boolean
   /** Restrict to a single platform slug. Undefined = all platforms. */
@@ -130,6 +132,13 @@ export async function runMetadataBatch(opts: {
           rawgId: { not: null },                                       // only games we can look up
           ...(popularityRedo ? {} : { popularityFetchedAt: null }),    // idempotent: skip already-fetched
         }
+    : mode === 'autocomplete-scores'
+      ? {
+          isHidden: false,
+          ...platformFilter,
+          ...resumeFilter,
+          rawgScore: null,                                             // only games WITHOUT a score (idempotent)
+        }
     : mode === 'redo' || mode === 'wrong-provider'
       ? { isHidden: false, ...platformFilter, ...resumeFilter }
       : mode === 'fill'
@@ -201,15 +210,23 @@ export async function runMetadataBatch(opts: {
           emit({ type: 'skipped', gameId: game.id, title: game.title, reason: 'no_rawg_data', processed, total, applied, skipped, failed })
           continue
         }
-        // Fallback: RAWG aggregates Metacritic but has gaps for niche/retro
-        // titles. When it gives no metascore, scrape metacritic.com by title +
-        // platform to fill it. Only one extra request, and only for the games
-        // RAWG left without a score.
-        let metacritic = m.metacritic
+        // Score: prefer RAWG's own metacritic; otherwise run the centralized
+        // fallback chain (Metacritic scraper → LaunchBox community rating). Only
+        // for games RAWG left without a metascore.
+        let metacritic = m.metacritic            // critic score → rawgMetacritic
+        let score      = unifiedScore({ rawgMetacritic: m.metacritic, rawgRating: m.rating })
+        let source: string | null = m.metacritic != null ? 'rawg' : (score != null ? 'rawg' : null)
         if (metacritic == null) {
-          await delay(rateMs)
           if (signal.aborted) break
-          metacritic = await fetchMetacriticScore(game.title, game.platform.slug)
+          const r = await fetchGameScore({
+            title: game.title, platformSlug: game.platform.slug,
+            rawgMetacritic: m.metacritic, rateMs, apiKey,
+          })
+          if (r) {
+            score  = r.score
+            source = r.source
+            if (r.isCritic) metacritic = r.score   // only critic scores go to rawgMetacritic
+          }
         }
         await db.game.update({
           where: { id: game.id },
@@ -218,7 +235,42 @@ export async function runMetadataBatch(opts: {
             rawgRating:          m.rating,
             rawgRatingsCount:    m.ratingsCount,
             rawgMetacritic:      metacritic,
-            rawgScore:           unifiedScore({ rawgMetacritic: metacritic, rawgRating: m.rating }),
+            rawgScore:           score,
+            scoreSource:         source,
+            popularityFetchedAt: new Date(),
+          },
+        })
+        applied++
+        emit({ type: 'applied', gameId: game.id, title: game.title, matchedTitle: game.title, processed, total, applied, skipped, failed })
+      } catch (err) {
+        failed++
+        emit({ type: 'failed', gameId: game.id, title: game.title, reason: err instanceof Error ? err.message : 'unknown_error', processed, total, applied, skipped, failed })
+      }
+      continue
+    }
+
+    // ── autocomplete-scores mode: fill ONLY the score for games that lack one ──
+    // Runs the full chain (RAWG metacritic by rawgId → Metacritic → LaunchBox).
+    // Idempotent via the where-clause (rawgScore null); writes score + source.
+    if (mode === 'autocomplete-scores') {
+      try {
+        await delay(rateMs)
+        if (signal.aborted) break
+        const r = await fetchGameScore({
+          title: game.title, platformSlug: game.platform.slug,
+          rawgId: game.rawgId, rateMs, apiKey,
+        })
+        if (!r) {
+          skipped++
+          emit({ type: 'skipped', gameId: game.id, title: game.title, reason: 'no_score_found', processed, total, applied, skipped, failed })
+          continue
+        }
+        await db.game.update({
+          where: { id: game.id },
+          data: {
+            rawgScore:           r.score,
+            scoreSource:         r.source,
+            ...(r.isCritic ? { rawgMetacritic: r.score } : {}),
             popularityFetchedAt: new Date(),
           },
         })

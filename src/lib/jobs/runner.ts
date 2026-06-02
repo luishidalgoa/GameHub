@@ -10,7 +10,7 @@ import { runScan } from '@/lib/scanner'
 export type JobType = 'metadata' | 'scan'
 
 export interface MetadataJobParams {
-  mode?: 'missing' | 'fill' | 'redo' | 'wrong-provider' | 'popularity'
+  mode?: 'missing' | 'fill' | 'redo' | 'wrong-provider' | 'popularity' | 'autocomplete-scores'
   popularityRedo?: boolean
   platformSlug?: string
   withCovers?: boolean
