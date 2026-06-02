@@ -3,67 +3,9 @@
 import Link from 'next/link'
 import { useRef, useState } from 'react'
 import { cn } from '@/lib/utils'
+import { getPlatformIdentity } from '@/lib/platform-identity'
+import { PlatformIcon } from '@/components/shared/PlatformIcon'
 import type { Platform } from '@/types/platform'
-
-// Brand identity per platform slug
-const PLATFORM_CONFIG: Record<string, {
-  gradient: string       // Tailwind bg-gradient classes
-  glow: string           // box-shadow color via inline style
-  border: string
-  accent: string
-  emoji: string
-}> = {
-  switch: {
-    gradient: 'from-red-700/50 via-red-900/60 to-zinc-900',
-    glow: 'rgba(220,38,38,0.35)',
-    border: 'border-red-700/40 hover:border-red-500/70',
-    accent: 'text-red-400',
-    emoji: '🎮',
-  },
-  '3ds': {
-    gradient: 'from-red-600/40 via-orange-900/50 to-zinc-900',
-    glow: 'rgba(239,68,68,0.30)',
-    border: 'border-orange-700/40 hover:border-orange-500/70',
-    accent: 'text-orange-400',
-    emoji: '📱',
-  },
-  nds: {
-    gradient: 'from-zinc-600/40 via-zinc-800/60 to-zinc-900',
-    glow: 'rgba(161,161,170,0.25)',
-    border: 'border-zinc-600/40 hover:border-zinc-400/60',
-    accent: 'text-zinc-300',
-    emoji: '🎯',
-  },
-  wii: {
-    gradient: 'from-sky-600/40 via-cyan-900/50 to-zinc-900',
-    glow: 'rgba(14,165,233,0.30)',
-    border: 'border-sky-700/40 hover:border-sky-400/70',
-    accent: 'text-sky-400',
-    emoji: '🕹️',
-  },
-  psp: {
-    gradient: 'from-blue-700/50 via-indigo-900/60 to-zinc-900',
-    glow: 'rgba(59,130,246,0.35)',
-    border: 'border-blue-700/40 hover:border-blue-500/70',
-    accent: 'text-blue-400',
-    emoji: '🎮',
-  },
-  psvita: {
-    gradient: 'from-blue-800/50 via-violet-900/60 to-zinc-900',
-    glow: 'rgba(139,92,246,0.35)',
-    border: 'border-violet-700/40 hover:border-violet-500/70',
-    accent: 'text-violet-400',
-    emoji: '🎮',
-  },
-}
-
-const FALLBACK = {
-  gradient: 'from-zinc-800/60 via-zinc-900/80 to-zinc-900',
-  glow: 'rgba(161,161,170,0.20)',
-  border: 'border-zinc-700/30 hover:border-zinc-500/60',
-  accent: 'text-zinc-400',
-  emoji: '🎮',
-}
 
 const MAX_TILT = 12 // degrees
 
@@ -72,7 +14,7 @@ interface Props {
 }
 
 export function PlatformCard({ platform }: Props) {
-  const cfg = PLATFORM_CONFIG[platform.slug] ?? FALLBACK
+  const cfg = getPlatformIdentity(platform.slug)
   const count = platform._count?.games ?? 0
 
   const cardRef = useRef<HTMLDivElement>(null)
@@ -127,7 +69,7 @@ export function PlatformCard({ platform }: Props) {
 
         <div className="relative z-10">
           <div className="flex items-start justify-between mb-4">
-            <span className="text-4xl select-none">{cfg.emoji}</span>
+            <PlatformIcon slug={platform.slug} iconPath={platform.iconPath} size={40} />
             <span className={cn('text-3xl font-bold tabular-nums', cfg.accent)}>{count}</span>
           </div>
           <h3 className="font-semibold text-foreground text-base leading-tight">{platform.name}</h3>

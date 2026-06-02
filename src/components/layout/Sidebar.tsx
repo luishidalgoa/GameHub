@@ -7,27 +7,11 @@ import useSWR from 'swr'
 import { Gamepad2, Settings, LayoutDashboard, Home, X, Heart, Shield, User } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { LanguageSwitcher } from '@/components/shared/LanguageSwitcher'
+import { getPlatformIdentity } from '@/lib/platform-identity'
+import { PlatformIcon } from '@/components/shared/PlatformIcon'
 import type { Platform } from '@/types/platform'
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
-
-const PLATFORM_ICONS: Record<string, string> = {
-  switch: '🎮',
-  '3ds': '📱',
-  nds: '🎯',
-  wii: '🕹️',
-  psp: '🎮',
-  psvita: '🎮',
-}
-
-const PLATFORM_COLORS: Record<string, string> = {
-  switch: 'text-red-500',
-  '3ds': 'text-red-400',
-  nds: 'text-orange-400',
-  wii: 'text-sky-400',
-  psp: 'text-blue-500',
-  psvita: 'text-blue-400',
-}
 
 interface Props {
   open?: boolean
@@ -83,11 +67,11 @@ export function Sidebar({ open, onClose }: Props) {
               <NavItem
                 key={p.slug}
                 href={`/platform/${p.slug}`}
-                icon={<span className="text-base leading-none">{PLATFORM_ICONS[p.slug] ?? '🎮'}</span>}
+                icon={<PlatformIcon slug={p.slug} iconPath={p.iconPath} size={18} />}
                 label={p.name}
                 badge={p._count?.games}
                 pathname={pathname}
-                activeColor={PLATFORM_COLORS[p.slug]}
+                activeColor={getPlatformIdentity(p.slug).accent}
                 onNavigate={onClose}
               />
             ))}

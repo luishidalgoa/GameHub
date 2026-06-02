@@ -9,7 +9,8 @@ export async function POST(req: Request) {
   const body = await req.json().catch(() => ({})) as Partial<MetadataJobParams>
   const mode = body.mode
   const params: MetadataJobParams = {
-    mode: mode === 'fill' || mode === 'redo' || mode === 'wrong-provider' ? mode : 'missing',
+    mode: mode === 'fill' || mode === 'redo' || mode === 'wrong-provider' || mode === 'popularity' ? mode : 'missing',
+    popularityRedo: body.popularityRedo === true,
     platformSlug: typeof body.platformSlug === 'string' && body.platformSlug ? body.platformSlug : undefined,
     withCovers: body.withCovers !== false,
     withTrailers: body.withTrailers !== false,

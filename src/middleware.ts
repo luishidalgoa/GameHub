@@ -17,6 +17,8 @@ const PROTECTED_API_PATTERNS = [
   { method: 'POST',   path: '/api/admin/graveyard/recover' },
   { method: 'POST',   path: '/api/admin/jobs' },   // start / cancel background jobs
   { method: 'POST',   path: '/api/admin/covers' }, // orphan-cover cleanup
+  { method: 'POST',   path: '/api/admin/platforms' }, // platform icon upload
+  { method: 'DELETE', path: '/api/admin/platforms' }, // platform icon removal
 ]
 
 export async function middleware(req: NextRequest) {
@@ -77,5 +79,6 @@ export const config = {
     '/api/admin/graveyard/:path*',
     '/api/admin/jobs/:path*',
     '/api/admin/covers/:path*',
+    '/api/admin/platforms/:path*',
   ],
 }

@@ -1,9 +1,12 @@
 import { notFound } from 'next/navigation'
 import { getTranslations } from 'next-intl/server'
 import { db } from '@/lib/db'
+import { resolveCoverPath } from '@/lib/s3'
 import { isAdminSession } from '@/lib/auth'
 import { GameGrid } from '@/components/platform/GameGrid'
 import { EmulatorLinks } from '@/components/platform/EmulatorLinks'
+import { RecommendedStrip } from '@/components/platform/RecommendedStrip'
+import { comparePopularity, MIN_ADDED } from '@/lib/metadata/popularity'
 
 export const dynamic = 'force-dynamic'
 
@@ -39,6 +42,29 @@ export default async function PlatformPage({ params }: Props) {
 
   const totalCount = platform._count?.games ?? 0
 
+  // ── Recommended games (objective popularity from RAWG) ──────────────────────
+  // Candidate set is pruned by the indexed (platformId, rawgAdded) filter; the
+  // weighted score is computed in JS on a small pool and the top N kept.
+  const recCandidates = await db.game.findMany({
+    where: { platformId: platform.id, isHidden: false, rawgAdded: { gte: MIN_ADDED } },
+    select: {
+      id: true, title: true, coverPath: true, coverUrl: true, releaseYear: true,
+      rawgAdded: true, rawgRating: true, rawgMetacritic: true,
+    },
+    orderBy: { rawgAdded: 'desc' },
+    take: 60,
+  })
+  const recommended = recCandidates
+    .slice()
+    .sort(comparePopularity)
+    .slice(0, 15)
+    .map(g => ({
+      id: g.id,
+      title: g.title,
+      cover: resolveCoverPath(g.coverPath) ?? g.coverUrl,
+      releaseYear: g.releaseYear,
+    }))
+
   return (
     <div>
       <div className="mb-6">
@@ -51,6 +77,12 @@ export default async function PlatformPage({ params }: Props) {
         </div>
         <p className="text-muted-foreground mt-1">{t('games', { count: totalCount })}</p>
       </div>
+
+      <RecommendedStrip
+        games={recommended}
+        thumbnailWidth={platform.thumbnailWidth}
+        thumbnailHeight={platform.thumbnailHeight}
+      />
 
       <GameGrid
         platformSlug={params.slug}

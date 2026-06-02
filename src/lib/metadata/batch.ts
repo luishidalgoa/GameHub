@@ -52,20 +52,32 @@ export async function runMetadataBatch(opts: {
    *   'wrong-provider' — games whose stored provenance (metadataSources) does
    *               not match the CURRENT provider matrix; reprocessed (overwrite)
    *               so their data comes from the configured sources. */
-  mode?:            'missing' | 'fill' | 'redo' | 'wrong-provider'
+  mode?:            'missing' | 'fill' | 'redo' | 'wrong-provider' | 'popularity'
+  /** popularity mode only: re-fetch even games that already have metrics stored. */
+  popularityRedo?:  boolean
   /** Restrict to a single platform slug. Undefined = all platforms. */
   platformSlug?:    string
   /** Resume cursor: only process games with id > resumeAfterId (ordered by id).
    *  Used to continue an interrupted job without redoing earlier games. */
   resumeAfterId?:   number
 }) {
-  const { emit: rawEmit, signal, withCovers = true, withTrailers = false, backfillTrailers = false, rateMs = 350, apiKey, mode = 'missing', platformSlug, resumeAfterId } = opts
+  const { emit: rawEmit, signal, withCovers = true, withTrailers = false, backfillTrailers = false, rateMs = 350, apiKey, mode = 'missing', popularityRedo = false, platformSlug, resumeAfterId } = opts
 
   // Wrap emit so every per-game event also carries cursorId = the game's id.
   // Games are processed in ascending id order, so the runner can persist this as
   // the resume cursor (continue at id > cursorId after an interruption).
   const emit = (event: BatchEvent) =>
     rawEmit(event.gameId != null ? { cursorId: event.gameId, ...event } : event)
+
+  // ── popularity mode: needs RAWG and uses its own selection/loop ──
+  // Guard early — this mode only fetches RAWG metrics, the provider matrix below
+  // is irrelevant to it.
+  const popularityProvider = mode === 'popularity' ? getRawgProvider(apiKey) : null
+  if (mode === 'popularity' && !popularityProvider) {
+    emit({ type: 'failed', reason: 'RAWG API key not configured' })
+    emit({ type: 'done', total: 0, processed: 0, applied: 0, skipped: 0, failed: 1 })
+    return
+  }
 
   // Per-field provider matrix (LaunchBox / RAWG / SteamGridDB per category).
   const matrix = await getProviderMatrix()
@@ -108,7 +120,15 @@ export async function runMetadataBatch(opts: {
   //   redo           → every (visible) game
   //   wrong-provider → has metadata; provenance filtered in JS below (JSON field)
   const where =
-    mode === 'redo' || mode === 'wrong-provider'
+    mode === 'popularity'
+      ? {
+          isHidden: false,
+          ...platformFilter,
+          ...resumeFilter,
+          rawgId: { not: null },                                       // only games we can look up
+          ...(popularityRedo ? {} : { popularityFetchedAt: null }),    // idempotent: skip already-fetched
+        }
+    : mode === 'redo' || mode === 'wrong-provider'
       ? { isHidden: false, ...platformFilter, ...resumeFilter }
       : mode === 'fill'
         ? { isHidden: false, ...platformFilter, ...resumeFilter, OR: GAP_FIELDS }
@@ -164,6 +184,39 @@ export async function runMetadataBatch(opts: {
 
     const game = games[i]
     const processed = i + 1
+
+    // ── popularity mode: fetch & store RAWG metrics only ──────────────────────
+    // Placed first so it isn't short-circuited by the metadata-mode branches.
+    // Writes only the rawg* metric columns + popularityFetchedAt (the idempotency
+    // marker); never touches metadataFetchedAt/metadataSources.
+    if (mode === 'popularity') {
+      try {
+        await delay(rateMs)
+        if (signal.aborted) break
+        const m = await popularityProvider!.fetchPopularity(game.rawgId!)
+        if (!m) {
+          skipped++
+          emit({ type: 'skipped', gameId: game.id, title: game.title, reason: 'no_rawg_data', processed, total, applied, skipped, failed })
+          continue
+        }
+        await db.game.update({
+          where: { id: game.id },
+          data: {
+            rawgAdded:           m.added,
+            rawgRating:          m.rating,
+            rawgRatingsCount:    m.ratingsCount,
+            rawgMetacritic:      m.metacritic,
+            popularityFetchedAt: new Date(),
+          },
+        })
+        applied++
+        emit({ type: 'applied', gameId: game.id, title: game.title, matchedTitle: game.title, processed, total, applied, skipped, failed })
+      } catch (err) {
+        failed++
+        emit({ type: 'failed', gameId: game.id, title: game.title, reason: err instanceof Error ? err.message : 'unknown_error', processed, total, applied, skipped, failed })
+      }
+      continue
+    }
 
     // ── Trailer-only backfill: game already has metadata, just needs a trailer ─
     // Only in 'missing' mode; 'fill'/'redo' send every game through the full flow.

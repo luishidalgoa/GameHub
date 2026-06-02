@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useTranslations } from 'next-intl'
 import { Save, Loader2, Plus, Trash2, ChevronDown, ChevronUp, FolderPlus, X, FolderOpen, Wifi, CheckCircle2, XCircle, AlertCircle, Pencil, Check } from 'lucide-react'
 import { FolderPickerModal } from './FolderPickerModal'
+import { PlatformIconUploader } from './PlatformIconUploader'
 import { parseEmulators, OS_ORDER, OS_LABEL, type EmulatorSet, type EmulatorOS } from '@/components/platform/EmulatorLinks'
 
 const splitPaths = (s: string) => s.split('|').map(p => p.trim()).filter(Boolean)
@@ -135,6 +136,7 @@ interface Platform {
   emulatorName?: string | null
   emulatorUrl?: string | null
   emulators?: string | null
+  iconPath?: string | null
   _count?: { games: number }
 }
 
@@ -453,6 +455,17 @@ export function SettingsForm({ platforms: initial, settings }: Props) {
                     : <Trash2 className="w-4 h-4" />}
                 </button>
               </div>
+
+              {/* Icon */}
+              <PlatformIconUploader
+                platformId={p.id}
+                slug={p.slug}
+                iconPath={p.iconPath}
+                onChange={(iconPath) => { updateField(p.id, 'iconPath', iconPath ?? ''); router.refresh() }}
+                label={t('iconUpload')}
+                hint={t('iconHint')}
+                removeLabel={t('iconRemove')}
+              />
 
               {/* Paths */}
               <PathEditor

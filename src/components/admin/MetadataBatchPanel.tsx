@@ -8,7 +8,7 @@ import { cn } from '@/lib/utils'
 const AUTO_THRESHOLD   = 68
 const REVIEW_THRESHOLD = 40
 
-type Mode = 'missing' | 'fill' | 'redo' | 'wrong-provider'
+type Mode = 'missing' | 'fill' | 'redo' | 'wrong-provider' | 'popularity'
 
 interface PlatformOpt { slug: string; name: string }
 
@@ -30,6 +30,7 @@ export function MetadataBatchPanel({ platforms = [] }: { platforms?: PlatformOpt
   const [job, setJob]               = useState<JobState | null>(null)
   const [withCovers, setWithCovers] = useState(true)
   const [mode, setMode]             = useState<Mode>('missing')
+  const [popularityRedo, setPopularityRedo] = useState(false)
   const [platform, setPlatform]     = useState('')
   const [starting, setStarting]     = useState(false)
   const [logLines, setLogLines]     = useState<string[]>([])
@@ -65,7 +66,7 @@ export function MetadataBatchPanel({ platforms = [] }: { platforms?: PlatformOpt
       await fetch('/api/admin/jobs/metadata', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mode, platformSlug: platform || undefined, withCovers }),
+        body: JSON.stringify({ mode, platformSlug: platform || undefined, withCovers, popularityRedo: mode === 'popularity' ? popularityRedo : undefined }),
       })
       await fetchJob()
     } finally {
@@ -112,6 +113,7 @@ export function MetadataBatchPanel({ platforms = [] }: { platforms?: PlatformOpt
             <option value="fill">{t('modeFill')}</option>
             <option value="redo">{t('modeRedo')}</option>
             <option value="wrong-provider">{t('modeWrongProvider')}</option>
+            <option value="popularity">{t('modePopularity')}</option>
           </select>
 
           {/* Platform selector */}
@@ -128,17 +130,30 @@ export function MetadataBatchPanel({ platforms = [] }: { platforms?: PlatformOpt
             ))}
           </select>
 
-          {/* Cover toggle */}
-          <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer select-none whitespace-nowrap">
-            <input
-              type="checkbox"
-              checked={withCovers}
-              onChange={e => setWithCovers(e.target.checked)}
-              disabled={running}
-              className="accent-primary"
-            />
-            {t('downloadCovers')}
-          </label>
+          {/* Toggle: covers (normal modes) / re-fetch (popularity mode) */}
+          {mode === 'popularity' ? (
+            <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer select-none whitespace-nowrap" title={t('popularityRedoHint')}>
+              <input
+                type="checkbox"
+                checked={popularityRedo}
+                onChange={e => setPopularityRedo(e.target.checked)}
+                disabled={running}
+                className="accent-primary"
+              />
+              {t('popularityRedo')}
+            </label>
+          ) : (
+            <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer select-none whitespace-nowrap">
+              <input
+                type="checkbox"
+                checked={withCovers}
+                onChange={e => setWithCovers(e.target.checked)}
+                disabled={running}
+                className="accent-primary"
+              />
+              {t('downloadCovers')}
+            </label>
+          )}
 
           {running ? (
             <button

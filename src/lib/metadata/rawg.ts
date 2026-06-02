@@ -64,11 +64,22 @@ interface RawgGame {
   developers?: { name: string }[]
   publishers?: { name: string }[]
   rating?: number
+  ratings_count?: number
+  added?: number
+  metacritic?: number | null
   platforms?: RawgPlatformEntry[]
 }
 
 interface RawgSearchResponse {
   results: RawgGame[]
+}
+
+/** Objective popularity/quality signals for a single RAWG game. */
+export interface RawgPopularityMetrics {
+  added:        number | null   // # of users who own/added it — popularity
+  rating:       number | null   // 0–5
+  ratingsCount: number | null   // vote count (confidence)
+  metacritic:   number | null   // 0–100, often null for retro
 }
 
 export class RawgProvider implements MetadataProvider {
@@ -113,6 +124,24 @@ export class RawgProvider implements MetadataProvider {
     if (!res.ok) return []
     const data = await res.json()
     return (data.results ?? []).map((s: { image: string }) => s.image)
+  }
+
+  /**
+   * Fetch just the popularity/quality metrics for a game (by numeric id or slug).
+   * Same GET /games/{id} endpoint as fetchById, but returns only the objective
+   * signals used to rank per-platform recommendations — kept separate from
+   * MetadataResult (the cross-provider composition shape) to stay decoupled.
+   */
+  async fetchPopularity(id: number | string): Promise<RawgPopularityMetrics | null> {
+    const res = await fetch(`${RAWG_BASE}/games/${id}?key=${this.apiKey}`)
+    if (!res.ok) return null
+    const g: RawgGame = await res.json()
+    return {
+      added:        g.added        ?? null,
+      rating:       g.rating       ?? null,
+      ratingsCount: g.ratings_count ?? null,
+      metacritic:   g.metacritic   ?? null,
+    }
   }
 
   // Accepts either a numeric RAWG ID or a slug string (e.g. "pokemon-x")

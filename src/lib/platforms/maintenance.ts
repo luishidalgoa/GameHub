@@ -32,7 +32,7 @@ export async function deletePlatformDeep(id: number): Promise<{
   games: number
   coversDeleted: number
 }> {
-  const platform = await db.platform.findUnique({ where: { id }, select: { slug: true, name: true } })
+  const platform = await db.platform.findUnique({ where: { id }, select: { slug: true, name: true, iconPath: true } })
   if (!platform) throw new Error('Platform not found')
 
   const games = await db.game.findMany({
@@ -41,8 +41,12 @@ export async function deletePlatformDeep(id: number): Promise<{
   })
   const gameIds = games.map(g => g.id)
 
-  // Collect all cover keys up-front (before the rows are gone).
-  const coverKeys = games.flatMap(g => gameCoverKeys(g.coverPath))
+  // Collect all cover keys up-front (before the rows are gone). Include the
+  // platform's uploaded icon — its key lives under icons/, OUTSIDE covers/<slug>/,
+  // so it would otherwise be orphaned.
+  const iconKeys = [coverPathToKey(platform.iconPath), `icons/${platform.slug}.webp`]
+    .filter((k): k is string => !!k)
+  const coverKeys = [...games.flatMap(g => gameCoverKeys(g.coverPath)), ...iconKeys]
 
   // DB delete, in dependency order. DownloadLog → Game has no cascade, and
   // GameDlc cascades from Game, so we clear logs first, then games, then the
@@ -121,7 +125,7 @@ export async function renamePlatformSlug(id: number, rawNewSlug: string): Promis
   const newSlug = rawNewSlug.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/^-+|-+$/g, '')
   if (!newSlug) throw new Error('Invalid slug')
 
-  const platform = await db.platform.findUnique({ where: { id }, select: { slug: true } })
+  const platform = await db.platform.findUnique({ where: { id }, select: { slug: true, iconPath: true } })
   if (!platform) throw new Error('Platform not found')
   const oldSlug = platform.slug
   if (oldSlug === newSlug) return { oldSlug, newSlug, coversMigrated: 0 }
@@ -154,8 +158,22 @@ export async function renamePlatformSlug(id: number, rawNewSlug: string): Promis
     coversMigrated++
   }
 
-  // Update the slug itself.
-  await db.platform.update({ where: { id }, data: { slug: newSlug } })
+  // Migrate the platform icon (key is icons/<slug>.webp, always slug-keyed).
+  let newIconPath: string | undefined
+  if (platform.iconPath) {
+    const oldIconKey = `icons/${oldSlug}.webp`
+    const newIconKey = `icons/${newSlug}.webp`
+    await copyS3Object(oldIconKey, newIconKey)
+    oldKeysToDelete.push(oldIconKey)
+    // Preserve any ?v= cache-buster on the stored path.
+    newIconPath = platform.iconPath.replace(oldIconKey, newIconKey)
+  }
+
+  // Update the slug itself (+ repoint the icon path if migrated).
+  await db.platform.update({
+    where: { id },
+    data: { slug: newSlug, ...(newIconPath ? { iconPath: newIconPath } : {}) },
+  })
 
   // Move the LaunchBox platform-name override, if one was set for the old slug.
   try {

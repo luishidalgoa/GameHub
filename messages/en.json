@@ -19,7 +19,8 @@
   "Platform": {
     "games": "{count, plural, one {# game} other {# games}}",
     "downloadEmulator": "Download emulator",
-    "downloadEmulatorNamed": "Download {name}"
+    "downloadEmulatorNamed": "Download {name}",
+    "recommended": "Recommended"
   },
   "GameGrid": {
     "search": "Search…",
@@ -107,6 +108,9 @@
     "modeFill": "Fill gaps",
     "modeRedo": "Redo from scratch",
     "modeWrongProvider": "Wrong provider",
+    "modePopularity": "Popularity (recommended)",
+    "popularityRedo": "Re-fetch",
+    "popularityRedoHint": "Re-query RAWG even for games that already have popularity metrics",
     "modeHint": "Missing: only games with no metadata · Fill: complete empty fields · Redo: overwrite everything · Wrong provider: re-fetch games whose data doesn't come from the configured providers",
     "allPlatforms": "All platforms",
     "platformHint": "Limit to one platform",
@@ -202,7 +206,10 @@
     "renameCancel": "Cancel",
     "renameFailed": "Could not rename the slug",
     "deleteConfirm": "Delete platform \"{name}\" and its {count} games? They will be removed from the database and their covers from MinIO. ROM files on disk are NOT deleted. This cannot be undone.",
-    "deleteFailed": "Could not delete the platform"
+    "deleteFailed": "Could not delete the platform",
+    "iconUpload": "Icon",
+    "iconHint": "PNG or SVG, square",
+    "iconRemove": "Remove icon"
   },
   "OrphanCovers": {
     "title": "Clean orphan covers",

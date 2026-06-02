@@ -10,7 +10,8 @@ import { runScan } from '@/lib/scanner'
 export type JobType = 'metadata' | 'scan'
 
 export interface MetadataJobParams {
-  mode?: 'missing' | 'fill' | 'redo' | 'wrong-provider'
+  mode?: 'missing' | 'fill' | 'redo' | 'wrong-provider' | 'popularity'
+  popularityRedo?: boolean
   platformSlug?: string
   withCovers?: boolean
   withTrailers?: boolean
@@ -152,6 +153,7 @@ export async function startMetadataJob(params: MetadataJobParams, resumeJobId?: 
         signal: controller.signal,
         apiKey,
         mode: params.mode ?? 'missing',
+        popularityRedo: params.popularityRedo ?? false,
         platformSlug: params.platformSlug,
         withCovers: params.withCovers ?? true,
         withTrailers: params.withTrailers ?? true,

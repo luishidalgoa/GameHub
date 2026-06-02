@@ -19,7 +19,8 @@
   "Platform": {
     "games": "{count, plural, one {# juego} other {# juegos}}",
     "downloadEmulator": "Descargar emulador",
-    "downloadEmulatorNamed": "Descargar {name}"
+    "downloadEmulatorNamed": "Descargar {name}",
+    "recommended": "Recomendados"
   },
   "GameGrid": {
     "search": "Buscar…",
@@ -107,6 +108,9 @@
     "modeFill": "Completar huecos",
     "modeRedo": "Rehacer desde 0",
     "modeWrongProvider": "Proveedor incorrecto",
+    "modePopularity": "Popularidad (recomendados)",
+    "popularityRedo": "Volver a consultar",
+    "popularityRedoHint": "Re-consulta RAWG incluso para juegos que ya tienen métricas de popularidad",
     "modeHint": "Faltantes: solo juegos sin metadatos · Completar: rellena campos vacíos · Rehacer: sobrescribe todo · Proveedor incorrecto: re-obtiene los juegos cuyos datos no vienen de los proveedores configurados",
     "allPlatforms": "Todas las plataformas",
     "platformHint": "Limitar a una plataforma",
@@ -202,7 +206,10 @@
     "renameCancel": "Cancelar",
     "renameFailed": "No se pudo renombrar el slug",
     "deleteConfirm": "¿Borrar la plataforma \"{name}\" y sus {count} juegos? Se eliminarán de la base de datos y sus portadas de MinIO. NO se borran los archivos ROM del disco. Esta acción no se puede deshacer.",
-    "deleteFailed": "No se pudo borrar la plataforma"
+    "deleteFailed": "No se pudo borrar la plataforma",
+    "iconUpload": "Icono",
+    "iconHint": "PNG o SVG, cuadrado",
+    "iconRemove": "Quitar icono"
   },
   "OrphanCovers": {
     "title": "Limpiar portadas huérfanas",
