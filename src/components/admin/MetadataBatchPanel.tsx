@@ -8,7 +8,7 @@ import { cn } from '@/lib/utils'
 const AUTO_THRESHOLD   = 68
 const REVIEW_THRESHOLD = 40
 
-type Mode = 'missing' | 'fill' | 'redo' | 'wrong-provider' | 'popularity'
+type Mode = 'missing' | 'fill' | 'redo' | 'wrong-provider' | 'popularity' | 'autocomplete-scores'
 
 interface PlatformOpt { slug: string; name: string }
 
@@ -114,6 +114,7 @@ export function MetadataBatchPanel({ platforms = [] }: { platforms?: PlatformOpt
             <option value="redo">{t('modeRedo')}</option>
             <option value="wrong-provider">{t('modeWrongProvider')}</option>
             <option value="popularity">{t('modePopularity')}</option>
+            <option value="autocomplete-scores">{t('modeAutocompleteScores')}</option>
           </select>
 
           {/* Platform selector */}
@@ -130,7 +131,8 @@ export function MetadataBatchPanel({ platforms = [] }: { platforms?: PlatformOpt
             ))}
           </select>
 
-          {/* Toggle: covers (normal modes) / re-fetch (popularity mode) */}
+          {/* Toggle: covers (metadata modes) / re-fetch (popularity). The
+              autocomplete-scores mode has neither — it only fills the score. */}
           {mode === 'popularity' ? (
             <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer select-none whitespace-nowrap" title={t('popularityRedoHint')}>
               <input
@@ -142,7 +144,7 @@ export function MetadataBatchPanel({ platforms = [] }: { platforms?: PlatformOpt
               />
               {t('popularityRedo')}
             </label>
-          ) : (
+          ) : mode === 'autocomplete-scores' ? null : (
             <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer select-none whitespace-nowrap">
               <input
                 type="checkbox"

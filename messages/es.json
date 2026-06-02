@@ -143,6 +143,7 @@
     "modeRedo": "Rehacer desde 0",
     "modeWrongProvider": "Proveedor incorrecto",
     "modePopularity": "Popularidad (recomendados)",
+    "modeAutocompleteScores": "Autocompletar notas (sin nota)",
     "popularityRedo": "Volver a consultar",
     "popularityRedoHint": "Re-consulta RAWG incluso para juegos que ya tienen métricas de popularidad",
     "modeHint": "Faltantes: solo juegos sin metadatos · Completar: rellena campos vacíos · Rehacer: sobrescribe todo · Proveedor incorrecto: re-obtiene los juegos cuyos datos no vienen de los proveedores configurados",

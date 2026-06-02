@@ -143,6 +143,7 @@
     "modeRedo": "Redo from scratch",
     "modeWrongProvider": "Wrong provider",
     "modePopularity": "Popularity (recommended)",
+    "modeAutocompleteScores": "Autocomplete scores (no score)",
     "popularityRedo": "Re-fetch",
     "popularityRedoHint": "Re-query RAWG even for games that already have popularity metrics",
     "modeHint": "Missing: only games with no metadata · Fill: complete empty fields · Redo: overwrite everything · Wrong provider: re-fetch games whose data doesn't come from the configured providers",

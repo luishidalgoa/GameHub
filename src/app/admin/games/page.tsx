@@ -4,7 +4,6 @@ import { db } from '@/lib/db'
 import { formatBytes } from '@/lib/utils'
 import { Pencil } from 'lucide-react'
 import { ScrollRestorer } from '@/components/admin/ScrollRestorer'
-import { AutocompleteScoresButton } from '@/components/admin/AutocompleteScoresButton'
 
 export const dynamic = 'force-dynamic'
 
@@ -61,11 +60,6 @@ export default async function AdminGamesPage({ searchParams }: Props) {
           </Link>
         </div>
       )}
-
-      {/* Bulk: autocomplete missing scores (RAWG → Metacritic → LaunchBox) */}
-      <div className="mb-4">
-        <AutocompleteScoresButton platformSlug={platformSlug || undefined} />
-      </div>
 
       {/* Filters */}
       <form className="flex flex-wrap gap-3 mb-6">
