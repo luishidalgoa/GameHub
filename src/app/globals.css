@@ -90,3 +90,26 @@
   background: hsl(var(--primary));
   animation: indeterminate-bar 1.15s ease-in-out infinite;
 }
+
+/* ── Reduced motion (accessibility) ──────────────────────────────────────────
+   Honor the OS "reduce motion" preference: near-instant transitions/animations,
+   no transforms-on-scroll, no auto-scroll. Looping loaders (spinners, shimmer,
+   the indeterminate bar) are kept — they signal activity, not decoration — but
+   slowed so they're calmer. JS-driven effects (card tilt, hero parallax) read
+   this preference too via the usePrefersReducedMotion hook. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-delay: 0ms !important;
+    transition-duration: 0.001ms !important;
+    transition-delay: 0ms !important;
+    scroll-behavior: auto !important;
+  }
+  /* Keep activity indicators looping, just gentler. */
+  .shimmer { animation-duration: 2.4s !important; }
+  .bar-indeterminate::after { animation-duration: 1.8s !important; }
+  .animate-spin { animation-duration: 1.2s !important; }
+  .animate-pulse { animation-duration: 2.4s !important; }
+}

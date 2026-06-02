@@ -5,6 +5,7 @@ import { useRef, useState } from 'react'
 import { cn } from '@/lib/utils'
 import { getPlatformIdentity } from '@/lib/platform-identity'
 import { PlatformIcon } from '@/components/shared/PlatformIcon'
+import { usePrefersReducedMotion } from '@/lib/use-reduced-motion'
 import type { Platform } from '@/types/platform'
 
 const MAX_TILT = 12 // degrees
@@ -20,8 +21,10 @@ export function PlatformCard({ platform }: Props) {
   const cardRef = useRef<HTMLDivElement>(null)
   const [tilt, setTilt] = useState({ x: 0, y: 0 })
   const [hovered, setHovered] = useState(false)
+  const reducedMotion = usePrefersReducedMotion()
 
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (reducedMotion) return   // no 3D tilt when the user prefers reduced motion
     const el = cardRef.current
     if (!el) return
     const rect = el.getBoundingClientRect()
