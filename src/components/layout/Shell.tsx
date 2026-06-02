@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { Sidebar } from './Sidebar'
 import { TopBar } from './TopBar'
 import { CommandPalette } from '@/components/shared/CommandPalette'
+import { Toaster } from '@/components/shared/Toaster'
 import { NavigationProgress } from './NavigationProgress'
 
 export function Shell({ children }: { children: React.ReactNode }) {
@@ -89,6 +90,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
       </footer>
 
       <CommandPalette />
+      <Toaster />
     </div>
   )
 }

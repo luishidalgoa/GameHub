@@ -461,6 +461,7 @@
     "saveChanges": "Save Changes",
     "saving": "Saving…",
     "saved": "Saved!",
+    "savedToast": "Changes saved",
     "fieldTitle": "Title",
     "fieldDescription": "Description",
     "fieldCustomNotes": "Custom Notes",

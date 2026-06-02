@@ -10,6 +10,7 @@ import { MetadataFetchButton } from './MetadataFetchButton'
 import { ScreenshotCarousel } from '@/components/game/ScreenshotCarousel'
 import { parseExternalLinks, type ExternalLinkItem } from '@/components/game/ExternalLinks'
 import { YouTubeEmbed } from '@/components/shared/YouTubeEmbed'
+import { toast } from '@/components/shared/Toaster'
 import type { Game } from '@/types/game'
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
@@ -203,6 +204,7 @@ export function GameEditorForm({ game, thumbnailWidth = 200, thumbnailHeight = 3
     setSaving(false)
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
+    toast(t('savedToast'))
     router.refresh()
   }
 

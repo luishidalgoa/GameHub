@@ -461,6 +461,7 @@
     "saveChanges": "Guardar cambios",
     "saving": "Guardando…",
     "saved": "¡Guardado!",
+    "savedToast": "Cambios guardados",
     "fieldTitle": "Título",
     "fieldDescription": "Descripción",
     "fieldCustomNotes": "Notas personales",

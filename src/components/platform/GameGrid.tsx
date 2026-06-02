@@ -300,7 +300,7 @@ export function GameGrid({
 
       {/* Grid */}
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2 sm:gap-4">
-        {games.map(g => (
+        {games.map((g, i) => (
           <GameCard
             key={g.id}
             game={g}
@@ -309,6 +309,9 @@ export function GameGrid({
             isAdmin={isAdmin}
             thumbnailWidth={thumbnailWidth}
             thumbnailHeight={thumbnailHeight}
+            // Staggered entrance ONLY for the first page; later pages (infinite
+            // scroll) appear immediately so scrolling never feels delayed.
+            animateIndex={i < PAGE_SIZE ? i : undefined}
           />
         ))}
 

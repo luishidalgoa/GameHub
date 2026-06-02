@@ -14,6 +14,8 @@ interface Props {
   isAdmin?: boolean
   thumbnailWidth?: number
   thumbnailHeight?: number
+  /** When set, the card fades+slides in with a staggered delay by this index. */
+  animateIndex?: number
 }
 
 export function GameCard({
@@ -23,13 +25,27 @@ export function GameCard({
   isAdmin = false,
   thumbnailWidth = 200,
   thumbnailHeight = 300,
+  animateIndex,
 }: Props) {
   const cover = game.coverPath ?? game.coverUrl
   const [imgLoaded, setImgLoaded] = useState(false)
+  const [favPop, setFavPop] = useState(false)
+  // Cap the cumulative delay so a full page never feels slow (~24 cards × 22ms).
+  const staggerDelay = animateIndex != null ? Math.min(animateIndex, 24) * 22 : 0
+
+  const toggleFav = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (!game.isFavorite) { setFavPop(true); setTimeout(() => setFavPop(false), 360) }
+    onToggleFavorite(game.id, game.isFavorite)
+  }
 
   return (
     <div
-      className="group relative rounded-lg overflow-hidden cursor-pointer bg-card border border-border hover:border-primary/40 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-black/40 touch-manipulation"
+      className={cn(
+        'group relative rounded-lg overflow-hidden cursor-pointer bg-card border border-border hover:border-primary/40 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-black/40 touch-manipulation',
+        animateIndex != null && 'animate-card-in',
+      )}
+      style={animateIndex != null ? { animationDelay: `${staggerDelay}ms` } : undefined}
       onClick={() => onSelect(game.id)}
     >
       {/* Cover */}
@@ -76,7 +92,7 @@ export function GameCard({
           <div className="flex gap-1.5 w-full justify-end">
             {isAdmin && (
               <button
-                onClick={(e) => { e.stopPropagation(); onToggleFavorite(game.id, game.isFavorite) }}
+                onClick={toggleFav}
                 className={cn(
                   'p-2 rounded-md transition-colors',
                   game.isFavorite
@@ -85,7 +101,7 @@ export function GameCard({
                 )}
                 aria-label={game.isFavorite ? 'Remove from favorites' : 'Add to favorites'}
               >
-                <Heart className="w-3.5 h-3.5" fill={game.isFavorite ? 'currentColor' : 'none'} />
+                <Heart className={cn('w-3.5 h-3.5', favPop && 'animate-fav-pop')} fill={game.isFavorite ? 'currentColor' : 'none'} />
               </button>
             )}
             {isAdmin && (
@@ -111,7 +127,7 @@ export function GameCard({
         {/* Favorite toggle — admin only */}
         {isAdmin && (
           <button
-            onClick={(e) => { e.stopPropagation(); onToggleFavorite(game.id, game.isFavorite) }}
+            onClick={toggleFav}
             className={cn(
               'absolute top-1.5 right-1.5 w-8 h-8 rounded-full flex items-center justify-center z-10 touch-manipulation transition-colors',
               game.isFavorite
@@ -120,7 +136,7 @@ export function GameCard({
             )}
             aria-label={game.isFavorite ? 'Remove from favorites' : 'Add to favorites'}
           >
-            <Heart className="w-3.5 h-3.5" fill={game.isFavorite ? 'currentColor' : 'none'} />
+            <Heart className={cn('w-3.5 h-3.5', favPop && 'animate-fav-pop')} fill={game.isFavorite ? 'currentColor' : 'none'} />
           </button>
         )}
       </div>
