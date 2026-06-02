@@ -5,19 +5,24 @@ import { getLaunchBoxProvider, fetchLaunchBoxGame } from '@/lib/metadata/launchb
 export const dynamic = 'force-dynamic'
 
 // Cover-art image types worth offering (front-facing art), best first.
-const COVER_TYPE_ORDER = [
-  /^box\s*-\s*front$/i,
-  /box\s*-\s*front/i,
-  /box\s*-\s*3d/i,
-  /clear\s*logo/i,
-  /fanart/i,
-  /banner/i,
-]
-
+// IMPORTANT: a "Fanart - Box - Front" also contains "box - front", so it must be
+// ranked by its Fanart-ness FIRST (official art always wins). We check fanart
+// before the generic box-front patterns so user-made art never outranks the
+// real cover — that mis-ordering was auto-assigning the wrong cover ~10% of the
+// time.
 function coverRank(type: string): number {
-  const i = COVER_TYPE_ORDER.findIndex((re) => re.test(type))
-  return i === -1 ? COVER_TYPE_ORDER.length : i
+  const isFanart = /fanart/i.test(type)
+  if (!isFanart && /^box\s*-\s*front$/i.test(type)) return 0   // official exact box front
+  if (!isFanart && /box\s*-\s*front/i.test(type))   return 1   // official box front (loose)
+  if (!isFanart && /box\s*-\s*3d/i.test(type))       return 2
+  if (/clear\s*logo/i.test(type))                    return 3
+  if (/box\s*-\s*front/i.test(type))                 return 4   // fanart box front
+  if (/fanart/i.test(type))                          return 5
+  if (/banner/i.test(type))                          return 6
+  return 7
 }
+
+const COVER_TYPE_MAX = 7   // ranks >= this aren't offered as covers
 
 // GET ?gameId=<gh-game-id>&q=<title>  → search LaunchBox, returns { games: [{id,name,platform}] }
 // GET ?lbId=<launchbox-id>            → covers for a LaunchBox game, returns { covers: [{url,thumb,style}] }
@@ -33,7 +38,7 @@ export async function GET(req: Request) {
       const game = await fetchLaunchBoxGame(Number(lbId))
       if (!game) return NextResponse.json({ covers: [] })
       const covers = (game.images ?? [])
-        .filter((img) => coverRank(img.type) < COVER_TYPE_ORDER.length)
+        .filter((img) => coverRank(img.type) < COVER_TYPE_MAX)
         .sort((a, b) => coverRank(a.type) - coverRank(b.type))
         .map((img) => ({ url: img.url, thumb: img.url, style: img.type }))
       return NextResponse.json({ covers })

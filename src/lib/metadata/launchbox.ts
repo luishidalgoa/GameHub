@@ -409,10 +409,17 @@ export function parseLaunchBoxDetail(html: string, id: number, slug?: string): L
     firstMatch(html, /<meta[^>]+content="([^"]*)"[^>]+name="description"/i)
 
   const images = parseLaunchBoxImages(html)
+  // Pick the cover, preferring the OFFICIAL front box art. "Fanart - Box - Front"
+  // is user-made art (often a different region's reproduction) and must never be
+  // chosen over the real box front — that was the cause of the wrong ~10% of
+  // auto-assigned covers. So we exclude any "Fanart" type from the box-front
+  // matches and only fall back to it as a last resort.
+  const isFanart = (t: string) => /fanart/i.test(t)
   const cover =
-    images.find(i => /^box\s*-\s*front$/i.test(i.type))?.url ??
-    images.find(i => /box\s*-\s*front/i.test(i.type))?.url ??
-    images.find(i => /box\s*-\s*3d/i.test(i.type))?.url ??
+    images.find(i => !isFanart(i.type) && /^box\s*-\s*front$/i.test(i.type))?.url ??
+    images.find(i => !isFanart(i.type) && /box\s*-\s*front/i.test(i.type))?.url ??
+    images.find(i => !isFanart(i.type) && /box\s*-\s*3d/i.test(i.type))?.url ??
+    images.find(i => /box\s*-\s*front/i.test(i.type))?.url ??   // fanart front as last resort
     images[0]?.url
   const screenshots = images.filter(i => /screenshot/i.test(i.type)).map(i => i.url)
 
