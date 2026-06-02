@@ -1,6 +1,7 @@
 import { db } from '@/lib/db'
 import { downloadAndCacheCover } from '@/lib/covers'
 import { getRawgProvider } from './rawg'
+import { fetchMetacriticScore } from './metacritic'
 import { unifiedScore } from './popularity'
 import { searchYouTubeTrailer, YouTubeApiError } from '@/lib/youtube'
 import { AUTO_THRESHOLD } from './scoring'
@@ -200,14 +201,24 @@ export async function runMetadataBatch(opts: {
           emit({ type: 'skipped', gameId: game.id, title: game.title, reason: 'no_rawg_data', processed, total, applied, skipped, failed })
           continue
         }
+        // Fallback: RAWG aggregates Metacritic but has gaps for niche/retro
+        // titles. When it gives no metascore, scrape metacritic.com by title +
+        // platform to fill it. Only one extra request, and only for the games
+        // RAWG left without a score.
+        let metacritic = m.metacritic
+        if (metacritic == null) {
+          await delay(rateMs)
+          if (signal.aborted) break
+          metacritic = await fetchMetacriticScore(game.title, game.platform.slug)
+        }
         await db.game.update({
           where: { id: game.id },
           data: {
             rawgAdded:           m.added,
             rawgRating:          m.rating,
             rawgRatingsCount:    m.ratingsCount,
-            rawgMetacritic:      m.metacritic,
-            rawgScore:           unifiedScore({ rawgMetacritic: m.metacritic, rawgRating: m.rating }),
+            rawgMetacritic:      metacritic,
+            rawgScore:           unifiedScore({ rawgMetacritic: metacritic, rawgRating: m.rating }),
             popularityFetchedAt: new Date(),
           },
         })
