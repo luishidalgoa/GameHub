@@ -1,6 +1,6 @@
 'use client'
 
-import Link from 'next/link'
+import { ViewTransitionLink } from '@/components/shared/ViewTransitionLink'
 import { useTranslations } from 'next-intl'
 
 export interface GlobalRecGame {
@@ -36,12 +36,14 @@ export function GlobalRecommendedStrip({ games }: { games: GlobalRecGame[] }) {
           const w = game.thumbnailWidth  ?? 2
           const h = game.thumbnailHeight ?? 3
           return (
-            <Link
+            <ViewTransitionLink
               key={game.id}
               href={`/game/${game.id}`}
+              coverName={`game-cover-${game.id}`}
               className="group shrink-0 w-[72px] focus:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-md"
             >
               <div
+                data-vt-cover
                 className="w-full rounded-md overflow-hidden bg-secondary relative mb-1.5 ring-0 group-hover:ring-1 ring-primary/50 transition-all duration-150"
                 style={{ aspectRatio: `${w}/${h}` }}
               >
@@ -67,7 +69,7 @@ export function GlobalRecommendedStrip({ games }: { games: GlobalRecGame[] }) {
               <p className="text-[10px] text-muted-foreground/50 mt-0.5 truncate">
                 {game.platformName}
               </p>
-            </Link>
+            </ViewTransitionLink>
           )
         })}
       </div>

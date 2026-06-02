@@ -65,7 +65,7 @@ export default async function GamePage({ params }: Props) {
         <div className="flex-shrink-0 w-28 sm:w-44 lg:w-64">
           <div
             className="relative rounded-xl overflow-hidden bg-secondary shadow-2xl"
-            style={{ aspectRatio: `${thumbW} / ${thumbH}` }}
+            style={{ aspectRatio: `${thumbW} / ${thumbH}`, viewTransitionName: `game-cover-${game.id}` }}
           >
             {cover ? (
               <Image src={cover} alt={game.title} fill className="object-cover" unoptimized />

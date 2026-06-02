@@ -1,6 +1,6 @@
 'use client'
 
-import Link from 'next/link'
+import { ViewTransitionLink } from '@/components/shared/ViewTransitionLink'
 import { useTranslations } from 'next-intl'
 
 export interface RecommendedGame {
@@ -41,12 +41,14 @@ export function RecommendedStrip({ games, thumbnailWidth, thumbnailHeight }: Pro
         style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
       >
         {games.map((game) => (
-          <Link
+          <ViewTransitionLink
             key={game.id}
             href={`/game/${game.id}`}
+            coverName={`game-cover-${game.id}`}
             className="group shrink-0 w-[72px] focus:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-md"
           >
             <div
+              data-vt-cover
               className="w-full rounded-md overflow-hidden bg-secondary relative mb-1.5 ring-0 group-hover:ring-1 ring-primary/50 transition-all duration-150"
               style={{ aspectRatio: `${w}/${h}` }}
             >
@@ -69,7 +71,7 @@ export function RecommendedStrip({ games, thumbnailWidth, thumbnailHeight }: Pro
             <p className="text-[11px] leading-tight line-clamp-2 text-foreground/70 group-hover:text-foreground transition-colors">
               {game.title}
             </p>
-          </Link>
+          </ViewTransitionLink>
         ))}
       </div>
     </section>

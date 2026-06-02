@@ -1,4 +1,4 @@
-import Link from 'next/link'
+import { ViewTransitionLink } from '@/components/shared/ViewTransitionLink'
 import { getTranslations } from 'next-intl/server'
 import { ArrowRight } from 'lucide-react'
 import { RatingPill } from '@/components/shared/RatingPill'
@@ -61,13 +61,13 @@ export async function Hero({ game }: { game: HeroGame | null }) {
               {game.platformName}
             </span>
           </div>
-          <Link
+          <ViewTransitionLink
             href={`/game/${game.id}`}
             className="inline-flex items-center gap-1.5 mt-4 px-4 py-2 text-sm font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
           >
             {t('featuredView')}
             <ArrowRight className="w-4 h-4" />
-          </Link>
+          </ViewTransitionLink>
         </div>
       </div>
     </section>

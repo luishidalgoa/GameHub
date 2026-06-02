@@ -91,6 +91,20 @@
   animation: indeterminate-bar 1.15s ease-in-out infinite;
 }
 
+/* ── View transitions (page navigation) ──────────────────────────────────────
+   A gentle cross-fade between routes, and a shared-element morph for a game's
+   cover (it "flies" from the grid to the detail page). Only browsers that
+   support the View Transitions API get this; others navigate normally. The
+   navigation is wrapped in document.startViewTransition by ViewTransitionLink. */
+@keyframes vt-fade-in  { from { opacity: 0 } to { opacity: 1 } }
+@keyframes vt-fade-out { from { opacity: 1 } to { opacity: 0 } }
+
+::view-transition-old(root) { animation: vt-fade-out 0.18s ease both; }
+::view-transition-new(root) { animation: vt-fade-in  0.22s ease both; }
+
+/* The shared cover element morphs smoothly between pages. */
+::view-transition-group(game-cover) { animation-duration: 0.32s; }
+
 /* ── Reduced motion (accessibility) ──────────────────────────────────────────
    Honor the OS "reduce motion" preference: near-instant transitions/animations,
    no transforms-on-scroll, no auto-scroll. Looping loaders (spinners, shimmer,
@@ -112,4 +126,8 @@
   .bar-indeterminate::after { animation-duration: 1.8s !important; }
   .animate-spin { animation-duration: 1.2s !important; }
   .animate-pulse { animation-duration: 2.4s !important; }
+  /* Skip the page cross-fade / cover morph. */
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) { animation: none !important; }
 }
