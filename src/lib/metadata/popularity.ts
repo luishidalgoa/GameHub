@@ -57,6 +57,34 @@ export function comparePopularity<T extends PopularityMetrics & { id: number }>(
   return a.id - b.id
 }
 
+/**
+ * Pick `count` recommendations from a candidate pool, WEIGHTED by popularity
+ * score, without repeats. This makes the "Recommended" strip feel alive — great
+ * games surface most often but the selection rotates each render instead of
+ * always showing the same top N. The weight is score^bias so quality still
+ * dominates (bias>1 sharpens toward the best). Returns items in the order drawn.
+ */
+export function weightedSample<T extends PopularityMetrics>(pool: T[], count: number, bias = 2): T[] {
+  const remaining = pool.slice()
+  const picked: T[] = []
+  const n = Math.min(count, remaining.length)
+  for (let i = 0; i < n; i++) {
+    // Weight each remaining item by its score (floored so a 0 still has a tiny chance).
+    const weights = remaining.map(g => Math.pow(Math.max(0.02, computePopularityScore(g)), bias))
+    const total = weights.reduce((a, b) => a + b, 0)
+    let r = Math.random() * total
+    let idx = 0
+    for (; idx < remaining.length; idx++) {
+      r -= weights[idx]
+      if (r <= 0) break
+    }
+    if (idx >= remaining.length) idx = remaining.length - 1
+    picked.push(remaining[idx])
+    remaining.splice(idx, 1)
+  }
+  return picked
+}
+
 // ── Unified score (single 0–100 scale) ──────────────────────────────────────
 
 /**

@@ -7,7 +7,7 @@ import { GameGrid } from '@/components/platform/GameGrid'
 import { EmulatorLinks } from '@/components/platform/EmulatorLinks'
 import { RecommendedStrip } from '@/components/platform/RecommendedStrip'
 import { HiddenGemsStrip } from '@/components/platform/HiddenGemsStrip'
-import { comparePopularity, MIN_ADDED, GEM_MAX_ADDED, GEM_MIN_RATING } from '@/lib/metadata/popularity'
+import { comparePopularity, weightedSample, MIN_ADDED, GEM_MAX_ADDED, GEM_MIN_RATING } from '@/lib/metadata/popularity'
 
 export const dynamic = 'force-dynamic'
 
@@ -64,16 +64,16 @@ export default async function PlatformPage({ params }: Props) {
     orderBy: { rawgAdded: 'desc' },
     take: 60,
   })
-  const recommended = recCandidates
-    .slice()
-    .sort(comparePopularity)
-    .slice(0, 15)
-    .map(g => ({
-      id: g.id,
-      title: g.title,
-      cover: resolveCoverPath(g.coverPath) ?? g.coverUrl,
-      releaseYear: g.releaseYear,
-    }))
+  // Dynamic: take a quality pool (top ~40 by score) and weighted-sample 15 from
+  // it on each render, so the strip rotates between good games instead of always
+  // showing the same top 15. (The page is force-dynamic → varies per visit.)
+  const recPool = recCandidates.slice().sort(comparePopularity).slice(0, 40)
+  const recommended = weightedSample(recPool, 15).map(g => ({
+    id: g.id,
+    title: g.title,
+    cover: resolveCoverPath(g.coverPath) ?? g.coverUrl,
+    releaseYear: g.releaseYear,
+  }))
 
   // ── Hidden gems: well-rated but not widely owned ────────────────────────────
   const gemRows = await db.game.findMany({

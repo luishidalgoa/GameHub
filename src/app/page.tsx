@@ -7,7 +7,7 @@ import { TopDownloads } from '@/components/home/TopDownloads'
 import { GlobalRecommendedStrip, type GlobalRecGame } from '@/components/home/GlobalRecommendedStrip'
 import { Hero, type HeroGame } from '@/components/home/Hero'
 import { SurpriseButton } from '@/components/home/SurpriseButton'
-import { comparePopularity, MIN_ADDED } from '@/lib/metadata/popularity'
+import { comparePopularity, weightedSample, MIN_ADDED } from '@/lib/metadata/popularity'
 import type { TopGame } from '@/components/home/TopDownloads'
 
 /** First valid screenshot URL stored on a game, or null. */
@@ -90,7 +90,9 @@ export default async function HomePage() {
   })
   const ranked = recCandidates.slice().sort(comparePopularity)
 
-  const globalRecommended: GlobalRecGame[] = ranked.slice(0, 12).map(g => ({
+  // Dynamic: weighted-sample 12 from the top ~40 quality pool so the home strip
+  // rotates between good games each visit (the hero stays the stable #1 below).
+  const globalRecommended: GlobalRecGame[] = weightedSample(ranked.slice(0, 40), 12).map(g => ({
     id: g.id,
     title: g.title,
     cover: resolveCoverPath(g.coverPath) ?? g.coverUrl,
