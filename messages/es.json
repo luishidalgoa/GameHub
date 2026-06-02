@@ -40,7 +40,8 @@
     "minRatingAny": "Cualquier nota",
     "minRating70": "Nota 70+",
     "minRating80": "Nota 80+",
-    "minRating90": "Nota 90+"
+    "minRating90": "Nota 90+",
+    "minRatingNone": "Sin nota"
   },
   "EmptyState": {
     "title": "No se encontraron juegos",
@@ -78,6 +79,7 @@
     "totalSize": "Tamaño total",
     "missingCovers": "Sin portada",
     "noMetadata": "Sin metadatos",
+    "noScore": "Sin nota",
     "recentScans": "Escaneos recientes",
     "date": "Fecha",
     "duration": "Duración",
@@ -418,6 +420,8 @@
   "AdminGames": {
     "title": "Todos los juegos",
     "gamesCount": "{n} juegos",
+    "filterNoScore": "Sin nota",
+    "clearFilter": "Quitar filtro",
     "searchPlaceholder": "Buscar título…",
     "allPlatforms": "Todas las plataformas",
     "filter": "Filtrar",
@@ -447,6 +451,10 @@
     "fieldYear": "Año de lanzamiento",
     "fieldDeveloper": "Desarrollador",
     "fieldPublisher": "Editor",
+    "fieldScore": "Nota (0–100)",
+    "searchScore": "Buscar nota",
+    "scoreFound": "Encontrada: {score}",
+    "scoreNotFound": "No encontrada en Metacritic",
     "fieldTrailer": "URL del tráiler",
     "trailerSearchPlaceholder": "Buscar en YouTube…",
     "trailerNoResults": "Sin resultados. Prueba otra búsqueda.",

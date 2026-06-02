@@ -40,7 +40,8 @@
     "minRatingAny": "Any rating",
     "minRating70": "Score 70+",
     "minRating80": "Score 80+",
-    "minRating90": "Score 90+"
+    "minRating90": "Score 90+",
+    "minRatingNone": "No score"
   },
   "EmptyState": {
     "title": "No games found",
@@ -78,6 +79,7 @@
     "totalSize": "Total Size",
     "missingCovers": "Missing Covers",
     "noMetadata": "No Metadata",
+    "noScore": "No Score",
     "recentScans": "Recent Scans",
     "date": "Date",
     "duration": "Duration",
@@ -418,6 +420,8 @@
   "AdminGames": {
     "title": "All Games",
     "gamesCount": "{n} games",
+    "filterNoScore": "No score",
+    "clearFilter": "Clear filter",
     "searchPlaceholder": "Search title…",
     "allPlatforms": "All Platforms",
     "filter": "Filter",
@@ -447,6 +451,10 @@
     "fieldYear": "Release Year",
     "fieldDeveloper": "Developer",
     "fieldPublisher": "Publisher",
+    "fieldScore": "Score (0–100)",
+    "searchScore": "Find score",
+    "scoreFound": "Found: {score}",
+    "scoreNotFound": "Not found on Metacritic",
     "fieldTrailer": "Trailer URL",
     "trailerSearchPlaceholder": "Search on YouTube…",
     "trailerNoResults": "No results. Try a different query.",

@@ -18,7 +18,8 @@ export async function GET(req: Request) {
   const region = searchParams.get('region') ?? ''
   const genre = searchParams.get('genre') ?? ''
   const minRatingRaw = searchParams.get('minRating')
-  const minRating = minRatingRaw ? Number(minRatingRaw) : null
+  const noScore = minRatingRaw === 'none'
+  const minRating = minRatingRaw && !noScore ? Number(minRatingRaw) : null
 
   const where = {
     isHidden: false,
@@ -27,7 +28,8 @@ export async function GET(req: Request) {
     ...(favorites && { isFavorite: true }),
     ...(region    && { region }),
     ...(genre     && { genre }),
-    // minRating is on the unified 0–100 scale (matches the badge/filter labels).
+    // "none" → only games without a score; otherwise a min on the unified 0–100.
+    ...(noScore && { rawgScore: null }),
     ...(minRating != null && !Number.isNaN(minRating) && { rawgScore: { gte: minRating } }),
   }
 

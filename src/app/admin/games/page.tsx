@@ -8,13 +8,14 @@ import { ScrollRestorer } from '@/components/admin/ScrollRestorer'
 export const dynamic = 'force-dynamic'
 
 interface Props {
-  searchParams: { search?: string; platform?: string; page?: string }
+  searchParams: { search?: string; platform?: string; page?: string; score?: string }
 }
 
 export default async function AdminGamesPage({ searchParams }: Props) {
   const t = await getTranslations('AdminGames')
   const search = searchParams.search ?? ''
   const platformSlug = searchParams.platform ?? ''
+  const noScore = searchParams.score === 'no-score'
   const page = parseInt(searchParams.page ?? '1', 10)
   const pageSize = 50
 
@@ -22,6 +23,7 @@ export default async function AdminGamesPage({ searchParams }: Props) {
     isHidden: false,
     ...(search && { title: { contains: search } }),
     ...(platformSlug && { platform: { slug: platformSlug } }),
+    ...(noScore && { rawgScore: null }),
   }
 
   const [games, total, platforms] = await Promise.all([
@@ -46,6 +48,18 @@ export default async function AdminGamesPage({ searchParams }: Props) {
         <h2 className="text-xl font-semibold">{t('title')}</h2>
         <span className="text-sm text-muted-foreground">{t('gamesCount', { n: total })}</span>
       </div>
+
+      {/* Active "no score" filter chip (from the dashboard card) */}
+      {noScore && (
+        <div className="mb-4 flex items-center gap-2 text-sm">
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-rose-500/15 text-rose-300 border border-rose-500/30">
+            {t('filterNoScore')}
+          </span>
+          <Link href="/admin/games" className="text-xs text-muted-foreground hover:text-foreground underline">
+            {t('clearFilter')}
+          </Link>
+        </div>
+      )}
 
       {/* Filters */}
       <form className="flex flex-wrap gap-3 mb-6">

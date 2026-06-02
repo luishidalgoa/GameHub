@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { getTranslations } from 'next-intl/server'
 import { db } from '@/lib/db'
 import { formatBytes } from '@/lib/utils'
@@ -5,17 +6,18 @@ import { ScanPanel } from '@/components/admin/ScanPanel'
 import { MetadataBatchPanel } from '@/components/admin/MetadataBatchPanel'
 import { OrphanCoversPanel } from '@/components/admin/OrphanCoversPanel'
 import { ScanLogsTable } from '@/components/admin/ScanLogsTable'
-import { Gamepad2, Monitor, HardDrive, ImageOff, FileQuestion } from 'lucide-react'
+import { Gamepad2, Monitor, HardDrive, ImageOff, FileQuestion, StarOff } from 'lucide-react'
 
 export const dynamic = 'force-dynamic'
 
 export default async function AdminPage() {
-  const [t, totalGames, totalPlatforms, noCover, noMeta, scanLogs] = await Promise.all([
+  const [t, totalGames, totalPlatforms, noCover, noMeta, noScore, scanLogs] = await Promise.all([
     getTranslations('Admin'),
     db.game.count({ where: { isHidden: false } }),
     db.platform.count({ where: { enabled: true } }),
     db.game.count({ where: { isHidden: false, coverPath: null, coverUrl: null } }),
     db.game.count({ where: { isHidden: false, metadataFetchedAt: null } }),
+    db.game.count({ where: { isHidden: false, rawgScore: null } }),
     db.scanLog.findMany({ orderBy: { startedAt: 'desc' }, take: 5 }),
   ])
 
@@ -40,6 +42,9 @@ export default async function AdminPage() {
         <StatCard icon={<HardDrive className="w-5 h-5" />} label={t('totalSize')}     value={formatBytes(totalSize)} />
         <StatCard icon={<ImageOff className="w-5 h-5" />} label={t('missingCovers')}  value={noCover.toString()} color="text-amber-400" />
         <StatCard icon={<FileQuestion className="w-5 h-5" />} label={t('noMetadata')} value={noMeta.toString()} color={noMeta > 0 ? 'text-violet-400' : 'text-foreground'} />
+        <Link href="/admin/games?score=no-score" className="rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+          <StatCard icon={<StarOff className="w-5 h-5" />} label={t('noScore')} value={noScore.toString()} color={noScore > 0 ? 'text-rose-400' : 'text-foreground'} hover />
+        </Link>
       </div>
 
       {/* Scan panel */}
@@ -85,14 +90,16 @@ function StatCard({
   label,
   value,
   color = 'text-foreground',
+  hover = false,
 }: {
   icon: React.ReactNode
   label: string
   value: string
   color?: string
+  hover?: boolean
 }) {
   return (
-    <div className="bg-card border border-border rounded-xl p-5">
+    <div className={`bg-card border border-border rounded-xl p-5 transition-colors ${hover ? 'hover:border-primary/50 hover:bg-accent/20 cursor-pointer h-full' : ''}`}>
       <div className="flex items-center justify-between mb-3">
         <span className="text-muted-foreground">{icon}</span>
       </div>

@@ -77,9 +77,32 @@ export function GameEditorForm({ game, thumbnailWidth = 200, thumbnailHeight = 3
     developer: game.developer ?? '',
     publisher: game.publisher ?? '',
     trailerUrl: game.trailerUrl ?? '',
+    score: game.rawgScore != null ? String(game.rawgScore) : '',
     isFavorite: game.isFavorite,
     isHidden: game.isHidden,
   })
+
+  // "Buscar nota": scrape Metacritic for this game and fill the score field.
+  const [scoreSearching, setScoreSearching] = useState(false)
+  const [scoreMsg, setScoreMsg] = useState('')
+  const searchScore = async () => {
+    setScoreSearching(true)
+    setScoreMsg('')
+    try {
+      const res = await fetch(`/api/metadata/${game.id}/score`, { method: 'POST' })
+      const data = await res.json()
+      if (res.ok && typeof data.score === 'number') {
+        set('score', String(data.score))
+        setScoreMsg(t('scoreFound', { score: data.score }))
+      } else {
+        setScoreMsg(t('scoreNotFound'))
+      }
+    } catch {
+      setScoreMsg(t('scoreNotFound'))
+    } finally {
+      setScoreSearching(false)
+    }
+  }
 
   const set = (key: keyof typeof form, value: string | boolean) =>
     setForm((prev) => ({ ...prev, [key]: value }))
@@ -148,14 +171,22 @@ export function GameEditorForm({ game, thumbnailWidth = 200, thumbnailHeight = 3
 
   const save = async () => {
     setSaving(true)
+    // The score field maps to rawgScore + rawgMetacritic (it IS a metascore), and
+    // we stamp popularityFetchedAt so the idempotent popularity batch won't
+    // overwrite a manually-set score on a later sync (unless "re-fetch").
+    const { score, ...rest } = form
+    const scoreNum = score === '' ? null : parseInt(score, 10)
     await fetch(`/api/games/${game.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        ...form,
-        releaseYear: form.releaseYear ? parseInt(form.releaseYear, 10) : null,
+        ...rest,
+        releaseYear: rest.releaseYear ? parseInt(rest.releaseYear, 10) : null,
         coverPath,
         externalLinks: JSON.stringify(links.filter((l) => l.url.trim())),
+        rawgScore:           Number.isNaN(scoreNum as number) ? null : scoreNum,
+        rawgMetacritic:      Number.isNaN(scoreNum as number) ? null : scoreNum,
+        popularityFetchedAt: new Date().toISOString(),
       }),
     })
     setSaving(false)
@@ -246,6 +277,31 @@ export function GameEditorForm({ game, thumbnailWidth = 200, thumbnailHeight = 3
             </Field>
             <Field label={t('fieldPublisher')} className="col-span-2" badge={<SourceBadge source={sources.info} />}>
               <input value={form.publisher} onChange={(e) => set('publisher', e.target.value)} className={inputCls} />
+            </Field>
+
+            {/* Score (0–100) + "Buscar nota" (Metacritic) */}
+            <Field label={t('fieldScore')} className="col-span-2">
+              <div className="flex items-center gap-2">
+                <input
+                  value={form.score}
+                  onChange={(e) => set('score', e.target.value)}
+                  className={`${inputCls} w-24`}
+                  type="number"
+                  min="0"
+                  max="100"
+                  placeholder="0–100"
+                />
+                <button
+                  type="button"
+                  onClick={searchScore}
+                  disabled={scoreSearching}
+                  className="flex items-center gap-1.5 px-3 py-2 bg-secondary border border-border rounded-md hover:bg-accent transition-colors text-muted-foreground hover:text-foreground disabled:opacity-50 whitespace-nowrap"
+                >
+                  {scoreSearching ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
+                  {t('searchScore')}
+                </button>
+                {scoreMsg && <span className="text-xs text-muted-foreground">{scoreMsg}</span>}
+              </div>
             </Field>
           </div>
 
