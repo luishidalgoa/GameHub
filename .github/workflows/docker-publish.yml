@@ -25,14 +25,14 @@ env:
 jobs:
   build:
     name: Build & push image
-    runs-on: ubuntu-latest
-    # The arm64 image is built under QEMU emulation, which occasionally crashes
-    # ("qemu: uncaught target signal 4 (Illegal instruction)") and leaves the
-    # build hung. Without a cap the job ran the full 6h before GitHub killed it,
-    # wasting CI minutes and silently failing the release. Fail fast instead —
-    # a normal build finishes in a few minutes; if it's still going at 60 min
-    # something is wrong, so cut it and let it be re-run.
-    timeout-minutes: 60
+    # Native arm64 runner (free for public repos) — builds the Pi's image without
+    # QEMU emulation. QEMU used to crash randomly ("uncaught target signal 4 -
+    # Illegal instruction") and hang the build for the full 6h timeout; native
+    # arm64 removes that whole failure mode and is far faster (minutes, not the
+    # tens of minutes emulation took).
+    runs-on: ubuntu-24.04-arm
+    # Safety net: if a build ever hangs, fail in 30 min instead of wasting 6h.
+    timeout-minutes: 30
     permissions:
       contents: read
       packages: write            # push to GHCR with the built-in GITHUB_TOKEN
@@ -42,11 +42,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # QEMU lets the x86 runner build the arm64 image (emulated — slower, but
-      # free and off the Pi).
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-
+      # No QEMU needed: this runner is already arm64, so the image builds natively.
       - name: Set up Buildx
         uses: docker/setup-buildx-action@v3
 
