@@ -26,6 +26,13 @@ jobs:
   build:
     name: Build & push image
     runs-on: ubuntu-latest
+    # The arm64 image is built under QEMU emulation, which occasionally crashes
+    # ("qemu: uncaught target signal 4 (Illegal instruction)") and leaves the
+    # build hung. Without a cap the job ran the full 6h before GitHub killed it,
+    # wasting CI minutes and silently failing the release. Fail fast instead —
+    # a normal build finishes in a few minutes; if it's still going at 60 min
+    # something is wrong, so cut it and let it be re-run.
+    timeout-minutes: 60
     permissions:
       contents: read
       packages: write            # push to GHCR with the built-in GITHUB_TOKEN
