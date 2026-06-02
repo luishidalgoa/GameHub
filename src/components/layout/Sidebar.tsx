@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useTranslations } from 'next-intl'
 import useSWR from 'swr'
-import { Gamepad2, Settings, LayoutDashboard, Home, X, Heart, Shield, User } from 'lucide-react'
+import { Gamepad2, Settings, LayoutDashboard, Home, X, Heart, Shield, User, History } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { LanguageSwitcher } from '@/components/shared/LanguageSwitcher'
 import { getPlatformIdentity } from '@/lib/platform-identity'
@@ -54,6 +54,13 @@ export function Sidebar({ open, onClose }: Props) {
           href="/"
           icon={<Home className="w-4 h-4" />}
           label={t('library')}
+          pathname={pathname}
+          onNavigate={onClose}
+        />
+        <NavItem
+          href="/recent"
+          icon={<History className="w-4 h-4" />}
+          label={t('recent')}
           pathname={pathname}
           onNavigate={onClose}
         />

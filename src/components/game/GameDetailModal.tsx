@@ -13,6 +13,7 @@ import { RatingPill }         from '@/components/shared/RatingPill'
 import { ScreenshotCarousel } from '@/components/game/ScreenshotCarousel'
 import { ExternalLinks }      from '@/components/game/ExternalLinks'
 import { YouTubeEmbed }       from '@/components/shared/YouTubeEmbed'
+import { addRecentlyViewed }  from '@/lib/recently-viewed'
 import type { Game } from '@/types/game'
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
@@ -42,6 +43,7 @@ export function GameDetailModal({ gameId, onClose }: Props) {
   const screenshots = storedScreenshots.length > 0 ? storedScreenshots : (ssData?.screenshots ?? [])
 
   useEffect(() => {
+    addRecentlyViewed(gameId)   // record in the per-device "recently viewed" history
     fetch(`/api/games/${gameId}`)
       .then((r) => r.json())
       .then((data) => { setGame(data); setLoading(false) })

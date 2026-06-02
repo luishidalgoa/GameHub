@@ -1,6 +1,7 @@
 {
   "Sidebar": {
     "library": "Library",
+    "recent": "Recently viewed",
     "platforms": "Platforms",
     "support": "Support",
     "privacy": "Privacy",
@@ -8,6 +9,13 @@
     "settings": "Settings",
     "closeMenu": "Close menu",
     "madeBy": "Made by"
+  },
+  "Recent": {
+    "title": "Recently viewed",
+    "subtitle": "{count, plural, one {# game} other {# games}}",
+    "clear": "Clear history",
+    "empty": "You haven't viewed any games yet",
+    "emptyHint": "Games you open will show up here."
   },
   "Home": {
     "title": "Your Library",

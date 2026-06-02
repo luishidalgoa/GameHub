@@ -8,6 +8,7 @@ import { formatBytes } from '@/lib/utils'
 import { DownloadButton }     from '@/components/shared/DownloadButton'
 import { BulkDownloadButton } from '@/components/shared/BulkDownloadButton'
 import { RatingPill } from '@/components/shared/RatingPill'
+import { RecordView } from '@/components/game/RecordView'
 import { ScreenshotCarousel } from '@/components/game/ScreenshotCarousel'
 import { ExternalLinks }      from '@/components/game/ExternalLinks'
 import { YouTubeEmbed }       from '@/components/shared/YouTubeEmbed'
@@ -50,6 +51,7 @@ export default async function GamePage({ params }: Props) {
 
   return (
     <div>
+      <RecordView gameId={game.id} />
       <Link
         href={game.platform ? `/platform/${game.platform.slug}` : '/'}
         className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground mb-6 transition-colors"
