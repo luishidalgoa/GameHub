@@ -57,28 +57,42 @@ export function comparePopularity<T extends PopularityMetrics & { id: number }>(
   return a.id - b.id
 }
 
+// ── Unified score (single 0–100 scale) ──────────────────────────────────────
+
+/**
+ * Collapse the two RAWG signals into ONE 0–100 score so the badge, the rating
+ * filter and the rating sort all speak the same scale:
+ *   - metacritic (already 0–100) when present, else
+ *   - the user rating (0–5) mapped ×20  (4.1★ → 82).
+ * Returns null when neither exists. Mirrors the SQL backfill in the migration.
+ */
+export function unifiedScore(m: { rawgMetacritic?: number | null; rawgRating?: number | null }): number | null {
+  if (m.rawgMetacritic != null) return m.rawgMetacritic
+  if (m.rawgRating != null && m.rawgRating > 0) return Math.round(m.rawgRating * 20)
+  return null
+}
+
 // ── Rating badge ────────────────────────────────────────────────────────────
 export type BadgeTone = 'green' | 'yellow' | 'gray'
 export interface RatingBadge {
-  value: string          // "82" (metacritic) or "4.3" (star rating)
-  scale: 'meta' | 'star'
-  tone:  BadgeTone
+  value:  number          // 0–100, always the same scale
+  source: 'meta' | 'user' // for the tooltip ("Metacritic" vs "Player rating")
+  tone:   BadgeTone
 }
 
 /**
- * Pick a single display-friendly score for a game's badge: prefer metacritic
- * (0–100 critic score) when present, else the RAWG star rating (0–5). Returns
- * null when neither exists (no badge shown — keeps cards clean). Single source
- * of truth so cards and the game page render identically.
+ * Badge for a game's score on a single 0–100 scale. Prefers a precomputed
+ * rawgScore (stored), else derives from metacritic/rating. Returns null when
+ * there's no score so cards stay clean. Single source of truth for all surfaces.
  */
-export function ratingBadge(m: { rawgMetacritic?: number | null; rawgRating?: number | null }): RatingBadge | null {
-  if (m.rawgMetacritic != null) {
-    const v = m.rawgMetacritic
-    return { value: String(v), scale: 'meta', tone: v >= 75 ? 'green' : v >= 50 ? 'yellow' : 'gray' }
-  }
-  if (m.rawgRating != null && m.rawgRating > 0) {
-    const v = m.rawgRating
-    return { value: v.toFixed(1), scale: 'star', tone: v >= 4 ? 'green' : v >= 3 ? 'yellow' : 'gray' }
-  }
-  return null
+export function ratingBadge(m: {
+  rawgScore?:      number | null
+  rawgMetacritic?: number | null
+  rawgRating?:     number | null
+}): RatingBadge | null {
+  const value = m.rawgScore ?? unifiedScore(m)
+  if (value == null) return null
+  const source: 'meta' | 'user' = m.rawgMetacritic != null ? 'meta' : 'user'
+  const tone: BadgeTone = value >= 75 ? 'green' : value >= 50 ? 'yellow' : 'gray'
+  return { value, source, tone }
 }

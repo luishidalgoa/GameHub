@@ -36,6 +36,10 @@ export interface Game {
   igdbId: number | null
   rawgId: number | null
   rawgSlug: string | null
+  rawgAdded: number | null
+  rawgRating: number | null
+  rawgMetacritic: number | null
+  rawgScore: number | null
   isFavorite: boolean
   isHidden: boolean
   playCount: number
@@ -68,4 +72,5 @@ export type GameListItem = Pick<
   rawgRating?:     number | null
   rawgMetacritic?: number | null
   rawgAdded?:      number | null
+  rawgScore?:      number | null
 }

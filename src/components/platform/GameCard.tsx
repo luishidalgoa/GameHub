@@ -68,7 +68,7 @@ export function GameCard({
         {/* Rating badge — top-left (favorite heart is top-right). Only shows
             when the game has a metacritic/rating score. */}
         <div className="absolute top-1.5 left-1.5 z-10 pointer-events-none">
-          <RatingPill metacritic={game.rawgMetacritic} rating={game.rawgRating} />
+          <RatingPill score={game.rawgScore} metacritic={game.rawgMetacritic} rating={game.rawgRating} />
         </div>
 
         {/* Desktop hover overlay */}

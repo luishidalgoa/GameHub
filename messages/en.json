@@ -38,8 +38,9 @@
     "allRegions": "All regions",
     "allGenres": "All genres",
     "minRatingAny": "Any rating",
-    "minRating4": "★ 4+",
-    "minRating45": "★ 4.5+"
+    "minRating70": "Score 70+",
+    "minRating80": "Score 80+",
+    "minRating90": "Score 90+"
   },
   "EmptyState": {
     "title": "No games found",

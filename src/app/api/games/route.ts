@@ -27,7 +27,8 @@ export async function GET(req: Request) {
     ...(favorites && { isFavorite: true }),
     ...(region    && { region }),
     ...(genre     && { genre }),
-    ...(minRating != null && !Number.isNaN(minRating) && { rawgRating: { gte: minRating } }),
+    // minRating is on the unified 0–100 scale (matches the badge/filter labels).
+    ...(minRating != null && !Number.isNaN(minRating) && { rawgScore: { gte: minRating } }),
   }
 
   const orderBy =
@@ -37,7 +38,8 @@ export async function GET(req: Request) {
     // Popularity ≈ rawgAdded DESC (the score is dominated by log(added); uses the
     // [platformId, rawgAdded] index). NULLs sort last in SQLite DESC.
     : sort === 'popularity' ? { rawgAdded: 'desc' as const }
-    : sort === 'rating' ? { rawgRating: 'desc' as const }
+    // Top-rated by the unified 0–100 score.
+    : sort === 'rating' ? { rawgScore: 'desc' as const }
     : { sortTitle: 'asc' as const }
 
   // Log searches asynchronously (don't block response)
@@ -71,6 +73,7 @@ export async function GET(req: Request) {
         rawgRating: true,
         rawgMetacritic: true,
         rawgAdded: true,
+        rawgScore: true,
       },
     }),
     db.game.count({ where }),

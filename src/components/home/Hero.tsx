@@ -9,6 +9,7 @@ export interface HeroGame {
   platformName: string
   background: string | null    // screenshot/cover URL (resolved)
   cover: string | null         // resolved cover URL
+  rawgScore: number | null
   rawgRating: number | null
   rawgMetacritic: number | null
 }
@@ -55,7 +56,7 @@ export async function Hero({ game }: { game: HeroGame | null }) {
             {game.title}
           </h2>
           <div className="flex items-center gap-2 mt-2">
-            <RatingPill metacritic={game.rawgMetacritic} rating={game.rawgRating} size="md" />
+            <RatingPill score={game.rawgScore} metacritic={game.rawgMetacritic} rating={game.rawgRating} size="md" />
             <span className="text-xs px-2 py-0.5 rounded-full bg-secondary/80 text-muted-foreground border border-border">
               {game.platformName}
             </span>

@@ -9,6 +9,7 @@ import { X, Heart, Pencil, HardDrive, Calendar, Tag, User, Building2 } from 'luc
 import { formatBytes, cn } from '@/lib/utils'
 import { DownloadButton }     from '@/components/shared/DownloadButton'
 import { BulkDownloadButton } from '@/components/shared/BulkDownloadButton'
+import { RatingPill }         from '@/components/shared/RatingPill'
 import { ScreenshotCarousel } from '@/components/game/ScreenshotCarousel'
 import { ExternalLinks }      from '@/components/game/ExternalLinks'
 import { YouTubeEmbed }       from '@/components/shared/YouTubeEmbed'
@@ -178,15 +179,16 @@ export function GameDetailModal({ gameId, onClose }: Props) {
                   )}
                 </div>
 
-                {/* Favorite + Platform badges */}
-                <div className="mt-3 space-y-1.5">
+                {/* Score + Platform + region badges */}
+                <div className="mt-3 flex flex-wrap items-center gap-1.5">
+                  <RatingPill score={game.rawgScore} metacritic={game.rawgMetacritic} rating={game.rawgRating} size="md" />
                   {game.platform && (
                     <span className="inline-block text-xs px-2 py-0.5 rounded-full bg-secondary text-muted-foreground border border-border">
                       {game.platform.name}
                     </span>
                   )}
                   {game.region && (
-                    <span className="inline-block text-xs px-2 py-0.5 rounded-full bg-secondary text-muted-foreground border border-border ml-1">
+                    <span className="inline-block text-xs px-2 py-0.5 rounded-full bg-secondary text-muted-foreground border border-border">
                       {game.region}
                     </span>
                   )}

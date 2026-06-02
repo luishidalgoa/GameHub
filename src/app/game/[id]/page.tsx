@@ -96,7 +96,7 @@ export default async function GamePage({ params }: Props) {
           </div>
 
           <div className="flex flex-wrap items-center gap-2 mt-3">
-            <RatingPill metacritic={game.rawgMetacritic} rating={game.rawgRating} size="md" />
+            <RatingPill score={game.rawgScore} metacritic={game.rawgMetacritic} rating={game.rawgRating} size="md" />
             {game.platform && (
               <span className="text-xs px-2 py-0.5 rounded-full bg-secondary text-muted-foreground border border-border">
                 {game.platform.name}

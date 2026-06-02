@@ -1,6 +1,7 @@
 import { db } from '@/lib/db'
 import { downloadAndCacheCover } from '@/lib/covers'
 import { getRawgProvider } from './rawg'
+import { unifiedScore } from './popularity'
 import { searchYouTubeTrailer, YouTubeApiError } from '@/lib/youtube'
 import { AUTO_THRESHOLD } from './scoring'
 import { getProviderMatrix } from './matrix'
@@ -206,6 +207,7 @@ export async function runMetadataBatch(opts: {
             rawgRating:          m.rating,
             rawgRatingsCount:    m.ratingsCount,
             rawgMetacritic:      m.metacritic,
+            rawgScore:           unifiedScore({ rawgMetacritic: m.metacritic, rawgRating: m.rating }),
             popularityFetchedAt: new Date(),
           },
         })

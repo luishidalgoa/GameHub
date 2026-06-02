@@ -256,8 +256,9 @@ export function GameGrid({
             }`}
           >
             <option value="">{t('minRatingAny')}</option>
-            <option value="4">{t('minRating4')}</option>
-            <option value="4.5">{t('minRating45')}</option>
+            <option value="70">{t('minRating70')}</option>
+            <option value="80">{t('minRating80')}</option>
+            <option value="90">{t('minRating90')}</option>
           </select>
 
           {regions.length > 1 && (

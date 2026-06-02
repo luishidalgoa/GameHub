@@ -82,7 +82,7 @@ export default async function HomePage() {
     where: { isHidden: false, rawgAdded: { gte: MIN_ADDED } },
     select: {
       id: true, title: true, coverPath: true, coverUrl: true, screenshotPaths: true,
-      rawgAdded: true, rawgRating: true, rawgMetacritic: true,
+      rawgAdded: true, rawgRating: true, rawgMetacritic: true, rawgScore: true,
       platform: { select: { name: true, thumbnailWidth: true, thumbnailHeight: true } },
     },
     orderBy: { rawgAdded: 'desc' },
@@ -107,6 +107,7 @@ export default async function HomePage() {
     platformName: heroSource.platform.name,
     background: firstScreenshot(heroSource.screenshotPaths) ?? resolveCoverPath(heroSource.coverPath) ?? heroSource.coverUrl,
     cover: resolveCoverPath(heroSource.coverPath) ?? heroSource.coverUrl,
+    rawgScore: heroSource.rawgScore,
     rawgRating: heroSource.rawgRating,
     rawgMetacritic: heroSource.rawgMetacritic,
   } : null

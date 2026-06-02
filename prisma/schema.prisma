@@ -81,6 +81,10 @@ model Game {
   rawgRating          Float?     // RAWG rating 0–5
   rawgRatingsCount    Int?       // confidence (vote count)
   rawgMetacritic      Int?       // 0–100, often NULL for retro titles
+  // Unified 0–100 score so badge/filter/sort use ONE scale: metacritic when
+  // present, else the user rating mapped ×20 (4.1★ → 82). Stored (not derived)
+  // because the filter/sort run in SQL.
+  rawgScore           Int?
   popularityFetchedAt DateTime?
 
   isFavorite   Boolean   @default(false)
@@ -105,6 +109,7 @@ model Game {
   @@index([lastSeenAt])
   @@index([platformId, groupKey])
   @@index([platformId, rawgAdded])
+  @@index([platformId, rawgScore])
 }
 
 model GameDlc {
