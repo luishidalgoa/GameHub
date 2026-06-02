@@ -14,6 +14,23 @@ const SENTINEL_PX  = 400  // start fetching when within 400 px of the bottom
 
 type SortKey = 'title' | 'year' | 'size'
 
+// Persisted scroll/pagination state so returning from the game editor lands you
+// back where you were — with infinite scroll, restoring scrollY alone isn't
+// enough: only the first page is loaded, so the page is too short to scroll to
+// the old position. We also restore how many pages were loaded.
+interface ScrollState { size: number; y: number }
+const scrollStateKey = (slug: string) => `gamegrid-scroll:${slug}`
+
+function readScrollState(slug: string): ScrollState | null {
+  try {
+    const raw = sessionStorage.getItem(scrollStateKey(slug))
+    if (!raw) return null
+    const s = JSON.parse(raw)
+    if (typeof s?.size === 'number' && typeof s?.y === 'number') return s
+  } catch { /* ignore */ }
+  return null
+}
+
 interface ApiPage {
   games: (GameListItem & { fileName: string })[]
   total: number
@@ -76,10 +93,19 @@ export function GameGrid({
     return `/api/games?${p}`
   }, [platformSlug, sort, debouncedSearch, favOnly, region])
 
+  // Restore the saved page count on mount (only for the unfiltered default view —
+  // a saved scroll position is meaningless against a different filter/search).
+  const savedState = useRef<ScrollState | null>(
+    typeof window !== 'undefined' ? readScrollState(platformSlug) : null,
+  )
+  const initialSize = savedState.current && savedState.current.size > 1
+    ? savedState.current.size
+    : 1
+
   const { data, size, setSize, isValidating, mutate } = useSWRInfinite<ApiPage>(
     getKey,
     fetcher,
-    { revalidateFirstPage: false, revalidateOnFocus: false },
+    { revalidateFirstPage: false, revalidateOnFocus: false, initialSize },
   )
 
   const games   = useMemo(() => data?.flatMap(d => d.games) ?? [], [data])
@@ -107,6 +133,51 @@ export function GameGrid({
     obs.observe(el)
     return () => obs.disconnect()
   }, [hasMore, isValidating, setSize])
+
+  // ── Scroll restoration (return-from-editor) ────────────────────────────────────
+  // Track whether filters are at their default — only then is a saved scroll
+  // position meaningful (a search/region filter changes what's on screen).
+  const filtersActive = Boolean(debouncedSearch) || favOnly || Boolean(region) || sort !== 'title'
+
+  // Once the saved number of pages has loaded, restore the scroll position (once).
+  const didRestore = useRef(false)
+  useEffect(() => {
+    if (didRestore.current) return
+    const saved = savedState.current
+    if (!saved || filtersActive) { didRestore.current = true; return }
+    // Wait until enough pages have actually arrived to make the page tall enough.
+    if ((data?.length ?? 0) < saved.size) return
+    didRestore.current = true
+    // Double rAF so the grid has painted its full height before we jump.
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      window.scrollTo(0, saved.y)
+    }))
+  }, [data, filtersActive])
+
+  // Continuously remember where we are + how many pages are loaded, so a later
+  // navigation away (e.g. opening the editor) can be restored on return.
+  useEffect(() => {
+    if (filtersActive) return   // don't persist a filtered view as the default
+    let raf = 0
+    const save = () => {
+      if (raf) return
+      raf = requestAnimationFrame(() => {
+        raf = 0
+        try {
+          sessionStorage.setItem(
+            scrollStateKey(platformSlug),
+            JSON.stringify({ size: data?.length ?? 1, y: window.scrollY } satisfies ScrollState),
+          )
+        } catch { /* ignore quota */ }
+      })
+    }
+    window.addEventListener('scroll', save, { passive: true })
+    return () => {
+      window.removeEventListener('scroll', save)
+      if (raf) cancelAnimationFrame(raf)
+      save()
+    }
+  }, [platformSlug, data, filtersActive])
 
   // ── Favorite toggle ───────────────────────────────────────────────────────────
   const handleToggleFavorite = useCallback(async (id: number, current: boolean) => {
