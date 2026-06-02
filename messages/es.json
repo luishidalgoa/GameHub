@@ -88,6 +88,11 @@
     "updated": "Actualizados",
     "stale": "Desaparecidos"
   },
+  "Health": {
+    "title": "Estado del servicio",
+    "healthy": "Operativo",
+    "degraded": "Con incidencias"
+  },
   "AdminLayout": {
     "breadcrumb": "Admin",
     "dashboard": "Panel",

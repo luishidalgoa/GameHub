@@ -5,6 +5,7 @@ import { formatBytes } from '@/lib/utils'
 import { ScanPanel } from '@/components/admin/ScanPanel'
 import { MetadataBatchPanel } from '@/components/admin/MetadataBatchPanel'
 import { OrphanCoversPanel } from '@/components/admin/OrphanCoversPanel'
+import { HealthPanel } from '@/components/admin/HealthPanel'
 import { ScanLogsTable } from '@/components/admin/ScanLogsTable'
 import { Gamepad2, Monitor, HardDrive, ImageOff, FileQuestion, StarOff } from 'lucide-react'
 
@@ -46,6 +47,9 @@ export default async function AdminPage() {
           <StatCard icon={<StarOff className="w-5 h-5" />} label={t('noScore')} value={noScore.toString()} color={noScore > 0 ? 'text-rose-400' : 'text-foreground'} hover />
         </Link>
       </div>
+
+      {/* Service health */}
+      <HealthPanel />
 
       {/* Scan panel */}
       <ScanPanel />

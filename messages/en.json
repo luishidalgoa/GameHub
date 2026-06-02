@@ -88,6 +88,11 @@
     "updated": "Updated",
     "stale": "Stale"
   },
+  "Health": {
+    "title": "Service status",
+    "healthy": "Healthy",
+    "degraded": "Degraded"
+  },
   "AdminLayout": {
     "breadcrumb": "Admin",
     "dashboard": "Dashboard",

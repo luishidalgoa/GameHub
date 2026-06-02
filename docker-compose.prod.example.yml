@@ -48,8 +48,11 @@ services:
 
     stop_grace_period: 30s
 
+    # /api/health returns 503 (→ wget non-zero) if the DB or MinIO are down, so
+    # the container is marked unhealthy on a real dependency failure — not just
+    # when the web server stops responding.
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/api/auth/me >/dev/null 2>&1 || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/api/health >/dev/null 2>&1 || exit 1"]
 
   # ── Auto-deploy ──────────────────────────────────────────────────────────────
   # Watches GHCR and, when a new image is published, pulls it and recreates the
