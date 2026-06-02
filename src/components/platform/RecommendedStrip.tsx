@@ -2,6 +2,7 @@
 
 import { ViewTransitionLink } from '@/components/shared/ViewTransitionLink'
 import { useTranslations } from 'next-intl'
+import { getPlatformIdentity } from '@/lib/platform-identity'
 
 export interface RecommendedGame {
   id: number
@@ -15,6 +16,8 @@ interface Props {
   games: RecommendedGame[]
   thumbnailWidth:  number | null
   thumbnailHeight: number | null
+  /** Platform slug — tints the hover ring with the console's brand color. */
+  platformSlug?: string
 }
 
 /**
@@ -23,15 +26,20 @@ interface Props {
  * from the main game grid. Rendered only when there are enough recommendations
  * (the caller returns nothing otherwise).
  */
-export function RecommendedStrip({ games, thumbnailWidth, thumbnailHeight }: Props) {
+export function RecommendedStrip({ games, thumbnailWidth, thumbnailHeight, platformSlug }: Props) {
   const t = useTranslations('Platform')
   if (games.length < 3) return null
 
   const w = thumbnailWidth  ?? 2
   const h = thumbnailHeight ?? 3
+  // Tint the hover ring with the console's brand color (shared identity source).
+  const identity = platformSlug ? getPlatformIdentity(platformSlug) : null
 
   return (
-    <section className="mb-6">
+    <section
+      className="mb-6"
+      style={identity ? ({ '--platform-glow': identity.glow } as React.CSSProperties) : undefined}
+    >
       <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">
         {t('recommended')}
       </h2>
@@ -49,7 +57,7 @@ export function RecommendedStrip({ games, thumbnailWidth, thumbnailHeight }: Pro
           >
             <div
               data-vt-cover
-              className="w-full rounded-md overflow-hidden bg-secondary relative mb-1.5 ring-0 group-hover:ring-1 ring-primary/50 transition-all duration-150"
+              className={`w-full rounded-md overflow-hidden bg-secondary relative mb-1.5 ring-0 group-hover:ring-1 transition-all duration-150 ${identity ? 'ring-[color:var(--platform-glow)]' : 'ring-primary/50'}`}
               style={{ aspectRatio: `${w}/${h}` }}
             >
               {game.cover ? (

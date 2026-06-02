@@ -110,6 +110,7 @@ export default async function PlatformPage({ params }: Props) {
         games={recommended}
         thumbnailWidth={platform.thumbnailWidth}
         thumbnailHeight={platform.thumbnailHeight}
+        platformSlug={params.slug}
       />
 
       <GameGrid

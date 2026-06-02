@@ -4,8 +4,9 @@ import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { useTranslations } from 'next-intl'
 import { Command } from 'cmdk'
-import { Search, Gamepad2, Loader2, X } from 'lucide-react'
+import { Search, Gamepad2, Loader2, X, SearchX } from 'lucide-react'
 import useSWR from 'swr'
+import { EmptyState } from '@/components/shared/EmptyState'
 
 interface GameResult {
   id: number
@@ -137,8 +138,13 @@ export function CommandPalette() {
 
           {/* Empty state */}
           {isEmpty && (
-            <Command.Empty className="py-10 text-center text-sm text-muted-foreground">
-              {t('noResults', { query })}
+            <Command.Empty>
+              <EmptyState
+                icon={SearchX}
+                size="compact"
+                title={t('noResults', { query })}
+                description={t('noResultsHint')}
+              />
             </Command.Empty>
           )}
 

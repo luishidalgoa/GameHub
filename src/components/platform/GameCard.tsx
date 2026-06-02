@@ -5,6 +5,7 @@ import Image from 'next/image'
 import { Heart, Pencil, Info } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { RatingPill } from '@/components/shared/RatingPill'
+import { getPlatformIdentity } from '@/lib/platform-identity'
 import type { GameListItem } from '@/types/game'
 
 interface Props {
@@ -14,6 +15,8 @@ interface Props {
   isAdmin?: boolean
   thumbnailWidth?: number
   thumbnailHeight?: number
+  /** Platform slug — tints the card's hover glow/border with its brand color. */
+  platformSlug?: string
   /** When set, the card fades+slides in with a staggered delay by this index. */
   animateIndex?: number
 }
@@ -25,6 +28,7 @@ export function GameCard({
   isAdmin = false,
   thumbnailWidth = 200,
   thumbnailHeight = 300,
+  platformSlug,
   animateIndex,
 }: Props) {
   const cover = game.coverPath ?? game.coverUrl
@@ -32,6 +36,14 @@ export function GameCard({
   const [favPop, setFavPop] = useState(false)
   // Cap the cumulative delay so a full page never feels slow (~24 cards × 22ms).
   const staggerDelay = animateIndex != null ? Math.min(animateIndex, 24) * 22 : 0
+  // Per-platform brand glow on hover — same identity that drives PlatformCard
+  // and the Sidebar, so a card always feels like it belongs to its console.
+  const identity = platformSlug ? getPlatformIdentity(platformSlug) : null
+
+  const cardStyle: React.CSSProperties = {
+    ...(animateIndex != null ? { animationDelay: `${staggerDelay}ms` } : {}),
+    ...(identity ? ({ '--platform-glow': identity.glow } as React.CSSProperties) : {}),
+  }
 
   const toggleFav = (e: React.MouseEvent) => {
     e.stopPropagation()
@@ -42,10 +54,13 @@ export function GameCard({
   return (
     <div
       className={cn(
-        'group relative rounded-lg overflow-hidden cursor-pointer bg-card border border-border hover:border-primary/40 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-black/40 touch-manipulation',
+        'group relative rounded-lg overflow-hidden cursor-pointer bg-card border border-border transition-all duration-200 hover:-translate-y-0.5 touch-manipulation',
+        identity
+          ? 'hover:border-[color:var(--platform-glow)] hover:shadow-[0_12px_28px_-8px_var(--platform-glow)]'
+          : 'hover:border-primary/40 hover:shadow-lg hover:shadow-black/40',
         animateIndex != null && 'animate-card-in',
       )}
-      style={animateIndex != null ? { animationDelay: `${staggerDelay}ms` } : undefined}
+      style={cardStyle}
       onClick={() => onSelect(game.id)}
     >
       {/* Cover */}

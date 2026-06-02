@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { resolveCoverPath } from '@/lib/s3'
 import { formatBytes } from '@/lib/utils'
 import { DeleteGameButton, PurgeAllButton, RecoverMetadataButton } from '@/components/admin/GraveyardClient'
+import { EmptyState } from '@/components/shared/EmptyState'
 import Image from 'next/image'
 import { Ghost } from 'lucide-react'
 
@@ -91,11 +92,7 @@ export default async function GraveyardPage({ searchParams }: Props) {
 
       {/* Empty state */}
       {totalMissing === 0 ? (
-        <div className="flex flex-col items-center justify-center py-24 text-center">
-          <Ghost className="w-12 h-12 text-muted-foreground/30 mb-4" />
-          <p className="text-lg font-medium">{t('emptyTitle')}</p>
-          <p className="text-sm text-muted-foreground mt-1">{t('emptySubtitle')}</p>
-        </div>
+        <EmptyState icon={Ghost} title={t('emptyTitle')} description={t('emptySubtitle')} />
       ) : (
         <>
           <div className="bg-card border border-border rounded-xl overflow-hidden">

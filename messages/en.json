@@ -15,7 +15,8 @@
     "subtitle": "{count, plural, one {# game} other {# games}}",
     "clear": "Clear history",
     "empty": "You haven't viewed any games yet",
-    "emptyHint": "Games you open will show up here."
+    "emptyHint": "Games you open will show up here.",
+    "emptyCta": "Browse library"
   },
   "Home": {
     "title": "Your Library",
@@ -530,6 +531,7 @@
   "CommandPalette": {
     "placeholder": "Search games or platforms…",
     "noResults": "No results for \"{query}\"",
+    "noResultsHint": "Try another title or platform.",
     "groupPlatforms": "Platforms",
     "groupGames": "Games",
     "groupQuickNav": "Quick navigation",

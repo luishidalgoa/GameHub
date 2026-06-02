@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useTranslations } from 'next-intl'
 import { History, Trash2 } from 'lucide-react'
 import { getRecentlyViewed, clearRecentlyViewed } from '@/lib/recently-viewed'
+import { EmptyState } from '@/components/shared/EmptyState'
 
 interface RecentGame {
   id: number
@@ -67,11 +68,12 @@ export default function RecentPage() {
           ))}
         </div>
       ) : games.length === 0 ? (
-        <div className="text-center py-20 text-muted-foreground">
-          <History className="w-10 h-10 mx-auto mb-3 opacity-30" />
-          <p className="text-lg">{t('empty')}</p>
-          <p className="text-sm mt-1">{t('emptyHint')}</p>
-        </div>
+        <EmptyState
+          icon={History}
+          title={t('empty')}
+          description={t('emptyHint')}
+          action={{ label: t('emptyCta'), href: '/' }}
+        />
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2 sm:gap-4">
           {games.map(game => {

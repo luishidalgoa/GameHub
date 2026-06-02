@@ -2,6 +2,7 @@ import { ViewTransitionLink } from '@/components/shared/ViewTransitionLink'
 import { getTranslations } from 'next-intl/server'
 import { ArrowRight } from 'lucide-react'
 import { RatingPill } from '@/components/shared/RatingPill'
+import { HeroBackground } from './HeroBackground'
 
 export interface HeroGame {
   id: number
@@ -25,15 +26,8 @@ export async function Hero({ game }: { game: HeroGame | null }) {
 
   return (
     <section className="mb-8 relative overflow-hidden rounded-2xl border border-border">
-      {/* Background image (blurred) + dark overlay */}
-      {game.background && (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={game.background}
-          alt=""
-          className="absolute inset-0 w-full h-full object-cover scale-110 blur-sm opacity-40"
-        />
-      )}
+      {/* Background image (blurred, subtle parallax) + dark overlay */}
+      {game.background && <HeroBackground src={game.background} />}
       <div className="absolute inset-0 bg-gradient-to-r from-background via-background/80 to-background/30" />
 
       <div className="relative z-10 flex items-center gap-5 p-5 sm:p-7">

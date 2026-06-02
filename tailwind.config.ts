@@ -88,6 +88,10 @@ const config: Config = {
           '70%':  { transform: 'scale(0.9)' },
           '100%': { transform: 'scale(1)' },
         },
+        float: {
+          '0%, 100%': { transform: 'translateY(0)' },
+          '50%':      { transform: 'translateY(-6px)' },
+        },
       },
       animation: {
         'accordion-down': 'accordion-down 0.2s ease-out',
@@ -96,6 +100,7 @@ const config: Config = {
         pulse: 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
         'card-in': 'card-in 0.35s cubic-bezier(0.23,1,0.32,1) both',
         'fav-pop': 'fav-pop 0.35s ease-out',
+        float: 'float 4s ease-in-out infinite',
       },
     },
   },

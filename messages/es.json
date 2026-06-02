@@ -15,7 +15,8 @@
     "subtitle": "{count, plural, one {# juego} other {# juegos}}",
     "clear": "Limpiar historial",
     "empty": "Aún no has visto ningún juego",
-    "emptyHint": "Los juegos que abras aparecerán aquí."
+    "emptyHint": "Los juegos que abras aparecerán aquí.",
+    "emptyCta": "Explorar biblioteca"
   },
   "Home": {
     "title": "Tu Biblioteca",
@@ -530,6 +531,7 @@
   "CommandPalette": {
     "placeholder": "Buscar juegos o plataformas…",
     "noResults": "Sin resultados para \"{query}\"",
+    "noResultsHint": "Prueba con otro título o plataforma.",
     "groupPlatforms": "Plataformas",
     "groupGames": "Juegos",
     "groupQuickNav": "Navegación rápida",

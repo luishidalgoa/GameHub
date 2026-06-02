@@ -309,6 +309,7 @@ export function GameGrid({
             isAdmin={isAdmin}
             thumbnailWidth={thumbnailWidth}
             thumbnailHeight={thumbnailHeight}
+            platformSlug={platformSlug}
             // Staggered entrance ONLY for the first page; later pages (infinite
             // scroll) appear immediately so scrolling never feels delayed.
             animateIndex={i < PAGE_SIZE ? i : undefined}
