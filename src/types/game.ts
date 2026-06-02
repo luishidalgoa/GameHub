@@ -62,4 +62,10 @@ export type GameListItem = Pick<
   | 'platformId'
   | 'fileSize'
   | 'metadataFetchedAt'
->
+> & {
+  // Popularity/quality metrics (for the rating badge + sort). Null when the
+  // popularity sync hasn't run for this game.
+  rawgRating?:     number | null
+  rawgMetacritic?: number | null
+  rawgAdded?:      number | null
+}

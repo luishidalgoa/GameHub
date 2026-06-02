@@ -7,6 +7,7 @@ import { resolveCoverPath } from '@/lib/s3'
 import { formatBytes } from '@/lib/utils'
 import { DownloadButton }     from '@/components/shared/DownloadButton'
 import { BulkDownloadButton } from '@/components/shared/BulkDownloadButton'
+import { RatingPill } from '@/components/shared/RatingPill'
 import { ScreenshotCarousel } from '@/components/game/ScreenshotCarousel'
 import { ExternalLinks }      from '@/components/game/ExternalLinks'
 import { YouTubeEmbed }       from '@/components/shared/YouTubeEmbed'
@@ -94,7 +95,8 @@ export default async function GamePage({ params }: Props) {
             </div>
           </div>
 
-          <div className="flex flex-wrap gap-2 mt-3">
+          <div className="flex flex-wrap items-center gap-2 mt-3">
+            <RatingPill metacritic={game.rawgMetacritic} rating={game.rawgRating} size="md" />
             {game.platform && (
               <span className="text-xs px-2 py-0.5 rounded-full bg-secondary text-muted-foreground border border-border">
                 {game.platform.name}

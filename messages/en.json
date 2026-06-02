@@ -14,21 +14,32 @@
     "subtitle": "{platforms} platforms · {games} games",
     "recentlyAdded": "Recently Added",
     "topDownloads": "Top Downloads",
-    "topDownloadsAll": "All"
+    "topDownloadsAll": "All",
+    "recommended": "Recommended",
+    "surpriseMe": "Surprise me",
+    "featured": "Featured",
+    "featuredView": "View game"
   },
   "Platform": {
     "games": "{count, plural, one {# game} other {# games}}",
     "downloadEmulator": "Download emulator",
     "downloadEmulatorNamed": "Download {name}",
-    "recommended": "Recommended"
+    "recommended": "Recommended",
+    "hiddenGems": "Hidden gems"
   },
   "GameGrid": {
     "search": "Search…",
     "sortTitle": "Sort: Title",
     "sortYear": "Sort: Year",
     "sortSize": "Sort: Size",
+    "sortPopularity": "Sort: Popularity",
+    "sortRating": "Sort: Top rated",
     "favorites": "♥ Favorites",
-    "allRegions": "All regions"
+    "allRegions": "All regions",
+    "allGenres": "All genres",
+    "minRatingAny": "Any rating",
+    "minRating4": "★ 4+",
+    "minRating45": "★ 4.5+"
   },
   "EmptyState": {
     "title": "No games found",

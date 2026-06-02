@@ -4,6 +4,7 @@ import { useState } from 'react'
 import Image from 'next/image'
 import { Heart, Pencil, Info } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { RatingPill } from '@/components/shared/RatingPill'
 import type { GameListItem } from '@/types/game'
 
 interface Props {
@@ -63,6 +64,12 @@ export function GameCard({
             </span>
           </div>
         )}
+
+        {/* Rating badge — top-left (favorite heart is top-right). Only shows
+            when the game has a metacritic/rating score. */}
+        <div className="absolute top-1.5 left-1.5 z-10 pointer-events-none">
+          <RatingPill metacritic={game.rawgMetacritic} rating={game.rawgRating} />
+        </div>
 
         {/* Desktop hover overlay */}
         <div className="absolute inset-0 bg-black/70 opacity-0 group-hover:opacity-100 transition-opacity hidden sm:flex items-end p-2">

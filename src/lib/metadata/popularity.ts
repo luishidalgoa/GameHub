@@ -20,6 +20,10 @@ export const W_QUAL = 0.3
  *  but few votes. Prevents a 1-vote obscurity from topping the list. */
 export const MIN_ADDED = 50
 
+/** "Hidden gems": well-rated but not widely owned. */
+export const GEM_MAX_ADDED = 800   // below the popular crowd
+export const GEM_MIN_RATING = 4    // genuinely good (0–5 scale)
+
 export interface PopularityMetrics {
   rawgAdded:        number | null
   rawgRating:       number | null
@@ -51,4 +55,30 @@ export function comparePopularity<T extends PopularityMetrics & { id: number }>(
   const added = (b.rawgAdded ?? 0) - (a.rawgAdded ?? 0)
   if (added !== 0) return added
   return a.id - b.id
+}
+
+// ── Rating badge ────────────────────────────────────────────────────────────
+export type BadgeTone = 'green' | 'yellow' | 'gray'
+export interface RatingBadge {
+  value: string          // "82" (metacritic) or "4.3" (star rating)
+  scale: 'meta' | 'star'
+  tone:  BadgeTone
+}
+
+/**
+ * Pick a single display-friendly score for a game's badge: prefer metacritic
+ * (0–100 critic score) when present, else the RAWG star rating (0–5). Returns
+ * null when neither exists (no badge shown — keeps cards clean). Single source
+ * of truth so cards and the game page render identically.
+ */
+export function ratingBadge(m: { rawgMetacritic?: number | null; rawgRating?: number | null }): RatingBadge | null {
+  if (m.rawgMetacritic != null) {
+    const v = m.rawgMetacritic
+    return { value: String(v), scale: 'meta', tone: v >= 75 ? 'green' : v >= 50 ? 'yellow' : 'gray' }
+  }
+  if (m.rawgRating != null && m.rawgRating > 0) {
+    const v = m.rawgRating
+    return { value: v.toFixed(1), scale: 'star', tone: v >= 4 ? 'green' : v >= 3 ? 'yellow' : 'gray' }
+  }
+  return null
 }

@@ -16,6 +16,9 @@ export async function GET(req: Request) {
   const pageSize = parseInt(searchParams.get('pageSize') ?? '100', 10)
 
   const region = searchParams.get('region') ?? ''
+  const genre = searchParams.get('genre') ?? ''
+  const minRatingRaw = searchParams.get('minRating')
+  const minRating = minRatingRaw ? Number(minRatingRaw) : null
 
   const where = {
     isHidden: false,
@@ -23,12 +26,18 @@ export async function GET(req: Request) {
     ...(search    && { title: { contains: search } }),
     ...(favorites && { isFavorite: true }),
     ...(region    && { region }),
+    ...(genre     && { genre }),
+    ...(minRating != null && !Number.isNaN(minRating) && { rawgRating: { gte: minRating } }),
   }
 
   const orderBy =
     sort === 'year' ? { releaseYear: 'asc' as const }
     : sort === 'added' ? { createdAt: 'desc' as const }
     : sort === 'size' ? { fileSize: 'desc' as const }
+    // Popularity ≈ rawgAdded DESC (the score is dominated by log(added); uses the
+    // [platformId, rawgAdded] index). NULLs sort last in SQLite DESC.
+    : sort === 'popularity' ? { rawgAdded: 'desc' as const }
+    : sort === 'rating' ? { rawgRating: 'desc' as const }
     : { sortTitle: 'asc' as const }
 
   // Log searches asynchronously (don't block response)
@@ -59,6 +68,9 @@ export async function GET(req: Request) {
         fileSize: true,
         metadataFetchedAt: true,
         fileName: true,
+        rawgRating: true,
+        rawgMetacritic: true,
+        rawgAdded: true,
       },
     }),
     db.game.count({ where }),

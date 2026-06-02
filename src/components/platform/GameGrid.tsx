@@ -12,7 +12,7 @@ import type { GameListItem } from '@/types/game'
 const PAGE_SIZE    = 24   // divisible by 2, 3, 4, 6 → fits every column count
 const SENTINEL_PX  = 400  // start fetching when within 400 px of the bottom
 
-type SortKey = 'title' | 'year' | 'size'
+type SortKey = 'title' | 'year' | 'size' | 'popularity' | 'rating'
 
 // Persisted scroll/pagination state so returning from the game editor lands you
 // back where you were — with infinite scroll, restoring scrollY alone isn't
@@ -43,6 +43,7 @@ interface Props {
   thumbnailHeight?: number
   totalCount:     number
   regions:        string[]
+  genres:         string[]
 }
 
 const fetcher = (url: string): Promise<ApiPage> =>
@@ -56,6 +57,7 @@ export function GameGrid({
   thumbnailHeight = 300,
   totalCount,
   regions,
+  genres,
 }: Props) {
   const t = useTranslations('GameGrid')
 
@@ -64,6 +66,8 @@ export function GameGrid({
   const [sort,      setSort]     = useState<SortKey>('title')
   const [favOnly,   setFavOnly]  = useState(false)
   const [region,    setRegion]   = useState('')
+  const [genre,     setGenre]    = useState('')
+  const [minRating, setMinRating] = useState('')
   const [selectedId, setSelectedId] = useState<number | null>(null)
 
   // Debounce search so we don't fire a request on every keystroke
@@ -89,9 +93,11 @@ export function GameGrid({
     if (debouncedSearch) p.set('search',    debouncedSearch)
     if (favOnly)         p.set('favorites', 'true')
     if (region)          p.set('region',    region)
+    if (genre)           p.set('genre',     genre)
+    if (minRating)       p.set('minRating', minRating)
 
     return `/api/games?${p}`
-  }, [platformSlug, sort, debouncedSearch, favOnly, region])
+  }, [platformSlug, sort, debouncedSearch, favOnly, region, genre, minRating])
 
   // Restore the saved page count on mount (only for the unfiltered default view —
   // a saved scroll position is meaningless against a different filter/search).
@@ -137,7 +143,7 @@ export function GameGrid({
   // ── Scroll restoration (return-from-editor) ────────────────────────────────────
   // Track whether filters are at their default — only then is a saved scroll
   // position meaningful (a search/region filter changes what's on screen).
-  const filtersActive = Boolean(debouncedSearch) || favOnly || Boolean(region) || sort !== 'title'
+  const filtersActive = Boolean(debouncedSearch) || favOnly || Boolean(region) || Boolean(genre) || Boolean(minRating) || sort !== 'title'
 
   // Once the saved number of pages has loaded, restore the scroll position (once).
   const didRestore = useRef(false)
@@ -224,6 +230,34 @@ export function GameGrid({
             <option value="title">{t('sortTitle')}</option>
             <option value="year">{t('sortYear')}</option>
             <option value="size">{t('sortSize')}</option>
+            <option value="popularity">{t('sortPopularity')}</option>
+            <option value="rating">{t('sortRating')}</option>
+          </select>
+
+          {genres.length > 1 && (
+            <select
+              value={genre}
+              onChange={e => setGenre(e.target.value)}
+              className={`w-full sm:w-auto min-w-0 sm:flex-none bg-secondary border rounded-md px-3 py-2.5 sm:py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring touch-manipulation transition-colors ${
+                genre ? 'border-primary/60 text-foreground' : 'border-border text-muted-foreground'
+              }`}
+            >
+              <option value="">{t('allGenres')}</option>
+              {genres.map(g => <option key={g} value={g}>{g}</option>)}
+            </select>
+          )}
+
+          {/* Minimum rating filter */}
+          <select
+            value={minRating}
+            onChange={e => setMinRating(e.target.value)}
+            className={`w-full sm:w-auto min-w-0 sm:flex-none bg-secondary border rounded-md px-3 py-2.5 sm:py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring touch-manipulation transition-colors ${
+              minRating ? 'border-primary/60 text-foreground' : 'border-border text-muted-foreground'
+            }`}
+          >
+            <option value="">{t('minRatingAny')}</option>
+            <option value="4">{t('minRating4')}</option>
+            <option value="4.5">{t('minRating45')}</option>
           </select>
 
           {regions.length > 1 && (

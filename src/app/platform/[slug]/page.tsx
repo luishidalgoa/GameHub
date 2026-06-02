@@ -6,7 +6,8 @@ import { isAdminSession } from '@/lib/auth'
 import { GameGrid } from '@/components/platform/GameGrid'
 import { EmulatorLinks } from '@/components/platform/EmulatorLinks'
 import { RecommendedStrip } from '@/components/platform/RecommendedStrip'
-import { comparePopularity, MIN_ADDED } from '@/lib/metadata/popularity'
+import { HiddenGemsStrip } from '@/components/platform/HiddenGemsStrip'
+import { comparePopularity, MIN_ADDED, GEM_MAX_ADDED, GEM_MIN_RATING } from '@/lib/metadata/popularity'
 
 export const dynamic = 'force-dynamic'
 
@@ -40,6 +41,15 @@ export default async function PlatformPage({ params }: Props) {
   })
   const regions = regionRows.map(r => r.region!).filter(Boolean)
 
+  // Distinct genres on this platform (mirrors the regions query) for the filter.
+  const genreRows = await db.game.findMany({
+    where:    { platformId: platform.id, isHidden: false, genre: { not: null } },
+    select:   { genre: true },
+    distinct: ['genre'],
+    orderBy:  { genre: 'asc' },
+  })
+  const genres = genreRows.map(g => g.genre!).filter(Boolean)
+
   const totalCount = platform._count?.games ?? 0
 
   // ── Recommended games (objective popularity from RAWG) ──────────────────────
@@ -64,6 +74,24 @@ export default async function PlatformPage({ params }: Props) {
       cover: resolveCoverPath(g.coverPath) ?? g.coverUrl,
       releaseYear: g.releaseYear,
     }))
+
+  // ── Hidden gems: well-rated but not widely owned ────────────────────────────
+  const gemRows = await db.game.findMany({
+    where: {
+      platformId: platform.id, isHidden: false,
+      rawgAdded:  { gte: MIN_ADDED, lt: GEM_MAX_ADDED },
+      rawgRating: { gte: GEM_MIN_RATING },
+    },
+    select: { id: true, title: true, coverPath: true, coverUrl: true, releaseYear: true },
+    orderBy: { rawgRating: 'desc' },
+    take: 15,
+  })
+  const hiddenGems = gemRows.map(g => ({
+    id: g.id,
+    title: g.title,
+    cover: resolveCoverPath(g.coverPath) ?? g.coverUrl,
+    releaseYear: g.releaseYear,
+  }))
 
   return (
     <div>
@@ -91,6 +119,13 @@ export default async function PlatformPage({ params }: Props) {
         thumbnailHeight={platform.thumbnailHeight}
         totalCount={totalCount}
         regions={regions}
+        genres={genres}
+      />
+
+      <HiddenGemsStrip
+        games={hiddenGems}
+        thumbnailWidth={platform.thumbnailWidth}
+        thumbnailHeight={platform.thumbnailHeight}
       />
     </div>
   )

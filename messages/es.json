@@ -14,21 +14,32 @@
     "subtitle": "{platforms} plataformas · {games} juegos",
     "recentlyAdded": "Añadidos recientemente",
     "topDownloads": "Más descargados",
-    "topDownloadsAll": "Todos"
+    "topDownloadsAll": "Todos",
+    "recommended": "Recomendados",
+    "surpriseMe": "Sorpréndeme",
+    "featured": "Destacado",
+    "featuredView": "Ver juego"
   },
   "Platform": {
     "games": "{count, plural, one {# juego} other {# juegos}}",
     "downloadEmulator": "Descargar emulador",
     "downloadEmulatorNamed": "Descargar {name}",
-    "recommended": "Recomendados"
+    "recommended": "Recomendados",
+    "hiddenGems": "Joyas ocultas"
   },
   "GameGrid": {
     "search": "Buscar…",
     "sortTitle": "Orden: Título",
     "sortYear": "Orden: Año",
     "sortSize": "Orden: Tamaño",
+    "sortPopularity": "Orden: Popularidad",
+    "sortRating": "Orden: Mejor valorados",
     "favorites": "♥ Favoritos",
-    "allRegions": "Todas las regiones"
+    "allRegions": "Todas las regiones",
+    "allGenres": "Todos los géneros",
+    "minRatingAny": "Cualquier nota",
+    "minRating4": "★ 4+",
+    "minRating45": "★ 4.5+"
   },
   "EmptyState": {
     "title": "No se encontraron juegos",
