@@ -1,10 +1,13 @@
 services:
   gamehub:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: ghcr.io/luishidalgoa/gamehub:latest   # imagen construida por CI; ya no se compila en la Pi
     container_name: gamehub
     restart: unless-stopped
+
+    # El Watchtower del host (servicio independiente en ~/services/watchtower)
+    # auto-actualiza este contenedor cuando hay imagen nueva. Aquí solo se opta in.
+    labels:
+      com.centurylinklabs.watchtower.enable: "true"
 
     env_file: .env.production
 
@@ -19,15 +22,22 @@ services:
       # ── ROM directories ──────────────────────────────────────────────────────
       # Whole drives mounted at their root — the scanner reaches any subfolder.
       # Configure the actual per-platform paths in Admin → Settings.
-      - /mnt/F:/mnt/F:ro
-      - /mnt/nextcloud_hdd_1:/mnt/nextcloud_hdd_1:ro
+      - type: bind
+        source: /mnt
+        target: /mnt
+        read_only: true
+        bind:
+          propagation: rslave
 
     # Give Next.js time to flush in-flight requests and close the SQLite
     # connection before Docker kills the process during a redeploy.
     stop_grace_period: 30s
 
     # Docker marks the container healthy once the app is accepting requests.
-    # Used by deploy.sh --wait so the script only reports "done" when the new
-    # container is actually ready (not just "started").
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/api/auth/me >/dev/null 2>&1 || exit 1"]
+
+# ── Auto-deploy ───────────────────────────────────────────────────────────────
+# El Watchtower ya NO vive aquí: es un servicio compartido del host, en su propio
+# repo (~/services/watchtower). Vigila por etiqueta, así que basta con el label de
+# arriba. Ver ~/services/watchtower/README.md para desplegarlo/migrarlo.
