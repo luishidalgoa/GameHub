@@ -39,7 +39,10 @@ function toEntry(row: {
 
 async function getMaxConcurrent(): Promise<number> {
   const s = await db.setting.findUnique({ where: { key: 'max_concurrent_downloads' } })
-  return s ? parseInt(s.value, 10) : 1
+  const n = s ? parseInt(s.value, 10) : 1
+  // Guard against a blank/non-numeric setting: parseInt('') is NaN, which would
+  // otherwise reach `take: NaN` in promoteNext() and crash the whole enqueue.
+  return Number.isFinite(n) && n > 0 ? n : 1
 }
 
 async function pruneStale(): Promise<void> {
