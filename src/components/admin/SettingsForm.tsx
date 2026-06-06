@@ -297,55 +297,76 @@ export function SettingsForm({ platforms: initial, settings }: Props) {
 
   const save = async () => {
     setSaving(true)
-    await Promise.all([
-      ...platforms.map((p) =>
-        fetch('/api/platforms', {
-          method: 'PATCH',
+    try {
+      const responses = await Promise.all([
+        ...platforms.map((p) =>
+          fetch('/api/platforms', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              id:              p.id,
+              name:            p.name,
+              scanPath:        joinPaths(getPaths(p.id)),
+              extensions:      p.extensions,
+              scanMode:        p.scanMode,
+              thumbnailWidth:  p.thumbnailWidth ?? 200,
+              thumbnailHeight: p.thumbnailHeight ?? 300,
+              scanDlc:         p.scanDlc,
+              emulators:       serializeEmulators(getEmu(p.id)),
+              // Clear the deprecated single fields once migrated into `emulators`
+              emulatorName:    null,
+              emulatorUrl:     null,
+            }),
+          })
+        ),
+        fetch('/api/settings', {
+          method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            id:              p.id,
-            name:            p.name,
-            scanPath:        joinPaths(getPaths(p.id)),
-            extensions:      p.extensions,
-            scanMode:        p.scanMode,
-            thumbnailWidth:  p.thumbnailWidth ?? 200,
-            thumbnailHeight: p.thumbnailHeight ?? 300,
-            scanDlc:         p.scanDlc,
-            emulators:       serializeEmulators(getEmu(p.id)),
-            // Clear the deprecated single fields once migrated into `emulators`
-            emulatorName:    null,
-            emulatorUrl:     null,
+            rawg_api_key:             rawgKey,
+            google_search_api_key:    googleApiKey,
+            steamgriddb_key:          sgdbKey,
+            youtube_api_key:          youtubeKey,
+            provider_cover:           provCover,
+            provider_info:            provInfo,
+            provider_description:     provDescription,
+            provider_screenshots:     provScreenshots,
+            app_url:                  appUrl,
+            max_concurrent_downloads: maxDownloads,
+            s3_endpoint_interno:      s3Internal,
+            s3_endpoint_publico:      s3Public,
+            s3_access_key:            s3AccessKey,
+            s3_secret_key:            s3SecretKey,
+            s3_bucket_name:           s3Bucket,
+            s3_region:                s3Region,
+            shop_password:            shopPassword,
           }),
-        })
-      ),
-      fetch('/api/settings', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          rawg_api_key:             rawgKey,
-          google_search_api_key:    googleApiKey,
-          steamgriddb_key:          sgdbKey,
-          youtube_api_key:          youtubeKey,
-          provider_cover:           provCover,
-          provider_info:            provInfo,
-          provider_description:     provDescription,
-          provider_screenshots:     provScreenshots,
-          app_url:                  appUrl,
-          max_concurrent_downloads: maxDownloads,
-          s3_endpoint_interno:      s3Internal,
-          s3_endpoint_publico:      s3Public,
-          s3_access_key:            s3AccessKey,
-          s3_secret_key:            s3SecretKey,
-          s3_bucket_name:           s3Bucket,
-          s3_region:                s3Region,
-          shop_password:            shopPassword,
         }),
-      }),
-    ])
-    setSaving(false)
-    setSaved(true)
-    setTimeout(() => setSaved(false), 2000)
-    router.refresh()
+      ])
+
+      // fetch() does NOT reject on HTTP 500 — without this check the form showed
+      // "Guardado" even when the write failed (e.g. a read-only DB), and then
+      // router.refresh() silently reverted the fields. Surface the real error.
+      const failed = responses.find((r) => !r.ok)
+      if (failed) {
+        let msg = t('saveError')
+        try {
+          const d = await failed.json()
+          if (d?.error) msg = d.error
+        } catch { /* non-JSON body — keep the generic message */ }
+        alert(msg)
+        return
+      }
+
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2000)
+      router.refresh()
+    } catch (err) {
+      console.error('Settings save failed:', err)
+      alert(t('saveError'))
+    } finally {
+      setSaving(false)
+    }
   }
 
   const addPlatform = async () => {

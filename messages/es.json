@@ -161,6 +161,7 @@
     "save": "Guardar",
     "saving": "Guardando…",
     "saved": "¡Guardado!",
+    "saveError": "No se pudieron guardar los cambios.",
     "platforms": "Plataformas",
     "platformsDesc": "Configura las rutas de escaneo, extensiones y modo de escaneo de cada plataforma.",
     "addPlatform": "Añadir plataforma",
