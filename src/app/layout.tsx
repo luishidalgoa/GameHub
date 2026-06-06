@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import { Inter } from 'next/font/google'
+import localFont from 'next/font/local'
 import { NextIntlClientProvider } from 'next-intl'
 import { getMessages, getLocale } from 'next-intl/server'
 import './globals.css'
@@ -8,7 +8,23 @@ import { Toaster } from '@/components/ui/toaster'
 import { TrackingBeacon } from '@/components/shared/TrackingBeacon'
 import { CookieConsent } from '@/components/shared/CookieConsent'
 
-const inter = Inter({ subsets: ['latin'], variable: '--font-inter' })
+// Self-hosted Plus Jakarta Sans (variable font: one file covers weights 200–800).
+const jakarta = localFont({
+  src: [
+    {
+      path: '../../public/fonts/Plus_Jakarta_Sans/PlusJakartaSans-VariableFont_wght.ttf',
+      weight: '200 800',
+      style: 'normal',
+    },
+    {
+      path: '../../public/fonts/Plus_Jakarta_Sans/PlusJakartaSans-Italic-VariableFont_wght.ttf',
+      weight: '200 800',
+      style: 'italic',
+    },
+  ],
+  variable: '--font-jakarta',
+  display: 'swap',
+})
 
 const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
 
@@ -46,7 +62,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
 
   return (
     <html lang={locale} className="dark">
-      <body className={`${inter.variable} font-sans antialiased`}>
+      <body className={`${jakarta.variable} font-sans antialiased`}>
         <NextIntlClientProvider locale={locale} messages={messages}>
           <Shell>{children}</Shell>
           <Toaster />

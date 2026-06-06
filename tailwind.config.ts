@@ -59,7 +59,7 @@ const config: Config = {
         sm: 'calc(var(--radius) - 4px)',
       },
       fontFamily: {
-        sans: ['var(--font-inter)'],
+        sans: ['var(--font-jakarta)', 'system-ui', 'sans-serif'],
       },
       keyframes: {
         'accordion-down': {
