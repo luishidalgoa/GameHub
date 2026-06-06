@@ -19,6 +19,10 @@
 # Config (override via env):  DOMAIN=... APP_DIR=... ./deploy.sh <cmd>
 set -euo pipefail
 
+# Single source of truth for the public domain. It feeds BOTH the Apache vhosts
+# (rendered from the __DOMAIN__ templates in apache2/) and certbot. To migrate the
+# domain, change it here once (or override via env) and re-run `apache_setup`:
+#   DOMAIN=gamehub.hdglabs.com ./deploy.sh apache_setup
 DOMAIN="${DOMAIN:-gamehub.luishidalgoa.ddns-ip.net}"
 APP_DIR="${APP_DIR:-$HOME/services/GameHub}"
 
@@ -116,9 +120,13 @@ apache_setup() {
     info "Enabling Apache modules..."
     sudo a2enmod proxy proxy_http proxy_wstunnel rewrite headers ssl
 
-    info "Copying Apache configs (HTTP + HTTPS template)..."
-    sudo cp "$APP_DIR/apache2/gamehub.conf"        /etc/apache2/sites-available/gamehub.conf
-    sudo cp "$APP_DIR/apache2/gamehub-le-ssl.conf" /etc/apache2/sites-available/gamehub-le-ssl.conf
+    info "Rendering Apache configs for domain: $DOMAIN"
+    # The vhost templates use the __DOMAIN__ placeholder; substitute $DOMAIN so the
+    # domain lives in ONE place (this var) instead of hardcoded in the .conf files.
+    sed "s/__DOMAIN__/${DOMAIN}/g" "$APP_DIR/apache2/gamehub.conf" \
+        | sudo tee /etc/apache2/sites-available/gamehub.conf >/dev/null
+    sed "s/__DOMAIN__/${DOMAIN}/g" "$APP_DIR/apache2/gamehub-le-ssl.conf" \
+        | sudo tee /etc/apache2/sites-available/gamehub-le-ssl.conf >/dev/null
 
     info "Enabling sites..."
     sudo a2ensite gamehub.conf
