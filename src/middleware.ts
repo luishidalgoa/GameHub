@@ -19,6 +19,7 @@ const PROTECTED_API_PATTERNS = [
   { method: 'POST',   path: '/api/admin/covers' }, // orphan-cover cleanup
   { method: 'POST',   path: '/api/admin/platforms' }, // platform icon upload
   { method: 'DELETE', path: '/api/admin/platforms' }, // platform icon removal
+  { method: 'GET',    path: '/api/admin/games/export' }, // games metadata export (JSON/CSV)
 ]
 
 export async function middleware(req: NextRequest) {
@@ -80,5 +81,6 @@ export const config = {
     '/api/admin/jobs/:path*',
     '/api/admin/covers/:path*',
     '/api/admin/platforms/:path*',
+    '/api/admin/games/:path*',
   ],
 }

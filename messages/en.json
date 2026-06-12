@@ -454,7 +454,9 @@
     "colYear": "Year",
     "colSize": "Size",
     "colCover": "Cover",
-    "edit": "Edit"
+    "edit": "Edit",
+    "exportJson": "Export JSON",
+    "exportCsv": "Export CSV"
   },
   "LanguageSwitcher": {
     "label": "Language"

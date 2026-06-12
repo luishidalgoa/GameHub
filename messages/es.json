@@ -454,7 +454,9 @@
     "colYear": "Año",
     "colSize": "Tamaño",
     "colCover": "Portada",
-    "edit": "Editar"
+    "edit": "Editar",
+    "exportJson": "Exportar JSON",
+    "exportCsv": "Exportar CSV"
   },
   "LanguageSwitcher": {
     "label": "Idioma"

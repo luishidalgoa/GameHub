@@ -2,7 +2,7 @@ import Link from 'next/link'
 import { getTranslations } from 'next-intl/server'
 import { db } from '@/lib/db'
 import { formatBytes } from '@/lib/utils'
-import { Pencil } from 'lucide-react'
+import { Pencil, FileJson, FileSpreadsheet } from 'lucide-react'
 import { ScrollRestorer } from '@/components/admin/ScrollRestorer'
 
 export const dynamic = 'force-dynamic'
@@ -40,13 +40,39 @@ export default async function AdminGamesPage({ searchParams }: Props) {
 
   const totalPages = Math.ceil(total / pageSize)
 
+  // Export links honour the active filters: pick a platform → only that one;
+  // "All Platforms" → everything (the platform column is always included).
+  const exportParams = new URLSearchParams()
+  if (platformSlug) exportParams.set('platform', platformSlug)
+  if (search) exportParams.set('search', search)
+  if (noScore) exportParams.set('noScore', '1')
+  const exportQs = exportParams.toString()
+  const exportHref = (format: 'json' | 'csv') =>
+    `/api/admin/games/export?format=${format}${exportQs ? `&${exportQs}` : ''}`
+
   return (
     <div>
       {/* Restore scroll position when returning from a game editor */}
       <ScrollRestorer storageKey={`admin-games:${search}:${platformSlug}:${page}`} />
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
         <h2 className="text-xl font-semibold">{t('title')}</h2>
-        <span className="text-sm text-muted-foreground">{t('gamesCount', { n: total })}</span>
+        <div className="flex items-center gap-3">
+          <span className="text-sm text-muted-foreground">{t('gamesCount', { n: total })}</span>
+          <a
+            href={exportHref('json')}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md bg-secondary hover:bg-accent transition-colors"
+          >
+            <FileJson className="w-4 h-4" />
+            {t('exportJson')}
+          </a>
+          <a
+            href={exportHref('csv')}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md bg-secondary hover:bg-accent transition-colors"
+          >
+            <FileSpreadsheet className="w-4 h-4" />
+            {t('exportCsv')}
+          </a>
+        </div>
       </div>
 
       {/* Active "no score" filter chip (from the dashboard card) */}
