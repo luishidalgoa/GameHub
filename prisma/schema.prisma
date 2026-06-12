@@ -41,6 +41,9 @@ model Game {
   title       String
   sortTitle   String?
   region      String?
+  // Languages parsed from the file name (No-Intro/GoodTools tags), stored as a
+  // CSV of ISO-639-1 codes, e.g. "es,en,it". Null when none were detected.
+  languages   String?
   releaseYear Int?
   genre       String?
   developer   String?
@@ -124,7 +127,13 @@ model GameDlc {
   fileName String
   fileSize BigInt
   title    String?
-  type     String @default("dlc")   // "dlc" | "update" | "mod"
+  type     String @default("dlc")   // "dlc" | "update" | "mod" | "region"
+
+  // For type == "region": the region/languages of this alternate edition,
+  // parsed from its file name. Lets one game card expose every regional ROM as
+  // a separately downloadable version. Null/ignored for dlc/update/mod rows.
+  region    String?
+  languages String?
 
   @@index([gameId])
 }

@@ -1,11 +1,49 @@
 import { db } from '@/lib/db'
 import { runMetadataBatch } from './batch'
+import type { BatchEvent } from './batch'
 import type { ScanEvent } from '@/lib/scanner/events'
+
+/** Map a metadata-batch event onto the scan bus (auto_meta_* event types). */
+function makeBatchEmitter(emitScan: (e: ScanEvent) => void) {
+  return (event: BatchEvent) => {
+    switch (event.type) {
+      case 'start':
+        emitScan({ type: 'auto_meta_start', total: event.total })
+        break
+      case 'applied':
+      case 'skipped':
+      case 'failed':
+        emitScan({
+          type:         'auto_meta_progress',
+          metaStatus:   event.type,
+          gameTitle:    event.title,
+          confidence:   event.confidence,
+          trailerFound: event.trailerFound,
+          processed:    event.processed,
+          total:        event.total,
+        })
+        break
+      case 'done':
+        emitScan({
+          type:    'auto_meta_done',
+          added:   event.applied,
+          skipped: event.skipped,
+          failed:  event.failed,
+          total:   event.total,
+        })
+        break
+    }
+  }
+}
 
 /**
  * Triggered automatically after a scan adds new games.
- * Reads RAWG key from DB, runs the metadata batch with trailer search,
- * and emits progress back onto the scan bus using auto_meta_* event types.
+ * Reads the RAWG key from the DB, then runs two passes, emitting progress back
+ * onto the scan bus as auto_meta_* events:
+ *   1. metadata  — covers / info / trailer for games that have none.
+ *   2. ratings   — RAWG popularity/score ('popularity' mode). It only touches
+ *                  games with a rawgId and no popularityFetchedAt, i.e. exactly
+ *                  the ones just matched in pass 1 → ratings for NEW games only.
  */
 export async function triggerAutoMetadata(
   emitScan: (e: ScanEvent) => void,
@@ -22,42 +60,25 @@ export async function triggerAutoMetadata(
   }
 
   const controller = new AbortController()
+  const emit = makeBatchEmitter(emitScan)
 
+  // Pass 1 — metadata (covers / info / trailer).
   await runMetadataBatch({
     signal:       controller.signal,
     withCovers:   true,
     withTrailers: true,
     apiKey,
     platformSlug,
-    emit(event) {
-      switch (event.type) {
-        case 'start':
-          emitScan({ type: 'auto_meta_start', total: event.total })
-          break
-        case 'applied':
-        case 'skipped':
-        case 'failed':
-          emitScan({
-            type:         'auto_meta_progress',
-            metaStatus:   event.type,
-            gameTitle:    event.title,
-            confidence:   event.confidence,
-            trailerFound: event.trailerFound,
-            processed:    event.processed,
-            total:        event.total,
-          })
-          break
-        case 'done':
-          emitScan({
-            type:    'auto_meta_done',
-            added:   event.applied,
-            skipped: event.skipped,
-            failed:  event.failed,
-            total:   event.total,
-          })
-          break
-      }
-    },
+    emit,
+  })
+
+  // Pass 2 — ratings/score for the games that just got a rawgId (the new ones).
+  await runMetadataBatch({
+    signal: controller.signal,
+    mode:   'popularity',
+    apiKey,
+    platformSlug,
+    emit,
   })
 
   emitScan({ type: 'pipeline_done' })

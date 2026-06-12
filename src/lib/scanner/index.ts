@@ -1,16 +1,24 @@
 import path from 'path'
 import fs from 'fs'
 import { db } from '@/lib/db'
-import { cleanTitle, extractRegion, toSortTitle } from '@/lib/utils'
+import { cleanTitle, toSortTitle } from '@/lib/utils'
+import { parseRomTags, languagesToCsv, gameGroupKey } from '@/lib/rom-tags'
 import { walkDirectory, scanSwitchFolders, scanPortsFolders, walkFlatWithDlcDetection, extractGameKey } from './walker'
 import type { SwitchGameFolder, FileEntry } from './walker'
 import { extractSwitchTitleId, classifySwitchTitleId, switchGroupKey, nameGroupKey } from './titleid'
+import { consolidatePlatform } from './regions'
 import { scanBus } from './events'
 import type { ScanEvent } from './events'
 import { triggerAutoMetadata } from '@/lib/metadata/auto'
 
 function emit(event: ScanEvent) {
   scanBus.emit('scan', event)
+}
+
+/** Region + languages CSV parsed from a file (or folder) name. */
+function tagFields(name: string): { region: string | null; languages: string | null } {
+  const t = parseRomTags(name)
+  return { region: t.region, languages: languagesToCsv(t.languages) }
 }
 
 // ── Folder-based game unification (Switch / Ports) ────────────────────────────
@@ -46,10 +54,13 @@ async function reparentAndDelete(srcId: number, dstId: number, switchMode: boole
       const already = await db.gameDlc.findUnique({ where: { filePath: src.filePath } })
       if (!already) {
         const tid  = switchMode ? extractSwitchTitleId(src.fileName) : null
-        const kind = tid ? classifySwitchTitleId(tid) : 'update'
+        // Non-Switch siblings sharing a group key are region variants of the
+        // same game → keep them as downloadable 'region' editions.
+        const kind = tid ? classifySwitchTitleId(tid) : 'region'
         if (kind !== 'base') {
+          const tags = kind === 'region' ? tagFields(src.fileName) : { region: null, languages: null }
           await db.gameDlc.create({
-            data: { gameId: dstId, filePath: src.filePath, fileName: src.fileName, fileSize: src.fileSize, title: cleanTitle(src.fileName), type: kind },
+            data: { gameId: dstId, filePath: src.filePath, fileName: src.fileName, fileSize: src.fileSize, title: tags.region ?? cleanTitle(src.fileName), type: kind, region: tags.region, languages: tags.languages },
           }).catch(() => {})
         }
       }
@@ -117,7 +128,9 @@ async function processFolderGroups(
 
       const titleFolder = groupFolders.find(f => f.baseFile && f.baseFile.filePath === base?.filePath) ?? groupFolders[0]
       const title  = cleanTitle(titleFolder.folderName)
-      const region = extractRegion(titleFolder.folderName)
+      // Region/languages: prefer the base ROM's own name (carries the (En,Es…)
+      // tags); fall back to the folder name.
+      const { region, languages } = tagFields(base?.fileName ?? titleFolder.folderName)
 
       const baseData = base
         ? { filePath: base.filePath, fileName: base.fileName, fileSize: base.fileSize }
@@ -132,7 +145,7 @@ async function processFolderGroups(
 
       if (!canonical) {
         canonical = await db.game.create({
-          data: { ...baseData, platformId, title, sortTitle: toSortTitle(title), region, groupKey, lastSeenAt: scanStart },
+          data: { ...baseData, platformId, title, sortTitle: toSortTitle(title), region, languages, groupKey, lastSeenAt: scanStart },
         })
         res.added++
         emitFn({ type: 'file_found', filePath: baseData.filePath, isNew: true, platform: platformName })
@@ -140,8 +153,8 @@ async function processFolderGroups(
         // Only (re)write the base file fields when we actually found a base in
         // this scan — otherwise we'd clobber an existing base whose disk is
         // simply offline right now with the empty folder sentinel.
-        const updateData: { groupKey: string; lastSeenAt: Date; isHidden: boolean; filePath?: string; fileName?: string; fileSize?: bigint } =
-          { groupKey, lastSeenAt: scanStart, isHidden: false }
+        const updateData: { groupKey: string; lastSeenAt: Date; isHidden: boolean; region: string | null; languages: string | null; filePath?: string; fileName?: string; fileSize?: bigint } =
+          { groupKey, lastSeenAt: scanStart, isHidden: false, region, languages }
         if (base) {
           // Free the target file path from any other row first
           const occ = await db.game.findUnique({ where: { filePath: base.filePath } })
@@ -155,15 +168,19 @@ async function processFolderGroups(
         emitFn({ type: 'file_found', filePath: updateData.filePath ?? canonical.filePath, isNew: false, platform: platformName })
       }
 
-      // Attach extras as update / dlc / mod
+      // Attach extras as update / dlc / mod / region. A non-Switch 'base' extra
+      // is an alternate-region copy of the same game → store it as 'region'.
       for (const e of extras) {
+        const etype = (!switchMode && e.kind === 'base') ? 'region' : e.kind
+        const etags = etype === 'region' ? tagFields(e.fileName) : { region: null, languages: null }
         await db.gameDlc.upsert({
           where:  { filePath: e.filePath },
-          update: { gameId: canonical.id, fileSize: e.fileSize, type: e.kind },
-          create: { gameId: canonical.id, filePath: e.filePath, fileName: e.fileName, fileSize: e.fileSize, title: cleanTitle(e.fileName), type: e.kind },
+          update: { gameId: canonical.id, fileSize: e.fileSize, type: etype, region: etags.region, languages: etags.languages },
+          create: { gameId: canonical.id, filePath: e.filePath, fileName: e.fileName, fileSize: e.fileSize, title: etags.region ?? cleanTitle(e.fileName), type: etype, region: etags.region, languages: etags.languages },
         }).catch(err => errors.push(`Error linking ${e.filePath}: ${err}`))
-        if (e.kind === 'mod') res.modsFound++
-        else if (e.kind === 'update') res.updatesFound++
+        if (etype === 'mod') res.modsFound++
+        else if (etype === 'update') res.updatesFound++
+        else if (etype === 'region') {/* alternate region, surfaced in the picker */}
         else res.dlcsFound++
       }
 
@@ -259,15 +276,16 @@ export async function runScan(triggeredBy = 'manual', platformSlug?: string) {
         for (const file of looseFiles) {
           found++
           const title  = cleanTitle(path.basename(file.fileName, path.extname(file.fileName)))
-          const region = extractRegion(file.fileName)
+          const { region, languages } = tagFields(file.fileName)
+          const groupKey = gameGroupKey(file.fileName)
           try {
             const existing = await db.game.findUnique({ where: { filePath: file.filePath } })
             if (!existing) {
-              await db.game.create({ data: { filePath: file.filePath, fileName: file.fileName, fileSize: file.fileSize, platformId: platform.id, title, sortTitle: toSortTitle(title), region, groupKey: nameGroupKey(file.fileName), lastSeenAt: scanStart } })
+              await db.game.create({ data: { filePath: file.filePath, fileName: file.fileName, fileSize: file.fileSize, platformId: platform.id, title, sortTitle: toSortTitle(title), region, languages, groupKey, lastSeenAt: scanStart } })
               added++
               emit({ type: 'file_found', filePath: file.filePath, isNew: true, platform: platform.name })
             } else {
-              await db.game.update({ where: { id: existing.id }, data: { fileSize: file.fileSize, lastSeenAt: scanStart, isHidden: false } })
+              await db.game.update({ where: { id: existing.id }, data: { fileSize: file.fileSize, region, languages, groupKey, lastSeenAt: scanStart, isHidden: false } })
               updated++
               emit({ type: 'file_found', filePath: file.filePath, isNew: false, platform: platform.name })
             }
@@ -295,17 +313,18 @@ export async function runScan(triggeredBy = 'manual', platformSlug?: string) {
           for (const file of baseFiles) {
             found++
             const title  = cleanTitle(file.fileName)
-            const region = extractRegion(file.fileName)
+            const { region, languages } = tagFields(file.fileName)
+            const groupKey = gameGroupKey(file.fileName)
             try {
               const existing = await db.game.findUnique({ where: { filePath: file.filePath } })
               let gameId: number
               if (!existing) {
-                const game = await db.game.create({ data: { filePath: file.filePath, fileName: file.fileName, fileSize: file.fileSize, platformId: platform.id, title, sortTitle: toSortTitle(title), region, lastSeenAt: scanStart } })
+                const game = await db.game.create({ data: { filePath: file.filePath, fileName: file.fileName, fileSize: file.fileSize, platformId: platform.id, title, sortTitle: toSortTitle(title), region, languages, groupKey, lastSeenAt: scanStart } })
                 added++
                 gameId = game.id
                 emit({ type: 'file_found', filePath: file.filePath, isNew: true, platform: platform.name })
               } else {
-                await db.game.update({ where: { id: existing.id }, data: { fileSize: file.fileSize, lastSeenAt: scanStart, isHidden: false } })
+                await db.game.update({ where: { id: existing.id }, data: { fileSize: file.fileSize, region, languages, groupKey, lastSeenAt: scanStart, isHidden: false } })
                 updated++
                 gameId = existing.id
                 emit({ type: 'file_found', filePath: file.filePath, isNew: false, platform: platform.name })
@@ -355,15 +374,16 @@ export async function runScan(triggeredBy = 'manual', platformSlug?: string) {
           for (const file of walkDirectory(scanPath, extensions)) {
             found++
             const title  = cleanTitle(file.fileName)
-            const region = extractRegion(file.fileName)
+            const { region, languages } = tagFields(file.fileName)
+            const groupKey = gameGroupKey(file.fileName)
             try {
               const existing = await db.game.findUnique({ where: { filePath: file.filePath } })
               if (!existing) {
-                await db.game.create({ data: { filePath: file.filePath, fileName: file.fileName, fileSize: file.fileSize, platformId: platform.id, title, sortTitle: toSortTitle(title), region, lastSeenAt: scanStart } })
+                await db.game.create({ data: { filePath: file.filePath, fileName: file.fileName, fileSize: file.fileSize, platformId: platform.id, title, sortTitle: toSortTitle(title), region, languages, groupKey, lastSeenAt: scanStart } })
                 added++
                 emit({ type: 'file_found', filePath: file.filePath, isNew: true, platform: platform.name })
               } else {
-                await db.game.update({ where: { id: existing.id }, data: { fileSize: file.fileSize, lastSeenAt: scanStart, isHidden: false } })
+                await db.game.update({ where: { id: existing.id }, data: { fileSize: file.fileSize, region, languages, groupKey, lastSeenAt: scanStart, isHidden: false } })
                 updated++
                 emit({ type: 'file_found', filePath: file.filePath, isNew: false, platform: platform.name })
               }
@@ -375,6 +395,15 @@ export async function runScan(triggeredBy = 'manual', platformSlug?: string) {
     } catch (err) {
       const msg = `Error scanning platform ${platform.name}: ${err}`
       errors.push(msg)
+    }
+
+    // Unify region duplicates into a single card (primary edition + 'region'
+    // editions) across every scan path of this platform. Runs for all modes,
+    // so flat libraries (NDS/3DS) get the same grouping as folder/ports.
+    try {
+      await consolidatePlatform(platform.id)
+    } catch (err) {
+      errors.push(`Error consolidating regions for ${platform.name}: ${err}`)
     }
 
     // Mark stale games only when every scan path was accessible.

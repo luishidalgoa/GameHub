@@ -7,7 +7,9 @@ export interface GameDlc {
   fileName: string
   fileSize: string
   title: string | null
-  type: string   // "dlc" | "update"
+  type: string   // "dlc" | "update" | "mod" | "region"
+  region: string | null
+  languages: string | null
 }
 
 export interface Game {
@@ -20,6 +22,7 @@ export interface Game {
   title: string
   sortTitle: string | null
   region: string | null
+  languages: string | null
   releaseYear: number | null
   genre: string | null
   developer: string | null

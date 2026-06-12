@@ -9,6 +9,8 @@ import { X, Heart, Pencil, HardDrive, Calendar, Tag, User, Building2 } from 'luc
 import { formatBytes, cn } from '@/lib/utils'
 import { DownloadButton }     from '@/components/shared/DownloadButton'
 import { BulkDownloadButton } from '@/components/shared/BulkDownloadButton'
+import { RegionVersions }     from '@/components/shared/RegionVersions'
+import { LanguageBadges }     from '@/components/shared/LanguageBadges'
 import { RatingPill }         from '@/components/shared/RatingPill'
 import { ScreenshotCarousel } from '@/components/game/ScreenshotCarousel'
 import { ExternalLinks }      from '@/components/game/ExternalLinks'
@@ -194,6 +196,7 @@ export function GameDetailModal({ gameId, onClose }: Props) {
                       {game.region}
                     </span>
                   )}
+                  <LanguageBadges languages={game.languages} />
                 </div>
               </div>
 
@@ -227,6 +230,20 @@ export function GameDetailModal({ gameId, onClose }: Props) {
                 </div>
               </div>
             </div>
+
+            {/* Regiones / versiones descargables */}
+            {game.dlcs && game.dlcs.some((d) => d.type === 'region') && (
+              <RegionVersions
+                gameId={game.id}
+                title={t('regions')}
+                editions={[
+                  { region: game.region, languages: game.languages, fileSize: game.fileSize },
+                  ...game.dlcs
+                    .filter((d) => d.type === 'region')
+                    .map((d) => ({ dlcId: d.id, region: d.region, languages: d.languages, fileSize: d.fileSize })),
+                ]}
+              />
+            )}
 
             {/* Description */}
             {game.description && (

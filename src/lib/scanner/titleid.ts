@@ -12,7 +12,7 @@
  * it makes an ideal grouping key.
  */
 
-import { cleanTitle } from '@/lib/utils'
+import { gameGroupKey } from '@/lib/rom-tags'
 
 export type SwitchKind = 'base' | 'update' | 'dlc'
 
@@ -77,10 +77,9 @@ export function switchGroupKey(fileNames: string[]): string | null {
   return null
 }
 
-/** Normalize a folder/file name into a name-based group key. */
+/** Normalize a folder/file name into a name-based group key.
+ *  Delegates to the shared {@link gameGroupKey} so region/disc/revision variants
+ *  collapse together while demo/proto builds stay apart. */
 export function nameGroupKey(folderOrFileName: string): string {
-  const norm = cleanTitle(folderOrFileName)
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '')
-  return `name:${norm}`
+  return gameGroupKey(folderOrFileName)
 }

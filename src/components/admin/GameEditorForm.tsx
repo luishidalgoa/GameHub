@@ -74,6 +74,7 @@ export function GameEditorForm({ game, thumbnailWidth = 200, thumbnailHeight = 3
     customNotes: game.customNotes ?? '',
     genre: game.genre ?? '',
     region: game.region ?? '',
+    languages: game.languages ?? '',
     releaseYear: game.releaseYear ? String(game.releaseYear) : '',
     developer: game.developer ?? '',
     publisher: game.publisher ?? '',
@@ -281,6 +282,9 @@ export function GameEditorForm({ game, thumbnailWidth = 200, thumbnailHeight = 3
             </Field>
             <Field label={t('fieldRegion')}>
               <input value={form.region} onChange={(e) => set('region', e.target.value)} className={inputCls} placeholder={t('fieldRegionPlaceholder')} />
+            </Field>
+            <Field label={t('fieldLanguages')}>
+              <input value={form.languages} onChange={(e) => set('languages', e.target.value)} className={inputCls} placeholder={t('fieldLanguagesPlaceholder')} />
             </Field>
             <Field label={t('fieldYear')} badge={<SourceBadge source={sources.info} />}>
               <input value={form.releaseYear} onChange={(e) => set('releaseYear', e.target.value)} className={inputCls} type="number" min="1970" max="2030" />

@@ -32,14 +32,23 @@ export default async function PlatformPage({ params }: Props) {
 
   if (!platform) notFound()
 
-  // Cheap aggregation — just unique region strings, no game data
-  const regionRows = await db.game.findMany({
-    where:    { platformId: platform.id, isHidden: false, region: { not: null } },
-    select:   { region: true },
-    distinct: ['region'],
-    orderBy:  { region: 'asc' },
-  })
-  const regions = regionRows.map(r => r.region!).filter(Boolean)
+  // Cheap aggregation — unique region strings from primary games AND from
+  // region-variant editions, so every selectable region shows in the filter.
+  const [regionRows, editionRegionRows] = await Promise.all([
+    db.game.findMany({
+      where:    { platformId: platform.id, isHidden: false, region: { not: null } },
+      select:   { region: true },
+      distinct: ['region'],
+    }),
+    db.gameDlc.findMany({
+      where:    { type: 'region', region: { not: null }, game: { platformId: platform.id, isHidden: false } },
+      select:   { region: true },
+      distinct: ['region'],
+    }),
+  ])
+  const regions = Array.from(
+    new Set([...regionRows, ...editionRegionRows].map(r => r.region!).filter(Boolean)),
+  ).sort()
 
   // Distinct genres on this platform (mirrors the regions query) for the filter.
   const genreRows = await db.game.findMany({

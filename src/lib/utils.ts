@@ -21,18 +21,8 @@ export function toSortTitle(title: string): string {
     .toLowerCase()
 }
 
-export function extractRegion(fileName: string): string | null {
-  const m = fileName.match(/\((USA|U|Europe|E|Japan|J|World|W|Spain|S)\)/i)
-  if (!m) return null
-  const map: Record<string, string> = {
-    usa: 'USA', u: 'USA',
-    europe: 'EUR', e: 'EUR',
-    japan: 'JPN', j: 'JPN',
-    world: 'World', w: 'World',
-    spain: 'ESP', s: 'ESP',
-  }
-  return map[m[1].toLowerCase()] ?? m[1].toUpperCase()
-}
+// Region/language parsing moved to `@/lib/rom-tags` (parseRomTags / extractRegion),
+// which understands multi-region and language tags. Imported there as needed.
 
 export function cleanTitle(fileName: string): string {
   return fileName

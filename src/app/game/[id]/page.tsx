@@ -7,6 +7,8 @@ import { resolveCoverPath } from '@/lib/s3'
 import { formatBytes } from '@/lib/utils'
 import { DownloadButton }     from '@/components/shared/DownloadButton'
 import { BulkDownloadButton } from '@/components/shared/BulkDownloadButton'
+import { RegionVersions }     from '@/components/shared/RegionVersions'
+import { LanguageBadges }     from '@/components/shared/LanguageBadges'
 import { RatingPill } from '@/components/shared/RatingPill'
 import { RecordView } from '@/components/game/RecordView'
 import { ScreenshotCarousel } from '@/components/game/ScreenshotCarousel'
@@ -109,6 +111,7 @@ export default async function GamePage({ params }: Props) {
                 {game.region}
               </span>
             )}
+            <LanguageBadges languages={game.languages} />
           </div>
 
           <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
@@ -129,6 +132,22 @@ export default async function GamePage({ params }: Props) {
           )}
         </div>
       </div>
+
+      {/* Regiones / versiones descargables */}
+      {game.dlcs.some((d) => d.type === 'region') && (
+        <div className="mt-8">
+          <RegionVersions
+            gameId={game.id}
+            title="Regions"
+            editions={[
+              { region: game.region, languages: game.languages, fileSize: game.fileSize.toString() },
+              ...game.dlcs
+                .filter((d) => d.type === 'region')
+                .map((d) => ({ dlcId: d.id, region: d.region, languages: d.languages, fileSize: d.fileSize.toString() })),
+            ]}
+          />
+        </div>
+      )}
 
       {/* Screenshots */}
       {screenshots.length > 0 && (

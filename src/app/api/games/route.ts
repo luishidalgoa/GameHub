@@ -26,7 +26,9 @@ export async function GET(req: Request) {
     ...(platformSlug && { platform: { slug: platformSlug } }),
     ...(search    && { title: { contains: search } }),
     ...(favorites && { isFavorite: true }),
-    ...(region    && { region }),
+    // Match the primary region OR any region-variant edition, so a card whose
+    // primary is e.g. EUR still shows when filtering by a JPN variant it holds.
+    ...(region    && { OR: [{ region }, { dlcs: { some: { type: 'region', region } } }] }),
     ...(genre     && { genre }),
     // "none" → only games without a score; otherwise a min on the unified 0–100.
     ...(noScore && { rawgScore: null }),
