@@ -2,9 +2,16 @@
 
 import { useTranslations } from 'next-intl'
 import Link from 'next/link'
-import { Gamepad2, type LucideIcon } from 'lucide-react'
+import { Gamepad2, Ghost, type LucideIcon } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { cn } from '@/lib/utils'
+
+// Icons referencable by name. Server Components MUST use the string form: a
+// LucideIcon is a function, and functions can't cross the server→client boundary
+// ("Functions cannot be passed directly to Client Components"). Passing the
+// component directly is only valid from other Client Components.
+const NAMED_ICONS = { gamepad2: Gamepad2, ghost: Ghost } as const
+type IconName = keyof typeof NAMED_ICONS
 
 interface Action {
   label: string
@@ -13,8 +20,11 @@ interface Action {
 }
 
 interface Props {
-  /** Lucide icon to feature. Defaults to a gamepad. */
-  icon?: LucideIcon
+  /**
+   * Lucide icon to feature. Defaults to a gamepad. From a Server Component pass
+   * a name (e.g. "ghost"); from a Client Component you may pass the component.
+   */
+  icon?: LucideIcon | IconName
   title?: string
   description?: string
   /** Optional call-to-action rendered as a button (onClick) or link (href). */
@@ -33,7 +43,7 @@ interface Props {
  * lists, search and the recently-viewed page.
  */
 export function EmptyState({
-  icon: Icon = Gamepad2,
+  icon = Gamepad2,
   title,
   description,
   action,
@@ -42,6 +52,7 @@ export function EmptyState({
   className,
 }: Props) {
   const t = useTranslations('EmptyState')
+  const Icon: LucideIcon = typeof icon === 'string' ? (NAMED_ICONS[icon] ?? Gamepad2) : icon
 
   return (
     <div

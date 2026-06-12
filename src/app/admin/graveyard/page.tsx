@@ -92,7 +92,7 @@ export default async function GraveyardPage({ searchParams }: Props) {
 
       {/* Empty state */}
       {totalMissing === 0 ? (
-        <EmptyState icon={Ghost} title={t('emptyTitle')} description={t('emptySubtitle')} />
+        <EmptyState icon="ghost" title={t('emptyTitle')} description={t('emptySubtitle')} />
       ) : (
         <>
           <div className="bg-card border border-border rounded-xl overflow-hidden">
