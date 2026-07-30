@@ -331,6 +331,7 @@ export async function runMetadataBatch(opts: {
       const meta = await gatherMetadata({
         title:        game.title,
         platformSlug: game.platform.slug,
+        fileName:     game.fileName,
         matrix,
         rawgApiKey:   apiKey,
         threshold:    AUTO_THRESHOLD,

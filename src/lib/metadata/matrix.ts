@@ -2,7 +2,7 @@ import { db } from '@/lib/db'
 
 // Per-field metadata provider selection. Each category of data can come from a
 // different source, picked for what that source does best:
-//   - cover:       box-art front     → LaunchBox / SteamGridDB / RAWG
+//   - cover:       box-art front     → libretro / LaunchBox / SteamGridDB / RAWG
 //   - info:        dev/publisher/genre/year/ESRB → LaunchBox / RAWG
 //   - description: long overview     → RAWG (richer) / LaunchBox
 //   - screenshots: gameplay images   → LaunchBox / RAWG / none
@@ -10,7 +10,10 @@ import { db } from '@/lib/db'
 // Stored in the Setting table (keys below). Each field falls back to the other
 // available source if the chosen one returns nothing for a given game.
 
-export type CoverProvider = 'launchbox' | 'steamgriddb' | 'rawg'
+// 'libretro' is indexed by system and by No-Intro file name, so it returns the
+// box that shipped for *this* console in its real proportions, where the others
+// index by game and can hand a GBA cartridge the PS2 cover. No Switch data.
+export type CoverProvider = 'launchbox' | 'steamgriddb' | 'rawg' | 'libretro'
 export type InfoProvider = 'launchbox' | 'rawg'
 export type DescProvider = 'launchbox' | 'rawg'
 export type ShotProvider = 'launchbox' | 'rawg' | 'none'
@@ -38,7 +41,7 @@ export const DEFAULT_MATRIX: ProviderMatrix = {
   screenshots: 'launchbox',
 }
 
-const COVER_OPTS: CoverProvider[] = ['launchbox', 'steamgriddb', 'rawg']
+const COVER_OPTS: CoverProvider[] = ['launchbox', 'steamgriddb', 'rawg', 'libretro']
 const INFO_OPTS:  InfoProvider[]  = ['launchbox', 'rawg']
 const DESC_OPTS:  DescProvider[]  = ['launchbox', 'rawg']
 const SHOT_OPTS:  ShotProvider[]  = ['launchbox', 'rawg', 'none']

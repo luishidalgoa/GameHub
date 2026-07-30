@@ -92,6 +92,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   const meta = await gatherMetadata({
     title:        game.title,
     platformSlug: game.platform.slug,
+    fileName:     game.fileName,
     matrix,
     rawgApiKey:   await rawgKey(),
   })
