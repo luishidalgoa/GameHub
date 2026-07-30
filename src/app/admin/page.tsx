@@ -41,8 +41,12 @@ export default async function AdminPage() {
         <StatCard icon={<Gamepad2 className="w-5 h-5" />} label={t('totalGames')}     value={totalGames.toString()} />
         <StatCard icon={<Monitor className="w-5 h-5" />}  label={t('platforms')}      value={totalPlatforms.toString()} />
         <StatCard icon={<HardDrive className="w-5 h-5" />} label={t('totalSize')}     value={formatBytes(totalSize)} />
-        <StatCard icon={<ImageOff className="w-5 h-5" />} label={t('missingCovers')}  value={noCover.toString()} color="text-amber-400" />
-        <StatCard icon={<FileQuestion className="w-5 h-5" />} label={t('noMetadata')} value={noMeta.toString()} color={noMeta > 0 ? 'text-violet-400' : 'text-foreground'} />
+        <Link href="/admin/games?cover=no-cover" className="rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+          <StatCard icon={<ImageOff className="w-5 h-5" />} label={t('missingCovers')} value={noCover.toString()} color="text-amber-400" hover />
+        </Link>
+        <Link href="/admin/games?meta=no-metadata" className="rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+          <StatCard icon={<FileQuestion className="w-5 h-5" />} label={t('noMetadata')} value={noMeta.toString()} color={noMeta > 0 ? 'text-violet-400' : 'text-foreground'} hover />
+        </Link>
         <Link href="/admin/games?score=no-score" className="rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-ring">
           <StatCard icon={<StarOff className="w-5 h-5" />} label={t('noScore')} value={noScore.toString()} color={noScore > 0 ? 'text-rose-400' : 'text-foreground'} hover />
         </Link>

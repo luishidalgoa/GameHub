@@ -8,7 +8,11 @@ import { ScrollRestorer } from '@/components/admin/ScrollRestorer'
 export const dynamic = 'force-dynamic'
 
 interface Props {
-  searchParams: { search?: string; platform?: string; page?: string; score?: string }
+  searchParams: {
+    search?: string; platform?: string; page?: string
+    /** Dashboard cards link here with one of these set. */
+    score?: string; cover?: string; meta?: string
+  }
 }
 
 export default async function AdminGamesPage({ searchParams }: Props) {
@@ -16,6 +20,8 @@ export default async function AdminGamesPage({ searchParams }: Props) {
   const search = searchParams.search ?? ''
   const platformSlug = searchParams.platform ?? ''
   const noScore = searchParams.score === 'no-score'
+  const noCover = searchParams.cover === 'no-cover'
+  const noMeta  = searchParams.meta  === 'no-metadata'
   const page = parseInt(searchParams.page ?? '1', 10)
   const pageSize = 50
 
@@ -24,6 +30,10 @@ export default async function AdminGamesPage({ searchParams }: Props) {
     ...(search && { title: { contains: search } }),
     ...(platformSlug && { platform: { slug: platformSlug } }),
     ...(noScore && { rawgScore: null }),
+    // "Sin portada" means neither a stored file nor a remote URL — the same test
+    // the dashboard counts with, so the card's number and this list agree.
+    ...(noCover && { coverPath: null, coverUrl: null }),
+    ...(noMeta  && { metadataFetchedAt: null }),
   }
 
   const [games, total, platforms] = await Promise.all([
@@ -46,6 +56,8 @@ export default async function AdminGamesPage({ searchParams }: Props) {
   if (platformSlug) exportParams.set('platform', platformSlug)
   if (search) exportParams.set('search', search)
   if (noScore) exportParams.set('noScore', '1')
+  if (noCover) exportParams.set('noCover', '1')
+  if (noMeta)  exportParams.set('noMeta', '1')
   const exportQs = exportParams.toString()
   const exportHref = (format: 'json' | 'csv') =>
     `/api/admin/games/export?format=${format}${exportQs ? `&${exportQs}` : ''}`
@@ -75,11 +87,16 @@ export default async function AdminGamesPage({ searchParams }: Props) {
         </div>
       </div>
 
-      {/* Active "no score" filter chip (from the dashboard card) */}
-      {noScore && (
+      {/* Chip for whichever dashboard card sent us here. Colours match the card
+          that links to each one, so the jump is obvious. */}
+      {(noScore || noCover || noMeta) && (
         <div className="mb-4 flex items-center gap-2 text-sm">
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-rose-500/15 text-rose-300 border border-rose-500/30">
-            {t('filterNoScore')}
+          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border ${
+            noScore ? 'bg-rose-500/15 text-rose-300 border-rose-500/30'
+            : noCover ? 'bg-amber-500/15 text-amber-300 border-amber-500/30'
+            : 'bg-violet-500/15 text-violet-300 border-violet-500/30'
+          }`}>
+            {noScore ? t('filterNoScore') : noCover ? t('filterNoCover') : t('filterNoMetadata')}
           </span>
           <Link href="/admin/games" className="text-xs text-muted-foreground hover:text-foreground underline">
             {t('clearFilter')}

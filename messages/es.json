@@ -461,7 +461,9 @@
     "colCover": "Portada",
     "edit": "Editar",
     "exportJson": "Exportar JSON",
-    "exportCsv": "Exportar CSV"
+    "exportCsv": "Exportar CSV",
+    "filterNoCover": "Solo juegos sin portada",
+    "filterNoMetadata": "Solo juegos sin metadatos"
   },
   "LanguageSwitcher": {
     "label": "Idioma"

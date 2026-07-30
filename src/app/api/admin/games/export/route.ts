@@ -11,6 +11,8 @@ export const dynamic = 'force-dynamic'
 //   platform  <platform slug>     filter to a single platform
 //   search    <text>              filter by title (contains)
 //   noScore   1                   only games without a score (mirrors the games list chip)
+//   noCover   1                   only games with neither a stored cover nor a URL
+//   noMeta    1                   only games whose metadata was never fetched
 //   includeHidden  1              include graveyard (isHidden) games too
 //
 // Admin-only — protected by middleware (PROTECTED_API_PATTERNS).
@@ -95,6 +97,8 @@ export async function GET(req: NextRequest) {
   const platformSlug = searchParams.get('platform') ?? ''
   const search = searchParams.get('search') ?? ''
   const noScore = searchParams.get('noScore') === '1'
+  const noCover = searchParams.get('noCover') === '1'
+  const noMeta  = searchParams.get('noMeta')  === '1'
   const includeHidden = searchParams.get('includeHidden') === '1'
 
   const where: Prisma.GameWhereInput = {
@@ -102,6 +106,8 @@ export async function GET(req: NextRequest) {
     ...(search && { title: { contains: search } }),
     ...(platformSlug && { platform: { slug: platformSlug } }),
     ...(noScore && { rawgScore: null }),
+    ...(noCover && { coverPath: null, coverUrl: null }),
+    ...(noMeta  && { metadataFetchedAt: null }),
   }
 
   const games = await fetchGames(where)

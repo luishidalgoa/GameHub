@@ -121,7 +121,8 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       ...(coverPath  && { coverPath }),
       ...(trailerUrl && { trailerUrl }),
       metadataSources: JSON.stringify(meta.sources),
-      metadataFetchedAt: new Date(),
+      // Same rule as the batch: a cover-only result is not "metadata fetched".
+      ...(meta.sources.info ? { metadataFetchedAt: new Date() } : {}),
     },
   })
   return NextResponse.json({ ...serializeBigInt(updated), sources: meta.sources })
