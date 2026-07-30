@@ -2,7 +2,8 @@
  * GET /api/shop
  *
  * CyberFoil / Tinfoil-compatible HTTP shop index.
- * LAN-only. Optional Basic Auth via the `shop_password` DB setting.
+ * LAN-only. Optional Basic Auth via the `shop_password` DB setting — see
+ * `lib/shop-auth.ts` for both gates.
  *
  * Response shape:
  *   files      – downloadable NSP/NSZ/XCI files
@@ -11,51 +12,17 @@
  *   success    – message shown in the app UI
  */
 import { NextResponse } from 'next/server'
-import fs from 'fs'
 import { db } from '@/lib/db'
-import { isLanIp, clientIpFromPlainRequest } from '@/lib/auth'
+import { guardShopRequest, shopBaseUrl } from '@/lib/shop-auth'
+import { extractSwitchTitleId } from '@/lib/scanner/titleid'
+import { isSwitchFile, statSize } from '@/lib/shop-files'
 
 export const dynamic = 'force-dynamic'
-
-const SWITCH_EXTS = new Set(['.nsp', '.nsz', '.xci', '.xcz'])
-
-// ── Auth ──────────────────────────────────────────────────────────────────────
-
-function unauthorized() {
-  return new NextResponse('Unauthorized', {
-    status: 401,
-    headers: { 'WWW-Authenticate': 'Basic realm="GameHub Shop"' },
-  })
-}
-
-async function checkAuth(req: Request): Promise<boolean> {
-  const row = await db.setting.findUnique({ where: { key: 'shop_password' } })
-  const password = row?.value?.trim() ?? ''
-  if (!password) return true // open on LAN when no password set
-
-  const authHeader = req.headers.get('authorization') ?? ''
-  if (!authHeader.startsWith('Basic ')) return false
-  const decoded  = Buffer.from(authHeader.slice(6), 'base64').toString('utf-8')
-  const provided = decoded.includes(':') ? decoded.split(':').slice(1).join(':') : decoded
-  return provided === password
-}
-
-// ── Title ID extraction ───────────────────────────────────────────────────────
-
-/** Extract Nintendo Title ID from a filename like "Game Name [0100ABC00XXXX000].nsp" */
-function extractTitleId(fileName: string): string | null {
-  const m = fileName.match(/\[([0-9a-fA-F]{16})\]/)
-  return m ? m[1].toUpperCase() : null
-}
-
-// ── Route ─────────────────────────────────────────────────────────────────────
+export const runtime = 'nodejs'
 
 export async function GET(req: Request) {
-  const clientIp = clientIpFromPlainRequest(req)
-  if (!isLanIp(clientIp)) {
-    return NextResponse.json({ error: 'LAN access only' }, { status: 403 })
-  }
-  if (!(await checkAuth(req))) return unauthorized()
+  const denied = await guardShopRequest(req)
+  if (denied) return denied
 
   const games = await db.game.findMany({
     where: { isHidden: false },
@@ -63,56 +30,63 @@ export async function GET(req: Request) {
       id:          true,
       filePath:    true,
       fileName:    true,
-      fileSize:    true,
       title:       true,
       description: true,
       releaseYear: true,
       genre:       true,
       publisher:   true,
-      platform:    { select: { slug: true } },
-      dlcs:        { select: { id: true, fileName: true, fileSize: true, type: true } },
+      dlcs:        { select: { fileName: true, type: true } },
     },
   })
 
-  // Games that have an actual downloadable file with a Switch extension AND the
-  // file is currently accessible on disk. This prevents listing titles whose
-  // storage (e.g. a network share) is temporarily unreachable.
-  const switchGames = games.filter((g) =>
-    g.fileSize > 0 &&
-    SWITCH_EXTS.has(g.fileName.slice(g.fileName.lastIndexOf('.')).toLowerCase()) &&
-    fs.existsSync(g.filePath),
-  )
+  const base = shopBaseUrl(req)
+  const candidates = games.filter((g) => isSwitchFile(g.fileName))
 
-  const host = req.headers.get('host') ?? 'localhost'
-  const base = `http://${host}`
+  // Size comes from the file on disk, never from the DB: a ROM replaced without
+  // a rescan would otherwise be advertised (and streamed) with a stale length,
+  // which the console sees as a corrupt install. A null size means unreadable /
+  // missing — e.g. an offline network share — so the title is simply not listed.
+  const sizes = await statSize(candidates.map((g) => g.filePath))
+  const available = candidates
+    .map((g, i) => ({ game: g, size: sizes[i] }))
+    .filter((c): c is { game: (typeof candidates)[number]; size: number } =>
+      c.size !== null && c.size > 0)
 
   // ── files ─────────────────────────────────────────────────────────────────
-  const files = switchGames.map((g) => ({
-    url:  `${base}/api/shop/download/${g.id}/${encodeURIComponent(g.fileName)}`,
-    size: Number(g.fileSize),
+  const files = available.map((c) => ({
+    url:  `${base}/api/shop/download/${c.game.id}/${encodeURIComponent(c.game.fileName)}`,
+    size: c.size,
   }))
 
   // ── titledb (rich metadata for CyberFoil eShop display) ───────────────────
   const titledb: Record<string, object> = {}
-  for (const g of switchGames) {
-    const titleId = extractTitleId(g.fileName)
+  for (const c of available) {
+    const titleId = extractSwitchTitleId(c.game.fileName)
     if (!titleId) continue
+    // Two files can carry the same Title ID (same game, different dump). Keep the
+    // first instead of letting the last one silently win.
+    if (titledb[titleId]) continue
+
     titledb[titleId] = {
       id:          titleId,
-      name:        g.title,
-      description: g.description ?? '',
-      releaseDate: g.releaseYear ? parseInt(`${g.releaseYear}0101`) : undefined,
-      category:    g.genre ? [g.genre] : undefined,
-      publisher:   g.publisher ?? undefined,
-      size:        Number(g.fileSize),
+      name:        c.game.title,
+      description: c.game.description ?? '',
+      // Only the release year is known; Tinfoil wants an int date, so this is
+      // January 1st of that year — a placeholder day, not a real release date.
+      releaseDate: c.game.releaseYear ? c.game.releaseYear * 10000 + 101 : undefined,
+      category:    c.game.genre ? [c.game.genre] : undefined,
+      publisher:   c.game.publisher ?? undefined,
+      size:        c.size,
     }
   }
 
   // ── directories: separate DLC and update sub-indexes ─────────────────────
-  // Check ALL games (including stubs without a base file) so DLC/updates from
-  // games that only have extras still surface in the sub-index links.
-  const hasDlc     = games.some((g) => g.dlcs.some((d) => d.type === 'dlc'))
-  const hasUpdates = games.some((g) => g.dlcs.some((d) => d.type === 'update'))
+  // Announced from DB rows only (no per-file stat — that is the sub-index's job).
+  // Restricted to visible games so a hidden library doesn't advertise a folder
+  // that then lists nothing.
+  const extras     = games.flatMap((g) => g.dlcs)
+  const hasDlc     = extras.some((d) => d.type === 'dlc'    && isSwitchFile(d.fileName))
+  const hasUpdates = extras.some((d) => d.type === 'update' && isSwitchFile(d.fileName))
 
   const directories: string[] = []
   if (hasDlc)     directories.push(`${base}/api/shop/dlc`)

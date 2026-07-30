@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { invalidateShopPasswordCache } from '@/lib/shop-auth'
 
 export const dynamic = 'force-dynamic'
 
@@ -27,6 +28,9 @@ export async function PUT(req: Request) {
       })
     )
     await Promise.all(ops)
+    // The shop caches this one for a few seconds; drop it so a new password takes
+    // effect on the next request instead of after the TTL.
+    if ('shop_password' in body) invalidateShopPasswordCache()
     return NextResponse.json({ ok: true })
   } catch (err) {
     // Surface the real cause (e.g. "attempt to write a readonly database") instead

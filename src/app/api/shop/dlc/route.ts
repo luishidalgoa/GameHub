@@ -3,35 +3,32 @@
  * Sub-index listing only DLC files — navigable as a directory in CyberFoil.
  */
 import { NextResponse } from 'next/server'
-import fs from 'fs'
 import { db } from '@/lib/db'
-import { isLanIp, clientIpFromPlainRequest } from '@/lib/auth'
+import { guardShopRequest, shopBaseUrl } from '@/lib/shop-auth'
+import { isSwitchFile, statSize } from '@/lib/shop-files'
 
 export const dynamic = 'force-dynamic'
-
-const SWITCH_EXTS = new Set(['.nsp', '.nsz', '.xci', '.xcz'])
+export const runtime = 'nodejs'
 
 export async function GET(req: Request) {
-  const clientIp = clientIpFromPlainRequest(req)
-  if (!isLanIp(clientIp)) {
-    return NextResponse.json({ error: 'LAN access only' }, { status: 403 })
-  }
+  const denied = await guardShopRequest(req)
+  if (denied) return denied
 
   const dlcs = await db.gameDlc.findMany({
     where: { type: 'dlc', game: { isHidden: false } },
-    select: { id: true, filePath: true, fileName: true, fileSize: true },
+    select: { id: true, filePath: true, fileName: true },
   })
 
-  const host = req.headers.get('host') ?? 'localhost'
-  const switchDlcs = dlcs.filter((d) =>
-    SWITCH_EXTS.has(d.fileName.slice(d.fileName.lastIndexOf('.')).toLowerCase()) &&
-    fs.existsSync(d.filePath),
-  )
+  const base = shopBaseUrl(req)
+  const switchDlcs = dlcs.filter((d) => isSwitchFile(d.fileName))
+  const sizes = await statSize(switchDlcs.map((d) => d.filePath))
 
-  const files = switchDlcs.map((d) => ({
-    url:  `http://${host}/api/shop/download/dlc/${d.id}/${encodeURIComponent(d.fileName)}`,
-    size: Number(d.fileSize),
-  }))
+  const files = switchDlcs
+    .map((d, i) => ({
+      url:  `${base}/api/shop/download/dlc/${d.id}/${encodeURIComponent(d.fileName)}`,
+      size: sizes[i],
+    }))
+    .filter((f): f is { url: string; size: number } => f.size !== null && f.size > 0)
 
   return NextResponse.json({
     files,

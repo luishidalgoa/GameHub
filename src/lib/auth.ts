@@ -11,6 +11,23 @@ function getSecret(): Uint8Array {
   return new TextEncoder().encode(secret)
 }
 
+// ── Constant-time comparison ──────────────────────────────────────────────────
+
+/**
+ * Compare two secrets without leaking their content through timing.
+ * Pure JS (no `node:crypto`) so it also works in the Edge middleware runtime.
+ * The length difference is still observable — acceptable for a shared password.
+ */
+export function safeEqual(a: string, b: string): boolean {
+  const enc = new TextEncoder()
+  const A = enc.encode(a)
+  const B = enc.encode(b)
+  let diff = A.length ^ B.length
+  const len = Math.max(A.length, B.length)
+  for (let i = 0; i < len; i++) diff |= (A[i] ?? 0) ^ (B[i] ?? 0)
+  return diff === 0
+}
+
 // ── LAN IP detection ─────────────────────────────────────────────────────────
 
 /** Returns true for RFC-1918 private ranges and loopback. */
