@@ -10,7 +10,7 @@
  * (use Prometheus `bearer_token`); otherwise LAN-only.
  */
 import { db } from '@/lib/db'
-import { isLanIp, clientIpFromPlainRequest } from '@/lib/auth'
+import { isTrustedIp, resolveClientIp } from '@/lib/net'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -38,8 +38,14 @@ export async function GET(req: Request) {
     if ((req.headers.get('authorization') ?? '') !== `Bearer ${token}`) {
       return new Response('Unauthorized\n', { status: 401 })
     }
-  } else if (!isLanIp(clientIpFromPlainRequest(req))) {
-    return new Response('Forbidden — LAN only. Set METRICS_TOKEN to allow remote scrape.\n', { status: 403 })
+  } else {
+    // No token: LAN only. A null IP means it could not be established (no
+    // trusted proxy in front — see lib/net.ts), which is the direct-port case
+    // and is treated as LAN, same as the shop.
+    const ip = resolveClientIp(req.headers)
+    if (ip && !isTrustedIp(ip)) {
+      return new Response('Forbidden — LAN only. Set METRICS_TOKEN to allow remote scrape.\n', { status: 403 })
+    }
   }
 
   const now        = Date.now()
