@@ -5,6 +5,7 @@ import { ArrowLeft, Calendar, Tag, User, Building2, HardDrive, Pencil } from 'lu
 import { db } from '@/lib/db'
 import { resolveCoverPath } from '@/lib/s3'
 import { formatBytes } from '@/lib/utils'
+import { extractUpdateVersion } from '@/lib/switch-version'
 import { DownloadButton }     from '@/components/shared/DownloadButton'
 import { BulkDownloadButton } from '@/components/shared/BulkDownloadButton'
 import { RegionVersions }     from '@/components/shared/RegionVersions'
@@ -188,13 +189,26 @@ export default async function GamePage({ params }: Props) {
             <BulkDownloadButton gameId={game.id} type="update" count={game.dlcs.filter(d => d.type === 'update').length} />
           </div>
           <div className="space-y-1.5">
-            {game.dlcs.filter((d) => d.type === 'update').map((dlc) => (
-              <div key={dlc.id} className="flex items-center gap-3 bg-secondary/50 rounded-lg px-4 py-2.5 text-sm">
-                <span className="flex-1 text-foreground/80 truncate">{dlc.title ?? dlc.fileName}</span>
-                <span className="text-muted-foreground text-xs mr-2">{formatBytes(dlc.fileSize)}</span>
-                <DownloadButton gameId={game.id} dlcId={dlc.id} label="Update" fileSize={dlc.fileSize.toString()} variant="secondary" />
-              </div>
-            ))}
+            {game.dlcs.filter((d) => d.type === 'update').map((dlc) => {
+              // The scanner strips the version out of `title`, so two patches
+              // for the same game are indistinguishable without this.
+              const version = extractUpdateVersion(dlc.fileName)
+              return (
+                <div key={dlc.id} className="flex items-center gap-3 bg-secondary/50 rounded-lg px-4 py-2.5 text-sm">
+                  <span className="flex-1 text-foreground/80 truncate">{dlc.title ?? dlc.fileName}</span>
+                  {version && (
+                    <span
+                      title={dlc.fileName}
+                      className="flex-shrink-0 font-mono text-[10px] leading-none px-1.5 py-0.5 rounded bg-background/70 text-foreground/70 border border-border"
+                    >
+                      {version}
+                    </span>
+                  )}
+                  <span className="text-muted-foreground text-xs mr-2">{formatBytes(dlc.fileSize)}</span>
+                  <DownloadButton gameId={game.id} dlcId={dlc.id} label="Update" fileSize={dlc.fileSize.toString()} variant="secondary" />
+                </div>
+              )
+            })}
           </div>
         </div>
       )}
