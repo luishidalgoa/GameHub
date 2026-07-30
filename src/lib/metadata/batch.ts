@@ -434,7 +434,16 @@ export async function runMetadataBatch(opts: {
 
       await db.game.update({
         where: { id: game.id },
-        data: { ...data, metadataSources, metadataFetchedAt: new Date() },
+        data: {
+          ...data,
+          metadataSources,
+          // Only stamp the marker when actual metadata arrived. A cover-only
+          // result — the rescue for games no provider has heard of, which returns
+          // a box and nothing else — would otherwise mark the game as "done" and
+          // drop it out of the pending count with no description, year or genre
+          // to show for it.
+          ...(meta.sources.info ? { metadataFetchedAt: new Date() } : {}),
+        },
       })
 
       applied++

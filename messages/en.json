@@ -461,7 +461,9 @@
     "colCover": "Cover",
     "edit": "Edit",
     "exportJson": "Export JSON",
-    "exportCsv": "Export CSV"
+    "exportCsv": "Export CSV",
+    "filterNoCover": "Games without a cover only",
+    "filterNoMetadata": "Games with no metadata only"
   },
   "LanguageSwitcher": {
     "label": "Language"
