@@ -1,10 +1,24 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { isAdminSession } from '@/lib/auth'
 import { invalidateShopPasswordCache } from '@/lib/shop-auth'
 
 export const dynamic = 'force-dynamic'
 
+/**
+ * Every row of the Setting table, values included — API keys, the S3 access and
+ * secret pair, webhook tokens. Admin only.
+ *
+ * The middleware gates this path as well. The check is repeated here on purpose:
+ * a matcher entry is one edit away from silently no longer covering the route,
+ * and the cost of that mistake on this particular handler is publishing every
+ * credential the install holds.
+ */
 export async function GET() {
+  if (!(await isAdminSession())) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
   const settings = await db.setting.findMany()
   const map: Record<string, string> = {}
   settings.forEach((s) => { map[s.key] = s.value })
