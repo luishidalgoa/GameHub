@@ -121,6 +121,31 @@ function ProviderSelect({ label, value, onChange, options }: {
   )
 }
 
+/** Compact provider <select> for one platform, with "inherit" as the default. */
+function PlatformProviderSelect({ label, value, inheritLabel, onChange, options }: {
+  label: string
+  value: string | null | undefined
+  inheritLabel: string
+  onChange: (v: string) => void
+  options: { value: string; label: string }[]
+}) {
+  return (
+    <label className="flex flex-col gap-1">
+      <span className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</span>
+      <select
+        value={value ?? ''}
+        onChange={(e) => onChange(e.target.value)}
+        className="bg-background border border-border rounded-md px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-ring"
+      >
+        <option value="">{inheritLabel}</option>
+        {options.map((o) => (
+          <option key={o.value} value={o.value}>{o.label}</option>
+        ))}
+      </select>
+    </label>
+  )
+}
+
 interface Platform {
   id: number
   slug: string
@@ -133,6 +158,11 @@ interface Platform {
   thumbnailWidth?: number
   thumbnailHeight?: number
   scanDlc: boolean
+  // null / '' = hereda del ajuste global. Ver lib/metadata/matrix.ts
+  providerCover?: string | null
+  providerInfo?: string | null
+  providerDescription?: string | null
+  providerScreenshots?: string | null
   emulatorName?: string | null
   emulatorUrl?: string | null
   emulators?: string | null
@@ -312,6 +342,12 @@ export function SettingsForm({ platforms: initial, settings }: Props) {
               thumbnailWidth:  p.thumbnailWidth ?? 200,
               thumbnailHeight: p.thumbnailHeight ?? 300,
               scanDlc:         p.scanDlc,
+              // '' (la opción "heredar") se guarda como NULL, no como cadena
+              // vacía: NULL es lo que significa "usa el ajuste global".
+              providerCover:       p.providerCover       || null,
+              providerInfo:        p.providerInfo        || null,
+              providerDescription: p.providerDescription || null,
+              providerScreenshots: p.providerScreenshots || null,
               emulators:       serializeEmulators(getEmu(p.id)),
               // Clear the deprecated single fields once migrated into `emulators`
               emulatorName:    null,
@@ -587,6 +623,61 @@ export function SettingsForm({ platforms: initial, settings }: Props) {
                 </div>
                 <span className="text-xs text-muted-foreground">{t('scanDlcLabel')}</span>
               </label>
+
+              {/* Proveedores de metadatos de ESTA plataforma. Vacío = hereda el global:
+                  la fuente buena depende de la consola (libretro no tiene Switch,
+                  LaunchBox flojea con lanzamientos solo japoneses). */}
+              <details className="rounded-md border border-border bg-background/40">
+                <summary className="cursor-pointer px-3 py-2 text-xs text-muted-foreground hover:text-foreground">
+                  {t('platformProviders')}
+                  {(p.providerCover || p.providerInfo || p.providerDescription || p.providerScreenshots) && (
+                    <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded bg-primary/15 text-primary">
+                      {t('platformProvidersOverridden')}
+                    </span>
+                  )}
+                </summary>
+                <div className="px-3 pb-3 pt-1 grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  <PlatformProviderSelect
+                    label={t('providerCover')} value={p.providerCover}
+                    inheritLabel={t('inheritGlobal')}
+                    onChange={(v) => updateField(p.id, 'providerCover', v)}
+                    options={[
+                      { value: 'libretro',    label: t('srcLibretro') },
+                      { value: 'launchbox',   label: t('srcLaunchbox') },
+                      { value: 'steamgriddb', label: t('srcSteamgriddb') },
+                      { value: 'rawg',        label: t('srcRawg') },
+                    ]}
+                  />
+                  <PlatformProviderSelect
+                    label={t('providerInfo')} value={p.providerInfo}
+                    inheritLabel={t('inheritGlobal')}
+                    onChange={(v) => updateField(p.id, 'providerInfo', v)}
+                    options={[
+                      { value: 'launchbox', label: t('srcLaunchbox') },
+                      { value: 'rawg',      label: t('srcRawg') },
+                    ]}
+                  />
+                  <PlatformProviderSelect
+                    label={t('providerDescription')} value={p.providerDescription}
+                    inheritLabel={t('inheritGlobal')}
+                    onChange={(v) => updateField(p.id, 'providerDescription', v)}
+                    options={[
+                      { value: 'launchbox', label: t('srcLaunchbox') },
+                      { value: 'rawg',      label: t('srcRawg') },
+                    ]}
+                  />
+                  <PlatformProviderSelect
+                    label={t('providerScreenshots')} value={p.providerScreenshots}
+                    inheritLabel={t('inheritGlobal')}
+                    onChange={(v) => updateField(p.id, 'providerScreenshots', v)}
+                    options={[
+                      { value: 'launchbox', label: t('srcLaunchbox') },
+                      { value: 'rawg',      label: t('srcRawg') },
+                      { value: 'none',      label: t('srcNone') },
+                    ]}
+                  />
+                </div>
+              </details>
 
               <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
                 {renamingId === p.id ? (

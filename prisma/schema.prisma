@@ -23,6 +23,18 @@ model Platform {
   emulatorName     String?  // deprecated — kept as fallback, superseded by `emulators`
   emulatorUrl      String?  // deprecated — kept as fallback, superseded by `emulators`
   emulators        String?  // JSON: { windows?: {name,url}, android?: {name,url}, ios?: {name,url} }
+
+  // Per-platform metadata provider overrides. NULL means "inherit the global
+  // setting" — the point is that the best source depends on the console: the
+  // libretro box-art archive is ideal for retro carts and has no Switch data at
+  // all, while LaunchBox is thin on Japan-only releases. Values are validated
+  // against the same option lists as the global matrix; anything unrecognised
+  // falls back to the global choice. See lib/metadata/matrix.ts.
+  providerCover       String?
+  providerInfo        String?
+  providerDescription String?
+  providerScreenshots String?
+
   games            Game[]
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt

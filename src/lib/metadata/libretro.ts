@@ -136,19 +136,26 @@ function similarity(a: string, b: string): number {
 /** Below this the candidate is a different game, not a naming variant. */
 const MIN_SCORE = 60
 
+export interface BoxartCandidate {
+  /** Index entry, e.g. "Ninja Cop (Europe)". */
+  name: string
+  /** 0-100 similarity to the query. */
+  score: number
+  /** Lower is a more desirable edition (Spanish/European first, dumps last). */
+  rank: number
+}
+
 /**
- * Best entry in `names` for a ROM file name, or null when nothing is close
- * enough. Exported for testing and for the review tooling.
+ * Every index entry close enough to `query`, best first. `query` may be a ROM
+ * file name or a plain title; the extension and the parenthesised tags are
+ * ignored when comparing, and used only to order editions.
  */
-export function matchBoxart(fileName: string, names: readonly string[]): string | null {
-  const local = split(fileName.replace(/\.[^.]+$/, ''))
-  if (!local.core) return null
+export function rankBoxarts(query: string, names: readonly string[]): BoxartCandidate[] {
+  const local = split(query.replace(/\.[^.]+$/, ''))
+  if (!local.core) return []
   const localWords = local.core.split(' ').length
 
-  let best: string | null = null
-  let bestScore = 0
-  let bestRank = Number.MAX_SAFE_INTEGER
-
+  const out: BoxartCandidate[] = []
   for (const candidate of names) {
     const cand = split(candidate)
     const score = similarity(local.core, cand.core)
@@ -160,14 +167,17 @@ export function matchBoxart(fileName: string, names: readonly string[]): string 
     const candWords = cand.core.split(' ').length
     if (cand.core !== local.core && candWords * 2 <= localWords) continue
 
-    const rank = editionRank(cand.tags)
-    if (score > bestScore || (score === bestScore && rank < bestRank)) {
-      best = candidate
-      bestScore = score
-      bestRank = rank
-    }
+    out.push({ name: candidate, score, rank: editionRank(cand.tags) })
   }
-  return best
+  return out.sort((a, b) => b.score - a.score || a.rank - b.rank)
+}
+
+/**
+ * Best entry in `names` for a ROM file name, or null when nothing is close
+ * enough. Exported for testing and for the review tooling.
+ */
+export function matchBoxart(fileName: string, names: readonly string[]): string | null {
+  return rankBoxarts(fileName, names)[0]?.name ?? null
 }
 
 // ── Public API ────────────────────────────────────────────────────────────────
@@ -192,5 +202,34 @@ export async function fetchLibretroCover(
     return `${BASE}/${encodeURIComponent(system)}/Named_Boxarts/${encodeURIComponent(match)}.png`
   } catch {
     return null
+  }
+}
+
+/** Public URL of one index entry. */
+export function boxartUrl(system: string, name: string): string {
+  return `${BASE}/${encodeURIComponent(system)}/Named_Boxarts/${encodeURIComponent(name)}.png`
+}
+
+/**
+ * Candidate boxarts for a manual search in the admin cover picker. Unlike the
+ * automatic path this returns several, because the whole point of searching by
+ * hand is that the operator can see which edition's box they actually want.
+ *
+ * Never throws — an unreachable archive yields an empty list.
+ */
+export async function searchLibretroCovers(
+  query: string,
+  platformSlug: string,
+  limit = 12,
+): Promise<Array<{ name: string; url: string; score: number }>> {
+  const system = LIBRETRO_SYSTEMS[platformSlug]
+  if (!system || !query.trim()) return []
+  try {
+    const names = await loadIndex(system)
+    return rankBoxarts(query, names)
+      .slice(0, limit)
+      .map(c => ({ name: c.name, url: boxartUrl(system, c.name), score: c.score }))
+  } catch {
+    return []
   }
 }
