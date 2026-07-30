@@ -1,5 +1,6 @@
 import path from 'path'
 import fs from 'fs'
+import fsp from 'fs/promises'
 import { db } from '@/lib/db'
 import { cleanTitle, toSortTitle } from '@/lib/utils'
 import { parseRomTags, languagesToCsv, gameGroupKey } from '@/lib/rom-tags'
@@ -13,6 +14,44 @@ import { triggerAutoMetadata } from '@/lib/metadata/auto'
 
 function emit(event: ScanEvent) {
   scanBus.emit('scan', event)
+}
+
+/** How many stat() calls may be in flight while checking add-on rows. Matches
+ *  the shop's index scan: enough to hide network-share latency, low enough not
+ *  to thrash a spinning disk. */
+const ADDON_STAT_CONCURRENCY = 32
+
+/**
+ * Ids of add-on rows whose file is *provably* gone.
+ *
+ * Only ENOENT counts. Any other failure — permission denied, share hiccup, I/O
+ * error — leaves the row alone: "I could not check" must never be treated as "it
+ * is not there", or one bad moment on a network share would delete real rows.
+ * Async and bounded rather than `existsSync` in a loop, which blocks the event
+ * loop once per file on a bind-mounted `/mnt` and stalls every other request.
+ */
+async function missingAddonIds(
+  addons: readonly { id: number; filePath: string }[],
+): Promise<number[]> {
+  const missing: number[] = []
+  let next = 0
+
+  const worker = async (): Promise<void> => {
+    for (;;) {
+      const i = next++
+      if (i >= addons.length) return
+      try {
+        await fsp.stat(addons[i].filePath)
+      } catch (err) {
+        if ((err as NodeJS.ErrnoException).code === 'ENOENT') missing.push(addons[i].id)
+      }
+    }
+  }
+
+  await Promise.all(
+    Array.from({ length: Math.min(ADDON_STAT_CONCURRENCY, addons.length) }, worker),
+  )
+  return missing
 }
 
 /** Region + languages CSV parsed from a file (or folder) name. */
@@ -419,6 +458,27 @@ export async function runScan(triggeredBy = 'manual', platformSlug?: string) {
         data: { isHidden: true },
       })
       stale = staleResult.count
+
+      // Same for add-on rows, which the sweep above cannot reach: `GameDlc` has
+      // no `lastSeenAt`, so a DLC or update whose file moved was left behind as a
+      // second row pointing at the old path. Renaming a folder — dropping the
+      // apostrophe from "Assassin's Creed III Remastered", splitting "Pikmin 1-2"
+      // — silently doubled every add-on inside it, because `filePath` is unique
+      // and the new path simply inserted alongside the old one.
+      //
+      // Delete rather than hide: there is no graveyard UI for add-ons, and the
+      // row carries nothing worth recovering. Guarded by `allPathsAccessible`
+      // like the sweep above, and each path is re-checked individually, so an
+      // offline share can never take rows with it.
+      const addons = await db.gameDlc.findMany({
+        where:  { game: { platformId: platform.id } },
+        select: { id: true, filePath: true },
+      })
+      const orphanIds = await missingAddonIds(addons)
+      if (orphanIds.length > 0) {
+        const removed = await db.gameDlc.deleteMany({ where: { id: { in: orphanIds } } })
+        errors.push(`[INFO] Removed ${removed.count} add-on row(s) for "${platform.name}" whose file no longer exists.`)
+      }
     } else {
       errors.push(`[INFO] Stale-marking skipped for "${platform.name}" because one or more scan paths were inaccessible.`)
     }

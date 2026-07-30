@@ -16,7 +16,7 @@ import { ScreenshotCarousel } from '@/components/game/ScreenshotCarousel'
 import { ExternalLinks }      from '@/components/game/ExternalLinks'
 import { YouTubeEmbed }       from '@/components/shared/YouTubeEmbed'
 import { addRecentlyViewed }  from '@/lib/recently-viewed'
-import { extractUpdateVersion } from '@/lib/switch-version'
+import { extractUpdateVersion, extractDlcName } from '@/lib/switch-labels'
 import type { Game } from '@/types/game'
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
@@ -327,7 +327,11 @@ export function GameDetailModal({ gameId, onClose }: Props) {
                 <div className="space-y-1">
                   {game.dlcs.filter((d) => d.type === 'dlc').map((dlc) => (
                     <div key={dlc.id} className="flex items-center gap-2 text-xs text-muted-foreground bg-secondary/50 rounded px-3 py-1.5">
-                      <span className="flex-1 truncate">{dlc.title ?? dlc.fileName}</span>
+                      {/* `title` holds the parent game's name for most rows, which
+                          makes every DLC of a game look identical. */}
+                      <span className="flex-1 truncate" title={dlc.fileName}>
+                        {extractDlcName(dlc.fileName) ?? dlc.title ?? dlc.fileName}
+                      </span>
                       <span className="flex-shrink-0">{formatBytes(BigInt(dlc.fileSize))}</span>
                       <DownloadButton gameId={game.id} dlcId={dlc.id} label="DLC" variant="secondary" />
                     </div>
