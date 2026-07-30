@@ -26,6 +26,7 @@ interface RawgResult {
 
 interface SgdbGame   { id: number; name: string }
 interface SgdbCover  { url: string; thumb: string; style: string }
+interface LibretroCover { url: string; thumb: string; name: string; score: number }
 
 export function CoverUploader({ gameId, gameTitle = '', currentCover, onUploaded, thumbnailWidth = 200, thumbnailHeight = 300 }: Props) {
   const t = useTranslations('CoverUploader')
@@ -40,7 +41,7 @@ export function CoverUploader({ gameId, gameTitle = '', currentCover, onUploaded
 
   // Panel state
   const [searchOpen, setSearchOpen] = useState(false)
-  const [searchTab, setSearchTab]   = useState<'rawg' | 'sgdb' | 'launchbox'>('launchbox')
+  const [searchTab, setSearchTab]   = useState<'rawg' | 'sgdb' | 'launchbox' | 'libretro'>('launchbox')
 
   // RAWG tab
   const [rawgQuery, setRawgQuery]     = useState('')
@@ -67,6 +68,16 @@ export function CoverUploader({ gameId, gameTitle = '', currentCover, onUploaded
   const [lbCovers, setLbCovers]         = useState<SgdbCover[]>([])
   const [lbLoadingCovers, setLbLoadingCovers] = useState(false)
   const [applyingLb, setApplyingLb]     = useState<string | null>(null)
+
+  // libretro tab — one step: every archive entry is already a cover, so there is
+  // no game to pick first. The server also searches the ROM file name, which is
+  // what pins down the regional edition.
+  const [libQuery, setLibQuery]         = useState(gameTitle)
+  const [libSearching, setLibSearching] = useState(false)
+  const [libCovers, setLibCovers]       = useState<LibretroCover[]>([])
+  const [libError, setLibError]         = useState('')
+  const [libSearched, setLibSearched]   = useState(false)
+  const [applyingLib, setApplyingLib]   = useState<string | null>(null)
 
   const fileRef = useRef<HTMLInputElement>(null)
 
@@ -185,6 +196,31 @@ export function CoverUploader({ gameId, gameTitle = '', currentCover, onUploaded
     setApplyingRawg(result.id)
     await uploadFromUrl(result.coverUrl)
     setApplyingRawg(null)
+  }
+
+  // ── libretro ───────────────────────────────────────────────────────────────
+
+  const doLibretroSearch = async (q: string) => {
+    if (!q.trim()) return
+    setLibSearching(true)
+    setLibError('')
+    setLibCovers([])
+    try {
+      const res = await fetch(
+        `/api/covers/libretro?q=${encodeURIComponent(q.trim())}&gameId=${gameId}`,
+      )
+      const data = await res.json()
+      if (!res.ok) setLibError(data.message ?? data.error ?? 'Search failed')
+      else {
+        setLibCovers(data.covers ?? [])
+        if (data.error === 'unsupported_platform') setLibError(data.message)
+      }
+    } catch {
+      setLibError('Search failed')
+    } finally {
+      setLibSearching(false)
+      setLibSearched(true)
+    }
   }
 
   // ── SteamGridDB ────────────────────────────────────────────────────────────
@@ -351,7 +387,7 @@ export function CoverUploader({ gameId, gameTitle = '', currentCover, onUploaded
 
             {/* Tabs */}
             <div className="flex border-b border-border">
-              {(['launchbox', 'sgdb', 'rawg'] as const).map((tab) => (
+              {(['libretro', 'launchbox', 'sgdb', 'rawg'] as const).map((tab) => (
                 <button
                   key={tab}
                   type="button"
@@ -362,12 +398,81 @@ export function CoverUploader({ gameId, gameTitle = '', currentCover, onUploaded
                       : 'text-muted-foreground hover:text-foreground'
                   }`}
                 >
-                  {tab === 'sgdb' ? 'SteamGridDB' : tab === 'rawg' ? 'RAWG' : 'LaunchBox'}
+                  {tab === 'sgdb' ? 'SteamGridDB'
+                    : tab === 'rawg' ? 'RAWG'
+                    : tab === 'libretro' ? 'libretro'
+                    : 'LaunchBox'}
                 </button>
               ))}
             </div>
 
             <div className="p-3 space-y-3">
+
+              {/* ── libretro tab ──────────────────────────────────────── */}
+              {searchTab === 'libretro' && (
+                <>
+                  <p className="text-[11px] text-muted-foreground leading-snug">
+                    {t('libretroHint')}
+                  </p>
+                  <div className="flex gap-2">
+                    <input
+                      value={libQuery}
+                      onChange={(e) => setLibQuery(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); doLibretroSearch(libQuery) } }}
+                      placeholder={t('searchPlaceholder')}
+                      className="flex-1 px-3 py-2 text-sm bg-background border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary/50"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => doLibretroSearch(libQuery)}
+                      disabled={libSearching || !libQuery.trim()}
+                      className="px-3 py-2 text-sm rounded-md bg-primary text-primary-foreground disabled:opacity-50"
+                    >
+                      <Search className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  {libError && <p className="text-xs text-destructive">{libError}</p>}
+
+                  {libSearching && (
+                    <div className="flex justify-center py-4">
+                      <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+                    </div>
+                  )}
+
+                  {!libSearching && libSearched && !libError && libCovers.length === 0 && (
+                    <p className="text-xs text-muted-foreground text-center py-3">{t('noCoversForGame')}</p>
+                  )}
+
+                  {libCovers.length > 0 && (
+                    <div className="grid grid-cols-3 gap-2 max-h-64 overflow-y-auto">
+                      {libCovers.map((c) => (
+                        <button
+                          key={c.url}
+                          type="button"
+                          title={c.name}
+                          onClick={async () => { setApplyingLib(c.url); await uploadFromUrl(c.url); setApplyingLib(null) }}
+                          disabled={applyingLib === c.url || loading}
+                          style={{ aspectRatio: `${thumbnailWidth}/${thumbnailHeight}` }}
+                          className="relative group rounded overflow-hidden bg-secondary border border-border hover:border-primary transition-colors disabled:opacity-60"
+                        >
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={c.thumb} alt={c.name} className="w-full h-full object-contain" />
+                          {applyingLib === c.url ? (
+                            <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+                              <Loader2 className="w-4 h-4 animate-spin text-white" />
+                            </div>
+                          ) : (
+                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                              <span className="text-white text-xs font-medium">{t('use')}</span>
+                            </div>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
 
               {/* ── LaunchBox tab ─────────────────────────────────────── */}
               {searchTab === 'launchbox' && (

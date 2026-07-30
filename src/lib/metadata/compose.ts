@@ -127,23 +127,33 @@ export async function gatherMetadata(input: GatherInput): Promise<ComposedMetada
     } catch { /* RAWG failure non-fatal */ }
   }
 
-  // libretro matches on the file name, not on a provider hit, so it can still
-  // dress a game neither LaunchBox nor RAWG has ever heard of. That long tail —
-  // regional releases, fan translations, Japan-only carts — is exactly what the
-  // archive is good at, so resolve it before giving up on the game entirely.
-  const libretroCover = matrix.cover === 'libretro'
-    ? await fetchLibretroCover(fileName ?? title, platformSlug)
-    : null
+  // libretro matches on the file name, not on a provider hit, so it can dress a
+  // game neither LaunchBox nor RAWG has ever heard of — that long tail of
+  // regional releases, fan translations and Japan-only carts is exactly what the
+  // archive is good at. Resolved lazily and once: matching scans a few thousand
+  // index entries, so a batch where LaunchBox already answers should never pay
+  // for it.
+  let libretroMemo: string | null | undefined
+  const libretroBox = async (): Promise<string | null> => {
+    if (libretroMemo === undefined) {
+      libretroMemo = await fetchLibretroCover(fileName ?? title, platformSlug)
+    }
+    return libretroMemo
+  }
 
   // If neither primary source matched there is no info to compose, but a box we
   // already found is still worth keeping: the alternative is leaving those games
-  // with no cover at all.
+  // with no cover at all. This fires whatever the configured cover source is —
+  // a game LaunchBox and RAWG have never heard of gets no second chance
+  // otherwise, and "no_match" on a game whose box is sitting right there is a
+  // poor answer.
   if (!lb && !rawg) {
-    if (!libretroCover) return null
+    const box = await libretroBox()
+    if (!box) return null
     return {
       title,
       screenshots: [],
-      coverUrl: libretroCover,
+      coverUrl: box,
       sources: { cover: 'libretro' },
       confidence: 0,
     }
@@ -176,11 +186,17 @@ export async function gatherMetadata(input: GatherInput): Promise<ComposedMetada
     const sgdb = await fetchSteamGridDBCover(info?.title ?? title)
     if (sgdb) { coverUrl = sgdb; sources.cover = 'steamgriddb' }
   } else if (matrix.cover === 'libretro') {
-    if (libretroCover) { coverUrl = libretroCover; sources.cover = 'libretro' }
+    const box = await libretroBox()
+    if (box) { coverUrl = box; sources.cover = 'libretro' }
   }
-  // Fallback chain: prefer LaunchBox box-art, then SteamGridDB, then RAWG art.
+  // Fallback chain when the chosen source came up empty. libretro goes ahead of
+  // SteamGridDB and RAWG because it is the only one that guarantees *this*
+  // console's box: the others index by game and will hand a cartridge the art of
+  // whichever port they happen to hold. LaunchBox stays first, since it is
+  // per-platform too and carries titles libretro's No-Intro naming misses.
   if (!coverUrl) {
     if (lb?.coverUrl) { coverUrl = lb.coverUrl; sources.cover = 'launchbox' }
+    else if (await libretroBox()) { coverUrl = (await libretroBox())!; sources.cover = 'libretro' }
     else {
       const sgdb = await fetchSteamGridDBCover(info?.title ?? title)
       if (sgdb) { coverUrl = sgdb; sources.cover = 'steamgriddb' }

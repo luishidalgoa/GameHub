@@ -248,7 +248,10 @@
     "deleteFailed": "Could not delete the platform",
     "iconUpload": "Icon",
     "iconHint": "PNG or SVG, square",
-    "iconRemove": "Remove icon"
+    "iconRemove": "Remove icon",
+    "platformProviders": "Metadata providers for this platform",
+    "platformProvidersOverridden": "customised",
+    "inheritGlobal": "Inherit from global"
   },
   "OrphanCovers": {
     "title": "Clean orphan covers",
@@ -567,6 +570,7 @@
     "coversArrow": "covers →",
     "noGames": "No games found",
     "noCoversForGame": "No covers found for this game",
-    "noCovers": "No covers found"
+    "noCovers": "No covers found",
+    "libretroHint": "This console's original box, from the libretro archive. The ROM file name is searched too, since that is what pins down the regional edition."
   }
 }

@@ -248,7 +248,10 @@
     "deleteFailed": "No se pudo borrar la plataforma",
     "iconUpload": "Icono",
     "iconHint": "PNG o SVG, cuadrado",
-    "iconRemove": "Quitar icono"
+    "iconRemove": "Quitar icono",
+    "platformProviders": "Proveedores de metadatos de esta plataforma",
+    "platformProvidersOverridden": "personalizado",
+    "inheritGlobal": "Heredar del global"
   },
   "OrphanCovers": {
     "title": "Limpiar portadas huérfanas",
@@ -567,6 +570,7 @@
     "coversArrow": "portadas →",
     "noGames": "No se encontraron juegos",
     "noCoversForGame": "No se encontraron portadas para este juego",
-    "noCovers": "No se encontraron portadas"
+    "noCovers": "No se encontraron portadas",
+    "libretroHint": "Caja original de esta consola, del archivo libretro. Se busca también por el nombre del fichero, que es lo que fija la edición regional."
   }
 }
