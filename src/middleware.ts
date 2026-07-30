@@ -9,6 +9,10 @@ const PROTECTED_API_PATTERNS = [
   { method: 'POST',   path: '/api/games/merge' },
   { method: 'POST',   path: '/api/covers' },
   { method: 'POST',   path: '/api/metadata' },
+  // GET too: the handler returns every row of the Setting table verbatim, which
+  // includes s3_secret_key, rawg_api_key, youtube_api_key and the rest. Only the
+  // admin screens read it, so requiring the session costs nothing.
+  { method: 'GET',    path: '/api/settings' },
   { method: 'PUT',    path: '/api/settings' },
   { method: 'PATCH',  path: '/api/platforms' },
   { method: 'PATCH',  path: '/api/games' },
