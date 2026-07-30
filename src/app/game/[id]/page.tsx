@@ -5,7 +5,7 @@ import { ArrowLeft, Calendar, Tag, User, Building2, HardDrive, Pencil } from 'lu
 import { db } from '@/lib/db'
 import { resolveCoverPath } from '@/lib/s3'
 import { formatBytes } from '@/lib/utils'
-import { extractUpdateVersion } from '@/lib/switch-version'
+import { extractUpdateVersion, extractDlcName } from '@/lib/switch-labels'
 import { DownloadButton }     from '@/components/shared/DownloadButton'
 import { BulkDownloadButton } from '@/components/shared/BulkDownloadButton'
 import { RegionVersions }     from '@/components/shared/RegionVersions'
@@ -225,7 +225,11 @@ export default async function GamePage({ params }: Props) {
           <div className="space-y-1.5">
             {game.dlcs.filter((d) => d.type === 'dlc').map((dlc) => (
               <div key={dlc.id} className="flex items-center gap-3 bg-secondary/50 rounded-lg px-4 py-2.5 text-sm">
-                <span className="flex-1 text-foreground/80 truncate">{dlc.title ?? dlc.fileName}</span>
+                {/* `title` holds the parent game's name for most rows, which
+                    makes every DLC of a game look identical. */}
+                <span className="flex-1 text-foreground/80 truncate" title={dlc.fileName}>
+                  {extractDlcName(dlc.fileName) ?? dlc.title ?? dlc.fileName}
+                </span>
                 <span className="text-muted-foreground text-xs mr-2">{formatBytes(dlc.fileSize)}</span>
                 <DownloadButton gameId={game.id} dlcId={dlc.id} label="DLC" fileSize={dlc.fileSize.toString()} variant="secondary" />
               </div>
