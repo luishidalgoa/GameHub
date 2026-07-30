@@ -6,7 +6,7 @@
  * `lib/shop-auth.ts` for both gates.
  *
  * Response shape:
- *   files      – downloadable NSP/NSZ/XCI files
+ *   files      – downloadable NSP/NSZ/XCI files (base games + regional editions)
  *   directories– sub-indexes (DLC, updates)
  *   titledb    – optional rich metadata keyed by Nintendo Title ID
  *   success    – message shown in the app UI
@@ -15,6 +15,7 @@ import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { guardShopRequest, shopBaseUrl } from '@/lib/shop-auth'
 import { extractSwitchTitleId } from '@/lib/scanner/titleid'
+import { resolveCoverPath } from '@/lib/cover-url'
 import { isSwitchFile, statSize } from '@/lib/shop-files'
 
 export const dynamic = 'force-dynamic'
@@ -35,41 +36,76 @@ export async function GET(req: Request) {
       releaseYear: true,
       genre:       true,
       publisher:   true,
-      dlcs:        { select: { fileName: true, type: true } },
+      coverPath:   true,
+      coverUrl:    true,
+      dlcs: {
+        select: { id: true, filePath: true, fileName: true, type: true, region: true },
+      },
     },
   })
 
   const base = shopBaseUrl(req)
-  const candidates = games.filter((g) => isSwitchFile(g.fileName))
+
+  // Candidates: the base game file plus every alternate regional edition (stored
+  // as GameDlc rows with type 'region' since 2.6.0 — they are full base games in
+  // another region, so they belong in the main index, not in a sub-directory).
+  type Candidate = {
+    url:      string
+    filePath: string
+    fileName: string
+    game:     (typeof games)[number]
+    region:   string | null
+  }
+
+  const candidates: Candidate[] = []
+  for (const g of games) {
+    if (isSwitchFile(g.fileName)) {
+      candidates.push({
+        url:      `${base}/api/shop/download/${g.id}/${encodeURIComponent(g.fileName)}`,
+        filePath: g.filePath,
+        fileName: g.fileName,
+        game:     g,
+        region:   null,
+      })
+    }
+    for (const d of g.dlcs) {
+      if (d.type !== 'region' || !isSwitchFile(d.fileName)) continue
+      candidates.push({
+        url:      `${base}/api/shop/download/dlc/${d.id}/${encodeURIComponent(d.fileName)}`,
+        filePath: d.filePath,
+        fileName: d.fileName,
+        game:     g,
+        region:   d.region,
+      })
+    }
+  }
 
   // Size comes from the file on disk, never from the DB: a ROM replaced without
   // a rescan would otherwise be advertised (and streamed) with a stale length,
   // which the console sees as a corrupt install. A null size means unreadable /
   // missing — e.g. an offline network share — so the title is simply not listed.
-  const sizes = await statSize(candidates.map((g) => g.filePath))
+  const sizes = await statSize(candidates.map((c) => c.filePath))
   const available = candidates
-    .map((g, i) => ({ game: g, size: sizes[i] }))
-    .filter((c): c is { game: (typeof candidates)[number]; size: number } =>
-      c.size !== null && c.size > 0)
+    .map((c, i) => ({ ...c, size: sizes[i] }))
+    .filter((c): c is Candidate & { size: number } => c.size !== null && c.size > 0)
 
-  // ── files ─────────────────────────────────────────────────────────────────
-  const files = available.map((c) => ({
-    url:  `${base}/api/shop/download/${c.game.id}/${encodeURIComponent(c.game.fileName)}`,
-    size: c.size,
-  }))
+  const files = available.map((c) => ({ url: c.url, size: c.size }))
 
-  // ── titledb (rich metadata for CyberFoil eShop display) ───────────────────
+  // ── titledb (rich metadata for CyberFoil / Tinfoil eShop display) ─────────
   const titledb: Record<string, object> = {}
   for (const c of available) {
-    const titleId = extractSwitchTitleId(c.game.fileName)
+    const titleId = extractSwitchTitleId(c.fileName)
     if (!titleId) continue
     // Two files can carry the same Title ID (same game, different dump). Keep the
     // first instead of letting the last one silently win.
     if (titledb[titleId]) continue
 
+    const cover = resolveCoverPath(c.game.coverPath) ?? c.game.coverUrl ?? null
+    const coverUrl = cover?.startsWith('/') ? `${base}${cover}` : cover
+
     titledb[titleId] = {
       id:          titleId,
-      name:        c.game.title,
+      name:        c.region ? `${c.game.title} (${c.region})` : c.game.title,
       description: c.game.description ?? '',
       // Only the release year is known; Tinfoil wants an int date, so this is
       // January 1st of that year — a placeholder day, not a real release date.
@@ -77,6 +113,7 @@ export async function GET(req: Request) {
       category:    c.game.genre ? [c.game.genre] : undefined,
       publisher:   c.game.publisher ?? undefined,
       size:        c.size,
+      ...(coverUrl ? { iconUrl: coverUrl, bannerUrl: coverUrl } : {}),
     }
   }
 
@@ -84,7 +121,7 @@ export async function GET(req: Request) {
   // Announced from DB rows only (no per-file stat — that is the sub-index's job).
   // Restricted to visible games so a hidden library doesn't advertise a folder
   // that then lists nothing.
-  const extras     = games.flatMap((g) => g.dlcs)
+  const extras   = games.flatMap((g) => g.dlcs)
   const hasDlc     = extras.some((d) => d.type === 'dlc'    && isSwitchFile(d.fileName))
   const hasUpdates = extras.some((d) => d.type === 'update' && isSwitchFile(d.fileName))
 

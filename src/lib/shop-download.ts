@@ -10,9 +10,15 @@ import fsp from 'fs/promises'
 import path from 'path'
 import { createFileWebStream } from '@/lib/stream'
 import { contentDispositionAttachment, parseByteRange } from '@/lib/http'
+import { logDownloadComplete, logDownloadStart } from '@/lib/traffic'
 
 export interface ShopDownloadTarget {
   filePath: string
+  /** Owning game — used for the download log. */
+  gameId:   number
+  /** Set for DLC / update / regional-edition files. */
+  dlcId?:   number
+  dlcType?: string
 }
 
 export async function serveShopFile(
@@ -44,9 +50,29 @@ export async function serveShopFile(
     })
   }
 
+  // Log once per install attempt, not once per chunk: an install client fetches a
+  // multi-GB file in many ranges, and a row per range would bury the traffic
+  // panel. Only the request that starts at byte 0 is recorded, so a resumed
+  // transfer doesn't count twice either.
+  const shouldLog = range === null || range.start === 0
+  const logId = shouldLog
+    ? await logDownloadStart({
+        req,
+        gameId:   target.gameId,
+        dlcId:    target.dlcId,
+        dlcType:  target.dlcType,
+        fileName,
+        fileSize: BigInt(fileSize),
+      }).catch(() => null)
+    : null
+
+  // `completed` therefore means "the first range finished", which for a
+  // single-range client is the whole file and for a chunking one is a floor.
+  const onEnd = logId !== null ? () => { void logDownloadComplete(logId).catch(() => {}) } : undefined
+
   if (range) {
     const { start, end } = range
-    return new NextResponse(createFileWebStream(target.filePath, { start, end }), {
+    return new NextResponse(createFileWebStream(target.filePath, { start, end }, { onEnd }), {
       status: 206,
       headers: {
         ...baseHeaders,
@@ -56,7 +82,7 @@ export async function serveShopFile(
     })
   }
 
-  return new NextResponse(createFileWebStream(target.filePath), {
+  return new NextResponse(createFileWebStream(target.filePath, undefined, { onEnd }), {
     status: 200,
     headers: { ...baseHeaders, 'Content-Length': String(fileSize) },
   })

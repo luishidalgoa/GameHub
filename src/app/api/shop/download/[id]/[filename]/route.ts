@@ -22,10 +22,10 @@ export async function GET(
 
   const game = await db.game.findUnique({
     where:  { id: gameId },
-    select: { filePath: true, isHidden: true },
+    select: { id: true, filePath: true, isHidden: true },
   })
   // Hidden games are absent from the index; don't serve them by direct id either.
   if (!game || game.isHidden) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-  return serveShopFile(req, { filePath: game.filePath })
+  return serveShopFile(req, { filePath: game.filePath, gameId: game.id })
 }

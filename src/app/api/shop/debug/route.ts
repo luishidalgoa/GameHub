@@ -2,7 +2,7 @@
  * GET /api/shop/debug
  * Diagnostic endpoint behind the same gates as the rest of the shop. Shows:
  *   - Every game in the DB with its shop inclusion status
- *   - Every GameDlc (updates/DLC/mods) with its status
+ *   - Every GameDlc (updates/DLC/regional editions/mods) with its status
  *
  * Example: http://192.168.1.x:3001/api/shop/debug
  */
@@ -16,7 +16,7 @@ export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
 /** Types published in the main index alongside base games. */
-const INDEXED_AS_BASE = new Set<string>()
+const INDEXED_AS_BASE = new Set(['region'])
 /** Types published through a sub-index directory. */
 const INDEXED_AS_EXTRA = new Set(['dlc', 'update'])
 

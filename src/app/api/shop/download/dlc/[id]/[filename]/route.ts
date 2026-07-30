@@ -22,9 +22,14 @@ export async function GET(
 
   const dlc = await db.gameDlc.findUnique({
     where:  { id: dlcId },
-    select: { filePath: true, game: { select: { isHidden: true } } },
+    select: { id: true, gameId: true, filePath: true, type: true, game: { select: { isHidden: true } } },
   })
   if (!dlc || dlc.game.isHidden) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-  return serveShopFile(req, { filePath: dlc.filePath })
+  return serveShopFile(req, {
+    filePath: dlc.filePath,
+    gameId:   dlc.gameId,
+    dlcId:    dlc.id,
+    dlcType:  dlc.type,
+  })
 }
