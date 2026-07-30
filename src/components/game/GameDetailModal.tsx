@@ -16,6 +16,7 @@ import { ScreenshotCarousel } from '@/components/game/ScreenshotCarousel'
 import { ExternalLinks }      from '@/components/game/ExternalLinks'
 import { YouTubeEmbed }       from '@/components/shared/YouTubeEmbed'
 import { addRecentlyViewed }  from '@/lib/recently-viewed'
+import { extractUpdateVersion } from '@/lib/switch-version'
 import type { Game } from '@/types/game'
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
@@ -290,13 +291,26 @@ export function GameDetailModal({ gameId, onClose }: Props) {
                   <BulkDownloadButton gameId={game.id} type="update" count={game.dlcs.filter(d => d.type === 'update').length} />
                 </div>
                 <div className="space-y-1">
-                  {game.dlcs.filter((d) => d.type === 'update').map((dlc) => (
-                    <div key={dlc.id} className="flex items-center gap-2 text-xs text-muted-foreground bg-secondary/50 rounded px-3 py-1.5">
-                      <span className="flex-1 truncate">{dlc.title ?? dlc.fileName}</span>
-                      <span className="flex-shrink-0">{formatBytes(BigInt(dlc.fileSize))}</span>
-                      <DownloadButton gameId={game.id} dlcId={dlc.id} label="Update" variant="secondary" />
-                    </div>
-                  ))}
+                  {game.dlcs.filter((d) => d.type === 'update').map((dlc) => {
+                    // The scanner strips the version out of `title`, so two patches
+                    // for the same game are indistinguishable without this.
+                    const version = extractUpdateVersion(dlc.fileName)
+                    return (
+                      <div key={dlc.id} className="flex items-center gap-2 text-xs text-muted-foreground bg-secondary/50 rounded px-3 py-1.5">
+                        <span className="flex-1 truncate">{dlc.title ?? dlc.fileName}</span>
+                        {version && (
+                          <span
+                            title={dlc.fileName}
+                            className="flex-shrink-0 font-mono text-[10px] leading-none px-1.5 py-0.5 rounded bg-background/70 text-foreground/70 border border-border"
+                          >
+                            {version}
+                          </span>
+                        )}
+                        <span className="flex-shrink-0">{formatBytes(BigInt(dlc.fileSize))}</span>
+                        <DownloadButton gameId={game.id} dlcId={dlc.id} label="Update" variant="secondary" />
+                      </div>
+                    )
+                  })}
                 </div>
               </div>
             )}
