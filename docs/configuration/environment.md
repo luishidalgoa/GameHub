@@ -26,7 +26,29 @@ value wins when present. Operational secrets that must exist at boot
 
 | Variable | Purpose |
 |---|---|
-| `PUBLIC_IP` | If set, requests from this IP get access to the `/admin` UI (in addition to LAN). If unset, IP restriction is skipped. |
+| `TRUST_PROXY` | `true` when Apache/nginx sits in front. Only then are `X-Real-IP` / `X-Forwarded-For` believed. Unset ⇒ those headers are ignored (a client can forge them) and the client IP is reported as *unknown*. |
+| `TRUSTED_NETWORKS` | Extra CIDRs treated as local, e.g. `100.64.0.0/10` for Tailscale. RFC-1918, loopback and IPv6 ULA/link-local are trusted already. |
+| `ADMIN_IP_ALLOWLIST` | Optional IP allowlist for the `/admin` UI (IPs/CIDRs, v4+v6). **Empty by default** — see the warning below. |
+| `PUBLIC_IP` | Legacy single-address form of `ADMIN_IP_ALLOWLIST`, keeping its original meaning: that address **or** any private/trusted network. |
+
+> **The admin IP filter is not a security boundary.** `/admin/login` is reachable
+> from anywhere and every mutating API route is gated on the session cookie alone,
+> so an IP allowlist over the admin *pages* stops nobody who has the password. What
+> it does do is lock **you** out whenever your address isn't what it expects —
+> IPv6, carrier-grade NAT, a rotated dynamic IP, or a proxy that didn't forward the
+> address. Leave it empty and put the admin behind a VPN if you want a perimeter.
+>
+> If you do enable it: `TRUST_PROXY=true` is required behind a reverse proxy
+> (otherwise no IP can be resolved and every admin request is denied), and your own
+> LAN range must be listed explicitly.
+
+#### Why the client IP can be "unknown"
+
+A self-hosted Next.js handler has no access to the TCP peer address —
+`NextRequest.ip` is only populated by Vercel. The sole trustworthy source is a
+reverse proxy that sets `X-Real-IP`. Reached directly on its own port (which is
+how Tinfoil/DBI connect to the shop) there is no such header, so no IP can be
+established. Routes handle that explicitly instead of assuming `127.0.0.1`.
 
 ### S3 / MinIO (cover storage)
 

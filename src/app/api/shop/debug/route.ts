@@ -1,25 +1,28 @@
 /**
  * GET /api/shop/debug
- * LAN-only diagnostic endpoint. Shows:
+ * Diagnostic endpoint behind the same gates as the rest of the shop. Shows:
  *   - Every game in the DB with its shop inclusion status
- *   - Every GameDlc (updates/DLC/mods) with its shop inclusion status
+ *   - Every GameDlc (updates/DLC/regional editions/mods) with its status
  *
- * Example: http://192.168.1.x:3000/api/shop/debug
+ * Example: http://192.168.1.x:3001/api/shop/debug
  */
 import { NextResponse } from 'next/server'
-import fs from 'fs'
 import { db } from '@/lib/db'
-import { isLanIp, clientIpFromPlainRequest } from '@/lib/auth'
+import { guardShopRequest } from '@/lib/shop-auth'
+import { isSwitchFile, statSize } from '@/lib/shop-files'
+import { extractSwitchTitleId } from '@/lib/scanner/titleid'
 
 export const dynamic = 'force-dynamic'
+export const runtime = 'nodejs'
 
-const SWITCH_EXTS = new Set(['.nsp', '.nsz', '.xci', '.xcz'])
+/** Types published in the main index alongside base games. */
+const INDEXED_AS_BASE = new Set(['region'])
+/** Types published through a sub-index directory. */
+const INDEXED_AS_EXTRA = new Set(['dlc', 'update'])
 
 export async function GET(req: Request) {
-  const clientIp = clientIpFromPlainRequest(req)
-  if (!isLanIp(clientIp)) {
-    return NextResponse.json({ error: 'LAN access only' }, { status: 403 })
-  }
+  const denied = await guardShopRequest(req)
+  if (denied) return denied
 
   // ── Base games ───────────────────────────────────────────────────────────
   const games = await db.game.findMany({
@@ -35,34 +38,42 @@ export async function GET(req: Request) {
     },
   })
 
-  const gameResults = games.map((g) => {
+  const gameSizes = await statSize(games.map((g) => g.filePath))
+
+  const gameResults = games.map((g, i) => {
     const ext         = g.fileName.slice(g.fileName.lastIndexOf('.')).toLowerCase()
-    const isSwitchExt = SWITCH_EXTS.has(ext)
-    const hasFileSize = g.fileSize > BigInt(0)
-    const fileExists  = !g.isHidden && hasFileSize && isSwitchExt
-      ? fs.existsSync(g.filePath)
-      : false
+    const isSwitchExt = isSwitchFile(g.fileName)
+    const onDiskSize  = gameSizes[i]
 
     const reasons: string[] = []
-    if (g.isHidden)   reasons.push('isHidden=true (marked stale by scanner)')
-    if (!hasFileSize) reasons.push('fileSize=0 (stub — no base game file)')
-    if (!isSwitchExt) reasons.push(`extension "${ext}" not in Switch list (.nsp/.nsz/.xci/.xcz)`)
-    if (hasFileSize && !g.isHidden && isSwitchExt && !fileExists)
-                      reasons.push(`file not found on disk: ${g.filePath}`)
+    if (g.isHidden)    reasons.push('isHidden=true (marked stale by scanner)')
+    if (!isSwitchExt)  reasons.push(`extension "${ext}" not in Switch list (.nsp/.nsz/.xci/.xcz)`)
+    if (isSwitchExt && onDiskSize === null)
+                       reasons.push(`file not readable on disk: ${g.filePath}`)
+    if (onDiskSize === 0) reasons.push('file is empty on disk (0 bytes)')
+    // Size is served from disk now, so a stale DB value is informational only.
+    if (onDiskSize !== null && onDiskSize !== Number(g.fileSize))
+                       reasons.push(
+                         `note: DB fileSize ${g.fileSize} != on-disk ${onDiskSize} — rescan to refresh (the shop serves the on-disk size)`,
+                       )
+
+    const blocking = reasons.filter((r) => !r.startsWith('note:'))
 
     return {
-      id:       g.id,
-      title:    g.title,
-      fileName: g.fileName,
-      filePath: g.filePath,
-      fileSize: g.fileSize.toString(),
-      platform: g.platform?.name ?? '—',
-      status:   reasons.length === 0 ? 'included' : 'excluded',
+      id:         g.id,
+      title:      g.title,
+      fileName:   g.fileName,
+      filePath:   g.filePath,
+      fileSize:   g.fileSize.toString(),
+      onDiskSize: onDiskSize === null ? null : String(onDiskSize),
+      titleId:    extractSwitchTitleId(g.fileName),
+      platform:   g.platform?.name ?? '—',
+      status:     blocking.length === 0 ? 'included' : 'excluded',
       reasons,
     }
   })
 
-  // ── DLC / Updates / Mods ─────────────────────────────────────────────────
+  // ── DLC / Updates / Regional editions / Mods ─────────────────────────────
   const dlcs = await db.gameDlc.findMany({
     orderBy: [{ type: 'asc' }, { fileName: 'asc' }],
     select: {
@@ -75,41 +86,49 @@ export async function GET(req: Request) {
     },
   })
 
-  const dlcResults = dlcs.map((d) => {
+  const dlcSizes = await statSize(dlcs.map((d) => d.filePath))
+
+  const dlcResults = dlcs.map((d, i) => {
     const ext         = d.fileName.slice(d.fileName.lastIndexOf('.')).toLowerCase()
-    const isSwitchExt = SWITCH_EXTS.has(ext)
-    const fileExists  = isSwitchExt ? fs.existsSync(d.filePath) : false
+    const isSwitchExt = isSwitchFile(d.fileName)
+    const onDiskSize  = dlcSizes[i]
+    const publishable = INDEXED_AS_BASE.has(d.type) || INDEXED_AS_EXTRA.has(d.type)
 
     const reasons: string[] = []
     if (d.game.isHidden) reasons.push('parent game isHidden=true')
+    if (!publishable)    reasons.push(`type "${d.type}" is not published to the shop`)
     if (!isSwitchExt)    reasons.push(`extension "${ext}" not in Switch list`)
-    if (isSwitchExt && !fileExists)
-                         reasons.push(`file not found on disk: ${d.filePath}`)
+    if (isSwitchExt && onDiskSize === null)
+                         reasons.push(`file not readable on disk: ${d.filePath}`)
+    if (onDiskSize === 0) reasons.push('file is empty on disk (0 bytes)')
 
     return {
-      id:        d.id,
-      type:      d.type,
-      fileName:  d.fileName,
-      filePath:  d.filePath,
-      fileSize:  d.fileSize.toString(),
-      gameTitle: d.game.title,
-      status:    reasons.length === 0 ? 'included' : 'excluded',
+      id:         d.id,
+      type:       d.type,
+      publishedAs: INDEXED_AS_BASE.has(d.type) ? 'main index' : INDEXED_AS_EXTRA.has(d.type) ? `/api/shop/${d.type === 'dlc' ? 'dlc' : 'updates'}` : null,
+      fileName:   d.fileName,
+      filePath:   d.filePath,
+      fileSize:   d.fileSize.toString(),
+      onDiskSize: onDiskSize === null ? null : String(onDiskSize),
+      gameTitle:  d.game.title,
+      status:     reasons.length === 0 ? 'included' : 'excluded',
       reasons,
     }
   })
 
-  const gIncluded = gameResults.filter((r) => r.status === 'included').length
-  const uIncluded = dlcResults.filter((r) => r.status === 'included' && r.type === 'update').length
-  const dIncluded = dlcResults.filter((r) => r.status === 'included' && r.type === 'dlc').length
+  const countIncluded = (type: string) =>
+    dlcResults.filter((r) => r.status === 'included' && r.type === type).length
+  const countTotal = (type: string) => dlcResults.filter((r) => r.type === type).length
 
   return NextResponse.json({
     summary: {
-      games:   { total: gameResults.length, included: gIncluded },
-      updates: { total: dlcResults.filter(r => r.type === 'update').length, included: uIncluded },
-      dlcs:    { total: dlcResults.filter(r => r.type === 'dlc').length,    included: dIncluded },
-      mods:    { total: dlcResults.filter(r => r.type === 'mod').length },
+      games:   { total: gameResults.length, included: gameResults.filter((r) => r.status === 'included').length },
+      regions: { total: countTotal('region'), included: countIncluded('region') },
+      updates: { total: countTotal('update'), included: countIncluded('update') },
+      dlcs:    { total: countTotal('dlc'),    included: countIncluded('dlc') },
+      mods:    { total: countTotal('mod'),    included: 0 },
     },
-    games:   gameResults,
-    extras:  dlcResults,
+    games:  gameResults,
+    extras: dlcResults,
   })
 }

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
-import { getSessionFromRequest, isPublicIpRequest, isLanIp } from '@/lib/auth'
+import { checkAdminIp, getSessionFromRequest, ipUnknownHint } from '@/lib/auth'
 
 // Paths that require admin auth
 const ADMIN_PAGE_PREFIX = '/admin'
@@ -33,11 +33,16 @@ export async function middleware(req: NextRequest) {
       return NextResponse.next()
     }
 
-    // Admin pages: accessible from configured public IP OR any LAN IP
-    const clientIp = req.headers.get('x-real-ip') ?? req.headers.get('x-forwarded-for') ?? req.ip ?? ''
-    console.log(`[MIDDLEWARE] Admin request to ${pathname} from IP: "${clientIp}" (x-real-ip=${req.headers.get('x-real-ip')} x-fwd=${req.headers.get('x-forwarded-for')} req.ip=${req.ip})`)
-    if (!isPublicIpRequest(req) && !isLanIp(clientIp)) {
-      console.log(`[MIDDLEWARE] Admin access denied from IP: ${clientIp}`)
+    // Optional IP allowlist. Disabled unless ADMIN_IP_ALLOWLIST (or the legacy
+    // PUBLIC_IP) is set — the password + signed session is the real gate, and an
+    // IP filter here protects nothing that the login route and the mutating APIs
+    // don't already expose. See lib/auth.ts.
+    const ipCheck = checkAdminIp(req.headers)
+    if (!ipCheck.allowed) {
+      console.warn(
+        `[MIDDLEWARE] Admin access denied for ${pathname} — ${ipCheck.reason}` +
+        (ipCheck.ip ? ` (ip=${ipCheck.ip})` : ` (${ipUnknownHint()})`),
+      )
       return NextResponse.redirect(new URL('/', req.url))
     }
 

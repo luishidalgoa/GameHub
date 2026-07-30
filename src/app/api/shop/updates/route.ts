@@ -3,35 +3,32 @@
  * Sub-index listing only update patches — navigable as a directory in CyberFoil.
  */
 import { NextResponse } from 'next/server'
-import fs from 'fs'
 import { db } from '@/lib/db'
-import { isLanIp, clientIpFromPlainRequest } from '@/lib/auth'
+import { guardShopRequest, shopBaseUrl } from '@/lib/shop-auth'
+import { isSwitchFile, statSize } from '@/lib/shop-files'
 
 export const dynamic = 'force-dynamic'
-
-const SWITCH_EXTS = new Set(['.nsp', '.nsz', '.xci', '.xcz'])
+export const runtime = 'nodejs'
 
 export async function GET(req: Request) {
-  const clientIp = clientIpFromPlainRequest(req)
-  if (!isLanIp(clientIp)) {
-    return NextResponse.json({ error: 'LAN access only' }, { status: 403 })
-  }
+  const denied = await guardShopRequest(req)
+  if (denied) return denied
 
   const updates = await db.gameDlc.findMany({
     where: { type: 'update', game: { isHidden: false } },
-    select: { id: true, filePath: true, fileName: true, fileSize: true },
+    select: { id: true, filePath: true, fileName: true },
   })
 
-  const host = req.headers.get('host') ?? 'localhost'
-  const switchUpdates = updates.filter((u) =>
-    SWITCH_EXTS.has(u.fileName.slice(u.fileName.lastIndexOf('.')).toLowerCase()) &&
-    fs.existsSync(u.filePath),
-  )
+  const base = shopBaseUrl(req)
+  const switchUpdates = updates.filter((u) => isSwitchFile(u.fileName))
+  const sizes = await statSize(switchUpdates.map((u) => u.filePath))
 
-  const files = switchUpdates.map((u) => ({
-    url:  `http://${host}/api/shop/download/dlc/${u.id}/${encodeURIComponent(u.fileName)}`,
-    size: Number(u.fileSize),
-  }))
+  const files = switchUpdates
+    .map((u, i) => ({
+      url:  `${base}/api/shop/download/dlc/${u.id}/${encodeURIComponent(u.fileName)}`,
+      size: sizes[i],
+    }))
+    .filter((f): f is { url: string; size: number } => f.size !== null && f.size > 0)
 
   return NextResponse.json({
     files,

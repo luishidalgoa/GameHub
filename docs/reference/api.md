@@ -13,8 +13,10 @@ plus per-route checks (shop/metrics are IP/token gated independently).
 | `GET /api/auth/me` | — | `{ admin: boolean }` (also the container healthcheck) |
 | `GET /api/auth/is-admin-ip` | — | Whether the client IP may see admin UI |
 
-Admin access requires a valid session **and** the request to come from a LAN IP
-or the configured `PUBLIC_IP`.
+Admin access requires a valid session. The optional IP allowlist
+(`ADMIN_IP_ALLOWLIST` / legacy `PUBLIC_IP`) is off by default — see
+[configuration/environment.md](../configuration/environment.md#access-control-optional)
+for why it is a convenience filter and not a security boundary.
 
 ## Library (public read)
 

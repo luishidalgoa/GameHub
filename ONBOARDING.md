@@ -133,8 +133,9 @@ All settings also have env-var fallbacks in `.env.production` (DB wins over env)
 - `POST /api/auth/login` → issues a 30-day JWT cookie `gamehub_session`.
 - `isAdminSession()` (Server Components / Route Handlers) reads the cookie.
 - `getSessionFromRequest(req)` (middleware) reads the cookie from `NextRequest`.
-- `PUBLIC_IP` env var: if set, requests from that IP also get admin access (for external access).
-- LAN IPs (RFC-1918: 10.x, 172.16–31.x, 192.168.x) always bypass IP checks.
+- `POST /api/auth/login` is rate limited (10 attempts / 15 min, then a 15 min lockout) and compares the password in constant time.
+- The IP allowlist for `/admin` (`ADMIN_IP_ALLOWLIST`, or the legacy `PUBLIC_IP`) is **off by default** and is not a security boundary: the login route has no IP gate and the mutating APIs check the session only. It exists as a convenience filter; use a VPN for a perimeter. See [docs/configuration/environment.md](docs/configuration/environment.md).
+- Client IPs come from `lib/net.ts` and are only read from proxy headers when `TRUST_PROXY=true`; otherwise the IP is *unknown* (`null`) and each caller decides what that means. Never assume `127.0.0.1`.
 - Middleware protects `/admin/*` pages and mutating API routes. Non-mutating admin API routes (like `s3-test`) check `isAdminSession()` internally.
 
 ---
@@ -231,8 +232,11 @@ git pull && docker compose up -d --build
 DATABASE_URL="file:/data/gamehub.db"
 SESSION_SECRET="<32+ char random string>"
 ADMIN_PASSWORD="<your password>"
-PUBLIC_IP="<your public IP for external admin access, optional>"
+TRUST_PROXY="true"   # required behind Apache/nginx so client IPs are readable
 NEXT_PUBLIC_APP_URL="https://your-domain.com"
+# Optional, off by default — read the warning in docs/configuration/environment.md
+# ADMIN_IP_ALLOWLIST="192.168.1.0/24"
+# TRUSTED_NETWORKS="100.64.0.0/10"   # Tailscale
 # Optional (can also be set in Admin → Settings):
 RAWG_API_KEY=""
 YOUTUBE_API_KEY=""
