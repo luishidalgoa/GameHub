@@ -825,6 +825,7 @@ export function SettingsForm({ platforms: initial, settings }: Props) {
             value={provCover}
             onChange={setProvCover}
             options={[
+              { value: 'libretro',    label: t('srcLibretro') },
               { value: 'launchbox',   label: t('srcLaunchbox') },
               { value: 'steamgriddb', label: t('srcSteamgriddb') },
               { value: 'rawg',        label: t('srcRawg') },

@@ -1,6 +1,7 @@
 import { getRawgProvider, RawgProvider } from './rawg'
 import { getLaunchBoxProvider, getLaunchBoxPlatformName, type LaunchBoxGame } from './launchbox'
 import { fetchSteamGridDBCover } from './steamgriddb'
+import { fetchLibretroCover } from './libretro'
 import { calcTitleConfidence, calcConfidence, AUTO_THRESHOLD } from './scoring'
 import { LAUNCHBOX_PLATFORM_NAMES } from './launchbox'
 import type { ProviderMatrix } from './matrix'
@@ -23,7 +24,7 @@ export interface ComposedMetadata {
   /** Screenshot/extra image URLs. */
   screenshots: string[]
   /** Provenance for each field (for logging / UI). */
-  sources: Partial<Record<'cover' | 'info' | 'description' | 'screenshots', 'launchbox' | 'rawg' | 'steamgriddb'>>
+  sources: Partial<Record<'cover' | 'info' | 'description' | 'screenshots', 'launchbox' | 'rawg' | 'steamgriddb' | 'libretro'>>
   /** Best confidence achieved by the primary info match. */
   confidence: number
   /** IDs for persistence. */
@@ -52,6 +53,11 @@ function bestMatch(
 export interface GatherInput {
   title: string
   platformSlug: string
+  /** ROM file name, e.g. "Ninja Cop (Europe).gba". Only the libretro cover
+   *  source uses it: it matches on No-Intro names, where the region tag decides
+   *  which of a game's boxes is the right one. Optional — without it that
+   *  source simply finds nothing and the chain falls through. */
+  fileName?: string
   matrix: ProviderMatrix
   rawgApiKey?: string
   /** Minimum confidence for the primary match to be accepted. */
@@ -68,7 +74,7 @@ const sleep = (ms: number) => new Promise(r => setTimeout(r, ms))
  * a confident-enough match for the fields that need a game match.
  */
 export async function gatherMetadata(input: GatherInput): Promise<ComposedMetadata | null> {
-  const { title, platformSlug, matrix, rawgApiKey, threshold = AUTO_THRESHOLD, paceMs = 600 } = input
+  const { title, platformSlug, fileName, matrix, rawgApiKey, threshold = AUTO_THRESHOLD, paceMs = 600 } = input
 
   const needsLaunchBox =
     matrix.cover === 'launchbox' || matrix.info === 'launchbox' ||
@@ -121,8 +127,27 @@ export async function gatherMetadata(input: GatherInput): Promise<ComposedMetada
     } catch { /* RAWG failure non-fatal */ }
   }
 
-  // If neither primary source matched, give up.
-  if (!lb && !rawg) return null
+  // libretro matches on the file name, not on a provider hit, so it can still
+  // dress a game neither LaunchBox nor RAWG has ever heard of. That long tail —
+  // regional releases, fan translations, Japan-only carts — is exactly what the
+  // archive is good at, so resolve it before giving up on the game entirely.
+  const libretroCover = matrix.cover === 'libretro'
+    ? await fetchLibretroCover(fileName ?? title, platformSlug)
+    : null
+
+  // If neither primary source matched there is no info to compose, but a box we
+  // already found is still worth keeping: the alternative is leaving those games
+  // with no cover at all.
+  if (!lb && !rawg) {
+    if (!libretroCover) return null
+    return {
+      title,
+      screenshots: [],
+      coverUrl: libretroCover,
+      sources: { cover: 'libretro' },
+      confidence: 0,
+    }
+  }
 
   const sources: ComposedMetadata['sources'] = {}
 
@@ -150,6 +175,8 @@ export async function gatherMetadata(input: GatherInput): Promise<ComposedMetada
   } else if (matrix.cover === 'steamgriddb') {
     const sgdb = await fetchSteamGridDBCover(info?.title ?? title)
     if (sgdb) { coverUrl = sgdb; sources.cover = 'steamgriddb' }
+  } else if (matrix.cover === 'libretro') {
+    if (libretroCover) { coverUrl = libretroCover; sources.cover = 'libretro' }
   }
   // Fallback chain: prefer LaunchBox box-art, then SteamGridDB, then RAWG art.
   if (!coverUrl) {
