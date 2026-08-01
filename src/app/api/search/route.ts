@@ -19,7 +19,9 @@ export async function GET(req: Request) {
             coverPath: true,
             coverUrl: true,
             releaseYear: true,
-            platform: { select: { name: true, slug: true } },
+            // iconPath: the search results show a platform badge, and the badge
+            // uses the admin-uploaded glyph when there is one.
+            platform: { select: { name: true, slug: true, iconPath: true } },
           },
         })
       : [],
