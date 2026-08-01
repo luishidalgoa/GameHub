@@ -117,7 +117,8 @@
     "graveyard": "Graveyard",
     "traffic": "Traffic",
     "donations": "Donations",
-    "settings": "Settings"
+    "settings": "Settings",
+    "curation": "Curation"
   },
   "ScanPanel": {
     "title": "ROM Scanner",
@@ -574,5 +575,31 @@
     "noCoversForGame": "No covers found for this game",
     "noCovers": "No covers found",
     "libretroHint": "This console's original box, from the libretro archive. The ROM file name is searched too, since that is what pins down the regional edition."
+  },
+  "AdminCuration": {
+    "title": "Filename curation",
+    "subtitle": "Add the release year to file names, so the library describes itself",
+    "explainer": "A file name is the only copy of a game's identity that survives losing the database. This screen proposes improvements but renames nothing: review each line, correct what needs correcting, and approve. The rename is carried out afterwards by the host-side applier, because the library is mounted read-only on purpose.",
+    "loading": "Looking for names worth improving…",
+    "loadError": "Could not load the proposals",
+    "applyError": "Could not save the plan",
+    "allCurated": "Nothing to curate",
+    "allCuratedHint": "Every file with a known year already carries it in its name.",
+    "summary": "{accepted} of {total} selected",
+    "riskySummary": "{count} need review",
+    "nFiles": "· {count} files",
+    "selectAll": "All",
+    "selectNone": "None",
+    "apply": "Approve {count} renames",
+    "confirmApply": "This writes a plan with {count} renames. No file is touched until the host applier runs it. Continue?",
+    "planWritten": "Plan written with {count} renames ({plan})",
+    "planNextStep": "The host applier will pick it up and rename the files, updating the database in the same operation.",
+    "planRejected": "{count} entries dropped because they failed validation",
+    "accept": "Accept",
+    "reject": "Reject",
+    "edit": "Edit the proposed name",
+    "resetEdit": "Undo my edit",
+    "riskSharedCard": "Shares a metadata entry with another game, so the year may belong to the wrong one. Check before accepting.",
+    "riskNoSource": "No catalogue backs this year up. Nothing corroborates it."
   }
 }
