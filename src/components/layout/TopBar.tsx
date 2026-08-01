@@ -4,8 +4,17 @@ import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import useSWR from 'swr'
 import { Search, X, Menu } from 'lucide-react'
+import { PlatformIcon } from '@/components/shared/PlatformIcon'
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
+
+/** Lo que devuelve /api/search para cada juego. */
+interface Sugerencia {
+  id: number
+  title: string
+  releaseYear: number | null
+  platform: { name: string; slug: string; iconPath: string | null }
+}
 
 interface Props {
   onMenuClick?: () => void
@@ -20,7 +29,9 @@ export function TopBar({ onMenuClick }: Props) {
   const router = useRouter()
 
   const { data } = useSWR(
-    query.length > 1 ? `/api/games?search=${encodeURIComponent(query)}&pageSize=8` : null,
+    // Mismo endpoint que la paleta de Ctrl+K: filtra igual (title contains, 8
+    // resultados) y ya trae plataforma e icono para el badge.
+    query.length > 1 ? `/api/search?q=${encodeURIComponent(query)}` : null,
     fetcher
   )
 
@@ -96,13 +107,14 @@ export function TopBar({ onMenuClick }: Props) {
               {data.games.length === 0 ? (
                 <p className="px-4 py-3 text-sm text-muted-foreground">No results</p>
               ) : (
-                data.games.map((g: { id: number; title: string }) => (
+                data.games.map((g: Sugerencia) => (
                   <button
                     key={g.id}
                     onMouseDown={() => navigateTo(g.id)}
-                    className="w-full text-left px-4 py-2.5 text-sm hover:bg-accent transition-colors truncate"
+                    className="w-full text-left px-4 py-2.5 text-sm hover:bg-accent transition-colors"
                   >
-                    {g.title}
+                    <span className="block truncate">{g.title}</span>
+                    <Badge game={g} />
                   </button>
                 ))
               )}
@@ -151,13 +163,14 @@ export function TopBar({ onMenuClick }: Props) {
                     No results for &ldquo;{query}&rdquo;
                   </p>
                 ) : (
-                  data.games.map((g: { id: number; title: string }) => (
+                  data.games.map((g: Sugerencia) => (
                     <button
                       key={g.id}
                       onClick={() => navigateTo(g.id)}
                       className="w-full text-left px-4 py-4 text-sm hover:bg-accent active:bg-accent/80 transition-colors border-b border-border/40"
                     >
-                      {g.title}
+                      <span className="block truncate">{g.title}</span>
+                      <Badge game={g} />
                     </button>
                   ))
                 )
@@ -173,5 +186,21 @@ export function TopBar({ onMenuClick }: Props) {
         </div>
       )}
     </>
+  )
+}
+
+/** Plataforma (y año) de una sugerencia. Mismo aspecto que en la paleta de
+ *  Ctrl+K, para que los dos buscadores se lean igual. */
+function Badge({ game }: { game: Sugerencia }) {
+  return (
+    <span className="flex items-center gap-2 mt-1">
+      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-secondary border border-border text-[10px] font-medium text-muted-foreground leading-none">
+        <PlatformIcon slug={game.platform.slug} iconPath={game.platform.iconPath} size={11} />
+        {game.platform.name}
+      </span>
+      {game.releaseYear && (
+        <span className="text-xs text-muted-foreground/60 tabular-nums">{game.releaseYear}</span>
+      )}
+    </span>
   )
 }
