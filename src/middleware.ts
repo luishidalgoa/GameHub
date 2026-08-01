@@ -24,6 +24,8 @@ const PROTECTED_API_PATTERNS = [
   { method: 'POST',   path: '/api/admin/platforms' }, // platform icon upload
   { method: 'DELETE', path: '/api/admin/platforms' }, // platform icon removal
   { method: 'GET',    path: '/api/admin/games/export' }, // games metadata export (JSON/CSV)
+  { method: 'GET',    path: '/api/admin/curation' },     // proposed file-name renames
+  { method: 'POST',   path: '/api/admin/curation' },     // approve a rename plan
 ]
 
 export async function middleware(req: NextRequest) {

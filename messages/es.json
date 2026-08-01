@@ -117,7 +117,8 @@
     "graveyard": "Cementerio",
     "traffic": "Tráfico",
     "donations": "Donaciones",
-    "settings": "Configuración"
+    "settings": "Configuración",
+    "curation": "Curación"
   },
   "ScanPanel": {
     "title": "Escáner de ROMs",
@@ -574,5 +575,31 @@
     "noCoversForGame": "No se encontraron portadas para este juego",
     "noCovers": "No se encontraron portadas",
     "libretroHint": "Caja original de esta consola, del archivo libretro. Se busca también por el nombre del fichero, que es lo que fija la edición regional."
+  },
+  "AdminCuration": {
+    "title": "Curación de nombres",
+    "subtitle": "Añade el año al nombre de los ficheros, para que la biblioteca se explique sola",
+    "explainer": "El nombre del fichero es la única copia de la identidad de un juego que sobrevive a perder la base de datos. Aquí se propone mejorarlo, pero no se renombra nada: revisa cada línea, corrige lo que haga falta y aprueba. El renombrado lo ejecuta después el aplicador del servidor, porque la biblioteca está montada en sólo lectura a propósito.",
+    "loading": "Buscando nombres mejorables…",
+    "loadError": "No se pudieron cargar las propuestas",
+    "applyError": "No se pudo guardar el plan",
+    "allCurated": "No hay nada que curar",
+    "allCuratedHint": "Todos los ficheros con año conocido ya lo llevan en el nombre.",
+    "summary": "{accepted} de {total} seleccionados",
+    "riskySummary": "{count} necesitan revisión",
+    "nFiles": "· {count} ficheros",
+    "selectAll": "Todos",
+    "selectNone": "Ninguno",
+    "apply": "Aprobar {count} renombrados",
+    "confirmApply": "Se va a generar un plan con {count} renombrados. No se toca ningún fichero hasta que el aplicador del servidor lo ejecute. ¿Continuar?",
+    "planWritten": "Plan generado con {count} renombrados ({plan})",
+    "planNextStep": "El aplicador del servidor lo recogerá y renombrará los ficheros, actualizando la base de datos en la misma operación.",
+    "planRejected": "{count} entradas descartadas por no pasar la validación",
+    "accept": "Aceptar",
+    "reject": "Descartar",
+    "edit": "Editar el nombre propuesto",
+    "resetEdit": "Deshacer mi edición",
+    "riskSharedCard": "Comparte ficha de metadatos con otro juego: el año puede ser del juego equivocado. Compruébalo antes de aceptar.",
+    "riskNoSource": "Ningún catálogo respalda este año. No hay nada que lo corrobore."
   }
 }
