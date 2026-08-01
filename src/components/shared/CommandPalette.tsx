@@ -7,6 +7,7 @@ import { Command } from 'cmdk'
 import { Search, Gamepad2, Loader2, X, SearchX } from 'lucide-react'
 import useSWR from 'swr'
 import { EmptyState } from '@/components/shared/EmptyState'
+import { PlatformIcon } from '@/components/shared/PlatformIcon'
 
 interface GameResult {
   id: number
@@ -14,7 +15,7 @@ interface GameResult {
   coverPath: string | null
   coverUrl: string | null
   releaseYear: number | null
-  platform: { name: string; slug: string }
+  platform: { name: string; slug: string; iconPath: string | null }
 }
 
 interface PlatformResult {
@@ -189,10 +190,15 @@ export function CommandPalette() {
                   <GameCover game={g} />
                   <div className="flex-1 min-w-0">
                     <p className="font-medium truncate">{g.title}</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      {g.platform.name}
-                      {g.releaseYear && <span className="ml-2 opacity-60">{g.releaseYear}</span>}
-                    </p>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-secondary border border-border text-[10px] font-medium text-muted-foreground leading-none">
+                        <PlatformIcon slug={g.platform.slug} iconPath={g.platform.iconPath} size={11} />
+                        {g.platform.name}
+                      </span>
+                      {g.releaseYear && (
+                        <span className="text-xs text-muted-foreground/60 tabular-nums">{g.releaseYear}</span>
+                      )}
+                    </div>
                   </div>
                 </Command.Item>
               ))}

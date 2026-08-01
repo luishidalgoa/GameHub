@@ -96,6 +96,14 @@ function toRegions(token: string): string[] {
   const compact = t.replace(/\s+/g, '')
   if (REGIONS[compact]) return [REGIONS[compact]]
   if (REGION_COMBOS[compact]) return [...REGION_COMBOS[compact]]
+
+  // Region with a qualifier glued on: "(ESP-1)", "(ESP - CHIP)" — common on
+  // Spanish SNES translations, where the suffix identifies the patch rather
+  // than the region. Only for codes of 2+ letters: a single letter before a
+  // dash is far more likely to be part of a title than a region code.
+  const head = compact.split('-')[0]
+  if (head.length >= 2 && REGIONS[head]) return [REGIONS[head]]
+
   return []
 }
 
@@ -108,16 +116,41 @@ export interface RomTags {
   languages: string[]
 }
 
-/** Parse region + languages from a ROM file name. */
+/** A 16-hex Title ID — "[01006F8002326000]" on Switch, "[000400000005EE00]" on 3DS. */
+const TITLE_ID = /^[0-9a-f]{16}$/i
+/** A dump version — "[v0]", "[v1.0.2]". */
+const VERSION = /^v[\d.]+$/i
+
+/**
+ * Parse region + languages from a ROM file name.
+ *
+ * Parentheses are the reliable carrier — "(Europe) (En,Fr,De,Es,It)". Brackets
+ * mostly hold dump metadata, but Switch and 3DS dumps put the region there and
+ * nowhere else ("… [01006F8002326000][US][v0].nsp"), so they are read too, with
+ * two guards:
+ *
+ *  - Title IDs and version stamps are skipped outright.
+ *  - Only multi-letter region codes are accepted inside brackets. GoodTools
+ *    puts single-letter DUMP flags there — [a] alternate, [b] bad, [f] fixed —
+ *    which collide head-on with the single-letter REGION codes (a=Australia,
+ *    b=Brazil, f=France). Reading "[b1]" as Brazil would be worse than reading
+ *    nothing, so brackets never resolve a one-letter token.
+ */
 export function parseRomTags(fileName: string): RomTags {
   const regions: string[] = []
   const languages: string[] = []
 
-  // Walk every "(...)" group (non-nested). Brackets "[...]" usually hold
-  // dump/Title-ID info, not region/language, so we leave them out.
-  const groups = fileName.match(/\(([^()]*)\)/g) ?? []
-  for (const raw of groups) {
+  const groups: Array<{ inner: string; bracket: boolean }> = []
+  for (const raw of fileName.match(/\(([^()]*)\)/g) ?? []) {
+    groups.push({ inner: raw.slice(1, -1).trim(), bracket: false })
+  }
+  for (const raw of fileName.match(/\[([^[\]]*)\]/g) ?? []) {
     const inner = raw.slice(1, -1).trim()
+    if (!inner || TITLE_ID.test(inner) || VERSION.test(inner)) continue
+    groups.push({ inner, bracket: true })
+  }
+
+  for (const { inner, bracket } of groups) {
     if (!inner) continue
     const parts = inner.split(',').map(p => p.trim()).filter(Boolean)
     if (parts.length === 0) continue
@@ -131,6 +164,7 @@ export function parseRomTags(fileName: string): RomTags {
 
     // Otherwise interpret parts as regions.
     for (const p of parts) {
+      if (bracket && p.replace(/[^a-z]/gi, '').length < 2) continue
       for (const r of toRegions(p)) if (!regions.includes(r)) regions.push(r)
     }
   }
