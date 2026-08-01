@@ -20,9 +20,12 @@ async function rawgKey(): Promise<string | undefined> {
 }
 
 /** Which provider runs the manual search box — follows the matrix's `info`
- *  setting, falling back to whichever provider is actually usable. */
-async function manualSearchSource(): Promise<Source> {
-  const matrix = await getProviderMatrix()
+ *  setting for THIS game's platform, falling back to whichever provider is
+ *  actually usable. The slug matters: a platform can override the global
+ *  choice, and searching with the wrong provider is how a Switch game ends up
+ *  wearing someone else's box art. */
+async function manualSearchSource(platformSlug: string): Promise<Source> {
+  const matrix = await getProviderMatrix(platformSlug)
   if (matrix.info === 'launchbox') return 'launchbox'
   if (matrix.info === 'rawg' && (await rawgKey())) return 'rawg'
   return (await rawgKey()) ? 'rawg' : 'launchbox'
@@ -45,7 +48,7 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
   const source: Source =
     overrideProvider === 'launchbox' || overrideProvider === 'rawg'
       ? overrideProvider
-      : await manualSearchSource()
+      : await manualSearchSource(game.platform.slug)
 
   let results: Array<MetadataResult & { source: Source }> = []
   if (source === 'launchbox') {
@@ -88,7 +91,9 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   }
 
   // ── One-click auto-fill following the matrix ──
-  const matrix = await getProviderMatrix()
+  // Resolved for this game's platform: a per-platform override only takes
+  // effect if the slug reaches here.
+  const matrix = await getProviderMatrix(game.platform.slug)
   const meta = await gatherMetadata({
     title:        game.title,
     platformSlug: game.platform.slug,

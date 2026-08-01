@@ -5,7 +5,7 @@ import { fetchGameScore } from './scoreChain'
 import { unifiedScore } from './popularity'
 import { searchYouTubeTrailer, YouTubeApiError } from '@/lib/youtube'
 import { AUTO_THRESHOLD } from './scoring'
-import { getProviderMatrix } from './matrix'
+import { getProviderMatrix, type ProviderMatrix } from './matrix'
 import { gatherMetadata } from './compose'
 
 // Re-exported for callers that imported these from the batch module historically.
@@ -84,18 +84,31 @@ export async function runMetadataBatch(opts: {
   }
 
   // Per-field provider matrix (LaunchBox / RAWG / SteamGridDB per category).
-  const matrix = await getProviderMatrix()
+  //
+  // A run spans several platforms and each one can override any field, so there
+  // is no single matrix for the batch: every game resolves the one in force for
+  // its own platform. The global matrix only drives the pre-flight guards below,
+  // which decide whether the run can produce anything at all.
+  const globalMatrix = await getProviderMatrix()
+  const matrixCache = new Map<string, ProviderMatrix>()
+  const matrixFor = async (slug: string): Promise<ProviderMatrix> => {
+    const hit = matrixCache.get(slug)
+    if (hit) return hit
+    const m = await getProviderMatrix(slug)
+    matrixCache.set(slug, m)
+    return m
+  }
 
   // RAWG is optional: if a field is set to RAWG but no key is configured, the
   // composer falls back to LaunchBox for that field. We only hard-fail if RAWG
   // is the ONLY possible source AND it's unavailable — i.e. nothing else can
   // produce data (no LaunchBox field selected and no RAWG key).
   const usesAnyLaunchBox =
-    matrix.cover === 'launchbox' || matrix.info === 'launchbox' ||
-    matrix.description === 'launchbox' || matrix.screenshots === 'launchbox'
+    globalMatrix.cover === 'launchbox' || globalMatrix.info === 'launchbox' ||
+    globalMatrix.description === 'launchbox' || globalMatrix.screenshots === 'launchbox'
   const usesAnyRawg =
-    matrix.cover === 'rawg' || matrix.info === 'rawg' ||
-    matrix.description === 'rawg' || matrix.screenshots === 'rawg'
+    globalMatrix.cover === 'rawg' || globalMatrix.info === 'rawg' ||
+    globalMatrix.description === 'rawg' || globalMatrix.screenshots === 'rawg'
   if (!usesAnyLaunchBox && usesAnyRawg && !getRawgProvider(apiKey)) {
     emit({ type: 'failed', reason: 'RAWG API key not configured' })
     emit({ type: 'done', total: 0, processed: 0, applied: 0, skipped: 0, failed: 1 })
@@ -164,13 +177,18 @@ export async function runMetadataBatch(opts: {
   // current matrix (any field whose source ≠ the configured provider, or that
   // was never recorded). Done in JS because metadataSources is a JSON string.
   if (mode === 'wrong-provider') {
-    const wanted: Record<string, string> = {
-      cover:       matrix.cover,
-      info:        matrix.info,
-      description: matrix.description,
-      screenshots: matrix.screenshots,
-    }
+    // Judged against the matrix in force for each game's OWN platform: with a
+    // per-platform override, the same provenance can be right for one console
+    // and wrong for another. Resolved up front so the filter stays synchronous.
+    await Promise.all([...new Set(games.map(g => g.platform.slug))].map(matrixFor))
     games = games.filter(g => {
+      const m = matrixCache.get(g.platform.slug) ?? globalMatrix
+      const wanted: Record<string, string> = {
+        cover:       m.cover,
+        info:        m.info,
+        description: m.description,
+        screenshots: m.screenshots,
+      }
       let src: Record<string, string> = {}
       try { src = g.metadataSources ? JSON.parse(g.metadataSources) : {} } catch { /* treat as empty */ }
       // Mismatch if any field that the matrix actively sources (≠ 'none') is
@@ -332,7 +350,7 @@ export async function runMetadataBatch(opts: {
         title:        game.title,
         platformSlug: game.platform.slug,
         fileName:     game.fileName,
-        matrix,
+        matrix:       await matrixFor(game.platform.slug),
         rawgApiKey:   apiKey,
         threshold:    AUTO_THRESHOLD,
       })
