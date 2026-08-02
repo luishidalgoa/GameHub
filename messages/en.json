@@ -153,6 +153,8 @@
     "allPlatforms": "All platforms",
     "platformHint": "Limit to one platform",
     "downloadCovers": "Download covers",
+    "fetchScores": "Fetch score",
+    "fetchScoresHint": "Resolves each game’s score in the same pass (RAWG → Metacritic → LaunchBox). Adds up to two requests per game.",
     "applied": "Applied",
     "skipped": "Skipped",
     "failed": "Failed",

@@ -14,6 +14,7 @@ export async function POST(req: Request) {
     platformSlug: typeof body.platformSlug === 'string' && body.platformSlug ? body.platformSlug : undefined,
     withCovers: body.withCovers !== false,
     withTrailers: body.withTrailers !== false,
+    withScores: body.withScores !== false,
   }
   const id = await startMetadataJob(params)
   return NextResponse.json({ ok: true, jobId: id })

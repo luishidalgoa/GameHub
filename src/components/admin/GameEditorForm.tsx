@@ -12,6 +12,7 @@ import { parseExternalLinks, type ExternalLinkItem } from '@/components/game/Ext
 import { YouTubeEmbed } from '@/components/shared/YouTubeEmbed'
 import { toast } from '@/components/shared/Toaster'
 import type { Game } from '@/types/game'
+import { parseMetadataSources, type FieldSource, type MetadataSources } from '@/lib/metadata/sources'
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
@@ -57,11 +58,12 @@ export function GameEditorForm({ game, thumbnailWidth = 200, thumbnailHeight = 3
       const res = await fetch('/api/covers', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ gameId: game.id, url }),
+        body: JSON.stringify({ gameId: game.id, url, source: 'screenshot' }),
       })
       if (res.ok) {
         const data = await res.json()
         setCoverPath(data.coverPath)
+        if (data.sources) setSources(data.sources)
       }
     } finally {
       setSettingCover(null)
@@ -114,8 +116,9 @@ export function GameEditorForm({ game, thumbnailWidth = 200, thumbnailHeight = 3
     setForm((prev) => ({ ...prev, [key]: value }))
 
   // ── Metadata provenance (per-field source badges) ───────────────────────────
-  const sources: Partial<Record<'cover' | 'info' | 'description' | 'screenshots', 'launchbox' | 'rawg' | 'steamgriddb'>> =
-    (() => { try { return game.metadataSources ? JSON.parse(game.metadataSources) : {} } catch { return {} } })()
+  // Stateful: applying a cover rewrites `cover`, and the badge has to follow the
+  // picture immediately — the server prop only refreshes on a full reload.
+  const [sources, setSources] = useState<MetadataSources>(() => parseMetadataSources(game.metadataSources))
 
   // ── External links ─────────────────────────────────────────────────────────
   const [links, setLinks] = useState<ExternalLinkItem[]>(parseExternalLinks(game.externalLinks))
@@ -547,7 +550,7 @@ export function GameEditorForm({ game, thumbnailWidth = 200, thumbnailHeight = 3
               gameId={game.id}
               gameTitle={game.title}
               currentCover={coverPath}
-              onUploaded={(path) => setCoverPath(path)}
+              onUploaded={(path, next) => { setCoverPath(path); if (next) setSources(next) }}
               thumbnailWidth={thumbnailWidth}
               thumbnailHeight={thumbnailHeight}
             />
@@ -674,13 +677,17 @@ function Field({
 }
 
 const PROVIDER_LABEL: Record<string, string> = {
-  launchbox: 'LaunchBox',
-  rawg: 'RAWG',
+  launchbox:   'LaunchBox',
+  rawg:        'RAWG',
   steamgriddb: 'SteamGridDB',
+  libretro:    'libretro',
+  upload:      'Manual',
+  url:         'URL',
+  screenshot:  'Screenshot',
 }
 
-/** Small pill showing which provider supplied a field (or nothing if unknown). */
-function SourceBadge({ source }: { source?: 'launchbox' | 'rawg' | 'steamgriddb' }) {
+/** Small pill showing where a field came from (or nothing if unknown). */
+function SourceBadge({ source }: { source?: FieldSource }) {
   if (!source) return null
   return (
     <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-violet-500/15 text-violet-300 leading-none">

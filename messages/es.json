@@ -153,6 +153,8 @@
     "allPlatforms": "Todas las plataformas",
     "platformHint": "Limitar a una plataforma",
     "downloadCovers": "Descargar portadas",
+    "fetchScores": "Buscar nota",
+    "fetchScoresHint": "Resuelve la nota de cada juego en la misma pasada (RAWG → Metacritic → LaunchBox). Añade hasta dos peticiones por juego.",
     "applied": "Aplicados",
     "skipped": "Omitidos",
     "failed": "Fallidos",

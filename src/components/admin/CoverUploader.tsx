@@ -6,12 +6,15 @@ import { useTranslations } from 'next-intl'
 import { Upload, Link as LinkIcon, Loader2, Crop, Search, ChevronDown, ChevronUp, ArrowLeft } from 'lucide-react'
 import { CoverAdjustModal } from './CoverAdjustModal'
 import { resolveCoverPath } from '@/lib/cover-url'
+import type { FieldSource, MetadataSources } from '@/lib/metadata/sources'
 
 interface Props {
   gameId: number
   gameTitle?: string
   currentCover: string | null
-  onUploaded: (path: string) => void
+  /** `sources` is the updated provenance the server stored, so the editor's
+   *  cover badge can follow the picture without a page reload. */
+  onUploaded: (path: string, sources?: MetadataSources) => void
   thumbnailWidth?: number
   thumbnailHeight?: number
 }
@@ -83,7 +86,9 @@ export function CoverUploader({ gameId, gameTitle = '', currentCover, onUploaded
 
   // ── Upload helpers ─────────────────────────────────────────────────────────
 
-  const uploadFile = async (file: File, adjusted = false) => {
+  // `source` records where the image came from. A crop adjustment passes none:
+  // it re-uploads the same artwork, so the stored provenance must survive.
+  const uploadFile = async (file: File, adjusted = false, source?: FieldSource) => {
     setLoading(true)
     setError(null)
     try {
@@ -91,6 +96,7 @@ export function CoverUploader({ gameId, gameTitle = '', currentCover, onUploaded
       form.append('gameId', String(gameId))
       form.append('file', file)
       if (adjusted) form.append('adjusted', 'true')
+      if (source) form.append('source', source)
       const res  = await fetch('/api/covers', { method: 'POST', body: form })
       const data = await res.json()
       setLoading(false)
@@ -98,7 +104,7 @@ export function CoverUploader({ gameId, gameTitle = '', currentCover, onUploaded
         // Use resolved URL for the preview; pass S3 key to parent so the
         // game editor stores the stable key (not a full URL) in the DB.
         setPreview(data.coverPath + `?t=${Date.now()}`)
-        onUploaded(data.key ?? data.coverPath)
+        onUploaded(data.key ?? data.coverPath, data.sources)
       } else setError(data.error || 'Upload failed')
     } catch (err) {
       setLoading(false)
@@ -108,20 +114,20 @@ export function CoverUploader({ gameId, gameTitle = '', currentCover, onUploaded
     }
   }
 
-  const uploadFromUrl = async (url: string) => {
+  const uploadFromUrl = async (url: string, source: FieldSource = 'url') => {
     setLoading(true)
     setError(null)
     try {
       const res  = await fetch('/api/covers', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ gameId, url }),
+        body:    JSON.stringify({ gameId, url, source }),
       })
       const data = await res.json()
       setLoading(false)
       if (res.ok) {
         setPreview(data.coverPath + `?t=${Date.now()}`)
-        onUploaded(data.key ?? data.coverPath)
+        onUploaded(data.key ?? data.coverPath, data.sources)
         setUrlInput('')
         setSearchOpen(false)
       }
@@ -144,7 +150,7 @@ export function CoverUploader({ gameId, gameTitle = '', currentCover, onUploaded
       const imgItem = items.find((i) => i.type.startsWith('image/'))
       if (!imgItem) return
       const file = imgItem.getAsFile()
-      if (file) { e.preventDefault(); uploadFile(file) }
+      if (file) { e.preventDefault(); uploadFile(file, false, 'upload') }
     }
     document.addEventListener('paste', handler)
     return () => document.removeEventListener('paste', handler)
@@ -155,7 +161,7 @@ export function CoverUploader({ gameId, gameTitle = '', currentCover, onUploaded
     e.preventDefault()
     setError(null)
     const file = e.dataTransfer.files[0]
-    if (file && file.type.startsWith('image/')) uploadFile(file)
+    if (file && file.type.startsWith('image/')) uploadFile(file, false, 'upload')
   }
 
   const getOriginalCoverUrl = (path: string) => {
@@ -194,7 +200,7 @@ export function CoverUploader({ gameId, gameTitle = '', currentCover, onUploaded
   const applyRawgCover = async (result: RawgResult) => {
     if (!result.coverUrl) return
     setApplyingRawg(result.id)
-    await uploadFromUrl(result.coverUrl)
+    await uploadFromUrl(result.coverUrl, 'rawg')
     setApplyingRawg(null)
   }
 
@@ -251,7 +257,7 @@ export function CoverUploader({ gameId, gameTitle = '', currentCover, onUploaded
 
   const applySgdbCover = async (thumb: string, url: string) => {
     setApplyingSgdb(url)
-    await uploadFromUrl(url)
+    await uploadFromUrl(url, 'steamgriddb')
     setApplyingSgdb(null)
   }
 
@@ -283,7 +289,7 @@ export function CoverUploader({ gameId, gameTitle = '', currentCover, onUploaded
 
   const applyLbCover = async (thumb: string, url: string) => {
     setApplyingLb(url)
-    await uploadFromUrl(url)
+    await uploadFromUrl(url, 'launchbox')
     setApplyingLb(null)
   }
 
@@ -331,7 +337,7 @@ export function CoverUploader({ gameId, gameTitle = '', currentCover, onUploaded
         type="file"
         accept="image/*"
         className="hidden"
-        onChange={(e) => { setError(null); const f = e.target.files?.[0]; if (f) uploadFile(f) }}
+        onChange={(e) => { setError(null); const f = e.target.files?.[0]; if (f) uploadFile(f, false, 'upload') }}
       />
 
       {preview && !loading && (
@@ -451,7 +457,7 @@ export function CoverUploader({ gameId, gameTitle = '', currentCover, onUploaded
                           key={c.url}
                           type="button"
                           title={c.name}
-                          onClick={async () => { setApplyingLib(c.url); await uploadFromUrl(c.url); setApplyingLib(null) }}
+                          onClick={async () => { setApplyingLib(c.url); await uploadFromUrl(c.url, 'libretro'); setApplyingLib(null) }}
                           disabled={applyingLib === c.url || loading}
                           style={{ aspectRatio: `${thumbnailWidth}/${thumbnailHeight}` }}
                           className="relative group rounded overflow-hidden bg-secondary border border-border hover:border-primary transition-colors disabled:opacity-60"

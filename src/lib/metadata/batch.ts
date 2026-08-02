@@ -7,6 +7,7 @@ import { searchYouTubeTrailer, YouTubeApiError } from '@/lib/youtube'
 import { AUTO_THRESHOLD } from './scoring'
 import { getProviderMatrix, type ProviderMatrix } from './matrix'
 import { gatherMetadata } from './compose'
+import { parseMetadataSources, type MetadataSources } from './sources'
 
 // Re-exported for callers that imported these from the batch module historically.
 export { AUTO_THRESHOLD, REVIEW_THRESHOLD, calcConfidence } from './scoring'
@@ -26,6 +27,8 @@ export interface BatchEvent {
   skipped?:      number
   failed?:       number
   trailerFound?: boolean
+  /** Score resolved for this game in the same pass, if any (0–100). */
+  score?:        number
   /** Highest Game.id handled so far — persisted as the resume cursor. */
   cursorId?:     number
 }
@@ -41,6 +44,12 @@ export async function runMetadataBatch(opts: {
   signal:           AbortSignal
   withCovers?:      boolean
   withTrailers?:    boolean
+  /** Resolve the game's score in the same pass (RAWG metacritic → Metacritic →
+   *  LaunchBox community rating). On by default: the metadata providers don't
+   *  carry a score, so without this a freshly scanned game has none until
+   *  someone remembers to run the separate score job. Costs up to two extra
+   *  requests per game, which is why it can be turned off. */
+  withScores?:      boolean
   /** Also backfill trailers for games that ALREADY have metadata but no trailer
    *  (without touching their metadata). Used by the admin "Auto Metadata Fetch". */
   backfillTrailers?: boolean
@@ -65,7 +74,7 @@ export async function runMetadataBatch(opts: {
    *  Used to continue an interrupted job without redoing earlier games. */
   resumeAfterId?:   number
 }) {
-  const { emit: rawEmit, signal, withCovers = true, withTrailers = false, backfillTrailers = false, rateMs = 350, apiKey, mode = 'missing', popularityRedo = false, platformSlug, resumeAfterId } = opts
+  const { emit: rawEmit, signal, withCovers = true, withTrailers = false, withScores = true, backfillTrailers = false, rateMs = 350, apiKey, mode = 'missing', popularityRedo = false, platformSlug, resumeAfterId } = opts
 
   // Wrap emit so every per-game event also carries cursorId = the game's id.
   // Games are processed in ascending id order, so the runner can persist this as
@@ -116,6 +125,9 @@ export async function runMetadataBatch(opts: {
   }
 
   // Fields considered "metadata" for the gap detection used by 'fill' mode.
+  // A missing score counts as a gap like any other — otherwise a game with
+  // complete metadata and no score is never selected, and "fill the gaps" leaves
+  // the one gap it has.
   const GAP_FIELDS = [
     { description: null },
     { genre: null },
@@ -125,6 +137,7 @@ export async function runMetadataBatch(opts: {
     { coverPath: null },
     { screenshotPaths: null },
     ...(withTrailers ? [{ trailerUrl: null }] : []),
+    ...(withScores ? [{ rawgScore: null }] : []),
   ]
 
   const platformFilter = platformSlug ? { platform: { slug: platformSlug } } : {}
@@ -189,12 +202,14 @@ export async function runMetadataBatch(opts: {
         description: m.description,
         screenshots: m.screenshots,
       }
-      let src: Record<string, string> = {}
-      try { src = g.metadataSources ? JSON.parse(g.metadataSources) : {} } catch { /* treat as empty */ }
+      const src = parseMetadataSources(g.metadataSources)
       // Mismatch if any field that the matrix actively sources (≠ 'none') is
       // missing from provenance or recorded from a different provider.
       return (['cover', 'info', 'description', 'screenshots'] as const).some(f => {
         if (wanted[f] === 'none') return false
+        // A hand-picked cover is a deliberate override, not a provider drift:
+        // it never counts as a mismatch, or this sweep would exist to undo it.
+        if (f === 'cover' && src.coverManual) return false
         return src[f] !== wanted[f]
       })
     })
@@ -231,10 +246,16 @@ export async function runMetadataBatch(opts: {
         // Score: prefer RAWG's own metacritic; otherwise run the centralized
         // fallback chain (Metacritic scraper → LaunchBox community rating). Only
         // for games RAWG left without a metascore.
+        //
+        // A score the metadata pass already resolved is left alone unless RAWG
+        // has a real metascore (which outranks it) or the admin asked for a
+        // re-fetch — otherwise this pass would replace a Metacritic with RAWG's
+        // user rating, or wipe it when RAWG knows nothing.
+        const keepScore = !popularityRedo && game.rawgScore != null && m.metacritic == null
         let metacritic = m.metacritic            // critic score → rawgMetacritic
         let score      = unifiedScore({ rawgMetacritic: m.metacritic, rawgRating: m.rating })
         let source: string | null = m.metacritic != null ? 'rawg' : (score != null ? 'rawg' : null)
-        if (metacritic == null) {
+        if (metacritic == null && !keepScore) {
           if (signal.aborted) break
           const r = await fetchGameScore({
             title: game.title, platformSlug: game.platform.slug,
@@ -252,9 +273,7 @@ export async function runMetadataBatch(opts: {
             rawgAdded:           m.added,
             rawgRating:          m.rating,
             rawgRatingsCount:    m.ratingsCount,
-            rawgMetacritic:      metacritic,
-            rawgScore:           score,
-            scoreSource:         source,
+            ...(keepScore ? {} : { rawgMetacritic: metacritic, rawgScore: score, scoreSource: source }),
             popularityFetchedAt: new Date(),
           },
         })
@@ -366,10 +385,15 @@ export async function runMetadataBatch(opts: {
       const fillOnly = mode === 'fill'
       const isEmpty = (v: unknown) => v === null || v === undefined || v === ''
 
+      const prevSourcesAll = parseMetadataSources(game.metadataSources)
+      // A cover the admin picked by hand survives every automated pass. Only
+      // 'redo' — the explicit "rebuild it all" mode — is allowed to replace it.
+      const coverLocked = prevSourcesAll.coverManual === true && mode !== 'redo'
+
       // Cover: only (re)download when overwriting, or when the game has no cover.
       // In fill mode an existing coverPath is left untouched.
       let coverPath: string | undefined
-      const needCover = !fillOnly || (isEmpty(game.coverPath) && isEmpty(game.coverUrl))
+      const needCover = !coverLocked && (!fillOnly || (isEmpty(game.coverPath) && isEmpty(game.coverUrl)))
       if (withCovers && meta.coverUrl && needCover) {
         try {
           coverPath = await downloadAndCacheCover(meta.coverUrl, game.platform.slug, game.id)
@@ -390,6 +414,32 @@ export async function runMetadataBatch(opts: {
         if (signal.aborted) break
       }
 
+      // Score. No metadata provider carries one, so it has its own chain (RAWG
+      // metacritic → Metacritic → LaunchBox community rating). Resolving it here
+      // is what makes a scanned game arrive with its score already filled in;
+      // the dedicated score modes remain for backfilling an existing library.
+      // Only for games that don't have one — 'redo' re-derives everything.
+      let scoreData: { rawgScore?: number; scoreSource?: string; rawgMetacritic?: number } = {}
+      if (withScores && (mode === 'redo' || game.rawgScore == null)) {
+        const r = await fetchGameScore({
+          title:        meta.title || game.title,
+          platformSlug: game.platform.slug,
+          rawgId:       meta.rawgId ?? game.rawgId,
+          rateMs,
+          apiKey,
+        }).catch(() => null)
+        if (r) {
+          scoreData = {
+            rawgScore:   r.score,
+            scoreSource: r.source,
+            // Only a critic metascore belongs in rawgMetacritic — a LaunchBox
+            // community rating is a user score and must not be mislabelled.
+            ...(r.isCritic ? { rawgMetacritic: r.score } : {}),
+          }
+        }
+        if (signal.aborted) break
+      }
+
       const screenshotsJson = meta.screenshots.length > 0 ? JSON.stringify(meta.screenshots) : undefined
 
       // Build the update: fill = only currently-empty fields; otherwise overwrite all.
@@ -400,7 +450,7 @@ export async function runMetadataBatch(opts: {
             ...(isEmpty(game.genre)           && meta.genre               && { genre: meta.genre }),
             ...(isEmpty(game.developer)       && meta.developer           && { developer: meta.developer }),
             ...(isEmpty(game.publisher)       && meta.publisher           && { publisher: meta.publisher }),
-            ...(isEmpty(game.coverUrl)        && meta.coverUrl            && { coverUrl: meta.coverUrl }),
+            ...(!coverLocked && isEmpty(game.coverUrl) && meta.coverUrl    && { coverUrl: meta.coverUrl }),
             ...(isEmpty(game.screenshotPaths) && screenshotsJson          && { screenshotPaths: screenshotsJson }),
             ...(game.rawgId == null && meta.rawgId != null && { rawgId: meta.rawgId }),
             ...(!game.rawgSlug && meta.rawgSlug && { rawgSlug: meta.rawgSlug }),
@@ -414,7 +464,7 @@ export async function runMetadataBatch(opts: {
             genre:       meta.genre,
             developer:   meta.developer,
             publisher:   meta.publisher,
-            coverUrl:    meta.coverUrl,
+            ...(coverLocked ? {} : { coverUrl: meta.coverUrl }),
             ...(screenshotsJson && { screenshotPaths: screenshotsJson }),
             ...(meta.rawgId   != null && { rawgId: meta.rawgId }),
             ...(meta.rawgSlug && { rawgSlug: meta.rawgSlug }),
@@ -424,10 +474,7 @@ export async function runMetadataBatch(opts: {
 
       // Provenance: in fill, merge new sources over the previous record so a
       // field we didn't touch keeps its old source badge.
-      const prevSources = (() => {
-        try { return fillOnly && game.metadataSources ? JSON.parse(game.metadataSources) : {} }
-        catch { return {} }
-      })()
+      const prevSources: MetadataSources = fillOnly ? prevSourcesAll : {}
       // Only attribute sources for fields we actually wrote in fill mode.
       const writtenSources = fillOnly
         ? Object.fromEntries(
@@ -440,11 +487,20 @@ export async function runMetadataBatch(opts: {
             }),
           )
         : meta.sources
-      const metadataSources = JSON.stringify(fillOnly ? { ...prevSources, ...writtenSources } : meta.sources)
+      const merged: MetadataSources = { ...prevSources, ...writtenSources }
+      // The lock also protects the badge: we didn't touch the image, so the
+      // hand-picked provenance stays instead of being relabelled as the
+      // provider's, which is what it would look like otherwise.
+      if (coverLocked) {
+        if (prevSourcesAll.cover) merged.cover = prevSourcesAll.cover
+        else delete merged.cover
+        merged.coverManual = true
+      }
+      const metadataSources = JSON.stringify(merged)
 
       // In fill mode, if nothing was actually empty, don't write (and don't bump
       // metadataFetchedAt) — count it as skipped so we don't churn existing data.
-      if (fillOnly && Object.keys(data).length === 0) {
+      if (fillOnly && Object.keys(data).length === 0 && Object.keys(scoreData).length === 0) {
         skipped++
         emit({ type: 'skipped', gameId: game.id, title: game.title, reason: 'nothing_to_fill', processed, total, applied, skipped, failed })
         continue
@@ -454,6 +510,7 @@ export async function runMetadataBatch(opts: {
         where: { id: game.id },
         data: {
           ...data,
+          ...scoreData,
           metadataSources,
           // Only stamp the marker when actual metadata arrived. A cover-only
           // result — the rescue for games no provider has heard of, which returns
@@ -465,7 +522,7 @@ export async function runMetadataBatch(opts: {
       })
 
       applied++
-      emit({ type: 'applied', gameId: game.id, title: game.title, matchedTitle: meta.title, confidence: meta.confidence, trailerFound, processed, total, applied, skipped, failed })
+      emit({ type: 'applied', gameId: game.id, title: game.title, matchedTitle: meta.title, confidence: meta.confidence, trailerFound, score: scoreData.rawgScore, processed, total, applied, skipped, failed })
 
     } catch (err) {
       failed++
