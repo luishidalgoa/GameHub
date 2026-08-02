@@ -33,9 +33,10 @@ export function MetadataBatchPanel({ platforms = [] }: { platforms?: PlatformOpt
   const [popularityRedo, setPopularityRedo] = useState(false)
   const [platform, setPlatform]     = useState('')
   const [starting, setStarting]     = useState(false)
+  const [withScores, setWithScores] = useState(true)
   const [logLines, setLogLines]     = useState<string[]>([])
   const pollRef = useRef<ReturnType<typeof setInterval>>()
-  const logEnd  = useRef<HTMLDivElement>(null)
+  const logRef  = useRef<HTMLDivElement>(null)
 
   const running = job?.status === 'running'
 
@@ -44,12 +45,20 @@ export function MetadataBatchPanel({ platforms = [] }: { platforms?: PlatformOpt
       const res = await fetch('/api/admin/jobs/active?type=metadata')
       const data = await res.json()
       setJob(data.job ?? null)
-      if (Array.isArray(data.log) && data.log.length) {
-        setLogLines(data.log)
-        setTimeout(() => logEnd.current?.scrollIntoView({ behavior: 'smooth' }), 30)
-      }
+      if (Array.isArray(data.log) && data.log.length) setLogLines(data.log)
     } catch { /* transient — keep last state */ }
   }, [])
+
+  // Follow the log only inside its own box, and only while the admin is already
+  // at the bottom. The previous scrollIntoView() dragged the whole PAGE down on
+  // every poll, so you couldn't read anything else while a job ran; scrolling up
+  // in the log now also stops the follow until you come back to the bottom.
+  useEffect(() => {
+    const el = logRef.current
+    if (!el) return
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
+    if (distanceFromBottom < 40) el.scrollTop = el.scrollHeight
+  }, [logLines])
 
   // Poll while a job is running; also fetch once on mount so we pick up a job
   // that's already in progress when you return to the dashboard.
@@ -66,7 +75,7 @@ export function MetadataBatchPanel({ platforms = [] }: { platforms?: PlatformOpt
       await fetch('/api/admin/jobs/metadata', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mode, platformSlug: platform || undefined, withCovers, popularityRedo: mode === 'popularity' ? popularityRedo : undefined }),
+        body: JSON.stringify({ mode, platformSlug: platform || undefined, withCovers, withScores, popularityRedo: mode === 'popularity' ? popularityRedo : undefined }),
       })
       await fetchJob()
     } finally {
@@ -145,16 +154,28 @@ export function MetadataBatchPanel({ platforms = [] }: { platforms?: PlatformOpt
               {t('popularityRedo')}
             </label>
           ) : mode === 'autocomplete-scores' ? null : (
-            <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer select-none whitespace-nowrap">
-              <input
-                type="checkbox"
-                checked={withCovers}
-                onChange={e => setWithCovers(e.target.checked)}
-                disabled={running}
-                className="accent-primary"
-              />
-              {t('downloadCovers')}
-            </label>
+            <>
+              <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer select-none whitespace-nowrap">
+                <input
+                  type="checkbox"
+                  checked={withCovers}
+                  onChange={e => setWithCovers(e.target.checked)}
+                  disabled={running}
+                  className="accent-primary"
+                />
+                {t('downloadCovers')}
+              </label>
+              <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer select-none whitespace-nowrap" title={t('fetchScoresHint')}>
+                <input
+                  type="checkbox"
+                  checked={withScores}
+                  onChange={e => setWithScores(e.target.checked)}
+                  disabled={running}
+                  className="accent-primary"
+                />
+                {t('fetchScores')}
+              </label>
+            </>
           )}
 
           {running ? (
@@ -205,12 +226,11 @@ export function MetadataBatchPanel({ platforms = [] }: { platforms?: PlatformOpt
 
       {/* Live terminal-style log (like the ROM scanner) */}
       {running && logLines.length > 0 && (
-        <div className="bg-black/40 rounded-lg p-4 h-56 overflow-y-auto font-mono text-xs text-green-400 leading-relaxed">
+        <div ref={logRef} className="bg-black/40 rounded-lg p-4 h-56 overflow-y-auto font-mono text-xs text-green-400 leading-relaxed">
           {logLines.map((line, i) => (
             <div key={i} className="whitespace-pre-wrap">{line}</div>
           ))}
           <span className="animate-pulse">█</span>
-          <div ref={logEnd} />
         </div>
       )}
 

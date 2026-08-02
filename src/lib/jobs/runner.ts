@@ -15,6 +15,7 @@ export interface MetadataJobParams {
   platformSlug?: string
   withCovers?: boolean
   withTrailers?: boolean
+  withScores?: boolean
 }
 export interface ScanJobParams {
   platformSlug?: string
@@ -127,7 +128,8 @@ export async function startMetadataJob(params: MetadataJobParams, resumeJobId?: 
       const matched = ev.matchedTitle && ev.matchedTitle !== ev.title ? ` → ${ev.matchedTitle}` : ''
       const conf = ev.confidence != null ? ` (${ev.confidence}%)` : ''
       const tr = ev.trailerFound ? ' 🎬' : ''
-      pushLog(job.id, `✓ [${ev.processed}/${ev.total}] ${ev.title}${matched}${conf}${tr}`)
+      const sc = ev.score != null ? ` ★${ev.score}` : ''
+      pushLog(job.id, `✓ [${ev.processed}/${ev.total}] ${ev.title}${matched}${conf}${tr}${sc}`)
     } else if (ev.type === 'skipped') {
       pushLog(job.id, `– [${ev.processed}/${ev.total}] ${ev.title}${ev.reason ? ` — ${ev.reason}` : ''}`)
     } else if (ev.type === 'failed' && ev.gameId) {
@@ -157,6 +159,7 @@ export async function startMetadataJob(params: MetadataJobParams, resumeJobId?: 
         platformSlug: params.platformSlug,
         withCovers: params.withCovers ?? true,
         withTrailers: params.withTrailers ?? true,
+        withScores: params.withScores ?? true,
         backfillTrailers: true,
         resumeAfterId,
       })

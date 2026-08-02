@@ -40,10 +40,16 @@ function makeBatchEmitter(emitScan: (e: ScanEvent) => void) {
  * Triggered automatically after a scan adds new games.
  * Reads the RAWG key from the DB, then runs two passes, emitting progress back
  * onto the scan bus as auto_meta_* events:
- *   1. metadata  — covers / info / trailer for games that have none.
- *   2. ratings   — RAWG popularity/score ('popularity' mode). It only touches
+ *   1. metadata  — covers / info / trailer / score for games that have none.
+ *   2. ratings   — RAWG popularity metrics ('popularity' mode). It only touches
  *                  games with a rawgId and no popularityFetchedAt, i.e. exactly
  *                  the ones just matched in pass 1 → ratings for NEW games only.
+ *
+ * The score is resolved in pass 1, not pass 2: pass 2 needs a rawgId, and with
+ * LaunchBox as the default info provider most newly scanned games never get one,
+ * so their score would silently never be fetched. Pass 1's chain works without
+ * it (Metacritic scraper → LaunchBox community rating), and pass 2 then leaves
+ * an already-resolved score alone unless RAWG has a real metascore.
  */
 export async function triggerAutoMetadata(
   emitScan: (e: ScanEvent) => void,

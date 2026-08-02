@@ -20,10 +20,13 @@ export function ScanPanel() {
 
   const { data: platforms } = useSWR<Platform[]>('/api/platforms', fetcher)
 
+  // Follow the log only while the admin is already at the bottom of the box, so
+  // scrolling up to read an earlier line isn't undone by the next event.
   useEffect(() => {
-    if (logRef.current) {
-      logRef.current.scrollTop = logRef.current.scrollHeight
-    }
+    const el = logRef.current
+    if (!el) return
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
+    if (distanceFromBottom < 40) el.scrollTop = el.scrollHeight
   }, [logs])
 
   // On mount (and every 3s while idle), check whether a scan job is already
