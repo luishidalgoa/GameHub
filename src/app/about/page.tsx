@@ -68,7 +68,7 @@ export default function AboutPage() {
         {/* Buttons */}
         <div className="flex flex-wrap gap-2 mt-5">
           <a
-            href="https://luishidalgoa.vercel.app/"
+            href="https://portfolio.hdglabs.com/"
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors"
@@ -133,12 +133,12 @@ export default function AboutPage() {
             formas de contacto).
           </p>
           <a
-            href="https://luishidalgoa.vercel.app/"
+            href="https://portfolio.hdglabs.com/"
             target="_blank"
             rel="noopener noreferrer"
             className="mt-4 inline-flex items-center justify-center gap-1.5 w-full px-4 py-2.5 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors"
           >
-            Abrir luishidalgoa.vercel.app
+            Abrir portfolio.hdglabs.com
             <ExternalLink className="w-3.5 h-3.5" />
           </a>
         </div>
