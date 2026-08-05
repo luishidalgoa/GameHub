@@ -62,7 +62,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
         <p className="text-xs text-muted-foreground text-center flex flex-wrap items-center justify-center gap-x-1.5 gap-y-1">
           <span>Hecho por</span>
           <a
-            href="https://luishidalgoa.vercel.app/"
+            href="https://portfolio.hdglabs.com/"
             target="_blank"
             rel="noopener noreferrer"
             className="font-semibold text-foreground hover:text-primary transition-colors"
@@ -71,7 +71,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
           </a>
           <span className="text-border">·</span>
           <a
-            href="https://luishidalgoa.vercel.app/"
+            href="https://portfolio.hdglabs.com/"
             target="_blank"
             rel="noopener noreferrer"
             className="hover:text-foreground transition-colors"
