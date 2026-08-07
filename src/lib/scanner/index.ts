@@ -347,7 +347,16 @@ export async function runScan(triggeredBy = 'manual', platformSlug?: string) {
           }
           // Pass 1: upsert base game files, build gameKey → id map for linking
           const { games: baseFiles, updates, dlcs } = walkFlatWithDlcDetection(scanPath, extensions)
-          const gameKeyMap = new Map<string, number>()
+          const gameKeyMap  = new Map<string, number>()
+          // Second index, by the game folder the base file lives in. Covers the
+          // case where neither the base nor its add-on carries a Title ID — the
+          // add-on then has nothing to match on and used to be dropped silently.
+          const folderMap   = new Map<string, number>()
+
+          // Largest first, so that when a folder holds more than one game file
+          // the biggest one claims the folder — same rule Switch mode uses to
+          // pick the base game out of a folder.
+          baseFiles.sort((a, b) => (a.fileSize > b.fileSize ? -1 : a.fileSize < b.fileSize ? 1 : 0))
 
           for (const file of baseFiles) {
             found++
@@ -370,6 +379,10 @@ export async function runScan(triggeredBy = 'manual', platformSlug?: string) {
               }
               const key = extractGameKey(file.fileName)
               if (key) gameKeyMap.set(key, gameId)
+              // Only the FIRST base file of a folder claims it: a folder holding
+              // several games is not a grouping, and the biggest file is the one
+              // an add-on most likely belongs to.
+              if (file.groupDir && !folderMap.has(file.groupDir)) folderMap.set(file.groupDir, gameId)
             } catch (err) { errors.push(`Error processing ${file.filePath}: ${err}`) }
             if (found % 20 === 0) await tick()
           }
@@ -377,10 +390,15 @@ export async function runScan(triggeredBy = 'manual', platformSlug?: string) {
           updatesFound += updates.length
           dlcsFound    += dlcs.length
 
-          // Pass 2: link updates/DLCs to their base game via matching Title ID key
+          // Pass 2: attach each update/DLC to its base game. Four ways to find
+          // it, cheapest first: by Title ID or by folder within this scan, then
+          // the same two against the DB for a base scanned on an earlier run.
           for (const dlc of [...updates, ...dlcs]) {
             const key = extractGameKey(dlc.fileName)
             let gameId = key ? gameKeyMap.get(key) : undefined
+
+            // Same folder as a base game → it belongs to it, Title ID or not.
+            if (gameId === undefined && dlc.groupDir) gameId = folderMap.get(dlc.groupDir)
 
             // Fall back to DB lookup (e.g. base game was scanned in a previous run)
             if (gameId === undefined && key) {
@@ -388,6 +406,23 @@ export async function runScan(triggeredBy = 'manual', platformSlug?: string) {
                 where: { platformId: platform.id, fileName: { contains: key }, isHidden: false },
               })
               if (baseGame) gameId = baseGame.id
+            }
+            // Last resort, also from a previous run: the base game's file lives
+            // in the same folder, so match on its stored path.
+            if (gameId === undefined && dlc.groupDir) {
+              const sep      = dlc.filePath.includes('\\') ? '\\' : '/'
+              const folderAt = dlc.filePath.indexOf(`${sep}${dlc.groupDir}${sep}`)
+              if (folderAt !== -1) {
+                const baseGame = await db.game.findFirst({
+                  where: {
+                    platformId: platform.id,
+                    isHidden:   false,
+                    filePath:   { startsWith: dlc.filePath.slice(0, folderAt + dlc.groupDir.length + 2) },
+                  },
+                  orderBy: { fileSize: 'desc' },
+                })
+                if (baseGame && baseGame.filePath !== dlc.filePath) gameId = baseGame.id
+              }
             }
 
             if (gameId === undefined) continue // orphan — no base game found, skip

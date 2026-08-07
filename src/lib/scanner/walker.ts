@@ -8,6 +8,10 @@ export interface FileEntry {
   extension: string
   parentDir: string
   type?: 'game' | 'update' | 'dlc' | 'mod'
+  /** Flat mode only: the game folder this file sits under, relative to the scan
+   *  root ("Pokemon Y" for "Pokemon Y/Updates/foo.cia"). Lets an add-on find its
+   *  base game when neither file carries a Title ID. */
+  groupDir?: string
 }
 
 // ── Generic recursive walker ──────────────────────────────────────────────────
@@ -133,6 +137,29 @@ export function classifyByTitleId(fileName: string): 'game' | 'update' | 'dlc' {
   return 'game'
 }
 
+// A Title ID in the file name is the *reliable* signal, but it is not always
+// there: the name comes from wherever the file was downloaded, and a release
+// group that omits it — or writes the BASE id on an update, which happens a
+// lot — silently turned the add-on into a separate game. Folder layout is the
+// other signal the user actually controls, and Switch (`folder` mode) has always
+// honoured it. These make `flat` mode read it too.
+const UPDATE_DIR_RE = /^(updates?|patch(es)?)$/i
+const DLC_DIR_RE    = /^(dlcs?|add-?ons?)$/i
+
+/**
+ * Classify a file from the folders it sits under, relative to the scan root.
+ * Returns `null` when no folder says anything, so the caller can fall back to
+ * the Title ID. The folder wins when both speak: it is the explicit, manual
+ * statement of intent, whereas the file name is whatever the download gave.
+ */
+export function classifyByFolder(relDirs: string[]): 'update' | 'dlc' | null {
+  for (const d of relDirs) {
+    if (UPDATE_DIR_RE.test(d)) return 'update'
+    if (DLC_DIR_RE.test(d))    return 'dlc'
+  }
+  return null
+}
+
 /** Returns the 8-char game-unique portion of a 3DS Title ID found in `fileName`. */
 export function extractGameKey(fileName: string): string | null {
   const m = fileName.match(/0004[0-9a-f]{12}/i)
@@ -146,8 +173,16 @@ export interface FlatDlcScanResult {
 }
 
 /**
- * Walks a flat directory and categorises each file by its 3DS Title ID.
- * Files whose name doesn't contain a recognisable Title ID are treated as games.
+ * Walks a directory tree and categorises each file as game / update / DLC.
+ *
+ * Two independent signals, checked in this order:
+ *   1. An `Update(s)/`, `Patch/`, `DLC/` or `Add-on/` folder anywhere below the
+ *      scan root — explicit and put there by hand, so it wins.
+ *   2. The 3DS Title ID in the file name (`0004000E…` update, `0004008C…` DLC).
+ *
+ * Everything else is a game. Each entry also carries `groupDir`: the game folder
+ * it lives under, which lets pass 2 attach an add-on to its base when neither
+ * file has a Title ID to match on.
  */
 export function walkFlatWithDlcDetection(
   dir:        string,
@@ -158,10 +193,21 @@ export function walkFlatWithDlcDetection(
   const dlcs:    FileEntry[] = []
 
   for (const file of walkDirectory(dir, extensions)) {
-    const kind = classifyByTitleId(file.fileName)
-    if      (kind === 'update') updates.push({ ...file, type: 'update' })
-    else if (kind === 'dlc')    dlcs.push(   { ...file, type: 'dlc'    })
-    else                        games.push(  { ...file, type: 'game'   })
+    // Path segments between the scan root and the file, e.g. ["Pokemon Y", "Updates"].
+    const rel     = path.relative(dir, file.parentDir)
+    const relDirs = rel && rel !== '.' ? rel.split(path.sep).filter(Boolean) : []
+
+    // The game folder is the first segment — but only when the file is nested
+    // deeper than that folder itself, i.e. it sits in an Update/DLC subfolder.
+    // A file directly inside "Pokemon Y/" is that game's base, not its own group.
+    const groupDir = relDirs.length > 0 ? relDirs[0] : undefined
+
+    const kind = classifyByFolder(relDirs) ?? classifyByTitleId(file.fileName)
+    const entry = { ...file, groupDir }
+
+    if      (kind === 'update') updates.push({ ...entry, type: 'update' })
+    else if (kind === 'dlc')    dlcs.push(   { ...entry, type: 'dlc'    })
+    else                        games.push(  { ...entry, type: 'game'   })
   }
 
   return { games, updates, dlcs }
