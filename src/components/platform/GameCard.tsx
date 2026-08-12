@@ -6,6 +6,7 @@ import { Heart, Pencil, Info } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { RatingPill } from '@/components/shared/RatingPill'
 import { getPlatformIdentity } from '@/lib/platform-identity'
+import { regionFlag } from '@/lib/rom-tags'
 import type { GameListItem } from '@/types/game'
 
 interface Props {
@@ -159,8 +160,21 @@ export function GameCard({
       {/* Info */}
       <div className="p-2">
         <p className="text-xs font-medium text-foreground leading-tight line-clamp-2">{game.title}</p>
-        {game.releaseYear && (
-          <p className="text-xs text-muted-foreground mt-0.5">{game.releaseYear}</p>
+        {/* Year + region. The region tells sibling editions of the same game
+            apart at a glance, without having to open the detail modal. */}
+        {(game.releaseYear || game.region) && (
+          <div className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
+            {game.releaseYear && <span>{game.releaseYear}</span>}
+            {game.region && (
+              <span
+                title={game.region}
+                className="inline-flex items-center gap-0.5 rounded border border-border/70 px-1 py-px text-[10px] leading-none"
+              >
+                {regionFlag(game.region) && <span aria-hidden>{regionFlag(game.region)}</span>}
+                {game.region}
+              </span>
+            )}
+          </div>
         )}
       </div>
     </div>

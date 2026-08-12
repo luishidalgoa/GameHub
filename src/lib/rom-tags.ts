@@ -190,15 +190,30 @@ export function languagesFromCsv(csv: string | null | undefined): string[] {
   return csv ? csv.split(',').map(s => s.trim()).filter(Boolean) : []
 }
 
+// ROM sets spell the same game with the article in front, trailing after a
+// comma, or missing entirely ("The King of Dragons" / "King of Dragons, The" /
+// "King of Dragons"). Normalising it away — in the grouping key ONLY, never in
+// the title we display — makes those spellings land on one card.
+const TRAILING_ARTICLE = /,\s*(?:the|an?|el|la|los|las|le|les|il|lo)\s*$/
+const LEADING_ARTICLE  = /^(?:the|an?|el|la|los|las|le|les|il|lo)\s+/
+
+/** Drop a leading/trailing article from an already-cleaned, lowercased title. */
+function dropArticle(title: string): string {
+  return title.replace(TRAILING_ARTICLE, '').replace(LEADING_ARTICLE, '')
+}
+
 /**
  * Stable grouping key for unifying region/revision/disc variants of the SAME
  * game into one card. The normalized title already drops everything inside
  * parentheses (region, languages, disc, revision) via {@link cleanTitle}, so
- * those collapse together. We DELIBERATELY keep demo/beta/proto builds apart by
- * appending a variant suffix, so a prototype never merges with the retail game.
+ * those collapse together. Leading/trailing articles are dropped too, so
+ * "The Death and Return of Superman" groups with "Death and Return of
+ * Superman". We DELIBERATELY keep demo/beta/proto builds apart by appending a
+ * variant suffix, so a prototype never merges with the retail game.
  */
 export function gameGroupKey(fileName: string): string {
-  const base = cleanTitle(fileName).toLowerCase().replace(/[^a-z0-9]+/g, '')
+  const cleaned = dropArticle(cleanTitle(fileName).toLowerCase())
+  const base = cleaned.replace(/[^a-z0-9]+/g, '')
   // Only inspect bracketed/parenthesised tags so a title word can't false-trip.
   const tags = (fileName.match(/[([][^)\]]*[)\]]/g) ?? []).join(' ').toLowerCase()
   const variants: string[] = []
