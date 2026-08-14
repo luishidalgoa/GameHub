@@ -1,5 +1,6 @@
 import fs from 'fs'
 import path from 'path'
+import { extractSwitchTitleId, classifySwitchTitleId } from './titleid'
 
 export interface FileEntry {
   filePath:  string
@@ -52,7 +53,8 @@ export function* walkDirectory(
 export interface SwitchGameFolder {
   folderPath: string
   folderName: string
-  /** Largest file in the folder root = the base game */
+  /** The base game: the file whose Title ID says so, or the largest one when no
+   *  file carries an ID. `null` when the folder holds only updates/DLC. */
   baseFile: FileEntry | null
   /** Updates and DLC files */
   dlcFiles: FileEntry[]
@@ -110,8 +112,25 @@ export function scanSwitchFolders(
     if (rootFiles.length === 0 && dlcFiles.length === 0) continue
 
     rootFiles.sort((a, b) => (a.fileSize > b.fileSize ? -1 : a.fileSize < b.fileSize ? 1 : 0))
-    const baseFile = rootFiles[0] ?? null
-    const updates  = rootFiles.slice(1).map((f) => ({ ...f, type: 'update' as const }))
+
+    // Biggest-file-wins is only a tie-breaker, not the rule. When a folder holds
+    // ONLY an update — you have the patch for a game you never dumped — the old
+    // rule promoted that patch to "the game", and it then got announced in the
+    // shop index as an installable title. It is not: an update without its base
+    // does not boot. The Title ID says so plainly (…800 = update), so ask it
+    // first and fall back to size only when no file carries an ID at all.
+    const classified = rootFiles.map((f) => {
+      const tid = extractSwitchTitleId(f.fileName)
+      return { file: f, kind: tid ? classifySwitchTitleId(tid) : null }
+    })
+    const anyTagged = classified.some((c) => c.kind !== null)
+    const baseEntry = classified.find((c) => c.kind === 'base')
+                   ?? (anyTagged ? undefined : classified[0])
+
+    const baseFile = baseEntry?.file ?? null
+    const updates  = classified
+      .filter((c) => c !== baseEntry)
+      .map((c) => ({ ...c.file, type: c.kind === 'dlc' ? ('dlc' as const) : ('update' as const) }))
 
     result.push({ folderPath, folderName: entry.name, baseFile, dlcFiles: [...updates, ...dlcFiles] })
   }
