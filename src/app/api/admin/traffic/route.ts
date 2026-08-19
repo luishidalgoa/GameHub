@@ -41,6 +41,9 @@ export async function GET() {
     errorCounts,
     sparklineRaw,
     downloadSparklineRaw,
+    clientBreakdownRaw,
+    incompleteRaw,
+    staleIncomplete,
   ] = await Promise.all([
     // Total all-time page views
     db.requestLog.count(),
@@ -170,6 +173,28 @@ export async function GET() {
       where: { startedAt: { gte: sparklineDays[0] } },
       select: { startedAt: true },
     }),
+    // Descargas por cliente. Las filas anteriores a esta funcionalidad tienen
+    // client=NULL y se agrupan como "unknown" en vez de inventarles un origen.
+    db.downloadLog.groupBy({
+      by: ['client'],
+      _count: { _all: true },
+      _sum: { fileSize: true },
+    }),
+
+    // Completadas vs no completadas, por cliente: el dato que dice si la Switch
+    // esta cortando descargas a medias.
+    db.downloadLog.groupBy({
+      by: ['client', 'completed'],
+      _count: { _all: true },
+    }),
+
+    // Empezadas hace mas de 6 h y nunca terminadas. No es lo mismo que
+    // "incompleta": una descarga EN CURSO tambien tiene completed=false, y
+    // contarla como fallida daria un panel alarmista y falso.
+    db.downloadLog.count({
+      where: { completed: false, startedAt: { lt: new Date(Date.now() - 6 * 3600_000) } },
+    }),
+
   ])
 
   // Build sparklines
@@ -260,6 +285,27 @@ export async function GET() {
     ? Math.round((bounced / sessionCounts.length) * 100)
     : 0
 
+  // BigInt no sobrevive a JSON.stringify: los bytes van como texto, igual que
+  // hace el resto de este endpoint.
+  const downloadsByClient = clientBreakdownRaw.map((r) => ({
+    client: r.client ?? 'unknown',
+    count: r._count._all,
+    bytes: (r._sum.fileSize ?? BigInt(0)).toString(),
+  }))
+
+  const completionByClient = Object.values(
+    incompleteRaw.reduce<Record<string, { client: string; completed: number; incomplete: number }>>(
+      (acc, row) => {
+        const key = row.client ?? 'unknown'
+        acc[key] ??= { client: key, completed: 0, incomplete: 0 }
+        if (row.completed) acc[key].completed += row._count._all
+        else acc[key].incomplete += row._count._all
+        return acc
+      },
+      {},
+    ),
+  )
+
   return NextResponse.json(
     serializeBigInt({
       summary: {
@@ -281,6 +327,9 @@ export async function GET() {
       topPages,
       topDownloads,
       downloadsByDevice,
+      downloadsByClient,
+      completionByClient,
+      abandonedDownloads: staleIncomplete,
       recentIps: recentIpsWithGeo,
       rateLimitAlerts,
       errorCounts,

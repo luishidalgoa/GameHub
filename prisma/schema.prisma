@@ -247,6 +247,11 @@ model DownloadLog {
   ip         String
   device     String?
   browser    String?
+  // De donde viene la descarga: "gamehubnx" | "cyberfoil" | "tinfoil" | "browser"
+  // | "other". Se deduce del User-Agent, salvo que el cliente se identifique el
+  // mismo con la cabecera X-GameHub-Client, que es mas fiable que adivinar.
+  client        String?
+  clientVersion String?
   fileName   String
   fileSize   BigInt
   startedAt  DateTime  @default(now())
