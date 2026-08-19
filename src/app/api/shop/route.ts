@@ -16,6 +16,21 @@ import { db } from '@/lib/db'
 import { guardShopRequest, shopBaseUrl } from '@/lib/shop-auth'
 import { extractSwitchTitleId } from '@/lib/scanner/titleid'
 import { resolveCoverPath } from '@/lib/cover-url'
+
+/**
+ * screenshotPaths is a JSON-encoded string array. A malformed value costs a
+ * carousel, never the whole shop index, so parse failures fall back to none.
+ */
+function parseScreenshots(raw: string | null | undefined): string[] {
+  if (!raw) return []
+  try {
+    const arr = JSON.parse(raw)
+    if (!Array.isArray(arr)) return []
+    return arr.filter((x: unknown): x is string => typeof x === 'string' && x.length > 0)
+  } catch {
+    return []
+  }
+}
 import { isSwitchFile, statSize } from '@/lib/shop-files'
 
 export const dynamic = 'force-dynamic'
@@ -38,6 +53,12 @@ export async function GET(req: Request) {
       publisher:   true,
       coverPath:   true,
       coverUrl:    true,
+      // Campos que solo consume GameHubNX (claves gh_ del titledb).
+      developer:       true,
+      languages:       true,
+      trailerUrl:      true,
+      groupKey:        true,
+      screenshotPaths: true,
       dlcs: {
         select: { id: true, filePath: true, fileName: true, type: true, region: true },
       },
@@ -103,6 +124,9 @@ export async function GET(req: Request) {
     const cover = resolveCoverPath(c.game.coverPath) ?? c.game.coverUrl ?? null
     const coverUrl = cover?.startsWith('/') ? `${base}${cover}` : cover
 
+    const shots = parseScreenshots(c.game.screenshotPaths)
+      .map((p) => (p.startsWith('/') ? `${base}${p}` : p))
+
     titledb[titleId] = {
       id:          titleId,
       name:        c.region ? `${c.game.title} (${c.region})` : c.game.title,
@@ -114,6 +138,24 @@ export async function GET(req: Request) {
       publisher:   c.game.publisher ?? undefined,
       size:        c.size,
       ...(coverUrl ? { iconUrl: coverUrl, bannerUrl: coverUrl } : {}),
+      
+      // ── Extension propia para GameHubNX ─────────────────────────────────
+      // Tinfoil y CyberFoil ignoran las claves que no conocen, asi que esto
+      // enriquece nuestra app sin romperles nada. El prefijo gh_ deja claro
+      // que no forma parte del formato y evita chocar con claves que Tinfoil
+      // pueda anadir mas adelante.
+      //
+      // `name` lleva la region pegada al titulo porque Tinfoil solo tiene ese
+      // campo; gh_title y gh_region van sueltos para que la ficha los maquete
+      // como quiera.
+      gh_title:      c.game.title,
+      ...(c.region           ? { gh_region:      c.region }           : {}),
+      ...(c.game.languages   ? { gh_languages:   c.game.languages }   : {}),
+      ...(c.game.developer   ? { gh_developer:   c.game.developer }   : {}),
+      ...(c.game.releaseYear ? { gh_year:        c.game.releaseYear } : {}),
+      ...(c.game.trailerUrl  ? { gh_trailer:     c.game.trailerUrl }  : {}),
+      ...(c.game.groupKey    ? { gh_group:       c.game.groupKey }    : {}),
+      ...(shots.length > 0   ? { gh_screenshots: shots }              : {}),
     }
   }
 
