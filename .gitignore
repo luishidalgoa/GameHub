@@ -17,3 +17,4 @@ data
 public/covers/
 tsconfig.tsbuildinfo
 *.db.bak
+worker/

@@ -27,6 +27,10 @@ ENV DATABASE_URL="file:/data/gamehub.db"
 RUN npx prisma generate
 RUN npm run build
 
+# El worker de curacion: mismo codigo, binario aparte. Se ejecuta en un
+# contenedor hermano sin red, el unico con /mnt en escritura.
+RUN npm run build:worker
+
 
 # ── Stage 3: Production runner ────────────────────────────────────────────────
 FROM node:20-alpine AS runner
@@ -59,6 +63,7 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/static     ./.next/static
 
 # Public folder (covers are served from here; mounted as volume at runtime)
 COPY --from=builder --chown=nextjs:nodejs /app/public ./public
+COPY --from=builder --chown=nextjs:nodejs /app/worker ./worker
 
 # Prisma schema + migrations (needed for `prisma migrate deploy` at startup)
 COPY --from=builder --chown=nextjs:nodejs /app/prisma                  ./prisma

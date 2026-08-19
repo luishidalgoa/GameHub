@@ -41,3 +41,30 @@ services:
 # El Watchtower ya NO vive aquí: es un servicio compartido del host, en su propio
 # repo (~/services/watchtower). Vigila por etiqueta, así que basta con el label de
 # arriba. Ver ~/services/watchtower/README.md para desplegarlo/migrarlo.
+
+  # ---------------------------------------------------------------------------
+  #  El unico proceso del despliegue que puede escribir en la biblioteca.
+  #
+  #  Misma imagen y mismo codigo que la app (src/worker/curation.ts), pero con
+  #  las capacidades invertidas:
+  #     gamehub          -> expuesto a internet, /mnt en SOLO LECTURA
+  #     gamehub-curator  -> SIN RED (network_mode: none), /mnt en escritura
+  #  Ninguno de los dos tiene ambas. La app aprueba planes; este los aplica.
+  # ---------------------------------------------------------------------------
+  gamehub-curator:
+    image: ghcr.io/luishidalgoa/gamehub:latest
+    container_name: gamehub-curator
+    restart: unless-stopped
+    labels:
+      com.centurylinklabs.watchtower.enable: "true"
+    env_file: .env.production
+    command: ["node", "worker/curation.js", "--watch"]
+    network_mode: none
+    volumes:
+      - ./data:/data
+      - type: bind
+        source: /mnt
+        target: /mnt
+        bind:
+          propagation: rslave
+    stop_grace_period: 30s

@@ -21,7 +21,8 @@
     "db:migrate": "prisma migrate dev",
     "db:export": "tsx scripts/db-export.ts",
     "db:import": "tsx scripts/db-import.ts",
-    "test:tags": "tsx scripts/test-rom-tags.ts"
+    "test:tags": "tsx scripts/test-rom-tags.ts",
+    "build:worker": "esbuild src/worker/curation.ts --bundle --platform=node --target=node20 --format=cjs --outfile=worker/curation.js --external:@prisma/client --external:.prisma"
   },
   "keywords": [],
   "author": "",
@@ -65,6 +66,7 @@
     "eslint-config-next": "^16.2.6",
     "postcss": "^8.5.14",
     "tailwindcss": "^3.4.19",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "esbuild": "^0.23.0"
   }
 }
