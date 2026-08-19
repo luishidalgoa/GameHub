@@ -23,31 +23,111 @@ env:
   IMAGE: ghcr.io/luishidalgoa/gamehub
 
 jobs:
+  # Cada arquitectura se compila en su PROPIO runner nativo y se sube por digest,
+  # sin etiquetas. Nada de QEMU: emular amd64 sobre un runner ARM tardaba mas de
+  # los 30 min de presupuesto (la build de v2.14.0 se cancelo justo ahi), y ya
+  # antes habia causado cuelgues aleatorios de 6 h. El manifiesto multi-arquitectura
+  # lo ensambla despues el job `merge`.
   build:
-    name: Build & push image
-    # Native arm64 runner (free for public repos) — builds the Pi's image without
-    # QEMU emulation. QEMU used to crash randomly ("uncaught target signal 4 -
-    # Illegal instruction") and hang the build for the full 6h timeout; native
-    # arm64 removes that whole failure mode and is far faster (minutes, not the
-    # tens of minutes emulation took).
-    runs-on: ubuntu-24.04-arm
-    # Safety net: if a build ever hangs, fail in 30 min instead of wasting 6h.
+    name: Build ${{ matrix.platform }}
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux/arm64
+            runner: ubuntu-24.04-arm
+            slug: arm64
+          - platform: linux/amd64
+            runner: ubuntu-latest
+            slug: amd64
     permissions:
       contents: read
-      packages: write            # push to GHCR with the built-in GITHUB_TOKEN
-    outputs:
-      version: ${{ steps.meta.outputs.version }}
+      packages: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # No QEMU needed: this runner is already arm64, so the image builds natively.
-      # El runner es ARM; sin QEMU no puede emitir la variante amd64.
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
         with:
-          platforms: linux/amd64
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build timestamp
+        id: ts
+        run: echo "value=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
+
+      # La version se calcula igual que en `merge`, para que la que queda grabada
+      # en la imagen y la que etiqueta el manifiesto no puedan discrepar.
+      - name: Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE }}
+          flavor: latest=auto
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,format=short
+            type=ref,event=branch
+
+      - name: Build & push por digest
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: ${{ matrix.platform }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            APP_VERSION=${{ steps.meta.outputs.version }}
+            APP_COMMIT=${{ github.sha }}
+            APP_BUILD_TIME=${{ steps.ts.outputs.value }}
+          outputs: type=image,name=${{ env.IMAGE }},push-by-digest=true,name-canonical=true,push=true
+          # Cache separada por arquitectura: compartirla las hace pisarse.
+          cache-from: type=gha,scope=${{ matrix.slug }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.slug }}
+
+      # El digest llega como env var: "${digest#sha256:}" es expansion de bash y
+      # no puede ir dentro de una expresion ${{ }} de GitHub.
+      - name: Exportar el digest
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          mkdir -p /tmp/digests
+          touch "/tmp/digests/${DIGEST#sha256:}"
+
+      - name: Subir el digest
+        uses: actions/upload-artifact@v4
+        with:
+          name: digest-${{ matrix.slug }}
+          path: /tmp/digests/*
+          retention-days: 1
+
+  # Une los digests de las dos arquitecturas en un unico manifiesto y le pone las
+  # etiquetas publicas (incluida `latest`, que es la que pide docker-compose).
+  merge:
+    name: Publicar manifiesto multi-arquitectura
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+    steps:
+      - name: Descargar digests
+        uses: actions/download-artifact@v4
+        with:
+          path: /tmp/digests
+          pattern: digest-*
+          merge-multiple: true
 
       - name: Set up Buildx
         uses: docker/setup-buildx-action@v3
@@ -64,43 +144,35 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: ${{ env.IMAGE }}
-          # latest=auto: `latest` is set for clean semver tags (vX.Y.Z) but NOT
-          # for pre-releases (vX.Y.Z-rc.1) — so a release candidate won't deploy.
-          flavor: |
-            latest=auto
+          # latest=auto: `latest` se pone en etiquetas semver limpias (vX.Y.Z) pero
+          # NO en pre-releases (vX.Y.Z-rc.1), asi que una RC no se despliega sola.
+          flavor: latest=auto
           tags: |
-            type=semver,pattern={{version}}                 # 1.2.3   (the public version)
-            type=semver,pattern={{major}}.{{minor}}          # 1.2
-            type=sha,format=short                            # sha-1a2b3c4  (rollback pin)
-            type=ref,event=branch                            # e.g. "main" — only for manual dispatch builds
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,format=short
+            type=ref,event=branch
 
-      - name: Build timestamp
-        id: ts
-        run: echo "value=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
+      - name: Crear el manifiesto
+        working-directory: /tmp/digests
+        run: |
+          docker buildx imagetools create \
+            $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
+            $(printf '${{ env.IMAGE }}@sha256:%s ' *)
 
-      - name: Build & push (arm64 + amd64)
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          platforms: linux/arm64,linux/amd64
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          # Baked into the image and shown in /admin (steps.meta.outputs.version
-          # is "X.Y.Z" on a v* tag, the branch name on a manual dispatch).
-          build-args: |
-            APP_VERSION=${{ steps.meta.outputs.version }}
-            APP_COMMIT=${{ github.sha }}
-            APP_BUILD_TIME=${{ steps.ts.outputs.value }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+      - name: Comprobar que estan las dos arquitecturas
+        run: |
+          docker buildx imagetools inspect "${{ env.IMAGE }}:${{ steps.meta.outputs.version }}" \
+            --format '{{range .Manifest.Manifests}}{{.Platform.OS}}/{{.Platform.Architecture}} {{end}}' | tee /tmp/arches
+          grep -q 'linux/arm64' /tmp/arches
+          grep -q 'linux/amd64' /tmp/arches
 
   # Only on a version tag: publish a GitHub Release with auto-generated notes
   # and the pull instructions. The image itself lives in GHCR; the Release is the
   # human-facing changelog + pointer to the version.
   release:
     name: GitHub Release
-    needs: build
+    needs: merge
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:
@@ -116,7 +188,7 @@ jobs:
             Published to GHCR for `linux/arm64`:
 
             ```bash
-            docker pull ghcr.io/luishidalgoa/gamehub:${{ needs.build.outputs.version }}
+            docker pull ghcr.io/luishidalgoa/gamehub:${{ needs.merge.outputs.version }}
             # rolling tag Watchtower follows:
             docker pull ghcr.io/luishidalgoa/gamehub:latest
             ```
