@@ -54,6 +54,7 @@ export async function GET(req: Request) {
       coverPath:   true,
       coverUrl:    true,
       // Campos que solo consume GameHubNX (claves gh_ del titledb).
+      region:          true,
       developer:       true,
       languages:       true,
       trailerUrl:      true,
@@ -149,7 +150,12 @@ export async function GET(req: Request) {
       // campo; gh_title y gh_region van sueltos para que la ficha los maquete
       // como quiera.
       gh_title:      c.game.title,
-      ...(c.region           ? { gh_region:      c.region }           : {}),
+      // c.region es la region del FICHERO (deducida del nombre) y casi siempre
+      // viene vacia; la del juego esta poblada en 1.802 de 2.058 filas. Sin
+      // este respaldo la app no recibia region en NINGUNA entrada.
+      ...((c.region ?? c.game.region)
+        ? { gh_region: c.region ?? c.game.region }
+        : {}),
       ...(c.game.languages   ? { gh_languages:   c.game.languages }   : {}),
       ...(c.game.developer   ? { gh_developer:   c.game.developer }   : {}),
       ...(c.game.releaseYear ? { gh_year:        c.game.releaseYear } : {}),
