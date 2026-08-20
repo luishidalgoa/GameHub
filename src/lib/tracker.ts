@@ -1,5 +1,58 @@
 import { db } from './db'
 
+// ── Client detection ──────────────────────────────────────────────────────────
+
+/**
+ * Which program is pulling the file — as opposed to which device or browser.
+ *
+ * This matters because the same game downloaded from the shop can arrive three
+ * ways that look nearly identical in the logs: the web UI in a browser, a
+ * Tinfoil-family client on the console, and GameHubNX. Telling them apart is
+ * what makes the traffic panel able to answer "is the Switch app actually being
+ * used, and does it finish its downloads?".
+ */
+export type DownloadClient =
+  | 'gamehubnx'
+  | 'cyberfoil'
+  | 'tinfoil'
+  | 'browser'
+  | 'other'
+
+export interface ClientInfo {
+  client: DownloadClient
+  /** Only ever set when the client declares it; never guessed from a UA. */
+  version: string | null
+}
+
+/**
+ * Prefer an explicit `X-GameHub-Client: <name>/<version>` header over sniffing
+ * the User-Agent. Our own client sends it, so its identification is exact;
+ * everything else falls back to pattern matching, which is best-effort.
+ */
+export function detectClient(ua: string, declared?: string | null): ClientInfo {
+  const header = (declared ?? '').trim()
+  if (header) {
+    const [rawName, rawVersion] = header.split('/', 2)
+    const name = rawName.trim().toLowerCase()
+    const version = (rawVersion ?? '').trim() || null
+    if (name === 'gamehubnx') return { client: 'gamehubnx', version }
+    // An unknown declared name is still more informative than a UA guess, but
+    // it is not trusted enough to invent a new category for.
+    if (name) return { client: 'other', version }
+  }
+
+  if (!ua) return { client: 'other', version: null }
+  if (/GameHubNX/i.test(ua)) return { client: 'gamehubnx', version: null }
+  // CyberFoil first: it carries "Tinfoil" in its UA too, so the more specific
+  // pattern has to win or every CyberFoil download is filed as Tinfoil.
+  if (/CyberFoil/i.test(ua)) return { client: 'cyberfoil', version: null }
+  if (/Tinfoil|DBI|Awoo/i.test(ua)) return { client: 'tinfoil', version: null }
+  if (/Mozilla\/|Chrome\/|Safari\/|Firefox\/|Edg\//i.test(ua)) {
+    return { client: 'browser', version: null }
+  }
+  return { client: 'other', version: null }
+}
+
 // ── Device / Browser detection ────────────────────────────────────────────────
 
 export function detectDevice(ua: string): 'mobile' | 'tablet' | 'desktop' | 'console' | 'unknown' {

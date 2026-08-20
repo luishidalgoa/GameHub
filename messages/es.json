@@ -377,7 +377,10 @@
     "timeAgoS": "hace {n}s",
     "timeAgoM": "hace {n}m",
     "timeAgoH": "hace {n}h",
-    "timeAgoD": "hace {n}d"
+    "timeAgoD": "hace {n}d",
+    "downloadsByClient": "Descargas por cliente",
+    "downloadsByClientSub": "Desde dónde se descarga: la app de Switch, un cliente Tinfoil o el navegador. El porcentaje es cuántas se completan.",
+    "abandonedDownloads": "{n} descargas empezadas hace más de 6 h que nunca terminaron."
   },
   "Donations": {
     "title": "Donaciones",

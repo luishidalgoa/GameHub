@@ -12,6 +12,17 @@ import {
   Search, Monitor, Shield, TrendingUp, Activity,
 } from 'lucide-react'
 
+// El identificador que se guarda es estable; lo que se ensena al usuario no
+// tiene por que serlo.
+const CLIENT_LABELS: Record<string, string> = {
+  gamehubnx: 'GameHubNX',
+  cyberfoil: 'CyberFoil',
+  tinfoil: 'Tinfoil / DBI',
+  browser: 'Navegador',
+  other: 'Otro',
+  unknown: 'Sin registrar',
+}
+
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
 const PLATFORM_LABELS: Record<string, string> = {
@@ -39,6 +50,9 @@ interface TrafficData {
   topPages: Array<{ path: string; _count: { id: number } }>
   topDownloads: Array<{ gameId: number; title: string; count: number; bytes: string }>
   downloadsByDevice: Array<{ title: string; desktop: number; mobile: number; tablet: number; console: number; unknown: number }>
+  downloadsByClient: Array<{ client: string; count: number; bytes: string }>
+  completionByClient: Array<{ client: string; completed: number; incomplete: number }>
+  abandonedDownloads: number
   recentIps: Array<{
     ip: string; userAgent: string | null; device: string | null; browser: string | null
     ts: string; country: string | null; city: string | null; flagEmoji: string | null; isp: string | null
@@ -135,7 +149,8 @@ export default function TrafficPage() {
   }
 
   const { summary, sparklines, deviceBreakdown, browserBreakdown,
-    topPlatforms, recentIps, errorCounts, topDownloads, downloadsByDevice } = data
+    topPlatforms, recentIps, errorCounts, topDownloads, downloadsByDevice,
+    downloadsByClient, completionByClient, abandonedDownloads } = data
 
   const activeNow       = live?.activeNow      ?? summary.activeNow
   const recentRequests  = live?.recentRequests  ?? []
@@ -264,6 +279,45 @@ export default function TrafficPage() {
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
+            )}
+          </div>
+
+          <div className="bg-card border border-border rounded-xl p-4">
+            <h3 className="text-sm font-medium mb-1">{t('downloadsByClient')}</h3>
+            <p className="text-xs text-muted-foreground mb-4">{t('downloadsByClientSub')}</p>
+            {downloadsByClient.length === 0 ? (
+              <p className="text-xs text-muted-foreground">{t('noDownloads')}</p>
+            ) : (
+              <div className="space-y-2">
+                {downloadsByClient
+                  .slice()
+                  .sort((a, b) => b.count - a.count)
+                  .map((c) => {
+                    const done = completionByClient.find((x) => x.client === c.client)
+                    const total = (done?.completed ?? 0) + (done?.incomplete ?? 0)
+                    // Sin descargas cerradas todavia no hay tasa que mostrar:
+                    // un 0 % ahi se leeria como fallo y solo significa "aun no".
+                    const rate = total > 0 ? Math.round(((done?.completed ?? 0) / total) * 100) : null
+                    return (
+                      <div key={c.client} className="flex items-center justify-between text-xs">
+                        <span className="font-medium">{CLIENT_LABELS[c.client] ?? c.client}</span>
+                        <span className="text-muted-foreground">
+                          {c.count} · {formatBytes(BigInt(c.bytes))}
+                          {rate !== null && (
+                            <span className={rate < 80 ? ' text-amber-500' : ' text-emerald-500'}>
+                              {' '}· {rate}%
+                            </span>
+                          )}
+                        </span>
+                      </div>
+                    )
+                  })}
+                {abandonedDownloads > 0 && (
+                  <p className="text-xs text-amber-500 pt-2 border-t border-border">
+                    {t('abandonedDownloads', { n: abandonedDownloads })}
+                  </p>
+                )}
+              </div>
             )}
           </div>
 
