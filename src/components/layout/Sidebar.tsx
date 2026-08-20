@@ -1,10 +1,11 @@
 'use client'
 
 import Link from 'next/link'
+import { BrandMark } from '@/components/shared/BrandMark'
 import { usePathname } from 'next/navigation'
 import { useTranslations } from 'next-intl'
 import useSWR from 'swr'
-import { Gamepad2, Settings, LayoutDashboard, Home, X, Heart, Shield, User, History } from 'lucide-react'
+import { Settings, LayoutDashboard, Home, X, Heart, Shield, User, History } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { LanguageSwitcher } from '@/components/shared/LanguageSwitcher'
 import { getPlatformIdentity } from '@/lib/platform-identity'
@@ -36,7 +37,7 @@ export function Sidebar({ open, onClose }: Props) {
       {/* Logo */}
       <div className="flex items-center justify-between px-4 py-5 border-b border-border">
         <div className="flex items-center gap-2">
-          <Gamepad2 className="w-7 h-7 text-primary" />
+          <BrandMark className="w-7 h-7" />
           <span className="font-bold text-lg tracking-tight">GameHub</span>
         </div>
         <button

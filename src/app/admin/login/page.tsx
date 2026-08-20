@@ -1,9 +1,10 @@
 'use client'
 
 import { Suspense } from 'react'
+import { BrandMark } from '@/components/shared/BrandMark'
 import { useState, FormEvent } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Gamepad2, Lock, Loader2, Eye, EyeOff } from 'lucide-react'
+import { Lock, Loader2, Eye, EyeOff } from 'lucide-react'
 
 function LoginForm() {
   const router = useRouter()
@@ -95,7 +96,7 @@ export default function LoginPage() {
         {/* Logo */}
         <div className="flex flex-col items-center mb-8">
           <div className="w-14 h-14 bg-primary/10 border border-primary/20 rounded-2xl flex items-center justify-center mb-4">
-            <Gamepad2 className="w-8 h-8 text-primary" />
+            <BrandMark className="w-8 h-8" cutout="hsl(var(--background))" />
           </div>
           <h1 className="text-2xl font-bold tracking-tight">GameHub</h1>
           <p className="text-sm text-muted-foreground mt-1">Admin access required</p>
