@@ -10,6 +10,7 @@ const nextConfig = {
   },
   images: {
     remotePatterns: [
+      { protocol: 'https', hostname: 's3.minio.hdglabs.com' },
       { protocol: 'https', hostname: 'media.rawg.io' },
       { protocol: 'https', hostname: 'images.igdb.com' },
     ],

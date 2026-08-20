@@ -45,7 +45,10 @@ export default function AboutPage() {
           {/* Avatar */}
           <div className="shrink-0">
             <Image
-              src="/perfil.png"
+              // La foto vive en el bucket `portfolio` de MinIO, no en public/:
+              // es la misma imagen que usa el portfolio y asi hay una sola copia
+              // que mantener en vez de dos que se desincronizan.
+              src="https://s3.minio.hdglabs.com/portfolio/shared/perfil.png"
               alt="Luis Hidalgo"
               width={72}
               height={72}
