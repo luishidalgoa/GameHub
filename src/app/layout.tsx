@@ -51,9 +51,16 @@ export const metadata: Metadata = {
     images:      ['/opengraph-image'],
   },
   icons: {
-    icon:     '/favicon.png',
-    shortcut: '/favicon.png',
-    apple:    '/favicon.png',
+    // A 16 y 32 px la cruceta y los botones del icono no se leen y solo
+    // ensucian el contorno, asi que esos dos tamanos usan una version
+    // simplificada -- misma silueta, sin mandos. El resto lleva el completo.
+    icon: [
+      { url: '/favicon-16.png', sizes: '16x16',   type: 'image/png' },
+      { url: '/favicon-32.png', sizes: '32x32',   type: 'image/png' },
+      { url: '/favicon.png',    sizes: '512x512', type: 'image/png' },
+    ],
+    shortcut: '/favicon-32.png',
+    apple:    '/apple-touch-icon.png',
   },
 }
 
