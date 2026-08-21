@@ -1,40 +1,26 @@
 /**
- * La marca de GameHub, como SVG en línea.
+ * La marca de GameHub: el trazado vectorial original, en línea.
  *
- * Va inline y no como <img src="/logo.svg"> a propósito: se pinta en el primer
- * render sin una petición extra y no parpadea al cambiar de tema.
+ * Dos caminos con `fill-rule="evenodd"` — el hexágono que dibuja la G con los
+ * lomos apilados dentro, y el lomo carmín con el play calado.
  *
- * El cuerpo hereda `currentColor`, así que sigue al color del texto que lo
- * rodea. La cruceta y los botones se pintan con `hsl(var(--card))` — el mismo
- * token que el fondo de la barra lateral — para que parezcan recortados en vez
- * de dibujados; si algún día se usa sobre otro fondo, se pasa `cutout`.
+ * El cuerpo hereda `currentColor` en vez de llevar el negro fijo del fichero
+ * original: sobre el fondo oscuro de la app ese negro desaparece. Sólo el
+ * carmín se mantiene literal, porque es la marca.
  */
-export function BrandMark({
-  className = 'w-7 h-7',
-  cutout = 'hsl(var(--card))',
-}: {
-  className?: string
-  cutout?: string
-}) {
+export function BrandMark({ className = 'w-7 h-7' }: { className?: string }) {
   return (
     <svg
-      viewBox="0 0 128 128"
+      viewBox="0 0 1254 1254"
       className={className}
       role="img"
       aria-label="GameHub"
       fill="none"
     >
-      <rect x="6" y="28" width="116" height="72" rx="18" fill="currentColor" />
-      {/* La pantalla: el único elemento con el rojo de marca fijo. */}
-      <rect x="40" y="42" width="48" height="44" rx="5" fill="#dc2626" />
-      <path
-        d="M17 64 h16 M25 56 v16"
-        stroke={cutout}
-        strokeWidth="7"
-        strokeLinecap="round"
-      />
-      <circle cx="99" cy="57" r="6" fill={cutout} />
-      <circle cx="110" cy="70" r="6" fill={cutout} />
+      <path fill="currentColor" fillRule="evenodd" clipRule="evenodd"
+        d="M324 579 L327 465 L338 436 L360 408 L586 275 L623 267 L670 275 L911 412 L924 430 L921 448 L845 490 L852 478 L852 467 L842 454 L669 352 L634 337 L613 338 L594 346 L406 449 L382 474 L371 512 L371 710 L378 736 L406 765 L601 884 L621 890 L646 887 L822 788 L853 762 L864 743 L868 725 L866 704 L857 689 L837 683 L807 697 L795 698 L745 672 L741 660 L748 652 L872 586 L912 569 L927 582 L927 774 L922 791 L908 815 L882 838 L661 954 L635 962 L597 958 L373 830 L342 800 L330 777 L324 747 Z M482 557 L494 525 L515 509 L668 429 L684 429 L694 440 L694 458 L689 465 L551 535 L531 561 L527 580 L527 796 L493 778 L482 760 Z M648 602 L654 583 L670 565 L790 504 L805 503 L815 514 L815 583 L721 630 L699 651 L690 677 L689 809 L678 823 L649 838 Z M416 520 L427 490 L447 474 L603 393 L619 394 L628 407 L628 421 L623 429 L486 499 L468 524 L464 544 L464 760 L427 740 L417 726 Z" />
+      <path fill="#ed001b" fillRule="evenodd" clipRule="evenodd"
+        d="M565 628 L568 695 L603 671 L608 660 L569 627 Z M545 584 L553 563 L568 548 L701 479 L734 463 L748 466 L756 476 L756 493 L750 502 L652 551 L632 575 L627 594 L625 847 L609 845 L562 818 L545 799 Z" />
     </svg>
   )
 }

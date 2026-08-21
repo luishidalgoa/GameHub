@@ -96,7 +96,7 @@ export default function LoginPage() {
         {/* Logo */}
         <div className="flex flex-col items-center mb-8">
           <div className="w-14 h-14 bg-primary/10 border border-primary/20 rounded-2xl flex items-center justify-center mb-4">
-            <BrandMark className="w-8 h-8" cutout="hsl(var(--background))" />
+            <BrandMark className="w-8 h-8" />
           </div>
           <h1 className="text-2xl font-bold tracking-tight">GameHub</h1>
           <p className="text-sm text-muted-foreground mt-1">Admin access required</p>
