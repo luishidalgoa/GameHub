@@ -63,6 +63,37 @@ export async function GET(
     const etag        = upstream.headers.get('etag')
     const lastMod     = upstream.headers.get('last-modified')
 
+    // ?fmt=jpg — transcodifica a JPEG.
+    //
+    // Las portadas se guardan en WebP, que es lo correcto para la web. Pero
+    // GameHubNX corre sobre Borealis y decodifica con stb_image, que entiende
+    // JPEG, PNG, BMP, GIF y TGA y NO WebP: en la consola las portadas
+    // sencillamente no aparecian. Convertir aqui evita meter libwebp en la app
+    // y deja intacto lo que sirve al navegador y a CyberFoil, que piden la
+    // imagen sin este parametro.
+    if (new URL(req.url).searchParams.get('fmt') === 'jpg') {
+      try {
+        const sharp = (await import('sharp')).default
+        const jpeg = await sharp(Buffer.from(body))
+          .flatten({ background: '#0a0a0b' })   // WebP puede traer alfa; JPEG no
+          .jpeg({ quality: 82, mozjpeg: true })
+          .toBuffer()
+        return new NextResponse(new Uint8Array(jpeg), {
+          headers: {
+            'Content-Type':  'image/jpeg',
+            'Cache-Control': CACHE_CONTROL,
+            // El ETag de origen describe el WebP, no esta conversion: se
+            // marca para que un cache intermedio no sirva uno por el otro.
+            ...(etag ? { ETag: etag.replace(/"$/, '-jpg"') } : {}),
+          },
+        })
+      } catch (convErr) {
+        // Si la conversion falla se devuelve el original: peor una portada que
+        // no se ve que una ficha rota.
+        console.error('[COVER PROXY] jpeg:', convErr)
+      }
+    }
+
     return new NextResponse(body, {
       headers: {
         'Content-Type':  contentType,

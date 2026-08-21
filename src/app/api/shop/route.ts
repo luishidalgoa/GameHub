@@ -149,6 +149,12 @@ export async function GET(req: Request) {
       // `name` lleva la region pegada al titulo porque Tinfoil solo tiene ese
       // campo; gh_title y gh_region van sueltos para que la ficha los maquete
       // como quiera.
+      // La portada, pero en JPEG: GameHubNX decodifica con stb_image, que no
+      // entiende WebP y dejaba las fichas sin imagen. iconUrl y bannerUrl se
+      // quedan como estan porque los lee CyberFoil, que si lo soporta.
+      ...(coverUrl
+        ? { gh_cover: coverUrl + (coverUrl.includes('?') ? '&' : '?') + 'fmt=jpg' }
+        : {}),
       gh_title:      c.game.title,
       // c.region es la region del FICHERO (deducida del nombre) y casi siempre
       // viene vacia; la del juego esta poblada en 1.802 de 2.058 filas. Sin
@@ -161,7 +167,9 @@ export async function GET(req: Request) {
       ...(c.game.releaseYear ? { gh_year:        c.game.releaseYear } : {}),
       ...(c.game.trailerUrl  ? { gh_trailer:     c.game.trailerUrl }  : {}),
       ...(c.game.groupKey    ? { gh_group:       c.game.groupKey }    : {}),
-      ...(shots.length > 0   ? { gh_screenshots: shots }              : {}),
+      ...(shots.length > 0
+        ? { gh_screenshots: shots.map((u) => u + (u.includes('?') ? '&' : '?') + 'fmt=jpg') }
+        : {}),
     }
   }
 
