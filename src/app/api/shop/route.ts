@@ -54,6 +54,10 @@ export async function GET(req: Request) {
       coverPath:   true,
       coverUrl:    true,
       // Campos que solo consume GameHubNX (claves gh_ del titledb).
+      // La plataforma trae el formato de portada: cada una tiene el suyo
+      // (Switch 2:3, 3DS apaisado, SNES casi panoramico) y usar uno fijo las
+      // deforma.
+      platform: { select: { slug: true, thumbnailWidth: true, thumbnailHeight: true } },
       region:          true,
       developer:       true,
       languages:       true,
@@ -111,7 +115,86 @@ export async function GET(req: Request) {
     .map((c, i) => ({ ...c, size: sizes[i] }))
     .filter((c): c is Candidate & { size: number } => c.size !== null && c.size > 0)
 
-  const files = available.map((c) => ({ url: c.url, size: c.size }))
+/**
+ * Los campos gh_ de una entrada: nuestra extension del formato de Tinfoil.
+ *
+ * Se emiten en DOS sitios --en el titledb y en cada fichero-- porque el
+ * titledb se indexa por Title ID, que se saca del NOMBRE del fichero. Un
+ * juego cuyo nombre no lo lleve (4 de 61 en la biblioteca actual, como
+ * "DRAGON QUEST VII Reimagined (2026).nsp") se queda sin entrada, y la app
+ * acaba enseñando el nombre del fichero pelado, sin portada ni metadatos.
+ * Adjuntarlos tambien al fichero quita esa dependencia: se emparejan por URL.
+ *
+ * Tinfoil y CyberFoil ignoran las claves que no conocen en ambos sitios.
+ */
+function ghFields(c: Candidate & { size: number }, base: string) {
+  const cover = resolveCoverPath(c.game.coverPath) ?? c.game.coverUrl ?? null
+  const coverUrl = cover?.startsWith('/') ? `${base}${cover}` : cover
+  const shots = parseScreenshots(c.game.screenshotPaths)
+    .map((p) => (p.startsWith('/') ? `${base}${p}` : p))
+
+  return {
+    // ── Extension propia para GameHubNX ─────────────────────────────────
+    // Tinfoil y CyberFoil ignoran las claves que no conocen, asi que esto
+    // enriquece nuestra app sin romperles nada. El prefijo gh_ deja claro
+    // que no forma parte del formato y evita chocar con claves que Tinfoil
+    // pueda anadir mas adelante.
+    //
+    // `name` lleva la region pegada al titulo porque Tinfoil solo tiene ese
+    // campo; gh_title y gh_region van sueltos para que la ficha los maquete
+    // como quiera.
+    // La portada, pero en JPEG: GameHubNX decodifica con stb_image, que no
+    // entiende WebP y dejaba las fichas sin imagen. iconUrl y bannerUrl se
+    // quedan como estan porque los lee CyberFoil, que si lo soporta.
+    ...(coverUrl
+      ? { gh_cover: coverUrl + (coverUrl.includes('?') ? '&' : '?') + 'fmt=jpg' }
+      : {}),
+    // Formato de la portada, en pixeles y por PLATAFORMA. La app lo usa para
+    // dar a cada rejilla la proporcion que le toca en vez de una fija; va en
+    // crudo (ancho y alto) y no como razon ya calculada, para que el dia que
+    // se anadan plataformas nuevas no haya que tocar la app.
+    ...(c.game.platform
+      ? { gh_platform:  c.game.platform.slug,
+          gh_cover_w:   c.game.platform.thumbnailWidth,
+          gh_cover_h:   c.game.platform.thumbnailHeight }
+      : {}),
+    gh_title:      c.game.title,
+    // c.region es la region del FICHERO (deducida del nombre) y casi siempre
+    // viene vacia; la del juego esta poblada en 1.802 de 2.058 filas. Sin
+    // este respaldo la app no recibia region en NINGUNA entrada.
+    ...((c.region ?? c.game.region)
+      ? { gh_region: c.region ?? c.game.region }
+      : {}),
+    ...(c.game.languages   ? { gh_languages:   c.game.languages }   : {}),
+    ...(c.game.developer   ? { gh_developer:   c.game.developer }   : {}),
+    ...(c.game.releaseYear ? { gh_year:        c.game.releaseYear } : {}),
+    ...(c.game.trailerUrl  ? { gh_trailer:     c.game.trailerUrl }  : {}),
+    ...(c.game.groupKey    ? { gh_group:       c.game.groupKey }    : {}),
+    ...(shots.length > 0
+      // El fmt=jpg solo tiene sentido contra NUESTRO proxy. Las capturas de
+      // LaunchBox se guardan por su URL original y ya vienen en JPEG:
+      // anadirselo no hacia nada salvo ensuciar la URL.
+      ? { gh_screenshots: shots.map((u) =>
+            u.startsWith(base)
+              ? u + (u.includes('?') ? '&' : '?') + 'fmt=jpg'
+              : u) }
+      : {}),
+  }
+}
+
+  // Los campos gh_ van TAMBIEN en cada fichero, no solo en el titledb.
+  //
+  // El titledb se indexa por Title ID, que se extrae del NOMBRE del fichero.
+  // Un juego cuyo nombre no lo lleve --4 de 61 en la biblioteca actual, como
+  // "DRAGON QUEST VII Reimagined (2026).nsp"-- se queda sin entrada y la app
+  // acaba enseñando el nombre del fichero, sin portada ni metadatos.
+  // Adjuntarlos al fichero elimina esa dependencia: se emparejan por URL.
+  // Tinfoil y CyberFoil ignoran las claves que no conocen tambien aqui.
+  const files = available.map((c) => ({
+    url: c.url,
+    size: c.size,
+    ...ghFields(c, base),
+  }))
 
   // ── titledb (rich metadata for CyberFoil / Tinfoil eShop display) ─────────
   const titledb: Record<string, object> = {}
@@ -140,36 +223,7 @@ export async function GET(req: Request) {
       size:        c.size,
       ...(coverUrl ? { iconUrl: coverUrl, bannerUrl: coverUrl } : {}),
       
-      // ── Extension propia para GameHubNX ─────────────────────────────────
-      // Tinfoil y CyberFoil ignoran las claves que no conocen, asi que esto
-      // enriquece nuestra app sin romperles nada. El prefijo gh_ deja claro
-      // que no forma parte del formato y evita chocar con claves que Tinfoil
-      // pueda anadir mas adelante.
-      //
-      // `name` lleva la region pegada al titulo porque Tinfoil solo tiene ese
-      // campo; gh_title y gh_region van sueltos para que la ficha los maquete
-      // como quiera.
-      // La portada, pero en JPEG: GameHubNX decodifica con stb_image, que no
-      // entiende WebP y dejaba las fichas sin imagen. iconUrl y bannerUrl se
-      // quedan como estan porque los lee CyberFoil, que si lo soporta.
-      ...(coverUrl
-        ? { gh_cover: coverUrl + (coverUrl.includes('?') ? '&' : '?') + 'fmt=jpg' }
-        : {}),
-      gh_title:      c.game.title,
-      // c.region es la region del FICHERO (deducida del nombre) y casi siempre
-      // viene vacia; la del juego esta poblada en 1.802 de 2.058 filas. Sin
-      // este respaldo la app no recibia region en NINGUNA entrada.
-      ...((c.region ?? c.game.region)
-        ? { gh_region: c.region ?? c.game.region }
-        : {}),
-      ...(c.game.languages   ? { gh_languages:   c.game.languages }   : {}),
-      ...(c.game.developer   ? { gh_developer:   c.game.developer }   : {}),
-      ...(c.game.releaseYear ? { gh_year:        c.game.releaseYear } : {}),
-      ...(c.game.trailerUrl  ? { gh_trailer:     c.game.trailerUrl }  : {}),
-      ...(c.game.groupKey    ? { gh_group:       c.game.groupKey }    : {}),
-      ...(shots.length > 0
-        ? { gh_screenshots: shots.map((u) => u + (u.includes('?') ? '&' : '?') + 'fmt=jpg') }
-        : {}),
+      ...ghFields(c, base),
     }
   }
 
