@@ -579,7 +579,8 @@
     "noGames": "No se encontraron juegos",
     "noCoversForGame": "No se encontraron portadas para este juego",
     "noCovers": "No se encontraron portadas",
-    "libretroHint": "Caja original de esta consola, del archivo libretro. Se busca también por el nombre del fichero, que es lo que fija la edición regional."
+    "libretroHint": "Caja original de esta consola, del archivo libretro. Se busca también por el nombre del fichero, que es lo que fija la edición regional.",
+    "libretroUnsupported": "El archivo libretro no tiene portadas de {platform}: usa LaunchBox o SteamGridDB."
   },
   "AdminCuration": {
     "title": "Curación de nombres",

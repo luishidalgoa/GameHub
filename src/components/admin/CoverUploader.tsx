@@ -6,11 +6,15 @@ import { useTranslations } from 'next-intl'
 import { Upload, Link as LinkIcon, Loader2, Crop, Search, ChevronDown, ChevronUp, ArrowLeft } from 'lucide-react'
 import { CoverAdjustModal } from './CoverAdjustModal'
 import { resolveCoverPath } from '@/lib/cover-url'
+import { libretroSupports } from '@/lib/metadata/libretro'
 import type { FieldSource, MetadataSources } from '@/lib/metadata/sources'
 
 interface Props {
   gameId: number
   gameTitle?: string
+  /** Platform slug of the game. Decides whether the libretro tab is offered at
+   *  all: that archive is indexed per system and simply has no Switch set. */
+  platformSlug?: string
   currentCover: string | null
   /** `sources` is the updated provenance the server stored, so the editor's
    *  cover badge can follow the picture without a page reload. */
@@ -31,7 +35,7 @@ interface SgdbGame   { id: number; name: string }
 interface SgdbCover  { url: string; thumb: string; style: string }
 interface LibretroCover { url: string; thumb: string; name: string; score: number }
 
-export function CoverUploader({ gameId, gameTitle = '', currentCover, onUploaded, thumbnailWidth = 200, thumbnailHeight = 300 }: Props) {
+export function CoverUploader({ gameId, gameTitle = '', platformSlug, currentCover, onUploaded, thumbnailWidth = 200, thumbnailHeight = 300 }: Props) {
   const t = useTranslations('CoverUploader')
   const [urlInput, setUrlInput]   = useState('')
   const [loading, setLoading]     = useState(false)
@@ -81,6 +85,15 @@ export function CoverUploader({ gameId, gameTitle = '', currentCover, onUploaded
   const [libError, setLibError]         = useState('')
   const [libSearched, setLibSearched]   = useState(false)
   const [applyingLib, setApplyingLib]   = useState<string | null>(null)
+
+  // Unknown platform fails open: the server still has the last word, and a
+  // missing slug is no reason to hide a source that may well work.
+  const libretroAvailable = !platformSlug || libretroSupports(platformSlug)
+
+  // Never leave the panel parked on a tab that cannot return anything.
+  useEffect(() => {
+    if (!libretroAvailable && searchTab === 'libretro') setSearchTab('launchbox')
+  }, [libretroAvailable, searchTab])
 
   const fileRef = useRef<HTMLInputElement>(null)
 
@@ -393,29 +406,39 @@ export function CoverUploader({ gameId, gameTitle = '', currentCover, onUploaded
 
             {/* Tabs */}
             <div className="flex border-b border-border">
-              {(['libretro', 'launchbox', 'sgdb', 'rawg'] as const).map((tab) => (
-                <button
-                  key={tab}
-                  type="button"
-                  onClick={() => setSearchTab(tab)}
-                  className={`flex-1 px-3 py-2 text-xs font-medium transition-colors ${
-                    searchTab === tab
-                      ? 'text-foreground border-b-2 border-primary -mb-px bg-secondary/50'
-                      : 'text-muted-foreground hover:text-foreground'
-                  }`}
-                >
-                  {tab === 'sgdb' ? 'SteamGridDB'
-                    : tab === 'rawg' ? 'RAWG'
-                    : tab === 'libretro' ? 'libretro'
-                    : 'LaunchBox'}
-                </button>
-              ))}
+              {(['libretro', 'launchbox', 'sgdb', 'rawg'] as const).map((tab) => {
+                // A tab that can only answer "this archive has nothing for your
+                // console" is a dead end. Disable it and explain in the tooltip,
+                // instead of letting the search come back in red.
+                const disabled = tab === 'libretro' && !libretroAvailable
+                return (
+                  <button
+                    key={tab}
+                    type="button"
+                    disabled={disabled}
+                    title={disabled ? t('libretroUnsupported', { platform: platformSlug ?? '' }) : undefined}
+                    onClick={() => setSearchTab(tab)}
+                    className={`flex-1 px-3 py-2 text-xs font-medium transition-colors ${
+                      disabled
+                        ? 'text-muted-foreground/40 cursor-not-allowed'
+                        : searchTab === tab
+                          ? 'text-foreground border-b-2 border-primary -mb-px bg-secondary/50'
+                          : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    {tab === 'sgdb' ? 'SteamGridDB'
+                      : tab === 'rawg' ? 'RAWG'
+                      : tab === 'libretro' ? 'libretro'
+                      : 'LaunchBox'}
+                  </button>
+                )
+              })}
             </div>
 
             <div className="p-3 space-y-3">
 
               {/* ── libretro tab ──────────────────────────────────────── */}
-              {searchTab === 'libretro' && (
+              {searchTab === 'libretro' && libretroAvailable && (
                 <>
                   <p className="text-[11px] text-muted-foreground leading-snug">
                     {t('libretroHint')}

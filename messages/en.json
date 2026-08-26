@@ -579,7 +579,8 @@
     "noGames": "No games found",
     "noCoversForGame": "No covers found for this game",
     "noCovers": "No covers found",
-    "libretroHint": "This console's original box, from the libretro archive. The ROM file name is searched too, since that is what pins down the regional edition."
+    "libretroHint": "This console's original box, from the libretro archive. The ROM file name is searched too, since that is what pins down the regional edition.",
+    "libretroUnsupported": "The libretro archive has no box art for {platform} — use LaunchBox or SteamGridDB."
   },
   "AdminCuration": {
     "title": "Filename curation",
