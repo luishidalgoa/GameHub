@@ -549,6 +549,7 @@ export function GameEditorForm({ game, thumbnailWidth = 200, thumbnailHeight = 3
             <CoverUploader
               gameId={game.id}
               gameTitle={game.title}
+              platformSlug={game.platform?.slug}
               currentCover={coverPath}
               onUploaded={(path, next) => { setCoverPath(path); if (next) setSources(next) }}
               thumbnailWidth={thumbnailWidth}
