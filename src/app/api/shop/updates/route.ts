@@ -29,20 +29,27 @@ export async function GET(req: Request) {
     // juego es y lo acaba pintando como un juego suelto. Se sirve el propio si
     // esta, y si no se deriva del juego.
     select: { id: true, filePath: true, fileName: true, titleId: true,
-              game: { select: { titleId: true } } },
+              gameId: true, game: { select: { titleId: true } } },
   })
 
   const base = shopBaseUrl(req)
   const switchUpdates = updates.filter((u) => isSwitchFile(u.fileName))
   const sizes = await statSize(switchUpdates.map((u) => u.filePath))
 
+  // Filtrar por tamano antes de construir la fila; ver la nota en /api/shop/dlc.
   const files = switchUpdates
-    .map((u, i) => ({
-      url:  `${base}/api/shop/download/dlc/${u.id}/${encodeURIComponent(
-              shopFileName(u.fileName, u.titleId ?? updateTitleId(u.game.titleId)))}`,
-      size: sizes[i],
+    .map((u, i) => ({ upd: u, size: sizes[i] }))
+    .filter((x): x is { upd: (typeof switchUpdates)[number]; size: number } =>
+      x.size !== null && x.size > 0)
+    .map(({ upd, size }) => ({
+      url:  `${base}/api/shop/download/dlc/${upd.id}/${encodeURIComponent(
+              shopFileName(upd.fileName,
+                           upd.titleId ?? updateTitleId(upd.game.titleId)))}`,
+      size,
+      // De que juego es, dicho y no deducido. Ver la nota en /api/shop/dlc.
+      gh_id:   upd.gameId,
+      gh_kind: 'update',
     }))
-    .filter((f): f is { url: string; size: number } => f.size !== null && f.size > 0)
 
   return NextResponse.json({
     files,

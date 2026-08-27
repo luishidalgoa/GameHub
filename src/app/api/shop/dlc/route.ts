@@ -22,20 +22,33 @@ export async function GET(req: Request) {
     // justo el sintoma que estamos arreglando. Un DLC sin id queda sin
     // emparejar, y eso ya lo cubre la consola escondiendo lo que viene de un
     // sub-indice.
-    select: { id: true, filePath: true, fileName: true, titleId: true },
+    select: { id: true, filePath: true, fileName: true, titleId: true,
+              gameId: true },
   })
 
   const base = shopBaseUrl(req)
   const switchDlcs = dlcs.filter((d) => isSwitchFile(d.fileName))
   const sizes = await statSize(switchDlcs.map((d) => d.filePath))
 
+  // gh_id dice de QUE juego es este DLC, y gh_kind que clase de complemento es.
+  // Los dos salen de la base de datos, que lo sabe desde el escaneo: GameDlc
+  // tiene su gameId. Antes la consola tenia que deducirlo comparando Title IDs
+  // sacados del nombre del fichero, y un nombre sin id dejaba al complemento
+  // huerfano -- o peor, disfrazado de juego en la rejilla.
+  // Se descarta por tamano ANTES de construir la fila: el predicado de tipo
+  // tiene que describir el objeto entero, y cada clave gh_ nueva obligaria a
+  // repetirla ahi. Filtrando primero, la fila se escribe una sola vez.
   const files = switchDlcs
-    .map((d, i) => ({
-      url:  `${base}/api/shop/download/dlc/${d.id}/${encodeURIComponent(
-              shopFileName(d.fileName, d.titleId))}`,
-      size: sizes[i],
+    .map((d, i) => ({ dlc: d, size: sizes[i] }))
+    .filter((x): x is { dlc: (typeof switchDlcs)[number]; size: number } =>
+      x.size !== null && x.size > 0)
+    .map(({ dlc, size }) => ({
+      url:  `${base}/api/shop/download/dlc/${dlc.id}/${encodeURIComponent(
+              shopFileName(dlc.fileName, dlc.titleId))}`,
+      size,
+      gh_id:   dlc.gameId,
+      gh_kind: 'dlc',
     }))
-    .filter((f): f is { url: string; size: number } => f.size !== null && f.size > 0)
 
   return NextResponse.json({
     files,

@@ -9,6 +9,13 @@
  *   files      – downloadable NSP/NSZ/XCI files (base games + regional editions)
  *   directories– sub-indexes (DLC, updates)
  *   titledb    – optional rich metadata keyed by Nintendo Title ID
+ *   files[].gh_id      – id del juego en GameHub. Lo mismo en los sub-índices,
+ *                apuntando al juego del que el complemento forma parte: así el
+ *                cliente NO tiene que deducir la relación comparando Title IDs
+ *                sacados del nombre del fichero. El servidor ya la conoce.
+ *   files[].gh_cover / gh_title – portada y título por fichero, para que no
+ *                dependan de tener entrada en el titledb (que va indexado por
+ *                Title ID y por tanto por el nombre del fichero)
  *   gh_cover_width / gh_cover_height – proporción de portada de la plataforma
  *                Switch, para que la app pinte la caja con la forma que el
  *                usuario configuró aquí en vez de con una constante suya
@@ -35,6 +42,20 @@ function parseScreenshots(raw: string | null | undefined): string[] {
   }
 }
 import { isSwitchFile, shopFileName, statSize } from '@/lib/shop-files'
+
+/**
+ * URL de portada que la consola puede decodificar.
+ *
+ * En JPEG a proposito: GameHubNX decodifica con stb_image, que no entiende
+ * WebP. Devuelve null cuando el juego no tiene ninguna.
+ */
+function coverJpegUrl(base: string, coverPath: string | null,
+                      coverUrl: string | null): string | undefined {
+  const cover = resolveCoverPath(coverPath) ?? coverUrl ?? null
+  if (!cover) return undefined
+  const absolute = cover.startsWith('/') ? `${base}${cover}` : cover
+  return absolute + (absolute.includes('?') ? '&' : '?') + 'fmt=jpg'
+}
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -80,6 +101,7 @@ export async function GET(req: Request) {
     url:      string
     filePath: string
     fileName: string
+    gameId:   number
     game:     (typeof games)[number]
     region:   string | null
   }
@@ -96,6 +118,7 @@ export async function GET(req: Request) {
         url:      `${base}/api/shop/download/${g.id}/${encodeURIComponent(served)}`,
         filePath: g.filePath,
         fileName: served,
+        gameId:   g.id,
         game:     g,
         region:   null,
       })
@@ -109,6 +132,7 @@ export async function GET(req: Request) {
         url:      `${base}/api/shop/download/dlc/${d.id}/${encodeURIComponent(served)}`,
         filePath: d.filePath,
         fileName: served,
+        gameId:   g.id,
         game:     g,
         region:   d.region,
       })
@@ -124,7 +148,24 @@ export async function GET(req: Request) {
     .map((c, i) => ({ ...c, size: sizes[i] }))
     .filter((c): c is Candidate & { size: number } => c.size !== null && c.size > 0)
 
-  const files = available.map((c) => ({ url: c.url, size: c.size }))
+  // Cada fichero lleva su identidad de GameHub y su portada AQUI, no solo en el
+  // titledb. El titledb va indexado por Title ID --formato Tinfoil-- y ese id
+  // sale del nombre del fichero, asi que un volcado mal nombrado se quedaba sin
+  // entrada y por tanto sin caratula, aunque GameHub tuviera la portada
+  // guardada. gh_id es lo mismo que gh_cover: un dato que el servidor ya tiene
+  // y que antes obligaba al cliente a deducir.
+  //
+  // Tinfoil y CyberFoil ignoran las claves que no conocen, asi que esto no les
+  // afecta; el titledb se sigue publicando igual para ellos.
+  const files = available.map((c) => ({
+    url:  c.url,
+    size: c.size,
+    gh_id: c.gameId,
+    ...(c.game.coverPath || c.game.coverUrl
+      ? { gh_cover: coverJpegUrl(base, c.game.coverPath, c.game.coverUrl) }
+      : {}),
+    ...(c.game.title ? { gh_title: c.game.title } : {}),
+  }))
 
   // ── titledb (rich metadata for CyberFoil / Tinfoil eShop display) ─────────
   const titledb: Record<string, object> = {}
@@ -137,6 +178,7 @@ export async function GET(req: Request) {
 
     const cover = resolveCoverPath(c.game.coverPath) ?? c.game.coverUrl ?? null
     const coverUrl = cover?.startsWith('/') ? `${base}${cover}` : cover
+    const coverJpeg = coverJpegUrl(base, c.game.coverPath, c.game.coverUrl)
 
     const shots = parseScreenshots(c.game.screenshotPaths)
       .map((p) => (p.startsWith('/') ? `${base}${p}` : p))
@@ -165,9 +207,7 @@ export async function GET(req: Request) {
       // La portada, pero en JPEG: GameHubNX decodifica con stb_image, que no
       // entiende WebP y dejaba las fichas sin imagen. iconUrl y bannerUrl se
       // quedan como estan porque los lee CyberFoil, que si lo soporta.
-      ...(coverUrl
-        ? { gh_cover: coverUrl + (coverUrl.includes('?') ? '&' : '?') + 'fmt=jpg' }
-        : {}),
+      ...(coverJpeg ? { gh_cover: coverJpeg } : {}),
       gh_title:      c.game.title,
       // c.region es la region del FICHERO (deducida del nombre) y casi siempre
       // viene vacia; la del juego esta poblada en 1.802 de 2.058 filas. Sin
