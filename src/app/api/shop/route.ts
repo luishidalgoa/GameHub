@@ -9,6 +9,9 @@
  *   files      – downloadable NSP/NSZ/XCI files (base games + regional editions)
  *   directories– sub-indexes (DLC, updates)
  *   titledb    – optional rich metadata keyed by Nintendo Title ID
+ *   gh_cover_width / gh_cover_height – proporción de portada de la plataforma
+ *                Switch, para que la app pinte la caja con la forma que el
+ *                usuario configuró aquí en vez de con una constante suya
  *   success    – message shown in the app UI
  */
 import { NextResponse } from 'next/server'
@@ -185,10 +188,33 @@ export async function GET(req: Request) {
   if (hasDlc)     directories.push(`${base}/api/shop/dlc`)
   if (hasUpdates) directories.push(`${base}/api/shop/updates`)
 
+  // ── proporción de portada ────────────────────────────────────────────────
+  // El tamaño de miniatura es una preferencia POR PLATAFORMA (200x300 en Switch,
+  // 200x140 en SNES…) y hasta ahora se quedaba en la web: el índice no lo
+  // publicaba, así que GameHubNX no tenía forma de saberla y pintaba las cajas
+  // con una constante propia, calibrada para otro catálogo. Esta tienda solo
+  // sirve Switch, así que basta con una pareja de valores en la raíz.
+  //
+  // Se omiten si la plataforma no existe: una clave ausente deja a la app en su
+  // valor por defecto, que es exactamente el comportamiento de antes.
+  const switchPlatform = await db.platform.findUnique({
+    where:  { slug: 'switch' },
+    select: { thumbnailWidth: true, thumbnailHeight: true },
+  })
+  const cover =
+    switchPlatform && switchPlatform.thumbnailWidth > 0 &&
+    switchPlatform.thumbnailHeight > 0
+      ? {
+          gh_cover_width:  switchPlatform.thumbnailWidth,
+          gh_cover_height: switchPlatform.thumbnailHeight,
+        }
+      : {}
+
   return NextResponse.json({
     files,
     directories,
     ...(Object.keys(titledb).length > 0 && { titledb }),
+    ...cover,
     success: `GameHub · ${files.length} titles`,
   })
 }
