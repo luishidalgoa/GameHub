@@ -12,19 +12,11 @@ import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { guardShopRequest, shopBaseUrl } from '@/lib/shop-auth'
 import { matchesExtensions, platformExtensions, statSize } from '@/lib/shop-files'
-import { resolveCoverPath } from '@/lib/cover-url'
+import { jpegImageUrl } from '@/lib/cover-url'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
-/** Portada en JPEG: la consola decodifica con stb_image, que no entiende WebP. */
-function coverJpegUrl(base: string, coverPath: string | null,
-                      coverUrl: string | null): string | undefined {
-  const cover = resolveCoverPath(coverPath) ?? coverUrl ?? null
-  if (!cover) return undefined
-  const absolute = cover.startsWith('/') ? `${base}${cover}` : cover
-  return absolute + (absolute.includes('?') ? '&' : '?') + 'fmt=jpg'
-}
 
 export async function GET(
   req: Request,
@@ -75,7 +67,7 @@ export async function GET(
       gh_kind: 'rom',
       ...(game.title ? { gh_title: game.title } : {}),
       ...(game.coverPath || game.coverUrl
-        ? { gh_cover: coverJpegUrl(base, game.coverPath, game.coverUrl) }
+        ? { gh_cover: jpegImageUrl(base, game.coverPath, game.coverUrl) }
         : {}),
     }))
 

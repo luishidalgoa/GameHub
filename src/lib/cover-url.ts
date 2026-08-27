@@ -17,3 +17,20 @@ export function resolveCoverPath(coverPath: string | null | undefined): string |
   if (coverPath.startsWith('/covers/')) return null
   return `/api/covers/proxy/${coverPath}`
 }
+
+/**
+ * URL absoluta en JPEG de una imagen del servidor (portada o icono de
+ * plataforma), o undefined si no hay ninguna.
+ *
+ * En JPEG a proposito: GameHubNX decodifica con stb_image, que no entiende
+ * WebP, y los iconos de plataforma se suben en .webp. Sin la transcodificacion
+ * la consola recibe bytes que no sabe pintar y la imagen sale en blanco, sin
+ * error visible.
+ */
+export function jpegImageUrl(base: string, path: string | null,
+                             fallbackUrl: string | null = null): string | undefined {
+  const resolved = resolveCoverPath(path) ?? fallbackUrl ?? null
+  if (!resolved) return undefined
+  const absolute = resolved.startsWith('/') ? `${base}${resolved}` : resolved
+  return absolute + (absolute.includes('?') ? '&' : '?') + 'fmt=jpg'
+}

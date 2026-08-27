@@ -25,7 +25,7 @@ import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { guardShopRequest, shopBaseUrl } from '@/lib/shop-auth'
 import { extractSwitchTitleId, classifySwitchTitleId } from '@/lib/scanner/titleid'
-import { resolveCoverPath } from '@/lib/cover-url'
+import { jpegImageUrl, resolveCoverPath } from '@/lib/cover-url'
 
 /**
  * screenshotPaths is a JSON-encoded string array. A malformed value costs a
@@ -43,19 +43,6 @@ function parseScreenshots(raw: string | null | undefined): string[] {
 }
 import { isSwitchFile, shopFileName, statSize } from '@/lib/shop-files'
 
-/**
- * URL de portada que la consola puede decodificar.
- *
- * En JPEG a proposito: GameHubNX decodifica con stb_image, que no entiende
- * WebP. Devuelve null cuando el juego no tiene ninguna.
- */
-function coverJpegUrl(base: string, coverPath: string | null,
-                      coverUrl: string | null): string | undefined {
-  const cover = resolveCoverPath(coverPath) ?? coverUrl ?? null
-  if (!cover) return undefined
-  const absolute = cover.startsWith('/') ? `${base}${cover}` : cover
-  return absolute + (absolute.includes('?') ? '&' : '?') + 'fmt=jpg'
-}
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -174,7 +161,7 @@ export async function GET(req: Request) {
     size: c.size,
     gh_id: c.gameId,
     ...(c.game.coverPath || c.game.coverUrl
-      ? { gh_cover: coverJpegUrl(base, c.game.coverPath, c.game.coverUrl) }
+      ? { gh_cover: jpegImageUrl(base, c.game.coverPath, c.game.coverUrl) }
       : {}),
     ...(c.game.title ? { gh_title: c.game.title } : {}),
   }))
@@ -190,7 +177,7 @@ export async function GET(req: Request) {
 
     const cover = resolveCoverPath(c.game.coverPath) ?? c.game.coverUrl ?? null
     const coverUrl = cover?.startsWith('/') ? `${base}${cover}` : cover
-    const coverJpeg = coverJpegUrl(base, c.game.coverPath, c.game.coverUrl)
+    const coverJpeg = jpegImageUrl(base, c.game.coverPath, c.game.coverUrl)
 
     const shots = parseScreenshots(c.game.screenshotPaths)
       .map((p) => (p.startsWith('/') ? `${base}${p}` : p))

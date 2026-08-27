@@ -8,7 +8,8 @@
  */
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { guardShopRequest } from '@/lib/shop-auth'
+import { guardShopRequest, shopBaseUrl } from '@/lib/shop-auth'
+import { jpegImageUrl } from '@/lib/cover-url'
 import { isSwitchFile, matchesExtensions, platformExtensions } from '@/lib/shop-files'
 
 export const dynamic = 'force-dynamic'
@@ -37,11 +38,12 @@ export async function GET(req: Request) {
     orderBy: { sortOrder: 'asc' },
     select: {
       slug: true, name: true, extensions: true, emulators: true,
-      emulatorName: true,
+      emulatorName: true, iconPath: true,
       games: { where: { isHidden: false }, select: { fileName: true } },
     },
   })
 
+  const base = shopBaseUrl(req)
   const files = platforms.map((p) => {
     const exts = platformExtensions(p.extensions)
     // Cuenta de ficheros que ESTA plataforma sabe servir. No se comprueba el
@@ -60,6 +62,10 @@ export async function GET(req: Request) {
       // se dice aqui en vez de dejar que cada cliente la deduzca del slug.
       native:     [...exts].some((e) => isSwitchFile('x' + e)),
       emulator:   recommendedEmulator(p.emulators) ?? p.emulatorName ?? null,
+      // El icono que subio el administrador, servido en JPEG. Que lo ponga el
+      // servidor evita que cada cliente dibuje su propio glifo y acabe
+      // ensenando algo distinto de lo que se ve en la web.
+      ...(p.iconPath ? { gh_icon: jpegImageUrl(base, p.iconPath) } : {}),
     }
   })
 
