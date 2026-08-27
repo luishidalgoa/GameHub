@@ -20,6 +20,31 @@ export function isSwitchFile(fileName: string): boolean {
 }
 
 /**
+ * Extensiones servibles de una plataforma, a partir de su columna `extensions`.
+ *
+ * El formato de esa columna es lo que haya escrito quien creo la plataforma:
+ * ".smc, .sfc, .fig, " y ".iso, .chd" conviven hoy en la base de datos, con
+ * espacios y comas de mas. Se normaliza aqui en vez de confiar en que este
+ * limpio, y se descarta lo vacio para que una coma suelta no acabe casando con
+ * cualquier fichero.
+ */
+export function platformExtensions(extensions: string): Set<string> {
+  return new Set(
+    extensions
+      .split(',')
+      .map((e) => e.trim().toLowerCase())
+      .filter((e) => e.length > 1 && e.startsWith('.')),
+  )
+}
+
+/** True si el fichero es de los que esa plataforma sirve. */
+export function matchesExtensions(fileName: string, exts: Set<string>): boolean {
+  const dot = fileName.lastIndexOf('.')
+  if (dot < 0) return false
+  return exts.has(fileName.slice(dot).toLowerCase())
+}
+
+/**
  * Nombre con el que la tienda sirve un fichero, con su Title ID dentro.
  *
  * La consola saca el Title ID del ULTIMO SEGMENTO DE LA URL, no de ningun campo

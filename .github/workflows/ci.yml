@@ -1,0 +1,50 @@
+# Comprobacion de tipos y lint en cada PR.
+#
+# Hasta ahora este repositorio no tenia ninguna: el unico workflow era
+# docker-publish, que corre al publicar. Un error de tipos no aparecia hasta el
+# build de una release, es decir despues de mezclar y en el peor momento.
+# Sin paso de lint: `next lint` esta roto con la version de ESLint instalada
+# --le pasa opciones que ya no existen (useEslintrc, extensions,
+# resolvePluginsRelativeTo...) y aborta antes de mirar un solo fichero--. Eso es
+# un problema de versiones que se arregla aparte; incluirlo aqui solo dejaria el
+# workflow en rojo permanente, que es como se aprende a ignorar un CI.
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  typecheck:
+    name: Tipos
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      # Misma version que el Dockerfile (node:20-alpine): comprobar con otra
+      # daria un verde que no dice nada sobre lo que se va a publicar.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      # --legacy-peer-deps como el Dockerfile: instalar de otra forma podria
+      # resolver un arbol distinto del que se publica, y entonces el verde de
+      # aqui no diria nada sobre la imagen.
+      - name: Instalar dependencias
+        run: npm ci --legacy-peer-deps
+
+      # El cliente de Prisma se genera, no se versiona: sin esto el typecheck
+      # falla en cada consulta a la base de datos por un tipo que no existe
+      # todavia.
+      - name: Generar el cliente de Prisma
+        # prisma generate exige DATABASE_URL aunque no se conecte a nada. No es
+        # una base de datos real ni hace falta que lo sea.
+        env:
+          DATABASE_URL: "file:./ci.db"
+        run: npx prisma generate
+
+      - name: Comprobar tipos
+        run: npx tsc --noEmit
