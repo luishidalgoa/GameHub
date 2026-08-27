@@ -3,6 +3,11 @@
 # Hasta ahora este repositorio no tenia ninguna: el unico workflow era
 # docker-publish, que corre al publicar. Un error de tipos no aparecia hasta el
 # build de una release, es decir despues de mezclar y en el peor momento.
+# Sin paso de lint: `next lint` esta roto con la version de ESLint instalada
+# --le pasa opciones que ya no existen (useEslintrc, extensions,
+# resolvePluginsRelativeTo...) y aborta antes de mirar un solo fichero--. Eso es
+# un problema de versiones que se arregla aparte; incluirlo aqui solo dejaria el
+# workflow en rojo permanente, que es como se aprende a ignorar un CI.
 name: ci
 
 on:
@@ -12,7 +17,7 @@ on:
 
 jobs:
   typecheck:
-    name: Tipos y lint
+    name: Tipos
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -43,6 +48,3 @@ jobs:
 
       - name: Comprobar tipos
         run: npx tsc --noEmit
-
-      - name: Lint
-        run: npm run lint
