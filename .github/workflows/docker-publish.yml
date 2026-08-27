@@ -1,6 +1,6 @@
 name: Build & publish Docker image
 
-# Builds the production image for the Raspberry Pi (linux/arm64) and pushes it
+# Builds the production image for linux/amd64 and linux/arm64 and pushes it
 # to GitHub Container Registry (GHCR), then publishes a GitHub Release.
 #
 # IMPORTANT: this does NOT run on every push to main. It runs only when you
@@ -185,7 +185,7 @@ jobs:
           body: |
             ## 🐳 Docker image
 
-            Published to GHCR for `linux/arm64`:
+            Published to GHCR for `linux/amd64` and `linux/arm64`:
 
             ```bash
             docker pull ghcr.io/luishidalgoa/gamehub:${{ needs.merge.outputs.version }}
@@ -193,5 +193,5 @@ jobs:
             docker pull ghcr.io/luishidalgoa/gamehub:latest
             ```
 
-            On the Raspberry Pi the deploy is automatic — Watchtower picks up the
-            new `:latest` within ~5 min. To apply it immediately: `./deploy.sh update`.
+            En el servidor el despliegue es automatico: Watchtower coge la
+            nueva `:latest` en ~5 min. Para aplicarla ya: `./deploy.sh update`.

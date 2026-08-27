@@ -24,7 +24,7 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { guardShopRequest, shopBaseUrl } from '@/lib/shop-auth'
-import { extractSwitchTitleId } from '@/lib/scanner/titleid'
+import { extractSwitchTitleId, classifySwitchTitleId } from '@/lib/scanner/titleid'
 import { resolveCoverPath } from '@/lib/cover-url'
 
 /**
@@ -110,9 +110,20 @@ export async function GET(req: Request) {
   // del disco no trae el Title ID y la base de datos si lo sabe, se le pega.
   // De ese segmento de URL sale todo lo demas --la clave del titledb, y por
   // tanto la caratula-- porque es lo unico que la consola llega a leer.
+  // Un fichero cuyo Title ID no es de juego base no es un juego, por mucho que
+  // el escaner le haya hecho una ficha: pasa cuando una carpeta solo contiene
+  // el parche. Publicarlo aqui lo pone en la rejilla del catalogo como si
+  // fuera jugable, y ademas duplicado, porque el sub-indice de updates lo sirve
+  // otra vez. Los sub-indices son su sitio.
+  const isBaseGameFile = (fileName: string, titleId: string | null) => {
+    const tid = extractSwitchTitleId(fileName) ?? titleId
+    if (!tid) return true          // sin Title ID no hay nada que objetar
+    return classifySwitchTitleId(tid.toUpperCase()) === 'base'
+  }
+
   const candidates: Candidate[] = []
   for (const g of games) {
-    if (isSwitchFile(g.fileName)) {
+    if (isSwitchFile(g.fileName) && isBaseGameFile(g.fileName, g.titleId)) {
       const served = shopFileName(g.fileName, g.titleId)
       candidates.push({
         url:      `${base}/api/shop/download/${g.id}/${encodeURIComponent(served)}`,
@@ -125,6 +136,7 @@ export async function GET(req: Request) {
     }
     for (const d of g.dlcs) {
       if (d.type !== 'region' || !isSwitchFile(d.fileName)) continue
+      if (!isBaseGameFile(d.fileName, d.titleId ?? g.titleId)) continue
       // Una edicion regional es un juego base completo: si no trae Title ID
       // propio hereda el del juego, que es el mismo titulo en otra region.
       const served = shopFileName(d.fileName, d.titleId ?? g.titleId)
