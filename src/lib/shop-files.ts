@@ -19,6 +19,33 @@ export function isSwitchFile(fileName: string): boolean {
   return SWITCH_EXTS.has(fileName.slice(dot).toLowerCase())
 }
 
+/**
+ * Nombre con el que la tienda sirve un fichero, con su Title ID dentro.
+ *
+ * La consola saca el Title ID del ULTIMO SEGMENTO DE LA URL, no de ningun campo
+ * del indice: es lo que usa para cruzar el juego con su titledb (y por tanto
+ * para tener caratula) y para saber de que juego es un DLC. Cuando el fichero
+ * del disco no lo lleva en el nombre, el juego sale sin caratula y sus
+ * complementos quedan huerfanos.
+ *
+ * Aqui se le pega el que tenga guardado en la base de datos. NO se renombra
+ * nada en el disco: la descarga se resuelve por id --/download/[id]/[filename]
+ * ignora el nombre-- asi que el segmento es libre y sirve justamente para esto.
+ *
+ * Si el nombre ya trae un Title ID, o no hay ninguno guardado, se devuelve tal
+ * cual.
+ */
+export function shopFileName(fileName: string, titleId?: string | null): string {
+  if (!titleId) return fileName
+  const id = titleId.trim().toUpperCase()
+  if (!/^[0-9A-F]{16}$/.test(id)) return fileName
+  if (fileName.toUpperCase().includes(id)) return fileName
+
+  const dot = fileName.lastIndexOf('.')
+  if (dot <= 0) return `${fileName} [${id}]`
+  return `${fileName.slice(0, dot)} [${id}]${fileName.slice(dot)}`
+}
+
 /** How many stat() calls may be in flight — enough to hide latency, low enough
  *  not to thrash a spinning disk or a single-queue network share. */
 const STAT_CONCURRENCY = 32

@@ -84,6 +84,13 @@ model Game {
   // are merged into a single card.
   groupKey String?
 
+  // Nintendo Title ID (16 hex) cuando el nombre del fichero no lo lleva.
+  // Normalmente se deduce del nombre --"Juego [0100ABC000XXX000].nsp"-- pero
+  // hay volcados que llegan sin el, y sin Title ID la tienda no puede cruzar
+  // el juego con su titledb: la consola lo pinta sin caratula y no encuentra
+  // sus DLC. Esto es el respaldo manual, editable desde el editor de juegos.
+  titleId  String?
+
   igdbId   Int?
   rawgId   Int?
   rawgSlug String?
@@ -140,6 +147,11 @@ model GameDlc {
   fileSize BigInt
   title    String?
   type     String @default("dlc")   // "dlc" | "update" | "mod" | "region"
+
+  // Igual que Game.titleId: respaldo manual para los ficheros cuyo nombre no
+  // trae el Title ID. Sin el, la consola no sabe de que juego es este
+  // complemento y lo acaba escondiendo.
+  titleId  String?
 
   // For type == "region": the region/languages of this alternate edition,
   // parsed from its file name. Lets one game card expose every regional ROM as

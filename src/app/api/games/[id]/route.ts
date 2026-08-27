@@ -24,6 +24,17 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { platform, dlcs, createdAt, id: _id, ...data } = body
 
+  // Title ID: 16 hex o nada. Se normaliza aqui y no en el formulario porque
+  // esto es lo que acaba en la base de datos y de aqui sale el nombre con el
+  // que la tienda sirve el fichero; medio Title ID mal escrito daria una
+  // caratula equivocada, que es peor que ninguna.
+  if ('titleId' in data) {
+    const raw = typeof data.titleId === 'string'
+      ? data.titleId.trim().toUpperCase().replace(/[\[\]\s]/g, '')
+      : ''
+    data.titleId = /^[0-9A-F]{16}$/.test(raw) ? raw : null
+  }
+
   // Null out legacy local cover paths (public/covers/ folder has been removed)
   if (typeof data.coverPath === 'string' && data.coverPath.startsWith('/covers/')) {
     data.coverPath = null
