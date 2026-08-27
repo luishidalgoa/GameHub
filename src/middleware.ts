@@ -26,6 +26,9 @@ const PROTECTED_API_PATTERNS = [
   { method: 'GET',    path: '/api/admin/games/export' }, // games metadata export (JSON/CSV)
   { method: 'GET',    path: '/api/admin/curation' },     // proposed file-name renames
   { method: 'POST',   path: '/api/admin/curation' },     // approve a rename plan
+  // GET tambien: devuelve rutas de fichero de toda la biblioteca, que es
+  // justamente lo que no interesa publicar.
+  { method: 'GET',    path: '/api/admin/library-issues' },
 ]
 
 export async function middleware(req: NextRequest) {
