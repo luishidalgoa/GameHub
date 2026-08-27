@@ -5,6 +5,7 @@ import { formatBytes } from '@/lib/utils'
 import { ScanPanel } from '@/components/admin/ScanPanel'
 import { MetadataBatchPanel } from '@/components/admin/MetadataBatchPanel'
 import { OrphanCoversPanel } from '@/components/admin/OrphanCoversPanel'
+import { LibraryIssuesPanel } from '@/components/admin/LibraryIssuesPanel'
 import { HealthPanel } from '@/components/admin/HealthPanel'
 import { ScanLogsTable } from '@/components/admin/ScanLogsTable'
 import { Gamepad2, Monitor, HardDrive, ImageOff, FileQuestion, StarOff } from 'lucide-react'
@@ -63,6 +64,9 @@ export default async function AdminPage() {
 
       {/* Orphan cover cleanup */}
       <OrphanCoversPanel />
+
+      {/* Integridad de la biblioteca */}
+      <LibraryIssuesPanel />
 
       {/* Recent scan logs */}
       {scanLogs.length > 0 && (
