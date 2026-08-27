@@ -8,6 +8,7 @@ export interface GameDlc {
   fileSize: string
   title: string | null
   type: string   // "dlc" | "update" | "mod" | "region"
+  titleId: string | null
   region: string | null
   languages: string | null
 }
@@ -36,6 +37,9 @@ export interface Game {
   customNotes: string | null
   externalLinks: string | null
   groupKey: string | null
+  /** Title ID de Nintendo (16 hex) puesto a mano cuando el nombre del fichero
+   *  no lo trae. Sin el, la tienda no puede cruzar el juego con su titledb. */
+  titleId: string | null
   igdbId: number | null
   rawgId: number | null
   rawgSlug: string | null

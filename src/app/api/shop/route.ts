@@ -34,7 +34,7 @@ function parseScreenshots(raw: string | null | undefined): string[] {
     return []
   }
 }
-import { isSwitchFile, statSize } from '@/lib/shop-files'
+import { isSwitchFile, shopFileName, statSize } from '@/lib/shop-files'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -49,6 +49,7 @@ export async function GET(req: Request) {
       id:          true,
       filePath:    true,
       fileName:    true,
+      titleId:     true,
       title:       true,
       description: true,
       releaseYear: true,
@@ -64,7 +65,8 @@ export async function GET(req: Request) {
       groupKey:        true,
       screenshotPaths: true,
       dlcs: {
-        select: { id: true, filePath: true, fileName: true, type: true, region: true },
+        select: { id: true, filePath: true, fileName: true, type: true, region: true,
+                  titleId: true },
       },
     },
   })
@@ -82,23 +84,31 @@ export async function GET(req: Request) {
     region:   string | null
   }
 
+  // `fileName` de aqui en adelante es el nombre SERVIDO, no el del disco: si el
+  // del disco no trae el Title ID y la base de datos si lo sabe, se le pega.
+  // De ese segmento de URL sale todo lo demas --la clave del titledb, y por
+  // tanto la caratula-- porque es lo unico que la consola llega a leer.
   const candidates: Candidate[] = []
   for (const g of games) {
     if (isSwitchFile(g.fileName)) {
+      const served = shopFileName(g.fileName, g.titleId)
       candidates.push({
-        url:      `${base}/api/shop/download/${g.id}/${encodeURIComponent(g.fileName)}`,
+        url:      `${base}/api/shop/download/${g.id}/${encodeURIComponent(served)}`,
         filePath: g.filePath,
-        fileName: g.fileName,
+        fileName: served,
         game:     g,
         region:   null,
       })
     }
     for (const d of g.dlcs) {
       if (d.type !== 'region' || !isSwitchFile(d.fileName)) continue
+      // Una edicion regional es un juego base completo: si no trae Title ID
+      // propio hereda el del juego, que es el mismo titulo en otra region.
+      const served = shopFileName(d.fileName, d.titleId ?? g.titleId)
       candidates.push({
-        url:      `${base}/api/shop/download/dlc/${d.id}/${encodeURIComponent(d.fileName)}`,
+        url:      `${base}/api/shop/download/dlc/${d.id}/${encodeURIComponent(served)}`,
         filePath: d.filePath,
-        fileName: d.fileName,
+        fileName: served,
         game:     g,
         region:   d.region,
       })

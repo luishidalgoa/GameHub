@@ -79,6 +79,7 @@ export function GameEditorForm({ game, thumbnailWidth = 200, thumbnailHeight = 3
     languages: game.languages ?? '',
     releaseYear: game.releaseYear ? String(game.releaseYear) : '',
     developer: game.developer ?? '',
+    titleId: game.titleId ?? '',
     publisher: game.publisher ?? '',
     trailerUrl: game.trailerUrl ?? '',
     score: game.rawgScore != null ? String(game.rawgScore) : '',
@@ -294,6 +295,17 @@ export function GameEditorForm({ game, thumbnailWidth = 200, thumbnailHeight = 3
             </Field>
             <Field label={t('fieldDeveloper')} badge={<SourceBadge source={sources.info} />}>
               <input value={form.developer} onChange={(e) => set('developer', e.target.value)} className={inputCls} />
+            </Field>
+            <Field label={t('fieldTitleId')} className="col-span-2">
+              <input
+                value={form.titleId}
+                onChange={(e) => set('titleId', e.target.value)}
+                className={`${inputCls} font-mono`}
+                placeholder={t('fieldTitleIdPlaceholder')}
+                maxLength={18}
+                spellCheck={false}
+              />
+              <p className="mt-1 text-xs text-muted-foreground">{t('fieldTitleIdHint')}</p>
             </Field>
             <Field label={t('fieldPublisher')} className="col-span-2" badge={<SourceBadge source={sources.info} />}>
               <input value={form.publisher} onChange={(e) => set('publisher', e.target.value)} className={inputCls} />
