@@ -63,7 +63,7 @@ export async function GET(
 
   try {
     const upstream = await fetch(upstreamUrl, { cache: 'no-store' })
-    if (!upstream.ok || !upstream.body)
+    if (!upstream.ok)
       return NextResponse.json(
         { error: `Upstream returned ${upstream.status}` },
         { status: upstream.status === 404 ? 404 : 502 },
@@ -73,9 +73,28 @@ export async function GET(
     const type = upstream.headers.get('content-type') ?? ''
     if (!type.startsWith('image/'))
       return NextResponse.json({ error: 'Not an image' }, { status: 502 })
-    return new NextResponse(upstream.body, {
+
+    // Se lee entera y se sirve con Content-Length, en vez de retransmitir el
+    // flujo.
+    //
+    // Reenviando el cuerpo tal cual, la respuesta sale troceada y SIN longitud,
+    // y asi es como la consola dejaba el carrusel en negro: sin ningun error,
+    // ni en el servidor ni en su log. Las portadas, que si se ven, llegan con
+    // longitud. Igualarlo al camino que ya funciona quita la unica diferencia
+    // que quedaba entre unas y otras.
+    //
+    // Cargarla en memoria es asumible: una captura son cientos de kilobytes y
+    // el limite de arriba lo acota; no es un fichero de juego.
+    const bytes = Buffer.from(await upstream.arrayBuffer())
+    if (bytes.byteLength === 0)
+      return NextResponse.json({ error: 'Empty image' }, { status: 502 })
+    return new NextResponse(bytes, {
       status: 200,
-      headers: { 'Content-Type': type, 'Cache-Control': CACHE_CONTROL },
+      headers: {
+        'Content-Type': type,
+        'Content-Length': String(bytes.byteLength),
+        'Cache-Control': CACHE_CONTROL,
+      },
     })
   } catch {
     return NextResponse.json({ error: 'Upstream unreachable' }, { status: 502 })
