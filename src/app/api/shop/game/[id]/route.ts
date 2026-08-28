@@ -18,25 +18,10 @@ import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { guardShopRequest, shopBaseUrl } from '@/lib/shop-auth'
 import { parseScreenshots, shopFileName, statSize } from '@/lib/shop-files'
-import { jpegImageUrl, resolveCoverPath } from '@/lib/cover-url'
+import { jpegImageUrl } from '@/lib/cover-url'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
-
-/**
- * Imagen del servidor, absoluta y en JPEG.
- *
- * Lo de JPEG no es una preferencia: GameHubNX decodifica con stb_image, que no
- * entiende WebP, y las capturas se guardan en .webp. Sin transcodificar, la
- * consola recibe bytes que no sabe pintar y el carrusel sale en blanco sin dar
- * ningun error. Es el mismo tropiezo que ya hubo con los iconos de plataforma.
- */
-function jpegShot(base: string, path: string): string | null {
-  const resolved = resolveCoverPath(path)
-  if (!resolved) return null
-  const absolute = resolved.startsWith('/') ? `${base}${resolved}` : resolved
-  return absolute + (absolute.includes('?') ? '&' : '?') + 'fmt=jpg'
-}
 
 export async function GET(
   req: Request,
@@ -122,9 +107,14 @@ export async function GET(
     .filter((f): f is typeof f & { size: number } =>
       f.size !== null && f.size > 0)
 
+  // Las capturas se sirven SIEMPRE desde este dominio, aunque por dentro sean
+  // externas. GameHubNX solo acepta imagenes de su propio servidor, y muchas
+  // capturas se guardan como URL del proveedor de metadata
+  // (images.launchbox-app.com): tal cual, la consola las rechazaba y la ficha
+  // salia sin ninguna. Las portadas no tenian el problema porque el trabajo de
+  // metadata se las descarga a S3.
   const shots = parseScreenshots(game.screenshotPaths)
-    .map((p) => jpegShot(base, p))
-    .filter((u): u is string => u !== null)
+    .map((_, i) => `${base}/api/shop/game/${game.id}/shot/${i}`)
 
   return NextResponse.json({
     gh_id: game.id,
