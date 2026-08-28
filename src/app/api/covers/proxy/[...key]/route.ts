@@ -75,6 +75,22 @@ export async function GET(
       try {
         const sharp = (await import('sharp')).default
         const jpeg = await sharp(Buffer.from(body))
+          // TRIM ANTES DE APLANAR, y esto arregla las bandas de las rejillas.
+          //
+          // Muchas portadas se guardan sobre un lienzo 2:3 fijo con el arte
+          // centrado y el resto TRANSPARENTE: la de SNES mide 1200x1800 en
+          // fichero pero el arte son 1200x882, con 459 px de nada arriba y
+          // otros tantos abajo. Al aplanar, ese vacio se volvia el color de
+          // fondo y salia como dos franjas negras dentro de cada tarjeta.
+          //
+          // La aplicacion no podia arreglarlo por su cuenta: mide la portada
+          // que recibe, y lo que recibia decia 2:3 aunque el arte fuese
+          // apaisado. Recortando aqui, lo que se sirve ES el arte y todo lo
+          // que hay detras --la rejilla, la ficha, la web-- acierta solo.
+          //
+          // El umbral va alto porque el borde no siempre es transparente puro:
+          // hay portadas con un halo de compresion alrededor.
+          .trim({ threshold: 20 })
           .flatten({ background: '#0a0a0b' })   // WebP puede traer alfa; JPEG no
           // BASELINE, y por eso sin mozjpeg.
           //
