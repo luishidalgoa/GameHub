@@ -14,6 +14,9 @@ import {
 
 // El identificador que se guarda es estable; lo que se ensena al usuario no
 // tiene por que serlo.
+// Las etiquetas de Tinfoil y CyberFoil SE QUEDAN aunque ya no se admitan: hay
+// descargas historicas archivadas con ese cliente, y quitarlas no borraria esas
+// filas, solo las dejaria mostrando el identificador en crudo.
 const CLIENT_LABELS: Record<string, string> = {
   gamehubnx: 'GameHubNX',
   cyberfoil: 'CyberFoil',

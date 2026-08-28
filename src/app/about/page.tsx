@@ -28,7 +28,7 @@ const FEATURES = [
   'Descarga de ROMs con cola y control de tokens',
   'Panel de admin con tráfico y donaciones',
   'Infinite scroll, skeleton covers, lazy loading',
-  'Tienda HTTP compatible con CyberFoil / Tinfoil',
+  'Tienda HTTP para GameHubNX en la consola',
 ]
 
 export default function AboutPage() {
