@@ -27,21 +27,7 @@ import { guardShopRequest, shopBaseUrl } from '@/lib/shop-auth'
 import { extractSwitchTitleId, classifySwitchTitleId } from '@/lib/scanner/titleid'
 import { jpegImageUrl, resolveCoverPath } from '@/lib/cover-url'
 
-/**
- * screenshotPaths is a JSON-encoded string array. A malformed value costs a
- * carousel, never the whole shop index, so parse failures fall back to none.
- */
-function parseScreenshots(raw: string | null | undefined): string[] {
-  if (!raw) return []
-  try {
-    const arr = JSON.parse(raw)
-    if (!Array.isArray(arr)) return []
-    return arr.filter((x: unknown): x is string => typeof x === 'string' && x.length > 0)
-  } catch {
-    return []
-  }
-}
-import { isSwitchFile, shopFileName, statSize } from '@/lib/shop-files'
+import { isSwitchFile, parseScreenshots, shopFileName, statSize } from '@/lib/shop-files'
 
 
 export const dynamic = 'force-dynamic'

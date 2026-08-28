@@ -13,6 +13,25 @@ import fsp from 'fs/promises'
 const SWITCH_EXTS = new Set(['.nsp', '.nsz', '.xci', '.xcz'])
 
 /** True for the container formats a Switch install client can consume. */
+/**
+ * screenshotPaths es un array JSON guardado como texto. Un valor corrupto
+ * cuesta un carrusel, nunca la respuesta entera, asi que un fallo al parsear
+ * se resuelve en "no hay capturas".
+ *
+ * Vive aqui y no en la ruta porque lo necesitan el indice de Switch y el
+ * detalle de un juego, y dos copias acabarian discrepando.
+ */
+export function parseScreenshots(raw: string | null | undefined): string[] {
+  if (!raw) return []
+  try {
+    const arr = JSON.parse(raw)
+    if (!Array.isArray(arr)) return []
+    return arr.filter((x: unknown): x is string => typeof x === 'string' && x.length > 0)
+  } catch {
+    return []
+  }
+}
+
 export function isSwitchFile(fileName: string): boolean {
   const dot = fileName.lastIndexOf('.')
   if (dot < 0) return false
