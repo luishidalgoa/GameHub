@@ -76,12 +76,20 @@ export async function GET(
         const sharp = (await import('sharp')).default
         const jpeg = await sharp(Buffer.from(body))
           .flatten({ background: '#0a0a0b' })   // WebP puede traer alfa; JPEG no
-          // progressive: false NO es un detalle. mozjpeg activa el modo
-          // progresivo por defecto, y GameHubNX decodifica con stb_image, que
-          // solo entiende JPEG BASELINE: un progresivo no da error, se pinta
-          // como rayas de colores. Se veia en la consola en portadas sueltas y
-          // parecia una descarga corrupta.
-          .jpeg({ quality: 82, mozjpeg: true, progressive: false })
+          // BASELINE, y por eso sin mozjpeg.
+          //
+          // GameHubNX decodifica con stb_image, que solo entiende JPEG
+          // baseline: un progresivo no da error, se pinta como rayas de
+          // colores. Se veia en la consola y parecia una descarga corrupta.
+          //
+          // Poner progressive:false junto a mozjpeg NO basta, y es el error que
+          // ya se cometio una vez: el preset de mozjpeg activa optimiseScans, y
+          // eso vuelve a forzar progresivo por encima de la opcion. Comprobado
+          // tras desplegarlo: las portadas seguian saliendo progresivas.
+          //
+          // Se renuncia a mozjpeg a proposito. Cuesta algo de tamano, pero una
+          // portada mas pequena que no se puede pintar no vale nada.
+          .jpeg({ quality: 82, progressive: false })
           .toBuffer()
         return new NextResponse(new Uint8Array(jpeg), {
           headers: {
