@@ -1126,12 +1126,16 @@ export function SettingsForm({ platforms: initial, settings }: Props) {
         </div>
       </div>
 
-      {/* CyberFoil / Tinfoil Shop */}
+      {/* Tienda — la consume GameHubNX */}
       <div className="bg-card border border-border rounded-xl p-6 space-y-4">
         <div>
           <h3 className="font-semibold">{t('shopTitle')}</h3>
           <p className="text-sm text-muted-foreground mt-0.5">{t('shopDesc')}</p>
         </div>
+        {/* La contrasena SE QUEDA aunque Tinfoil y CyberFoil ya no se
+            documenten: es lo unico que protege la biblioteca. Quitar el campo
+            no habria dado de baja nada, habria dejado el ajuste congelado en lo
+            que hubiera y sin forma de cambiarlo. */}
         <div>
           <label className="block text-sm font-medium mb-1.5">{t('shopPassword')}</label>
           <input
@@ -1145,9 +1149,6 @@ export function SettingsForm({ platforms: initial, settings }: Props) {
         </div>
         <div className="text-xs font-mono bg-secondary/60 rounded-lg px-4 py-3 space-y-1.5 text-muted-foreground">
           <p className="font-medium text-foreground text-sm mb-2">{t('shopSetup')}</p>
-          <p>1. {t('shopStep1')}</p>
-          <p>2. {t('shopStep2')}</p>
-          <p>3. {t('shopStep3')}</p>
           <p className="pt-1 text-foreground"><ShopUrl /></p>
         </div>
       </div>
