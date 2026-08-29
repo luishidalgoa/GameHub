@@ -24,7 +24,19 @@ set -euo pipefail
 # domain, change it here once (or override via env) and re-run `apache_setup`:
 #   DOMAIN=gamehub.hdglabs.com ./deploy.sh apache_setup
 DOMAIN="${DOMAIN:-gamehub.hdglabs.com}"
-APP_DIR="${APP_DIR:-$HOME/services/GameHub}"
+
+# El home de QUIEN INVOCA, no el de root.
+#
+# Docker suele necesitar sudo --el usuario no esta siempre en el grupo
+# docker--, y bajo sudo $HOME es /root: el valor por defecto apuntaba a
+# /root/services/GameHub y el script se plantaba con "App directory not found"
+# justo en la maquina donde hace falta sudo. SUDO_USER da el usuario real.
+_deploy_home="$HOME"
+if [ -n "${SUDO_USER:-}" ]; then
+    _sudo_home="$(getent passwd "$SUDO_USER" | cut -d: -f6)"
+    [ -n "$_sudo_home" ] && _deploy_home="$_sudo_home"
+fi
+APP_DIR="${APP_DIR:-$_deploy_home/services/GameHub}"
 
 # ── Colors ────────────────────────────────────────────────────────────────────
 GREEN='\033[0;32m'; YELLOW='\033[1;33m'; RED='\033[0;31m'; NC='\033[0m'
