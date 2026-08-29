@@ -23,7 +23,7 @@ set -euo pipefail
 # (rendered from the __DOMAIN__ templates in apache2/) and certbot. To migrate the
 # domain, change it here once (or override via env) and re-run `apache_setup`:
 #   DOMAIN=gamehub.hdglabs.com ./deploy.sh apache_setup
-DOMAIN="${DOMAIN:-gamehub.luishidalgoa.ddns-ip.net}"
+DOMAIN="${DOMAIN:-gamehub.hdglabs.com}"
 APP_DIR="${APP_DIR:-$HOME/services/GameHub}"
 
 # ── Colors ────────────────────────────────────────────────────────────────────
