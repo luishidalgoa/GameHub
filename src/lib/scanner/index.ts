@@ -81,6 +81,28 @@ function classifyFile(f: FileEntry, switchMode: boolean): FileKind {
  * Merge `srcId` into `dstId`: move its DLC rows over, preserve its own file as
  * an extra (update/dlc) on the destination, then delete the source row.
  */
+// La fila que ya representa a este juego, si la hay.
+//
+// Se busca por ruta y, si no aparece, por groupKey dentro de la plataforma:
+// convertir un volcado cambia la extension pero no el juego, y el groupKey la
+// ignora --sale de cleanTitle(), que recorta cualquier extension--.
+//
+// Sin el segundo intento, "Juego.iso" -> "Juego.chd" se ve como un juego
+// NUEVO: se crea una fila y acto seguido el colapso de duplicados, que si
+// agrupa por groupKey, la fusiona contra la vieja y la borra. El escaneo dice
+// "N anadidos" en cada pasada sin que nada cambie, la fila vieja se queda en
+// el cementerio apuntando a un fichero inexistente, y la descripcion, la
+// caratula y el trailer se pierden.
+//
+// Vive aqui, y no repetida en cada bucle, porque hay CUATRO sitios que crean
+// juegos --sueltos, agrupados por carpeta, recorrido plano-- y arreglar solo
+// algunos fue exactamente el error que hizo falta corregir dos veces.
+async function findExistingGame(platformId: number, filePath: string, groupKey: string) {
+  const byPath = await db.game.findUnique({ where: { filePath } })
+  if (byPath) return byPath
+  return db.game.findFirst({ where: { platformId, groupKey } })
+}
+
 async function reparentAndDelete(srcId: number, dstId: number, switchMode: boolean) {
   const src = await db.game.findUnique({ where: { id: srcId } })
   if (!src || src.id === dstId) return
@@ -318,13 +340,13 @@ export async function runScan(triggeredBy = 'manual', platformSlug?: string) {
           const { region, languages } = tagFields(file.fileName)
           const groupKey = gameGroupKey(file.fileName)
           try {
-            const existing = await db.game.findUnique({ where: { filePath: file.filePath } })
+            const existing = await findExistingGame(platform.id, file.filePath, groupKey)
             if (!existing) {
               await db.game.create({ data: { filePath: file.filePath, fileName: file.fileName, fileSize: file.fileSize, platformId: platform.id, title, sortTitle: toSortTitle(title), region, languages, groupKey, lastSeenAt: scanStart } })
               added++
               emit({ type: 'file_found', filePath: file.filePath, isNew: true, platform: platform.name })
             } else {
-              await db.game.update({ where: { id: existing.id }, data: { fileSize: file.fileSize, region, languages, groupKey, lastSeenAt: scanStart, isHidden: false } })
+              await db.game.update({ where: { id: existing.id }, data: { filePath: file.filePath, fileName: file.fileName, fileSize: file.fileSize, region, languages, groupKey, lastSeenAt: scanStart, isHidden: false } })
               updated++
               emit({ type: 'file_found', filePath: file.filePath, isNew: false, platform: platform.name })
             }
@@ -379,10 +401,7 @@ export async function runScan(triggeredBy = 'manual', platformSlug?: string) {
               // Encontrando la fila por groupKey se ACTUALIZA la que ya existe:
               // adopta el fichero nuevo, deja de estar oculta y conserva todo
               // lo que se habia curado.
-              let existing = await db.game.findUnique({ where: { filePath: file.filePath } })
-              if (!existing) {
-                existing = await db.game.findFirst({ where: { platformId: platform.id, groupKey } })
-              }
+              const existing = await findExistingGame(platform.id, file.filePath, groupKey)
               let gameId: number
               if (!existing) {
                 const game = await db.game.create({ data: { filePath: file.filePath, fileName: file.fileName, fileSize: file.fileSize, platformId: platform.id, title, sortTitle: toSortTitle(title), region, languages, groupKey, lastSeenAt: scanStart } })
@@ -469,13 +488,13 @@ export async function runScan(triggeredBy = 'manual', platformSlug?: string) {
             const { region, languages } = tagFields(file.fileName)
             const groupKey = gameGroupKey(file.fileName)
             try {
-              const existing = await db.game.findUnique({ where: { filePath: file.filePath } })
+              const existing = await findExistingGame(platform.id, file.filePath, groupKey)
               if (!existing) {
                 await db.game.create({ data: { filePath: file.filePath, fileName: file.fileName, fileSize: file.fileSize, platformId: platform.id, title, sortTitle: toSortTitle(title), region, languages, groupKey, lastSeenAt: scanStart } })
                 added++
                 emit({ type: 'file_found', filePath: file.filePath, isNew: true, platform: platform.name })
               } else {
-                await db.game.update({ where: { id: existing.id }, data: { fileSize: file.fileSize, region, languages, groupKey, lastSeenAt: scanStart, isHidden: false } })
+                await db.game.update({ where: { id: existing.id }, data: { filePath: file.filePath, fileName: file.fileName, fileSize: file.fileSize, region, languages, groupKey, lastSeenAt: scanStart, isHidden: false } })
                 updated++
                 emit({ type: 'file_found', filePath: file.filePath, isNew: false, platform: platform.name })
               }
