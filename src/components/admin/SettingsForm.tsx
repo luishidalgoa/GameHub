@@ -234,6 +234,7 @@ export function SettingsForm({ platforms: initial, settings }: Props) {
   const [sgdbKey,       setSgdbKey]       = useState(settings['steamgriddb_key']           ?? '')
   const [youtubeKey,    setYoutubeKey]    = useState(settings['youtube_api_key']           ?? '')
   const [maxDownloads,  setMaxDownloads]  = useState(settings['max_concurrent_downloads'] ?? '1')
+  const [downloadLimit, setDownloadLimit] = useState(settings['download_limit_kib_per_s'] ?? '0')
 
   // Metadata provider matrix (which source supplies each kind of data)
   const [provCover,       setProvCover]       = useState(settings['provider_cover']       ?? 'launchbox')
@@ -369,6 +370,7 @@ export function SettingsForm({ platforms: initial, settings }: Props) {
             provider_screenshots:     provScreenshots,
             app_url:                  appUrl,
             max_concurrent_downloads: maxDownloads,
+            download_limit_kib_per_s: downloadLimit,
             s3_endpoint_interno:      s3Internal,
             s3_endpoint_publico:      s3Public,
             s3_access_key:            s3AccessKey,
@@ -1123,6 +1125,16 @@ export function SettingsForm({ platforms: initial, settings }: Props) {
             className="w-24 bg-secondary border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
           />
           <p className="text-xs text-muted-foreground mt-1.5">{t('maxDownloadsHint')}</p>
+        </div>
+        <div className="mt-5">
+          <label className="block text-sm font-medium mb-1.5">{t('downloadSpeedLimit')}</label>
+          <input
+            type="number" min="0" step="1"
+            value={downloadLimit}
+            onChange={(e) => setDownloadLimit(e.target.value)}
+            className="w-24 bg-secondary border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+          />
+          <p className="text-xs text-muted-foreground mt-1.5">{t('downloadSpeedLimitHint')}</p>
         </div>
       </div>
 

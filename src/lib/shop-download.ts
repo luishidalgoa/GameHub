@@ -9,6 +9,7 @@ import { NextResponse } from 'next/server'
 import fsp from 'fs/promises'
 import path from 'path'
 import { createFileWebStream } from '@/lib/stream'
+import { paceDownloadBody } from '@/lib/download-limit'
 import { contentDispositionAttachment, parseByteRange } from '@/lib/http'
 import { logDownloadComplete, logDownloadStart } from '@/lib/traffic'
 
@@ -72,7 +73,8 @@ export async function serveShopFile(
 
   if (range) {
     const { start, end } = range
-    return new NextResponse(createFileWebStream(target.filePath, { start, end }, { onEnd }), {
+    const body = await paceDownloadBody(req, createFileWebStream(target.filePath, { start, end }, { onEnd }))
+    return new NextResponse(body, {
       status: 206,
       headers: {
         ...baseHeaders,
@@ -82,7 +84,8 @@ export async function serveShopFile(
     })
   }
 
-  return new NextResponse(createFileWebStream(target.filePath, undefined, { onEnd }), {
+  const body = await paceDownloadBody(req, createFileWebStream(target.filePath, undefined, { onEnd }))
+  return new NextResponse(body, {
     status: 200,
     headers: { ...baseHeaders, 'Content-Length': String(fileSize) },
   })

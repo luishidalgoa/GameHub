@@ -231,6 +231,8 @@
     "downloadQueueDesc": "Número máximo de descargas simultáneas permitidas. Los usuarios que superen este límite se colocan en cola.",
     "maxDownloads": "Descargas simultáneas máximas",
     "maxDownloadsHint": "Recomendado: 1–3 para un servidor doméstico.",
+    "downloadSpeedLimit": "Límite de velocidad de descarga (KiB/s)",
+    "downloadSpeedLimitHint": "0 = sin límite. Aplica a las descargas desde la web y a los navegadores; GameHubNX no está limitada.",
     "nginxConfig": "configuración de límite de tasa nginx ↓",
     "browseFolder": "Explorar…",
     "scanDlcLabel": "Detectar Updates y DLCs (Title ID)",

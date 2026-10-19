@@ -6,6 +6,7 @@ import { getEntry, markDownloading, markDone } from '@/lib/download-queue'
 import { logDownloadStart, logDownloadComplete } from '@/lib/traffic'
 import { computeSha256 } from '@/lib/hash'
 import { createFileWebStream } from '@/lib/stream'
+import { paceDownloadBody } from '@/lib/download-limit'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -107,9 +108,9 @@ export async function GET(req: Request, { params }: { params: { gameId: string }
       fileSize: BigInt(chunkSize),
     })
 
-    const readableStream = createFileWebStream(filePath, { start, end }, {
+    const readableStream = await paceDownloadBody(req, createFileWebStream(filePath, { start, end }, {
       onEnd: () => logDownloadComplete(logId),
-    })
+    }))
 
     return new Response(readableStream, {
       status: 206,
@@ -133,7 +134,7 @@ export async function GET(req: Request, { params }: { params: { gameId: string }
     fileSize: BigInt(fileSize),
   })
 
-  const readableStream = createFileWebStream(filePath, undefined, {
+  const readableStream = await paceDownloadBody(req, createFileWebStream(filePath, undefined, {
     // 'close' fires on both successful completion and client abort → always
     // free the queue slot and promote the next waiting download.
     onClose: () => markDone(token),
@@ -146,7 +147,7 @@ export async function GET(req: Request, { params }: { params: { gameId: string }
           .catch(() => {/* non-critical */ })
       }
     },
-  })
+  }))
 
   return new Response(readableStream, {
     headers: {
