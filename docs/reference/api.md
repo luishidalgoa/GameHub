@@ -66,6 +66,7 @@ See [../features/downloads-queue.md](../features/downloads-queue.md).
 |---|---|
 | `GET /api/shop` | Tinfoil index (files + directories + titledb) |
 | `GET /api/shop/dlc` · `GET /api/shop/updates` | Sub-indexes |
+| `GET /api/shop/homebrew` | Repos de GitHub con homebrew (lista para la pestana Homebrew) |
 | `GET /api/shop/download/[id]/[filename]` | Stream base game |
 | `GET /api/shop/download/dlc/[id]/[filename]` | Stream DLC/update |
 
