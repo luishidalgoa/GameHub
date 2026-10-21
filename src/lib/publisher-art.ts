@@ -146,7 +146,9 @@ async function normalizeLogo(raw: Buffer): Promise<{ png: Buffer; plain: boolean
   // A logo that fills most of its box (a red badge with white letters) would be a
   // solid white block as a silhouette, so it is shown in its own colors.
   const { channels } = await sharp(png).ensureAlpha().stats()
-  return { png, plain: channels[3].mean / 255 > 0.6 }
+  // A fully opaque image has no alpha channel in the stats at all.
+  const opaque = channels[3] ? channels[3].mean / 255 : 1
+  return { png, plain: opaque > 0.6 }
 }
 
 /**
