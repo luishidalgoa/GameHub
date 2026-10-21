@@ -19,6 +19,27 @@ export function GridTile({ group }: { group: GameGroup }) {
 
   return (
     <Link href={`/game/${game.id}`} {...hover}
+          className="group mb-4 block break-inside-avoid overflow-hidden rounded-xl border border-white/10 bg-white/[0.06] shadow-[0_18px_36px_-18px_rgba(0,0,0,0.85)] backdrop-blur-xl outline-none transition-[transform,border-color] duration-500 hover:-translate-y-1 hover:border-white/25 focus-visible:ring-2 focus-visible:ring-white/70">
+      {/* The art fills its frame edge to edge; the glass card around it holds the title. */}
+      <div className="relative w-full overflow-hidden bg-black/30" style={{ aspectRatio: String(game.coverRatio) }}>
+        {art ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={art} alt="" loading="lazy" decoding="async"
+               className="absolute inset-0 h-full w-full object-cover transition-transform duration-700 group-hover:scale-[1.03]" />
+        ) : (
+          <div className="absolute inset-0 grid place-items-center p-4 text-center text-sm text-white/40">{game.title}</div>
+        )}
+      </div>
+
+      <div className="px-3.5 py-3">
+        <p className="line-clamp-2 text-[15px] font-semibold leading-snug">{game.title}</p>
+        <p className="mt-1 line-clamp-1 text-xs text-white/55">
+          {names}{game.year ? ` · ${game.year}` : ''}
+        </p>
+      </div>
+    </Link>
+  )
+}
           className="group mb-4 block break-inside-avoid outline-none focus-visible:ring-2 focus-visible:ring-white/70">
       <div className="relative w-full overflow-hidden rounded-[3px] bg-white/[0.04] shadow-[0_16px_30px_-14px_rgba(0,0,0,0.8)] transition-transform duration-500 group-hover:-translate-y-1"
            style={{ aspectRatio: String(game.coverRatio) }}>
