@@ -38,7 +38,7 @@ export const RAWG_PLATFORM_SLUGS: Record<string, string> = {
  * Strip ROM-naming artifacts before sending to RAWG.
  * Handles Switch TitleIDs in [], region codes (USA/EUR/JPN), Rev markers, etc.
  */
-export function cleanTitle(raw: string): string {
+export function searchTitle(raw: string): string {
   return raw
     .replace(/\[[^\]]*\]/g, '')
     .replace(
@@ -91,7 +91,7 @@ export class RawgProvider implements MetadataProvider {
   }
 
   async search(title: string, _platform: string, overrideQuery?: string): Promise<MetadataResult[]> {
-    const query = overrideQuery ?? cleanTitle(title)
+    const query = overrideQuery ?? searchTitle(title)
     return this._doSearch(query)
   }
 

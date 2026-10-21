@@ -13,7 +13,7 @@
  */
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { cleanTitle } from '@/lib/utils'
+import { fileToTitle } from '@/lib/utils'
 import { extractSwitchTitleId, classifySwitchTitleId } from '@/lib/scanner/titleid'
 import { serializeBigInt } from '@/lib/serialize'
 
@@ -71,7 +71,7 @@ export async function POST(req: Request) {
             filePath: src.filePath,
             fileName: src.fileName,
             fileSize: src.fileSize,
-            title:    src.title ?? cleanTitle(src.fileName),
+            title:    src.title ?? fileToTitle(src.fileName),
             type:     kind === 'base' ? 'update' : kind,
           },
         }).catch(() => {})

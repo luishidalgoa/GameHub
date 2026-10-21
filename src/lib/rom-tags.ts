@@ -15,7 +15,7 @@
  *    are No-Intro language codes ((En)/(Es)…). They never collide.
  */
 
-import { cleanTitle } from '@/lib/utils'
+import { fileToTitle } from '@/lib/utils'
 
 // ── Canonical region codes (kept compatible with the values already stored in
 //    the DB: USA / EUR / JPN / World / ESP) ─────────────────────────────────────
@@ -193,12 +193,12 @@ export function languagesFromCsv(csv: string | null | undefined): string[] {
 /**
  * Stable grouping key for unifying region/revision/disc variants of the SAME
  * game into one card. The normalized title already drops everything inside
- * parentheses (region, languages, disc, revision) via {@link cleanTitle}, so
+ * parentheses (region, languages, disc, revision) via {@link fileToTitle}, so
  * those collapse together. We DELIBERATELY keep demo/beta/proto builds apart by
  * appending a variant suffix, so a prototype never merges with the retail game.
  */
 export function gameGroupKey(fileName: string): string {
-  const base = cleanTitle(fileName).toLowerCase().replace(/[^a-z0-9]+/g, '')
+  const base = fileToTitle(fileName).toLowerCase().replace(/[^a-z0-9]+/g, '')
   // Only inspect bracketed/parenthesised tags so a title word can't false-trip.
   const tags = (fileName.match(/[([][^)\]]*[)\]]/g) ?? []).join(' ').toLowerCase()
   const variants: string[] = []

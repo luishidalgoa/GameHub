@@ -1,4 +1,4 @@
-import { cleanTitle } from './rawg'
+import { searchTitle } from './rawg'
 import { fetchHtmlWithRetry, type HtmlFetchPolicy } from './http'
 
 // Metacritic scraper — used ONLY as a fallback for the game score when RAWG
@@ -63,7 +63,7 @@ function mcFetch(url: string): Promise<string> {
 
 /** Build candidate Metacritic URL slugs from a (DB) game title. */
 export function metacriticSlugs(title: string): string[] {
-  const cleaned = cleanTitle(title)
+  const cleaned = searchTitle(title)
   const norm = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
   // base: apostrophes become hyphens too (kirby-s-epic-yarn)
   const base = norm(cleaned).replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')

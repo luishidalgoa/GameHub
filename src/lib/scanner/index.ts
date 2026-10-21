@@ -2,7 +2,7 @@ import path from 'path'
 import fs from 'fs'
 import fsp from 'fs/promises'
 import { db } from '@/lib/db'
-import { cleanTitle, toSortTitle } from '@/lib/utils'
+import { fileToTitle, toSortTitle } from '@/lib/utils'
 import { parseRomTags, languagesToCsv, gameGroupKey } from '@/lib/rom-tags'
 import { walkDirectory, scanSwitchFolders, scanPortsFolders, walkFlatWithDlcDetection, extractGameKey } from './walker'
 import type { SwitchGameFolder, FileEntry } from './walker'
@@ -85,7 +85,7 @@ function classifyFile(f: FileEntry, switchMode: boolean): FileKind {
 //
 // Se busca por ruta y, si no aparece, por groupKey dentro de la plataforma:
 // convertir un volcado cambia la extension pero no el juego, y el groupKey la
-// ignora --sale de cleanTitle(), que recorta cualquier extension--.
+// ignora --sale de fileToTitle(), que recorta cualquier extension--.
 //
 // Sin el segundo intento, "Juego.iso" -> "Juego.chd" se ve como un juego
 // NUEVO: se crea una fila y acto seguido el colapso de duplicados, que si
@@ -121,7 +121,7 @@ async function reparentAndDelete(srcId: number, dstId: number, switchMode: boole
         if (kind !== 'base') {
           const tags = kind === 'region' ? tagFields(src.fileName) : { region: null, languages: null }
           await db.gameDlc.create({
-            data: { gameId: dstId, filePath: src.filePath, fileName: src.fileName, fileSize: src.fileSize, title: tags.region ?? cleanTitle(src.fileName), type: kind, region: tags.region, languages: tags.languages },
+            data: { gameId: dstId, filePath: src.filePath, fileName: src.fileName, fileSize: src.fileSize, title: tags.region ?? fileToTitle(src.fileName), type: kind, region: tags.region, languages: tags.languages },
           }).catch(() => {})
         }
       }
@@ -208,7 +208,7 @@ async function processFolderGroups(
       const extras = files.filter(f => f !== base)
 
       const titleFolder = groupFolders.find(f => f.baseFile && f.baseFile.filePath === base?.filePath) ?? groupFolders[0]
-      const title  = cleanTitle(titleFolder.folderName)
+      const title  = fileToTitle(titleFolder.folderName)
       // Region/languages: prefer the base ROM's own name (carries the (En,Es…)
       // tags); fall back to the folder name.
       const { region, languages } = tagFields(base?.fileName ?? titleFolder.folderName)
@@ -257,7 +257,7 @@ async function processFolderGroups(
         await db.gameDlc.upsert({
           where:  { filePath: e.filePath },
           update: { gameId: canonical.id, fileSize: e.fileSize, type: etype, region: etags.region, languages: etags.languages },
-          create: { gameId: canonical.id, filePath: e.filePath, fileName: e.fileName, fileSize: e.fileSize, title: etags.region ?? cleanTitle(e.fileName), type: etype, region: etags.region, languages: etags.languages },
+          create: { gameId: canonical.id, filePath: e.filePath, fileName: e.fileName, fileSize: e.fileSize, title: etags.region ?? fileToTitle(e.fileName), type: etype, region: etags.region, languages: etags.languages },
         }).catch(err => errors.push(`Error linking ${e.filePath}: ${err}`))
         if (etype === 'mod') res.modsFound++
         else if (etype === 'update') res.updatesFound++
@@ -366,7 +366,7 @@ export async function runScan(triggeredBy = 'manual', platformSlug?: string) {
             await db.game.update({ where: { id: prevLoose.id }, data: { lastSeenAt: scanStart } }).catch(() => {})
             continue
           }
-          const title  = cleanTitle(path.basename(file.fileName, path.extname(file.fileName)))
+          const title  = fileToTitle(path.basename(file.fileName, path.extname(file.fileName)))
           const { region, languages } = tagFields(file.fileName)
           const groupKey = gameGroupKey(file.fileName)
           try {
@@ -418,7 +418,7 @@ export async function runScan(triggeredBy = 'manual', platformSlug?: string) {
               await db.game.update({ where: { id: prevBase.id }, data: { lastSeenAt: scanStart } }).catch(() => {})
               continue
             }
-            const title  = cleanTitle(file.fileName)
+            const title  = fileToTitle(file.fileName)
             const { region, languages } = tagFields(file.fileName)
             const groupKey = gameGroupKey(file.fileName)
             try {
@@ -504,7 +504,7 @@ export async function runScan(triggeredBy = 'manual', platformSlug?: string) {
               await db.gameDlc.upsert({
                 where:  { filePath: dlc.filePath },
                 update: { fileSize: dlc.fileSize, type: dlc.type ?? 'update' },
-                create: { gameId, filePath: dlc.filePath, fileName: dlc.fileName, fileSize: dlc.fileSize, title: cleanTitle(dlc.fileName), type: dlc.type ?? 'update' },
+                create: { gameId, filePath: dlc.filePath, fileName: dlc.fileName, fileSize: dlc.fileSize, title: fileToTitle(dlc.fileName), type: dlc.type ?? 'update' },
               })
             } catch (err) { errors.push(`Error linking DLC ${dlc.filePath}: ${err}`) }
           }
@@ -520,7 +520,7 @@ export async function runScan(triggeredBy = 'manual', platformSlug?: string) {
           }
           for (const file of walkDirectory(scanPath, extensions)) {
             found++
-            const title  = cleanTitle(file.fileName)
+            const title  = fileToTitle(file.fileName)
             const { region, languages } = tagFields(file.fileName)
             const groupKey = gameGroupKey(file.fileName)
             try {
