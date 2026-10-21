@@ -1,5 +1,6 @@
 import { getTranslations } from 'next-intl/server'
 import { db } from '@/lib/db'
+import { libraryGameWhere } from '@/lib/library'
 import { resolveCoverPath } from '@/lib/s3'
 import { ConsoleGrid } from '@/components/home/ConsoleGrid'
 import { RecentStrip } from '@/components/home/RecentStrip'
@@ -34,7 +35,7 @@ export default async function HomePage() {
       include: { _count: { select: { games: { where: { isHidden: false } } } } },
     }),
     db.game.findMany({
-      where:   { isHidden: false },
+      where:   libraryGameWhere(),
       orderBy: { createdAt: 'desc' },
       take:    16,
       select: {

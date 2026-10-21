@@ -26,12 +26,16 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
 }
 
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
+  const denied = await adminGuard()
+  if (denied) return denied
+
   const id = parseInt(params.id, 10)
   const body = await req.json()
 
-  // Strip read-only / relational fields before update
+  // Identity and bookkeeping are the scanner's, not the editor's: a PATCH that
+  // could rewrite filePath would point a game at any file on disk.
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const { platform, dlcs, createdAt, id: _id, ...data } = body
+  const { platform, dlcs, createdAt, id: _id, platformId, filePath, fileName, fileSize, groupKey, lastSeenAt, sha256, ...data } = body
   if (typeof data.isHidden === 'boolean') data.userHidden = data.isHidden
 
   // Title ID: 16 hex o nada. Se normaliza aqui y no en el formulario porque

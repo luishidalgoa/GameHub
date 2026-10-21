@@ -23,6 +23,7 @@
  */
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { libraryGameWhere } from '@/lib/library'
 import { guardShopRequest, shopBaseUrl } from '@/lib/shop-auth'
 import { extractSwitchTitleId, classifySwitchTitleId } from '@/lib/scanner/titleid'
 import { jpegImageUrl, resolveCoverPath } from '@/lib/cover-url'
@@ -38,7 +39,7 @@ export async function GET(req: Request) {
   if (denied) return denied
 
   const games = await db.game.findMany({
-    where: { isHidden: false },
+    where: libraryGameWhere(),
     select: {
       id:          true,
       filePath:    true,

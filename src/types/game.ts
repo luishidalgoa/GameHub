@@ -40,7 +40,6 @@ export interface Game {
   /** Title ID de Nintendo (16 hex) puesto a mano cuando el nombre del fichero
    *  no lo trae. Sin el, la tienda no puede cruzar el juego con su titledb. */
   titleId: string | null
-  igdbId: number | null
   rawgId: number | null
   rawgSlug: string | null
   rawgAdded: number | null
@@ -50,8 +49,6 @@ export interface Game {
   scoreSource: string | null
   isFavorite: boolean
   isHidden: boolean
-  playCount: number
-  lastPlayedAt: Date | string | null
   lastSeenAt: Date | string
   metadataFetchedAt: Date | string | null
   dlcs?: GameDlc[]

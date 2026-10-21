@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { libraryGameWhere } from '@/lib/library'
 import { resolveCoverPath } from '@/lib/s3'
 
 export const dynamic = 'force-dynamic'
@@ -10,7 +11,7 @@ export async function GET(req: Request) {
   const [games, platforms] = await Promise.all([
     q.length > 0
       ? db.game.findMany({
-          where: { isHidden: false, title: { contains: q } },
+          where: { ...libraryGameWhere(), title: { contains: q } },
           orderBy: { sortTitle: 'asc' },
           take: 8,
           select: {

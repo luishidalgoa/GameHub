@@ -1,3 +1,4 @@
+import { adminGuard } from '@/lib/admin-guard'
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { isAdminSession } from '@/lib/auth'
@@ -26,11 +27,23 @@ export async function GET() {
 }
 
 export async function PUT(req: Request) {
+  const denied = await adminGuard()
+  if (denied) return denied
+
   let body: Record<string, string>
   try {
     body = await req.json()
   } catch {
     return NextResponse.json({ error: 'Cuerpo de la petición inválido' }, { status: 400 })
+  }
+
+  // Setting names are lowercase words; a value is always text. Anything else is
+  // a malformed request, and it is refused before any row is written.
+  const badEntry = Object.entries(body).find(([key, value]) =>
+    !/^[a-z0-9_]{1,64}$/.test(key) || typeof value !== 'string' || value.length > 10_000,
+  )
+  if (badEntry) {
+    return NextResponse.json({ error: `Ajuste no válido: ${badEntry[0]}` }, { status: 400 })
   }
 
   try {

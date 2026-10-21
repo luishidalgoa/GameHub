@@ -38,7 +38,6 @@ const FIELDS = [
   'fileSizeBytes',
   'hasCover',
   'isFavorite',
-  'playCount',
   'createdAt',
 ] as const
 
@@ -63,7 +62,6 @@ function toRow(g: GameWithPlatform): Record<(typeof FIELDS)[number], string | nu
     fileSizeBytes: g.fileSize.toString(), // BigInt → string (JSON can't serialize BigInt)
     hasCover: Boolean(g.coverPath || g.coverUrl),
     isFavorite: g.isFavorite,
-    playCount: g.playCount,
     createdAt: g.createdAt.toISOString(),
   }
 }

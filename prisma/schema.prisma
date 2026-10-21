@@ -91,7 +91,6 @@ model Game {
   // sus DLC. Esto es el respaldo manual, editable desde el editor de juegos.
   titleId  String?
 
-  igdbId   Int?
   rawgId   Int?
   rawgSlug String?
   launchboxId Int?
@@ -102,7 +101,6 @@ model Game {
   // already fetched, so the 'popularity' batch mode skips it (unless redo).
   rawgAdded           Int?       // # users who own/added it — primary signal for retro
   rawgRating          Float?     // RAWG rating 0–5
-  rawgRatingsCount    Int?       // confidence (vote count)
   rawgMetacritic      Int?       // 0–100, often NULL for retro titles
   // Unified 0–100 score so badge/filter/sort use ONE scale: metacritic when
   // present, else the user rating mapped ×20 (4.1★ → 82). Stored (not derived)
@@ -117,8 +115,6 @@ model Game {
   isFavorite   Boolean   @default(false)
   isHidden     Boolean   @default(false)
   userHidden   Boolean   @default(false)
-  playCount    Int       @default(0)
-  lastPlayedAt DateTime?
 
   sha256            String?
 
@@ -192,7 +188,6 @@ model RequestLog {
   userAgent  String?
   device     String?
   browser    String?
-  referer    String?
   bytes      Int      @default(0)
   durationMs Int?
   ts         DateTime @default(now())

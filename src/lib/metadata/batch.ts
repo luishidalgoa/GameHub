@@ -273,7 +273,6 @@ export async function runMetadataBatch(opts: {
           data: {
             rawgAdded:           m.added,
             rawgRating:          m.rating,
-            rawgRatingsCount:    m.ratingsCount,
             ...(keepScore ? {} : { rawgMetacritic: metacritic, rawgScore: score, scoreSource: source }),
             popularityFetchedAt: new Date(),
           },

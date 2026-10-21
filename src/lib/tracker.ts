@@ -225,7 +225,6 @@ export async function trackRequest(opts: {
 }) {
   const ip = getClientIp(opts.req)
   const ua = (opts.req.headers as unknown as { get: (k: string) => string | null }).get('user-agent') ?? ''
-  const referer = (opts.req.headers as unknown as { get: (k: string) => string | null }).get('referer') ?? null
 
   // Fire-and-forget geo lookup (async, don't block response)
   getGeo(ip).catch(() => {})
@@ -240,7 +239,6 @@ export async function trackRequest(opts: {
       userAgent: ua || null,
       device: detectDevice(ua),
       browser: detectBrowser(ua),
-      referer,
       bytes: opts.bytes ?? 0,
       durationMs: opts.durationMs,
     },

@@ -13,8 +13,10 @@ export async function GET(req: Request) {
   const search = searchParams.get('search') ?? ''
   const sort = searchParams.get('sort') ?? 'title'
   const favorites = searchParams.get('favorites') === 'true'
-  const page = parseInt(searchParams.get('page') ?? '1', 10)
-  const pageSize = parseInt(searchParams.get('pageSize') ?? '100', 10)
+  // NaN and out-of-range values fall back to the defaults or the limits: a bad
+  // ?pageSize=1e9 must not load the whole library in one response.
+  const page = Math.max(1, Number.parseInt(searchParams.get('page') ?? '1', 10) || 1)
+  const pageSize = Math.min(200, Math.max(1, Number.parseInt(searchParams.get('pageSize') ?? '100', 10) || 100))
 
   const region = searchParams.get('region') ?? ''
   const genre = searchParams.get('genre') ?? ''
