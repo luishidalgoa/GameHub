@@ -370,6 +370,7 @@ export async function runMetadataBatch(opts: {
         title:        game.title,
         platformSlug: game.platform.slug,
         fileName:     game.fileName,
+        launchboxId:  game.launchboxId,
         matrix:       await matrixFor(game.platform.slug),
         rawgApiKey:   apiKey,
         threshold:    AUTO_THRESHOLD,

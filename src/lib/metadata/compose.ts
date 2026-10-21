@@ -58,6 +58,8 @@ export interface GatherInput {
    *  which of a game's boxes is the right one. Optional — without it that
    *  source simply finds nothing and the chain falls through. */
   fileName?: string
+  /** LaunchBox id saved from an earlier pick: fetched directly, no title search. */
+  launchboxId?: number | null
   matrix: ProviderMatrix
   rawgApiKey?: string
   /** Minimum confidence for the primary match to be accepted. */
@@ -74,7 +76,7 @@ const sleep = (ms: number) => new Promise(r => setTimeout(r, ms))
  * a confident-enough match for the fields that need a game match.
  */
 export async function gatherMetadata(input: GatherInput): Promise<ComposedMetadata | null> {
-  const { title, platformSlug, fileName, matrix, rawgApiKey, threshold = AUTO_THRESHOLD, paceMs = 600 } = input
+  const { title, platformSlug, fileName, launchboxId, matrix, rawgApiKey, threshold = AUTO_THRESHOLD, paceMs = 600 } = input
 
   const needsLaunchBox =
     matrix.cover === 'launchbox' || matrix.info === 'launchbox' ||
@@ -89,21 +91,26 @@ export async function gatherMetadata(input: GatherInput): Promise<ComposedMetada
   if (needsLaunchBox) {
     try {
       const provider = await getLaunchBoxProvider(platformSlug)
-      const lbPlatformName = await getLaunchBoxPlatformName(platformSlug)
-      const expected = (lbPlatformName ?? LAUNCHBOX_PLATFORM_NAMES[platformSlug] ?? '').toLowerCase()
-      const results = await provider.search(title, platformSlug)
-      const match = bestMatch(title, results, r =>
-        calcTitleConfidence(
-          title,
-          r.title,
-          Boolean(expected) && (r.platformName ?? '').toLowerCase() === expected,
-        ),
-      )
-      if (match && match.confidence >= threshold) {
-        lbConfidence = match.confidence
-        await sleep(paceMs)   // pace the detail fetch after the search (rate-limit)
-        const detail = await provider.fetchById(match.result.id)
-        lb = (detail as LaunchBoxGame) ?? null
+      if (launchboxId) {
+        lb = (await provider.fetchById(launchboxId)) as LaunchBoxGame | null
+        lbConfidence = lb ? 100 : 0
+      } else {
+        const lbPlatformName = await getLaunchBoxPlatformName(platformSlug)
+        const expected = (lbPlatformName ?? LAUNCHBOX_PLATFORM_NAMES[platformSlug] ?? '').toLowerCase()
+        const results = await provider.search(title, platformSlug)
+        const match = bestMatch(title, results, r =>
+          calcTitleConfidence(
+            title,
+            r.title,
+            Boolean(expected) && (r.platformName ?? '').toLowerCase() === expected,
+          ),
+        )
+        if (match && match.confidence >= threshold) {
+          lbConfidence = match.confidence
+          await sleep(paceMs)   // pace the detail fetch after the search (rate-limit)
+          const detail = await provider.fetchById(match.result.id)
+          lb = (detail as LaunchBoxGame) ?? null
+        }
       }
     } catch { /* LaunchBox failures are non-fatal — fall back to RAWG */ }
   }
