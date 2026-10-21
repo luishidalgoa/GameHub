@@ -6,7 +6,7 @@
  */
 import { NextResponse } from 'next/server'
 import { db }           from '@/lib/db'
-import { enqueue }      from '@/lib/download-queue'
+import { enqueue, QueueFullError, MAX_WAITING } from '@/lib/download-queue'
 import { serializeBigInt } from '@/lib/serialize'
 
 type DlcType = 'dlc' | 'update' | 'mod'
@@ -38,6 +38,16 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'No files found' }, { status: 404 })
     }
 
+    // Check room for the whole batch first: a 429 halfway would leave tokens the
+    // client never receives.
+    const waiting = await db.downloadToken.count({ where: { status: 'waiting' } })
+    if (waiting + dlcs.length > MAX_WAITING) {
+      return NextResponse.json(
+        { error: 'La cola de espera no tiene sitio para todo el lote. Inténtalo más tarde.' },
+        { status: 429 },
+      )
+    }
+
     const items = []
     for (const dlc of dlcs) {
       const entry = await enqueue(Number(gameId), dlc.id)
@@ -53,6 +63,9 @@ export async function POST(req: Request) {
 
     return NextResponse.json(serializeBigInt({ items }))
   } catch (err) {
+    if (err instanceof QueueFullError) {
+      return NextResponse.json({ error: err.message }, { status: 429 })
+    }
     console.error('[POST /api/queue/bulk] enqueue failed:', err)
     const detail = err instanceof Error ? err.message : 'error desconocido'
     return NextResponse.json(

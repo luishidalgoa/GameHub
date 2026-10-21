@@ -1,7 +1,16 @@
 import { NextResponse } from 'next/server'
-import { getEntry }    from '@/lib/download-queue'
+import { getEntry, cancelWaiting } from '@/lib/download-queue'
 
 export const dynamic = 'force-dynamic'
+
+// DELETE /api/queue/[token] → leave the queue. Only a token still waiting can be cancelled.
+export async function DELETE(_req: Request, { params }: { params: { token: string } }) {
+  const cancelled = await cancelWaiting(params.token)
+  if (!cancelled) {
+    return NextResponse.json({ error: 'Token not waiting or not found' }, { status: 409 })
+  }
+  return NextResponse.json({ ok: true })
+}
 
 // GET /api/queue/[token]  → poll status; resolves redirectUrl when ready
 export async function GET(_req: Request, { params }: { params: { token: string } }) {

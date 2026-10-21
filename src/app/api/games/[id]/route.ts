@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { serializeBigInt } from '@/lib/serialize'
 import { resolveCoverPath } from '@/lib/s3'
 import { isAdminSession } from '@/lib/auth'
+import { adminGuard } from '@/lib/admin-guard'
 
 export const dynamic = 'force-dynamic'
 
@@ -53,7 +54,17 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 }
 
 export async function DELETE(_req: Request, { params }: { params: { id: string } }) {
+  const denied = await adminGuard()
+  if (denied) return denied
+
   const id = parseInt(params.id, 10)
+  const downloads = await db.downloadLog.count({ where: { gameId: id } })
+  if (downloads > 0) {
+    return NextResponse.json(
+      { error: 'El juego tiene historial de descargas. Ocúltalo en lugar de borrarlo.' },
+      { status: 409 },
+    )
+  }
   await db.game.delete({ where: { id } })
   return NextResponse.json({ ok: true })
 }

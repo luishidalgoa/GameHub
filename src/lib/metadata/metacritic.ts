@@ -125,18 +125,20 @@ function findMetascore(node: unknown): number | null {
 
 /**
  * Fetch a game's Metacritic metascore (0–100) by title, preferring the precise
- * per-platform URL and falling back to the generic one. Returns null when no
+ * per-platform URL (the generic one only when the platform is unknown). Returns null when no
  * confident match is found. Paces requests politely.
  */
 export async function fetchMetacriticScore(title: string, platformSlug?: string): Promise<number | null> {
   const slugs = metacriticSlugs(title)
   if (slugs.length === 0) return null
 
+  // With a known platform, the generic URL can point at another version of the
+  // game, so only the platform-specific page is accepted.
   const mcPlatform = platformSlug ? METACRITIC_PLATFORM_SLUGS[platformSlug] : undefined
   const urls: string[] = []
   for (const slug of slugs) {
     if (mcPlatform) urls.push(`${MC_SITE}/game/${mcPlatform}/${slug}/`)
-    urls.push(`${MC_SITE}/game/${slug}/`)
+    else urls.push(`${MC_SITE}/game/${slug}/`)
   }
 
   for (let i = 0; i < urls.length; i++) {

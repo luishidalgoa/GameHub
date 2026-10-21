@@ -1,5 +1,6 @@
 import { db } from './db'
 import { resolveClientIp } from './net'
+import { maybePruneLogs } from './retention'
 
 // ── Client detection ──────────────────────────────────────────────────────────
 
@@ -228,6 +229,7 @@ export async function trackRequest(opts: {
 
   // Fire-and-forget geo lookup (async, don't block response)
   getGeo(ip).catch(() => {})
+  maybePruneLogs()
 
   await db.requestLog.create({
     data: {

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { serializeBigInt } from '@/lib/serialize'
 
 export const dynamic = 'force-dynamic'
 
@@ -143,7 +144,7 @@ export async function POST(req: Request) {
         db.downloadLog.deleteMany({ where: { gameId: graveyardId } }),
         db.game.delete({ where: { id: graveyardId } }),
       ])
-      return NextResponse.json({ success: true, updated })
+      return NextResponse.json(serializeBigInt({ success: true, updated }))
     } catch (error) {
       return NextResponse.json({ error: String(error) }, { status: 500 })
     }

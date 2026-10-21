@@ -1,5 +1,6 @@
 import type { MetadataProvider, MetadataResult } from './provider'
 import { cleanTitle } from './rawg'
+import { AUTO_THRESHOLD, calcTitleConfidence } from './scoring'
 import { db } from '@/lib/db'
 
 // LaunchBox Games Database — no API key, no browser/GUI required. Everything is
@@ -483,12 +484,13 @@ export async function fetchLaunchBoxRating(title: string, platformSlug: string):
   const candidates = await searchLaunchBox(platformName, title)
   if (candidates.length === 0) return null
 
-  // Prefer an exact (normalized) title match; otherwise take the first result
-  // (search already filters to the platform, so the top hit is usually right).
-  const want = title.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
-  const best =
-    candidates.find(c => c.title.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim() === want)
-    ?? candidates[0]
+  // Search is already limited to the platform, so the title decides. A candidate
+  // below the auto threshold is not a match, and its rating is not stored.
+  const best = candidates
+    .map(c => ({ c, score: calcTitleConfidence(title, c.title, true) }))
+    .filter(x => x.score >= AUTO_THRESHOLD)
+    .sort((a, b) => b.score - a.score)[0]?.c
+  if (!best) return null
 
   const raw = await lbFetch(`${LB_SITE}/games/details/${best.id}/_payload.json`)
   const parsed = parseLaunchBoxPayloadRating(raw)

@@ -16,6 +16,7 @@ export interface QueueEntry {
 
 const TOKEN_TTL_MS = 15 * 60_000  // 15 min ready window
 const STALE_MS     = 30 * 60_000  // remove done/expired after 30 min
+const STUCK_DOWNLOAD_MS = 12 * 60 * 60_000  // free the slot of a downloading token that never finished
 
 function generateToken(): string {
   return randomBytes(24).toString('base64url')
@@ -59,6 +60,13 @@ async function pruneStale(): Promise<void> {
     where: { status: 'ready', expiresAt: { lt: now } },
     data:  { status: 'expired' },
   })
+
+  // A downloading token whose connection died never gets markDone, and would
+  // hold a slot forever. No real transfer lasts this long.
+  await db.downloadToken.updateMany({
+    where: { status: 'downloading', createdAt: { lt: now - BigInt(STUCK_DOWNLOAD_MS) } },
+    data:  { status: 'expired' },
+  })
 }
 
 async function recomputePositions(): Promise<void> {
@@ -99,11 +107,16 @@ async function promoteNext(): Promise<void> {
 
 // ── Public API ────────────────────────────────────────────────────────────────
 
+export const MAX_WAITING = 200
+
+export class QueueFullError extends Error {}
+
 export async function enqueue(gameId: number, dlcId?: number): Promise<QueueEntry> {
   await pruneStale()
 
   const token        = generateToken()
   const waitingCount = await db.downloadToken.count({ where: { status: 'waiting' } })
+  if (waitingCount >= MAX_WAITING) throw new QueueFullError('La cola de espera está llena. Inténtalo más tarde.')
 
   await db.downloadToken.create({
     data: {
@@ -120,6 +133,14 @@ export async function enqueue(gameId: number, dlcId?: number): Promise<QueueEntr
 
   const updated = await db.downloadToken.findUnique({ where: { token } })
   return toEntry(updated!)
+}
+
+export async function cancelWaiting(token: string): Promise<boolean> {
+  const row = await db.downloadToken.findUnique({ where: { token } })
+  if (!row || row.status !== 'waiting') return false
+  await db.downloadToken.delete({ where: { token } })
+  await recomputePositions()
+  return true
 }
 
 export async function getEntry(token: string): Promise<QueueEntry | null> {

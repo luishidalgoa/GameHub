@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { enqueue } from '@/lib/download-queue'
+import { enqueue, QueueFullError } from '@/lib/download-queue'
 import { db } from '@/lib/db'
 
 export async function POST(req: Request) {
@@ -29,6 +29,9 @@ export async function POST(req: Request) {
       position: entry.position,
     })
   } catch (err) {
+    if (err instanceof QueueFullError) {
+      return NextResponse.json({ error: err.message }, { status: 429 })
+    }
     // Without this the route returned an opaque 500 → the client only saw the
     // generic "Failed to queue download". Surface the real cause (and log it).
     console.error('[POST /api/queue] enqueue failed:', err)
