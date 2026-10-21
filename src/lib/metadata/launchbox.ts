@@ -310,10 +310,16 @@ export async function searchLaunchBox(
 
 // ── Detail ──────────────────────────────────────────────────────────────────
 export interface LaunchBoxImage {
+  /** The original image when the page declares it; otherwise the page's thumbnail. */
   url: string
   /** e.g. "Box - Front", "Screenshot - Gameplay", "Box - Back". */
   type: string
   region?: string
+  /** Size of `url` in pixels, when known. */
+  width?: number
+  height?: number
+  /** The page's own thumbnail (max ~400 px wide), kept for a cheap preview. */
+  thumbUrl?: string
 }
 
 export interface LaunchBoxGame extends MetadataResult {
@@ -321,8 +327,53 @@ export interface LaunchBoxGame extends MetadataResult {
   images: LaunchBoxImage[]
 }
 
-/** Extract every LaunchBox CDN image from the rendered <img>, typed by its alt. */
+/**
+ * The page's rendered <img> tags are thumbnails (400 px wide at most): a 1920x1080
+ * fanart arrives as 400x225. The original is only named in the page's Nuxt state,
+ * as `fullGameImageFileName`, so that is read first. Its records are devalue
+ * objects: each field holds an index into the same array.
+ */
+export function parseNuxtImages(html: string): LaunchBoxImage[] {
+  const m = html.match(/<script type="application\/json" data-nuxt-data="nuxt-app"[^>]*>([\s\S]*?)<\/script>/)
+  if (!m) return []
+  let data: unknown
+  try { data = JSON.parse(m[1]) } catch { return [] }
+  if (!Array.isArray(data)) return []
+  const arr = data as unknown[]
+  const val = (x: unknown): unknown => (typeof x === 'number' && x >= 0 && x < arr.length ? arr[x] : x)
+  const host = `https://${LB_IMG_HOST}/`
+  const out: LaunchBoxImage[] = []
+  const seen = new Set<string>()
+  for (const v of arr) {
+    if (!v || typeof v !== 'object' || Array.isArray(v)) continue
+    const rec = v as Record<string, unknown>
+    if (!('fullGameImageFileName' in rec)) continue
+    const full  = val(rec.fullGameImageFileName)
+    const thumb = val(rec.imageFileName)
+    const type  = val(rec.imageTypeName)
+    if (typeof full !== 'string' || typeof type !== 'string') continue
+    const url = host + full
+    if (seen.has(url)) continue
+    seen.add(url)
+    const region = val(rec.regionName)
+    const w = val(rec.fullGameImageWidth)
+    const h = val(rec.fullGameImageHeight)
+    out.push({
+      url,
+      type,
+      region: typeof region === 'string' && region ? region : undefined,
+      width:  typeof w === 'number' ? w : undefined,
+      height: typeof h === 'number' ? h : undefined,
+      thumbUrl: typeof thumb === 'string' ? host + thumb : undefined,
+    })
+  }
+  return out
+}
+
+/** Extract every LaunchBox CDN image: the originals from the page state, else the rendered <img> thumbnails. */
 export function parseLaunchBoxImages(html: string): LaunchBoxImage[] {
+  const fromState = parseNuxtImages(html)
+  if (fromState.length > 0) return fromState
   const out: LaunchBoxImage[] = []
   const seen = new Set<string>()
   const re = new RegExp(
