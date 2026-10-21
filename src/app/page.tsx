@@ -1,5 +1,6 @@
 import { getTranslations } from 'next-intl/server'
 import { db } from '@/lib/db'
+import { cachedAggregate } from '@/lib/aggregate-cache'
 import { libraryGameWhere } from '@/lib/library'
 import { resolveCoverPath } from '@/lib/s3'
 import { ConsoleGrid } from '@/components/home/ConsoleGrid'
@@ -43,12 +44,13 @@ export default async function HomePage() {
         platform: { select: { slug: true, name: true, thumbnailWidth: true, thumbnailHeight: true } },
       },
     }),
-    db.downloadLog.groupBy({
+    // The top downloads change slowly: recomputed at most every 10 minutes (#92).
+    cachedAggregate('home:top-downloads', 10 * 60_000, () => db.downloadLog.groupBy({
       by:      ['gameId'],
       _count:  { id: true },
       orderBy: { _count: { id: 'desc' } },
       take:    100,
-    }),
+    })),
   ])
 
   // ── Build flat top-downloads list ─────────────────────────────────────────

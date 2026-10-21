@@ -11,6 +11,7 @@
  */
 import { db } from '@/lib/db'
 import { isTrustedIp, resolveClientIp } from '@/lib/net'
+import { cachedAggregate } from '@/lib/aggregate-cache'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -71,10 +72,10 @@ export async function GET(req: Request) {
     db.requestLog.count({ where: { ts: { gte: startToday } } }),
     db.requestLog.findMany({ where: { ts: { gte: startToday } }, distinct: ['ip'], select: { ip: true } }),
     db.requestLog.findMany({ where: { ts: { gte: tenMinAgo } }, distinct: ['ip'], select: { ip: true } }),
-    db.downloadLog.count(),
-    db.downloadLog.count({ where: { completed: true } }),
-    db.downloadLog.aggregate({ _sum: { fileSize: true }, where: { completed: true } }),
-    db.searchLog.count(),
+    cachedAggregate('metrics:downloads-total', 60_000, () => db.downloadLog.count()),
+    cachedAggregate('metrics:downloads-completed', 60_000, () => db.downloadLog.count({ where: { completed: true } })),
+    cachedAggregate('metrics:downloads-bytes', 60_000, () => db.downloadLog.aggregate({ _sum: { fileSize: true }, where: { completed: true } })),
+    cachedAggregate('metrics:searches', 60_000, () => db.searchLog.count()),
   ])
 
   const totalGames = platforms.reduce((s, p) => s + (p._count?.games ?? 0), 0)
