@@ -14,12 +14,25 @@
 # Nothing updates by itself: Watchtower is not used for GameHub.
 
 services:
+  # Migraciones en un servicio de un solo uso (#73). gamehub no arranca hasta que
+  # termina bien; si falla, el web no llega a levantarse con un esquema viejo.
+  migrate:
+    image: ghcr.io/luishidalgoa/gamehub:${GAMEHUB_TAG:?set GAMEHUB_TAG in .env}
+    command: ["node", "node_modules/prisma/build/index.js", "migrate", "deploy"]
+    env_file: .env.production
+    volumes:
+      - ./data:/data
+    restart: "no"
+
   gamehub:
     image: ghcr.io/luishidalgoa/gamehub:${GAMEHUB_TAG:?set GAMEHUB_TAG in .env}   # pulled from GHCR; no `build:`
     container_name: gamehub
     restart: unless-stopped
 
     env_file: .env.production
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
 
     ports:
       - "3001:3000"          # host:container — Apache proxies to host 3001

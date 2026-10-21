@@ -82,5 +82,6 @@ RUN mkdir -p /data && chown nextjs:nodejs /data
 USER nextjs
 EXPOSE 3000
 
-# Run migrations then start
-CMD ["sh", "-c", "node node_modules/prisma/build/index.js migrate deploy && node server.js"]
+# The web process only serves. Migrations run in their own one-shot service
+# (see docker-compose.prod.example.yml), before this container starts.
+CMD ["node", "server.js"]
