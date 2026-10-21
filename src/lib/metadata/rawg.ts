@@ -1,4 +1,5 @@
 import type { MetadataProvider, MetadataResult } from './provider'
+import { providerFetch } from './http'
 
 const RAWG_BASE = 'https://api.rawg.io/api'
 
@@ -102,7 +103,7 @@ export class RawgProvider implements MetadataProvider {
       search_precise: 'false',
     })
 
-    const res = await fetch(`${RAWG_BASE}/games?${params}`)
+    const res = await providerFetch(`${RAWG_BASE}/games?${params}`)
     if (!res.ok) throw new Error(`RAWG search failed: ${res.status}`)
 
     const data: RawgSearchResponse = await res.json()
@@ -120,7 +121,7 @@ export class RawgProvider implements MetadataProvider {
   }
 
   async fetchScreenshots(slug: string): Promise<string[]> {
-    const res = await fetch(`${RAWG_BASE}/games/${slug}/screenshots?key=${this.apiKey}&page_size=12`)
+    const res = await providerFetch(`${RAWG_BASE}/games/${slug}/screenshots?key=${this.apiKey}&page_size=12`)
     if (!res.ok) return []
     const data = await res.json()
     return (data.results ?? []).map((s: { image: string }) => s.image)
@@ -133,7 +134,7 @@ export class RawgProvider implements MetadataProvider {
    * MetadataResult (the cross-provider composition shape) to stay decoupled.
    */
   async fetchPopularity(id: number | string): Promise<RawgPopularityMetrics | null> {
-    const res = await fetch(`${RAWG_BASE}/games/${id}?key=${this.apiKey}`)
+    const res = await providerFetch(`${RAWG_BASE}/games/${id}?key=${this.apiKey}`)
     if (!res.ok) return null
     const g: RawgGame = await res.json()
     return {
@@ -146,7 +147,7 @@ export class RawgProvider implements MetadataProvider {
 
   // Accepts either a numeric RAWG ID or a slug string (e.g. "pokemon-x")
   async fetchById(id: number | string): Promise<MetadataResult | null> {
-    const res = await fetch(`${RAWG_BASE}/games/${id}?key=${this.apiKey}`)
+    const res = await providerFetch(`${RAWG_BASE}/games/${id}?key=${this.apiKey}`)
     if (!res.ok) return null
 
     const g: RawgGame = await res.json()

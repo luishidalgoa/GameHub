@@ -1,3 +1,4 @@
+import { providerFetch } from './http'
 /**
  * libretro-thumbnails as a cover source.
  *
@@ -69,7 +70,7 @@ async function loadIndex(system: string): Promise<string[]> {
 
   const job = (async () => {
     const url = `${BASE}/${encodeURIComponent(system)}/Named_Boxarts/`
-    const res = await fetch(url, { headers: { 'User-Agent': 'GameHub' } })
+    const res = await providerFetch(url, { headers: { 'User-Agent': 'GameHub' } })
     if (!res.ok) throw new Error(`libretro index ${system}: ${res.status}`)
     const html = await res.text()
     const names: string[] = []

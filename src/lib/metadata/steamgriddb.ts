@@ -7,6 +7,7 @@
  */
 
 import { db } from '@/lib/db'
+import { providerFetch } from './http'
 
 const BASE = 'https://www.steamgriddb.com/api/v2'
 
@@ -32,7 +33,7 @@ export async function fetchSteamGridDBCover(title: string): Promise<string | nul
     const headers = { Authorization: `Bearer ${key}` }
 
     // ── Step 1: search for the game ──────────────────────────────────────────
-    const searchRes = await fetch(
+    const searchRes = await providerFetch(
       `${BASE}/search/autocomplete/${encodeURIComponent(title)}`,
       { headers },
     )
@@ -62,7 +63,7 @@ async function fetchGrid(
   dimensionsParam: string,
 ): Promise<string | null> {
   try {
-    const res = await fetch(`${BASE}/grids/game/${gameId}?nsfw=false${dimensionsParam}`, { headers })
+    const res = await providerFetch(`${BASE}/grids/game/${gameId}?nsfw=false${dimensionsParam}`, { headers })
     if (!res.ok) return null
     const data = await res.json()
     const covers: Array<{ url: string }> = data.data ?? []

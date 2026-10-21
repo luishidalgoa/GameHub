@@ -1,4 +1,5 @@
 import { db } from '@/lib/db'
+import { providerFetch } from '@/lib/metadata/http'
 
 /** Thrown when the YouTube API itself fails (quota, bad key, network) — as
  *  opposed to simply finding no matching video. Lets batch jobs stop hammering
@@ -34,7 +35,7 @@ export async function searchYouTubeTrailer(title: string): Promise<string | null
 
   let res: Response
   try {
-    res = await fetch(url.toString())
+    res = await providerFetch(url.toString())
   } catch (err) {
     throw new YouTubeApiError(`network error: ${err instanceof Error ? err.message : 'unknown'}`)
   }
