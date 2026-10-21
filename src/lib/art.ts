@@ -9,6 +9,8 @@ import {
 import { calcTitleConfidence, AUTO_THRESHOLD } from '@/lib/metadata/scoring'
 import { pickBackdrop, pickFanart, pickLogo } from '@/lib/metadata/launchbox-art'
 import { paletteOf } from '@/lib/palette'
+import { pixelScale } from '@/lib/pixel-art'
+import { fetchLibretroScreens } from '@/lib/metadata/libretro'
 
 const BACKDROP_MAX_WIDTH = 1920
 const TILE_MAX_WIDTH = 1600
@@ -57,30 +59,41 @@ async function resolveLaunchBoxGame(game: ArtGame, paceMs: number): Promise<{ lb
   return lb ? { lb, id: best.r.id } : null
 }
 
+/** A retro snapshot as WebP: whole-number nearest-neighbor upscale, so pixels stay crisp squares. */
+async function pixelWebp(url: string): Promise<Buffer> {
+  const source = await download(url)
+  const { width = 0 } = await sharp(source).metadata()
+  const scale = pixelScale(width)
+  return sharp(source)
+    .resize({ width: width * scale, kernel: 'nearest' })
+    .webp({ quality: 85 })
+    .toBuffer()
+}
+
 /**
- * Fetch the original backdrop and logo of one game from LaunchBox, store them in
- * MinIO as WebP and record the backdrop's palette. A game that has no match or no
- * art is still marked as checked, so it is not searched again every run; a
- * network failure throws and leaves it unmarked to be retried.
+ * Fetch the art of one game: from LaunchBox its original backdrop, fanart and
+ * logo; for a game with no fanart (the poorly documented ones, mostly GBA and
+ * SNES) the in-game snapshot or title screen from libretro-thumbnails stands in
+ * for the tile, and for the backdrop when LaunchBox has none. Everything is
+ * stored in MinIO as WebP and the backdrop's palette is recorded. A game with no
+ * art at all is still marked as checked, so it is not searched again every run;
+ * a network failure throws and leaves it unmarked to be retried.
  */
 export async function fetchGameArt(game: ArtGame, paceMs = 600): Promise<ArtOutcome> {
   const found = await resolveLaunchBoxGame(game, paceMs)
-  if (!found) {
-    await db.game.update({ where: { id: game.id }, data: { artCheckedAt: new Date() } })
-    return 'no-match'
-  }
+  const images = found?.lb.images ?? []
+  const backdrop = pickBackdrop(images)
+  const logo = pickLogo(images)
+  const fanart = pickFanart(images)
 
-  const backdrop = pickBackdrop(found.lb.images)
-  const logo = pickLogo(found.lb.images)
-  const fanart = pickFanart(found.lb.images)
-  if (!backdrop && !logo && !fanart) {
-    await db.game.update({ where: { id: game.id }, data: { launchboxId: found.id, artCheckedAt: new Date() } })
-    return 'no-art'
-  }
+  const retro = fanart ? null : await fetchLibretroScreens(game.fileName, game.platformSlug)
+  const retroUrl = retro?.snap ?? retro?.title ?? null
 
+  const data: Record<string, unknown> = { artCheckedAt: new Date() }
+  if (found) data.launchboxId = found.id
   const version = Date.now()
   const prefix = `art/${game.platformSlug}/${game.id}`
-  const data: Record<string, unknown> = { launchboxId: found.id, artCheckedAt: new Date() }
+  let stored = false
 
   if (backdrop) {
     await sleep(paceMs)
@@ -94,6 +107,7 @@ export async function fetchGameArt(game: ArtGame, paceMs = 600): Promise<ArtOutc
     data.backdropKind = backdrop.kind
     data.themePalette = JSON.stringify(await paletteOf(webp))
     if (backdrop.kind === 'fanart') data.tilePath = data.backdropPath
+    stored = true
   }
   if (fanart && backdrop?.kind !== 'fanart') {
     await sleep(paceMs)
@@ -104,6 +118,19 @@ export async function fetchGameArt(game: ArtGame, paceMs = 600): Promise<ArtOutc
       .toBuffer()
     await uploadToS3(webp, `${prefix}-tile.webp`)
     data.tilePath = `${prefix}-tile.webp?v=${version}`
+    stored = true
+  }
+  if (retroUrl) {
+    const webp = await pixelWebp(retroUrl)
+    await uploadToS3(webp, `${prefix}-tile.webp`)
+    data.tilePath = `${prefix}-tile.webp?v=${version}`
+    if (!backdrop) {
+      // No LaunchBox backdrop: the snapshot is blurred behind the page anyway.
+      data.backdropPath = data.tilePath
+      data.backdropKind = retro?.snap ? 'snap' : 'title'
+      data.themePalette = JSON.stringify(await paletteOf(webp))
+    }
+    stored = true
   }
   if (logo) {
     await sleep(paceMs)
@@ -114,8 +141,10 @@ export async function fetchGameArt(game: ArtGame, paceMs = 600): Promise<ArtOutc
       .toBuffer()
     await uploadToS3(webp, `${prefix}-logo.webp`)
     data.logoPath = `${prefix}-logo.webp?v=${version}`
+    stored = true
   }
 
   await db.game.update({ where: { id: game.id }, data })
-  return 'applied'
+  if (stored) return 'applied'
+  return found ? 'no-art' : 'no-match'
 }

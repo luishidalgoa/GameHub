@@ -35,12 +35,18 @@ export function GameTile({ game, className = '', priority = false }: {
              className="absolute inset-0 h-full w-full object-cover transition-transform duration-700 ease-out group-hover:scale-[1.07]" />
       ) : game.cover ? (
         <>
+          {/* No fanart or screenshot: the box art is blurred into a backdrop and shown whole in front
+              of it, over a wash of the page theme and the platform's name as a faint watermark. */}
+          <div className="absolute inset-0" style={{ background: 'linear-gradient(135deg, color-mix(in srgb, var(--art-a) 35%, #0a0a12), color-mix(in srgb, var(--art-b) 30%, #0a0a12))' }} />
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={game.cover} alt="" loading="lazy" decoding="async"
-               className="absolute inset-0 h-full w-full scale-125 object-cover opacity-60 blur-2xl" />
+               className="absolute inset-0 h-full w-full scale-150 object-cover opacity-40 blur-3xl saturate-150" />
+          <span aria-hidden className="absolute -left-2 -top-3 select-none text-[56px] font-black uppercase leading-none tracking-tighter text-white/[0.07]">
+            {game.platformName}
+          </span>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={game.cover} alt="" loading="lazy" decoding="async"
-               className="absolute left-1/2 top-1/2 h-[82%] w-auto max-w-[70%] -translate-x-1/2 -translate-y-1/2 rounded-sm object-contain shadow-2xl transition-transform duration-700 group-hover:scale-105" />
+               className="absolute left-1/2 top-[44%] h-[74%] w-auto max-w-[62%] -translate-x-1/2 -translate-y-1/2 rounded-[3px] object-contain shadow-[0_18px_36px_-8px_rgba(0,0,0,0.75)] transition-transform duration-700 group-hover:scale-105" />
         </>
       ) : null}
 

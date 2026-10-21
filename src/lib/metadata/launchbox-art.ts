@@ -1,6 +1,6 @@
 import type { LaunchBoxImage } from './launchbox'
 
-export type BackdropKind = 'banner' | 'fanart' | 'square' | 'title'
+export type BackdropKind = 'banner' | 'fanart' | 'square' | 'title' | 'snap'
 
 export interface PickedArt {
   image: LaunchBoxImage

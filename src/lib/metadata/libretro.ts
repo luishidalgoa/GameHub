@@ -61,15 +61,19 @@ const INDEX_TTL_MS = 6 * 60 * 60 * 1000
 const indexCache = new Map<string, { names: string[]; at: number }>()
 const inFlight = new Map<string, Promise<string[]>>()
 
-async function loadIndex(system: string): Promise<string[]> {
-  const cached = indexCache.get(system)
+/** The archive's image sets: box art, title screens and in-game snapshots. */
+type ThumbSet = 'Named_Boxarts' | 'Named_Titles' | 'Named_Snaps'
+
+async function loadIndex(system: string, set: ThumbSet = 'Named_Boxarts'): Promise<string[]> {
+  const cacheKey = `${system}/${set}`
+  const cached = indexCache.get(cacheKey)
   if (cached && Date.now() - cached.at < INDEX_TTL_MS) return cached.names
 
-  const pending = inFlight.get(system)
+  const pending = inFlight.get(cacheKey)
   if (pending) return pending
 
   const job = (async () => {
-    const url = `${BASE}/${encodeURIComponent(system)}/Named_Boxarts/`
+    const url = `${BASE}/${encodeURIComponent(system)}/${set}/`
     const res = await providerFetch(url, { headers: { 'User-Agent': 'GameHub' } })
     if (!res.ok) throw new Error(`libretro index ${system}: ${res.status}`)
     const html = await res.text()
@@ -79,11 +83,11 @@ async function loadIndex(system: string): Promise<string[]> {
     for (let m = re.exec(html); m !== null; m = re.exec(html)) {
       names.push(decodeURIComponent(m[1]).slice(0, -4))
     }
-    indexCache.set(system, { names, at: Date.now() })
+    indexCache.set(cacheKey, { names, at: Date.now() })
     return names
-  })().finally(() => inFlight.delete(system))
+  })().finally(() => inFlight.delete(cacheKey))
 
-  inFlight.set(system, job)
+  inFlight.set(cacheKey, job)
   return job
 }
 
@@ -204,6 +208,35 @@ export async function fetchLibretroCover(
   } catch {
     return null
   }
+}
+
+export interface LibretroScreens {
+  /** In-game snapshot, the better tile image. */
+  snap: string | null
+  /** Title screen. */
+  title: string | null
+}
+
+/**
+ * The in-game snapshot and title screen of a ROM, from the archive's own image
+ * sets, for the games LaunchBox has no art for. Both are native resolution
+ * (240x160 on a GBA), so the caller scales them up without smoothing. Never
+ * throws: an unreachable archive yields nothing.
+ */
+export async function fetchLibretroScreens(fileName: string, platformSlug: string): Promise<LibretroScreens> {
+  const system = LIBRETRO_SYSTEMS[platformSlug]
+  const none = { snap: null, title: null }
+  if (!system || !fileName) return none
+  const find = async (set: ThumbSet) => {
+    try {
+      const match = matchBoxart(fileName, await loadIndex(system, set))
+      return match ? `${BASE}/${encodeURIComponent(system)}/${set}/${encodeURIComponent(match)}.png` : null
+    } catch {
+      return null
+    }
+  }
+  const [snap, title] = await Promise.all([find('Named_Snaps'), find('Named_Titles')])
+  return { snap, title }
 }
 
 /** Public URL of one index entry. */
