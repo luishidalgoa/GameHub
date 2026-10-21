@@ -30,11 +30,11 @@ export default async function AdminPage() {
     orderBy: { sortOrder: 'asc' },
   })
 
-  const sizeResult = await db.game.aggregate({
-    _sum: { fileSize: true },
-    where: libraryGameWhere(),
-  })
-  const totalSize = sizeResult._sum.fileSize ?? BigInt(0)
+  const [gameSize, dlcSize] = await Promise.all([
+    db.game.aggregate({ _sum: { fileSize: true }, where: libraryGameWhere() }),
+    db.gameDlc.aggregate({ _sum: { fileSize: true }, where: { game: libraryGameWhere() } }),
+  ])
+  const totalSize = (gameSize._sum.fileSize ?? BigInt(0)) + (dlcSize._sum.fileSize ?? BigInt(0))
 
   return (
     <div className="space-y-8">
