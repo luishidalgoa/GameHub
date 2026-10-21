@@ -143,5 +143,7 @@ export const sessionCookieOptions = {
   httpOnly: true,
   sameSite: 'lax' as const,
   path:     '/',
-  secure:   process.env.NODE_ENV === 'production',
+  secure:   process.env.COOKIE_SECURE !== undefined
+              ? process.env.COOKIE_SECURE === 'true'
+              : process.env.NODE_ENV === 'production',
 }
