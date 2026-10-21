@@ -106,6 +106,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     title:        game.title,
     platformSlug: game.platform.slug,
     fileName:     game.fileName,
+    launchboxId:  game.launchboxId,
     matrix,
     rawgApiKey:   await rawgKey(),
   })
@@ -131,6 +132,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       ...(meta.screenshots.length > 0 && { screenshotPaths: JSON.stringify(meta.screenshots) }),
       ...(meta.rawgId   != null && { rawgId: meta.rawgId }),
       ...(meta.rawgSlug && { rawgSlug: meta.rawgSlug }),
+      ...(meta.launchboxId != null && { launchboxId: meta.launchboxId }),
       ...(coverPath  && { coverPath }),
       ...(trailerUrl && { trailerUrl }),
       metadataSources: JSON.stringify(meta.sources),

@@ -1,3 +1,4 @@
+import { calcTitleConfidence, AUTO_THRESHOLD } from './scoring'
 import { fileToTitle } from '@/lib/utils'
 import { fetchHtmlWithRetry, type HtmlFetchPolicy } from './http'
 
@@ -104,6 +105,14 @@ function findMetascore(node: unknown): number | null {
   return null
 }
 
+/** True when the page's own title (og:title) matches the game we are looking for. */
+export function pageIsSameGame(html: string, title: string): boolean {
+  const m = html.match(/<meta\s+property="og:title"\s+content="([^"]+)"/i)
+  if (!m) return false
+  const pageTitle = m[1].replace(/\s*[-|]\s*Metacritic.*$/i, '').replace(/\s+(Reviews|Critic Reviews).*$/i, '').trim()
+  return calcTitleConfidence(title, pageTitle, false) >= AUTO_THRESHOLD
+}
+
 /**
  * Fetch a game's Metacritic metascore (0–100) by title, preferring the precise
  * per-platform URL (the generic one only when the platform is unknown). Returns null when no
@@ -114,8 +123,10 @@ export async function fetchMetacriticScore(title: string, platformSlug?: string)
   if (slugs.length === 0) return null
 
   // With a known platform, the generic URL can point at another version of the
-  // game, so only the platform-specific page is accepted.
+  // game, so only the platform-specific page is accepted. A platform we cannot
+  // map gets no page at all (#115): the generic one is never a safe guess.
   const mcPlatform = platformSlug ? METACRITIC_PLATFORM_SLUGS[platformSlug] : undefined
+  if (platformSlug && !mcPlatform) return null
   const urls: string[] = []
   for (const slug of slugs) {
     if (mcPlatform) urls.push(`${MC_SITE}/game/${mcPlatform}/${slug}/`)
@@ -125,7 +136,9 @@ export async function fetchMetacriticScore(title: string, platformSlug?: string)
   for (let i = 0; i < urls.length; i++) {
     const html = await mcFetch(urls[i])
     const score = parseMetacriticScore(html)
-    if (score != null) return score
+    // A score is only taken from a page whose own title is the same game (#115):
+    // the score alone does not say which game it belongs to.
+    if (score != null && pageIsSameGame(html, title)) return score
     if (i < urls.length - 1) await new Promise(r => setTimeout(r, 300)) // be polite between tries
   }
   return null

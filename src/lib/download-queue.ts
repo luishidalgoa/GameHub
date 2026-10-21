@@ -83,26 +83,32 @@ async function recomputePositions(): Promise<void> {
 }
 
 async function promoteNext(): Promise<void> {
-  const max    = await getMaxConcurrent()
-  const active = await db.downloadToken.count({ where: { status: { in: ['ready', 'downloading'] } } })
-  const slots  = max - active
-  if (slots <= 0) return
+  const max = await getMaxConcurrent()
 
-  const waiting = await db.downloadToken.findMany({
-    where:   { status: 'waiting' },
-    orderBy: { createdAt: 'asc' },
-    take:    slots,
+  // Count the busy slots and take the next waiting rows in one transaction. Read
+  // outside it, two callers could both see the same free slot and promote twice.
+  const promoted = await db.$transaction(async (tx) => {
+    const active = await tx.downloadToken.count({ where: { status: { in: ['ready', 'downloading'] } } })
+    const slots  = max - active
+    if (slots <= 0) return 0
+
+    const waiting = await tx.downloadToken.findMany({
+      where:   { status: 'waiting' },
+      orderBy: { createdAt: 'asc' },
+      take:    slots,
+    })
+
+    const now = BigInt(Date.now())
+    for (const row of waiting) {
+      await tx.downloadToken.update({
+        where: { token: row.token },
+        data:  { status: 'ready', readyAt: now, expiresAt: now + BigInt(TOKEN_TTL_MS), position: 0 },
+      })
+    }
+    return waiting.length
   })
 
-  const now = BigInt(Date.now())
-  for (const row of waiting) {
-    await db.downloadToken.update({
-      where: { token: row.token },
-      data:  { status: 'ready', readyAt: now, expiresAt: now + BigInt(TOKEN_TTL_MS), position: 0 },
-    })
-  }
-
-  if (waiting.length > 0) await recomputePositions()
+  if (promoted > 0) await recomputePositions()
 }
 
 // ── Public API ────────────────────────────────────────────────────────────────

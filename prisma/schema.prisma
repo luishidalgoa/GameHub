@@ -196,6 +196,7 @@ model RequestLog {
   @@index([ip])
   @@index([status])
   @@index([device])
+  @@index([path])
 }
 
 model SearchLog {
@@ -272,6 +273,8 @@ model DownloadLog {
   @@index([gameId])
   @@index([startedAt])
   @@index([ip])
+  @@index([completed])
+  @@index([client])
 }
 
 // Background job state for long-running tasks (scan / auto-metadata). Persisted
