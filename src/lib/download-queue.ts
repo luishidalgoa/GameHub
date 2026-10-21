@@ -72,6 +72,10 @@ async function pruneStale(): Promise<void> {
     where: { status: 'downloading', createdAt: { lt: now - BigInt(STUCK_DOWNLOAD_MS) } },
     data:  { status: 'expired' },
   })
+
+  // A ready token that expired frees a slot. Promote the next waiting download now,
+  // rather than waiting for some other request to happen along (#116).
+  await promoteNext().catch(err => console.error('[queue] promotion after expiry failed:', err))
 }
 
 async function recomputePositions(): Promise<void> {
