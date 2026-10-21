@@ -19,7 +19,7 @@ export function PublisherArtPanel() {
   const [running, setRunning] = useState(false)
   const [busy, setBusy] = useState<string | null>(null)
   const pick = useRef<HTMLInputElement>(null)
-  const target = useRef<string>('')
+  const target = useRef<{ key: string; kind: 'character' | 'logo' }>({ key: '', kind: 'character' })
 
   const load = useCallback(async () => {
     const res = await fetch('/api/admin/publishers')
@@ -43,9 +43,10 @@ export function PublisherArtPanel() {
   }
 
   const upload = async (file: File) => {
-    setBusy(target.current)
+    setBusy(target.current.key)
     const form = new FormData()
-    form.set('key', target.current)
+    form.set('key', target.current.key)
+    form.set('kind', target.current.kind)
     form.set('file', file)
     await fetch('/api/admin/publishers', { method: 'PUT', body: form })
     setBusy(null)
@@ -63,8 +64,9 @@ export function PublisherArtPanel() {
       <div>
         <h1 className="text-2xl font-bold">Editoras de la portada</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          El logo se busca solo en Wikidata. Sube un personaje en PNG o WebP con fondo transparente
-          y aparecerá de pie sobre el degradado de la editora.
+          El logo se busca solo en Wikidata y puedes cambiarlo si no se lee bien. Sube un personaje en PNG
+          o WebP con fondo transparente: la tile lo muestra de pie y el logo pasa abajo, pequeño. Sin
+          personaje, el logo va grande en el centro.
         </p>
       </div>
 
@@ -102,7 +104,11 @@ export function PublisherArtPanel() {
               {/* eslint-disable-next-line @next/next/no-img-element */}
               {character && <img src={character} alt="" className="h-14 w-auto object-contain" />}
               <div className="flex gap-2">
-                <button disabled={busy === r.key} onClick={() => { target.current = r.key; pick.current?.click() }}
+                <button disabled={busy === r.key} onClick={() => { target.current = { key: r.key, kind: 'logo' }; pick.current?.click() }}
+                        className="rounded-md border border-border px-2.5 py-1 text-xs hover:bg-secondary">
+                  Cambiar logo
+                </button>
+                <button disabled={busy === r.key} onClick={() => { target.current = { key: r.key, kind: 'character' }; pick.current?.click() }}
                         className="rounded-md border border-border px-2.5 py-1 text-xs hover:bg-secondary">
                   {character ? 'Cambiar personaje' : 'Subir personaje'}
                 </button>

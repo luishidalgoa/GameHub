@@ -52,13 +52,17 @@ export function PublisherTile({ publisher, href, gamesLabel }: {
              className="absolute bottom-[16%] left-1/2 h-[80%] w-auto max-w-[110%] -translate-x-1/2 object-contain drop-shadow-[0_12px_24px_rgba(0,0,0,0.5)] transition-transform duration-[900ms] ease-out group-hover:-translate-y-1 group-hover:scale-[1.07]" />
       )}
 
-      <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent" />
+      <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/25 to-black/10" />
+      {/* Behind a centered logo: a soft dark pool, so a pale logo reads on any gradient. */}
+      {logo && !character && (
+        <div className="absolute inset-0" style={{ background: 'radial-gradient(60% 34% at 50% 50%, rgba(0,0,0,0.45), transparent)' }} />
+      )}
 
       {logo ? (
         <div className={`absolute inset-x-0 flex flex-col items-center px-5 text-center ${character ? 'bottom-4' : 'inset-y-0 justify-center'}`}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={logo} alt={name} loading="lazy" decoding="async"
-               className={`w-auto max-w-[78%] object-contain drop-shadow-lg ${plainLogo ? '' : 'brightness-0 invert'} ${character ? 'max-h-11' : 'max-h-20 transition-transform duration-700 group-hover:scale-110'}`} />
+               className={`max-w-[82%] object-contain drop-shadow-[0_2px_10px_rgba(0,0,0,0.6)] ${plainLogo ? '' : 'brightness-0 invert'} ${character ? 'w-auto max-h-8' : 'max-h-28 w-[82%] transition-transform duration-700 group-hover:scale-105'}`} />
           <p className="mt-2 text-xs text-white/60">{gamesLabel}</p>
         </div>
       ) : (

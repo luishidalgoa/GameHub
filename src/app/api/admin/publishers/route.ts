@@ -1,7 +1,7 @@
 import { adminGuard } from '@/lib/admin-guard'
 import { NextResponse } from 'next/server'
 import { rankedPublishers } from '@/lib/home-data'
-import { clearCharacter, ensurePublisherLogos, getPublisherArt, saveCharacter } from '@/lib/publisher-art'
+import { clearCharacter, ensurePublisherLogos, getPublisherArt, saveCharacter, saveLogo } from '@/lib/publisher-art'
 
 export const dynamic = 'force-dynamic'
 
@@ -34,22 +34,23 @@ export async function POST(req: Request) {
   return NextResponse.json({ ok: true, running: true })
 }
 
-// PUT multipart { key, file } — upload a character cut-out.
+// PUT multipart { key, kind: 'character' | 'logo', file } — upload a character cut-out or replace the logo.
 export async function PUT(req: Request) {
   const denied = await adminGuard()
   if (denied) return denied
   const form = await req.formData().catch(() => null)
   const key = form?.get('key')
   const file = form?.get('file')
+  const kind = form?.get('kind') === 'logo' ? 'logo' : 'character'
   if (typeof key !== 'string' || !(file instanceof File)) {
     return NextResponse.json({ error: 'key and file are required' }, { status: 400 })
   }
   if (file.size > MAX_UPLOAD) return NextResponse.json({ error: 'file too large' }, { status: 413 })
-  if (!(await rankedPublishers(LIST_SIZE)).some(p => p.key === key)) {
-    return NextResponse.json({ error: 'unknown publisher' }, { status: 404 })
-  }
+  const publisher = (await rankedPublishers(LIST_SIZE)).find(p => p.key === key)
+  if (!publisher) return NextResponse.json({ error: 'unknown publisher' }, { status: 404 })
   try {
-    return NextResponse.json({ art: await saveCharacter(key, Buffer.from(await file.arrayBuffer())) })
+    const image = Buffer.from(await file.arrayBuffer())
+    return NextResponse.json({ art: kind === 'logo' ? await saveLogo(key, publisher.name, image) : await saveCharacter(key, image) })
   } catch {
     return NextResponse.json({ error: 'not a valid image' }, { status: 400 })
   }

@@ -98,10 +98,10 @@ export function tileColors(logoPalette: string[], name: string): string[] {
       h = max === r ? ((g - b) / d) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4
       h = (h * 60 + 360) % 360
     }
-    return [hslToHex(h, 0.7, 0.38), hslToHex((h + 28) % 360, 0.65, 0.2)]
+    return [hslToHex(h, 0.7, 0.32), hslToHex((h + 28) % 360, 0.65, 0.14)]
   }
   const h = hueFromName(name)
-  return [hslToHex(h, 0.6, 0.38), hslToHex((h + 40) % 360, 0.6, 0.2)]
+  return [hslToHex(h, 0.6, 0.32), hslToHex((h + 40) % 360, 0.6, 0.14)]
 }
 
 // ── Logo lookup ───────────────────────────────────────────────────────────────
@@ -137,6 +137,11 @@ async function downloadLogo(file: string): Promise<{ png: Buffer; plain: boolean
   const res = await providerFetch(url, { redirect: 'follow' })
   if (!res.ok) return null
   const raw = Buffer.from(await res.arrayBuffer())
+  return normalizeLogo(raw)
+}
+
+/** Crop a logo to its content, size it, and tell whether it is a filled shape. */
+async function normalizeLogo(raw: Buffer): Promise<{ png: Buffer; plain: boolean }> {
   const png = await sharp(raw).trim().resize({ width: 700, height: 300, fit: 'inside' }).png().toBuffer()
   // A logo that fills most of its box (a red badge with white letters) would be a
   // solid white block as a silhouette, so it is shown in its own colors.
@@ -162,16 +167,7 @@ export async function ensurePublisherLogos(
       await sleep(400)
       const logo = file ? await downloadLogo(file) : null
       if (logo) {
-        const { png, plain } = logo
-        const webp = await sharp(png).webp({ quality: 90, alphaQuality: 95 }).toBuffer()
-        const s3Key = `art/publishers/${p.key.replace(/[^a-z0-9]+/g, '-')}-logo.webp`
-        await uploadToS3(webp, s3Key)
-        await patch(p.key, {
-          logo: `${s3Key}?v=${Date.now()}`,
-          colors: tileColors(await paletteOf(png), p.name),
-          plain,
-          checkedAt: new Date().toISOString(),
-        })
+        await storeLogo(p.key, p.name, logo.png, logo.plain)
         found++
       } else {
         await patch(p.key, { logo: null, colors: tileColors([], p.name), checkedAt: new Date().toISOString() })
@@ -183,6 +179,24 @@ export async function ensurePublisherLogos(
     await sleep(600)
   }
   return { found, missing }
+}
+
+async function storeLogo(key: string, name: string, png: Buffer, plain: boolean): Promise<PublisherArt> {
+  const webp = await sharp(png).webp({ quality: 90, alphaQuality: 95 }).toBuffer()
+  const s3Key = `art/publishers/${key.replace(/[^a-z0-9]+/g, '-')}-logo.webp`
+  await uploadToS3(webp, s3Key)
+  return patch(key, {
+    logo: `${s3Key}?v=${Date.now()}`,
+    colors: tileColors(await paletteOf(png), name),
+    plain,
+    checkedAt: new Date().toISOString(),
+  })
+}
+
+/** Replace a publisher's logo with one the owner uploaded (when the automatic one is wrong or hard to read). */
+export async function saveLogo(key: string, name: string, image: Buffer): Promise<PublisherArt> {
+  const { png, plain } = await normalizeLogo(image)
+  return storeLogo(key, name, png, plain)
 }
 
 /** Store an uploaded character cut-out (any image with transparency) for a publisher. */
