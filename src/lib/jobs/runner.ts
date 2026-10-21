@@ -2,6 +2,7 @@ import { db } from '@/lib/db'
 import { runMetadataBatch, type BatchEvent } from '@/lib/metadata/batch'
 import { runScan } from '@/lib/scanner'
 import { fetchGameArt } from '@/lib/art'
+import { fillGameFacts } from '@/lib/metadata/wikidata'
 
 // Background job runner. Jobs run DETACHED from any HTTP request (so navigating
 // away never cancels them) and persist their progress to the Job table, so the
@@ -253,6 +254,12 @@ export async function startArtJob(params: ArtJobParams, resumeJobId?: number): P
           line = `✗ [${processed}] ${g.title} — ${err instanceof Error ? err.message : 'error'}`
         }
         pushLog(job.id, line)
+        // Facts LaunchBox did not give (developer, publisher, year, genre) come from Wikidata.
+        if (!controller.signal.aborted) {
+          const filled = await fillGameFacts(g.id).catch(() => [] as string[])
+          if (filled.length) pushLog(job.id, `  + ${filled.join(', ')} (Wikidata)`)
+          await new Promise(r => setTimeout(r, 1100))
+        }
         await db.job.update({
           where: { id: job.id },
           data: { processed, applied, skipped, failed, cursorId: g.id, lastTitle: g.title },

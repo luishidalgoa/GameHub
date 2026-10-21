@@ -71,3 +71,16 @@ describe('extractPalette', () => {
     expect(extractPalette(rgb, 3).length).toBeGreaterThanOrEqual(1)
   })
 })
+
+describe('wide categories', () => {
+  it('skips an upright banner and falls through to the next backdrop', () => {
+    const upright = { url: 'https://x/text-page', type: 'Banner', width: 600, height: 900 } as LaunchBoxImage
+    const wide = img('Fanart - Background', 1920)
+    expect(pickBackdrop([upright, wide])?.kind).toBe('fanart')
+    expect(pickBackdrop([upright])).toBeNull()
+  })
+  it('keeps a landscape banner', () => {
+    const wideBanner = { url: 'https://x/b', type: 'Banner', width: 760, height: 140 } as LaunchBoxImage
+    expect(pickBackdrop([wideBanner])?.kind).toBe('banner')
+  })
+})

@@ -28,9 +28,22 @@ function regionRank(region: string | undefined): number {
   return i === -1 ? REGION_ORDER.length + 1 : i + 1
 }
 
+/**
+ * Minimum width/height ratio for a category to be used as a wide image. A banner
+ * or fanart that is upright is not one: LaunchBox files some pages of text and
+ * portrait box scans under "Banner". Unknown sizes are given the benefit of the doubt.
+ */
+const MIN_WIDE_RATIO: Record<string, number> = { banner: 2, fanartbackground: 1.2, screenshotgametitle: 1.1 }
+
+function isWideEnough(image: LaunchBoxImage, type: string): boolean {
+  const min = MIN_WIDE_RATIO[type]
+  if (!min || !image.width || !image.height) return true
+  return image.width / image.height >= min
+}
+
 /** Best image of one category: preferred region first, then the largest. */
 function best(images: LaunchBoxImage[], type: string): LaunchBoxImage | null {
-  const ofType = images.filter(i => flat(i.type) === type)
+  const ofType = images.filter(i => flat(i.type) === type && isWideEnough(i, type))
   if (ofType.length === 0) return null
   return [...ofType].sort((a, b) =>
     regionRank(a.region) - regionRank(b.region) || (b.width ?? 0) - (a.width ?? 0),
