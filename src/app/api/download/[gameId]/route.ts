@@ -7,6 +7,7 @@ import { logDownloadStart, logDownloadComplete } from '@/lib/traffic'
 import { computeSha256 } from '@/lib/hash'
 import { createFileWebStream } from '@/lib/stream'
 import { paceDownloadBody } from '@/lib/download-limit'
+import { parseByteRange } from '@/lib/http'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -18,14 +19,6 @@ const FULL_STATUSES = ['ready', 'done']
 // A cut-off download ends in done and may resume inside its window (#120).
 const RANGE_STATUSES = ['ready', 'downloading', 'done']
 
-function parseRange(header: string, fileSize: number): { start: number; end: number } | null {
-  const m = header.match(/bytes=(\d+)-(\d*)/)
-  if (!m) return null
-  const start = parseInt(m[1], 10)
-  const end   = m[2] ? parseInt(m[2], 10) : fileSize - 1
-  if (start > end || start >= fileSize || end >= fileSize) return null
-  return { start, end }
-}
 
 function getContentType(fileName: string): string {
   const ext = path.extname(fileName).toLowerCase()
@@ -95,8 +88,8 @@ export async function GET(req: Request, { params }: { params: { gameId: string }
 
   // ── Range request (206 Partial Content) ──────────────────────────────────────
   if (isRange) {
-    const range = parseRange(rangeHeader!, fileSize)
-    if (!range) {
+    const range = parseByteRange(rangeHeader, fileSize)
+    if (!range || range === 'unsatisfiable') {
       return new Response(null, {
         status:  416,
         headers: { 'Content-Range': `bytes */${fileSize}` },
