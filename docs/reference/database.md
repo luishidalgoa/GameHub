@@ -66,6 +66,76 @@ The download queue (`waiting`/`ready`/`downloading`/`done`/`expired`). See
 
 These power `/admin/traffic` and the Prometheus exporter.
 
+## Catalog and image repository
+
+Two groups of tables were added for the metadata repository. The text columns on
+`Game` (`publisher`, `developer`, `genre`) keep the name the source published, for
+display. The canonical rows below are what the data is grouped and counted by.
+
+```mermaid
+erDiagram
+    Platform ||--o{ Game : "has"
+    Game ||--o{ GameDlc : "has"
+    Game ||--o{ GameImage : "has (LaunchBox originals)"
+    Game ||--o{ GameGenre : "tagged with"
+    Genre ||--o{ GameGenre : "tags"
+    Company ||--o{ Game : "publishes (publisherCompanyId)"
+    Company ||--o{ Game : "develops (developerCompanyId)"
+    Game ||--o{ DownloadLog : "downloaded as"
+    Game {
+        int id PK
+        string title
+        string publisher "text, as published"
+        int publisherCompanyId FK
+        string developer "text, as published"
+        int developerCompanyId FK
+        string genre "text, as published"
+        string artStatus "ok | no-art | no-match"
+        string backdropPath
+        string tilePath
+        string logoPath
+        string themePalette
+        int launchboxId
+    }
+    Company {
+        int id PK
+        string key UK "publisherKey, shared with the home ranking"
+        string name "most used spelling"
+    }
+    Genre {
+        int id PK
+        string key UK
+        string name
+    }
+    GameGenre {
+        int gameId PK, FK
+        int genreId PK, FK
+    }
+    GameImage {
+        int id PK
+        int gameId FK
+        string kind "banner, fanart, box-front, box-back, box-3d, box-spine, cart-front, disc, clear-logo, square, screenshot-gameplay, screenshot-game-title, other:<name>"
+        string region
+        int width
+        int height
+        string s3Key "repo/<platform>/<game>/<kind>-<hash>.webp"
+        string sourceUrl UK(gameId, sourceUrl)
+    }
+```
+
+- **`Company`** holds publishers and developers alike. Its `key` is computed by
+  `publisherKey` (`src/lib/publishers.ts`), the same function the home ranking uses,
+  so the two stay in step. `normalizeCatalog` (`POST /api/admin/catalog/normalize`,
+  admin only) links every game; it is idempotent.
+- **`Genre`** comes from the comma-separated text of `Game.genre`. A game's genres are
+  rebuilt on each link.
+- **`GameImage`** is one row per LaunchBox image. `kind` is the normalized category
+  (`src/lib/game-images.ts`); unknown categories keep their LaunchBox name as
+  `other:<name>`. `artStatus` on `Game` tells games with no art apart from games with
+  no LaunchBox match: that is the list still to complete from other sources.
+- Wikidata fills an empty developer, publisher, year or genre (`src/lib/metadata/wikidata.ts`)
+  and links the game to its canonical rows. It never overwrites a value that is set.
+
 ## Working with the DB
 
 > The `.db` files are **not** committed to the repo. Generate the database the

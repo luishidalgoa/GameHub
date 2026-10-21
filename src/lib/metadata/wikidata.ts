@@ -1,5 +1,6 @@
 import { db } from '@/lib/db'
 import { providerFetch } from './http'
+import { linkGame } from '@/lib/catalog'
 
 /**
  * Wikidata as a free fallback for the facts a game is missing: developer, publisher,
@@ -113,5 +114,6 @@ export async function fillGameFacts(gameId: number): Promise<string[]> {
   if (!game.genre && facts.genre) data.genre = facts.genre
   if (Object.keys(data).length === 0) return []
   await db.game.update({ where: { id: gameId }, data })
+  await linkGame(gameId)
   return Object.keys(data)
 }

@@ -57,9 +57,16 @@ model Game {
   // CSV of ISO-639-1 codes, e.g. "es,en,it". Null when none were detected.
   languages   String?
   releaseYear Int?
+  // Texto tal como lo publica la fuente (nombre visible). La entidad canonica es
+  // la fila de Company / Genre a la que apunta; ver docs/reference/database.md.
   genre       String?
   developer   String?
   publisher   String?
+  developerCompanyId Int?
+  publisherCompanyId Int?
+  developerCompany   Company? @relation("developerCompany", fields: [developerCompanyId], references: [id], onDelete: SetNull)
+  publisherCompany   Company? @relation("publisherCompany", fields: [publisherCompanyId], references: [id], onDelete: SetNull)
+  genres      GameGenre[]
 
   coverPath       String?
   coverUrl        String?
@@ -317,6 +324,34 @@ model DownloadLog {
 // Background job state for long-running tasks (scan / auto-metadata). Persisted
 // so the dashboard can show progress when you return, and so an interrupted job
 // (e.g. server restart) can be auto-resumed from where it left off.
+// Editora o desarrolladora canonica: una fila por empresa, con la clave normalizada
+// (publisherKey) que usa el ranking de editoras de la portada.
+model Company {
+  id            Int      @id @default(autoincrement())
+  key           String   @unique
+  name          String
+  createdAt     DateTime @default(now())
+  publishedGames Game[]  @relation("publisherCompany")
+  developedGames Game[]  @relation("developerCompany")
+}
+
+model Genre {
+  id        Int         @id @default(autoincrement())
+  key       String      @unique
+  name      String
+  games     GameGenre[]
+}
+
+model GameGenre {
+  gameId  Int
+  genreId Int
+  game    Game  @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  genre   Genre @relation(fields: [genreId], references: [id], onDelete: Cascade)
+
+  @@id([gameId, genreId])
+  @@index([genreId])
+}
+
 // Una imagen de un juego tal como la publica LaunchBox, en el tamaño original y
 // categorizada. El repositorio entero se monta desde aqui.
 model GameImage {
