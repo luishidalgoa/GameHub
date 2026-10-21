@@ -117,6 +117,20 @@ model Game {
   userHidden   Boolean   @default(false)
   missingSince DateTime?
 
+  // Home/game-page art, resolved from LaunchBox by priority (Banner, Fanart -
+  // Background, Square, Screenshot - Game Title). `themePalette` is a JSON array
+  // of up to three "#rrggbb" colors taken from the backdrop; the page tints
+  // itself with them. `artCheckedAt` marks a game as processed so a game with no
+  // LaunchBox art is not searched again on every run.
+  backdropPath String?
+  backdropKind String?
+  // 16:9 fanart for the wide tiles; null when the game has none (the tile falls
+  // back to a screenshot). Shares the backdrop's file when that is the fanart.
+  tilePath     String?
+  logoPath     String?
+  themePalette String?
+  artCheckedAt DateTime?
+
   sha256            String?
 
   lastSeenAt        DateTime @default(now())

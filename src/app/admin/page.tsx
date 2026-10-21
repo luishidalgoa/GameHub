@@ -5,6 +5,7 @@ import { formatBytes } from '@/lib/utils'
 import { libraryGameWhere, WITHOUT_METADATA, NO_COVER, NO_SCORE } from '@/lib/library'
 import { ScanPanel } from '@/components/admin/ScanPanel'
 import { MetadataBatchPanel } from '@/components/admin/MetadataBatchPanel'
+import { ArtJobPanel } from '@/components/admin/ArtJobPanel'
 import { OrphanCoversPanel } from '@/components/admin/OrphanCoversPanel'
 import { LibraryIssuesPanel } from '@/components/admin/LibraryIssuesPanel'
 import { HealthPanel } from '@/components/admin/HealthPanel'
@@ -62,6 +63,7 @@ export default async function AdminPage() {
 
       {/* Auto metadata batch */}
       <MetadataBatchPanel platforms={platforms} />
+      <ArtJobPanel />
 
       {/* Orphan cover cleanup */}
       <OrphanCoversPanel />

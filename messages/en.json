@@ -613,5 +613,14 @@
     "resetEdit": "Undo my edit",
     "riskSharedCard": "Shares a metadata entry with another game, so the year may belong to the wrong one. Check before accepting.",
     "riskNoSource": "No catalogue backs this year up. Nothing corroborates it."
+  },
+  "ArtJob": {
+    "title": "Game backdrops and logos",
+    "desc": "Downloads each game's LaunchBox backdrop, logo and palette for the home page. It runs slowly to be kind to LaunchBox: the first pass takes hours.",
+    "start": "Fetch backdrops",
+    "redo": "Redo all",
+    "cancel": "Cancel",
+    "progress": "{processed} of {total}",
+    "summary": "{applied} with art · {skipped} without · {failed} failed"
   }
 }
