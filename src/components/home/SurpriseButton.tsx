@@ -9,7 +9,7 @@ import { Dices, Loader2 } from 'lucide-react'
  * "Surprise me": jumps to a random game (weighted by popularity server-side).
  * Always works, even before any popularity sync.
  */
-export function SurpriseButton() {
+export function SurpriseButton({ variant = 'button' }: { variant?: 'button' | 'text' }) {
   const t = useTranslations('Home')
   const router = useRouter()
   const [busy, setBusy] = useState(false)
@@ -25,6 +25,15 @@ export function SurpriseButton() {
     } catch {
       setBusy(false)
     }
+  }
+
+  if (variant === 'text') {
+    return (
+      <button onClick={go} disabled={busy}
+              className="text-sm text-white/60 underline-offset-4 transition hover:text-white hover:underline disabled:opacity-60">
+        {t('surpriseMe')}
+      </button>
+    )
   }
 
   return (

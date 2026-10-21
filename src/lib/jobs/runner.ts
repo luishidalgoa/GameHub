@@ -1,13 +1,15 @@
 import { db } from '@/lib/db'
 import { runMetadataBatch, type BatchEvent } from '@/lib/metadata/batch'
 import { runScan } from '@/lib/scanner'
+import { fetchGameArt } from '@/lib/art'
+import { fillGameFacts } from '@/lib/metadata/wikidata'
 
 // Background job runner. Jobs run DETACHED from any HTTP request (so navigating
 // away never cancels them) and persist their progress to the Job table, so the
 // dashboard can show where a job is when you return, and an interrupted job
 // (e.g. server restart) is auto-resumed on boot.
 
-export type JobType = 'metadata' | 'scan'
+export type JobType = 'metadata' | 'scan' | 'art'
 
 export interface MetadataJobParams {
   mode?: 'missing' | 'fill' | 'redo' | 'wrong-provider' | 'popularity' | 'autocomplete-scores'
@@ -16,6 +18,11 @@ export interface MetadataJobParams {
   withCovers?: boolean
   withTrailers?: boolean
   withScores?: boolean
+}
+export interface ArtJobParams {
+  platformSlug?: string
+  /** Fetch again even for games already checked. */
+  redo?: boolean
 }
 export interface ScanJobParams {
   platformSlug?: string
@@ -176,7 +183,93 @@ export async function startMetadataJob(params: MetadataJobParams, resumeJobId?: 
             finishedAt: new Date(),
           },
         }).catch(() => {})
+        // New metadata brings new matches: fetch the art of games not yet checked.
+        void startArtJob({ platformSlug: params.platformSlug }).catch(() => {})
       }
+    } catch (err) {
+      await db.job.update({
+        where: { id: job.id },
+        data: { status: 'failed', message: err instanceof Error ? err.message : 'unknown error', finishedAt: new Date() },
+      }).catch(() => {})
+    } finally {
+      controllers.delete(job.id)
+    }
+  })()
+
+  return job.id
+}
+
+// ── Art job ───────────────────────────────────────────────────────────────────
+
+/**
+ * Start (or resume) the art job: for every game not yet checked, fetch its
+ * LaunchBox backdrop and logo. Paced to be polite to LaunchBox, so the first run
+ * over a large library takes hours; it resumes from its cursor after a restart.
+ */
+export async function startArtJob(params: ArtJobParams, resumeJobId?: number): Promise<number> {
+  if (!resumeJobId) {
+    const existing = await getActiveJob('art')
+    if (existing) return existing.id
+  }
+  const job = resumeJobId
+    ? await db.job.update({ where: { id: resumeJobId }, data: { status: 'running', message: null } })
+    : await db.job.create({ data: { type: 'art', status: 'running', phase: 'art', params: JSON.stringify(params) } })
+
+  const controller = new AbortController()
+  controllers.set(job.id, controller)
+  if (!resumeJobId) jobLogs.set(job.id, [])
+
+  ;(async () => {
+    try {
+      const where = {
+        isHidden: false, userHidden: false, missingSince: null,
+        ...(params.redo ? {} : { artCheckedAt: null }),
+        ...(params.platformSlug ? { platform: { slug: params.platformSlug } } : {}),
+      }
+      const fresh = await db.job.findUnique({ where: { id: job.id } })
+      const cursor = fresh?.cursorId ?? 0
+      const games = await db.game.findMany({
+        where: { ...where, id: { gt: cursor } },
+        select: { id: true, title: true, fileName: true, launchboxId: true, platform: { select: { slug: true } } },
+        orderBy: { id: 'asc' },
+      })
+      const done = fresh?.processed ?? 0
+      await db.job.update({ where: { id: job.id }, data: { total: done + games.length } })
+      pushLog(job.id, `→ ${games.length} games to process`)
+
+      let processed = done, applied = fresh?.applied ?? 0, skipped = fresh?.skipped ?? 0, failed = fresh?.failed ?? 0
+      for (const g of games) {
+        if (controller.signal.aborted) return
+        processed++
+        let line: string
+        try {
+          const outcome = await fetchGameArt({
+            id: g.id, title: g.title, fileName: g.fileName,
+            launchboxId: g.launchboxId, platformSlug: g.platform.slug,
+          })
+          if (outcome === 'applied') { applied++; line = `✓ [${processed}] ${g.title}` }
+          else { skipped++; line = `– [${processed}] ${g.title} — ${outcome === 'no-match' ? 'no LaunchBox match' : 'no art'}` }
+        } catch (err) {
+          failed++
+          line = `✗ [${processed}] ${g.title} — ${err instanceof Error ? err.message : 'error'}`
+        }
+        pushLog(job.id, line)
+        // Facts LaunchBox did not give (developer, publisher, year, genre) come from Wikidata.
+        if (!controller.signal.aborted) {
+          const filled = await fillGameFacts(g.id).catch(() => [] as string[])
+          if (filled.length) pushLog(job.id, `  + ${filled.join(', ')} (Wikidata)`)
+          await new Promise(r => setTimeout(r, 1100))
+        }
+        await db.job.update({
+          where: { id: job.id },
+          data: { processed, applied, skipped, failed, cursorId: g.id, lastTitle: g.title },
+        }).catch(() => {})
+        await new Promise(r => setTimeout(r, 600))
+      }
+      await db.job.update({
+        where: { id: job.id },
+        data: { status: 'done', message: `${applied} applied · ${skipped} skipped · ${failed} failed`, finishedAt: new Date() },
+      }).catch(() => {})
     } catch (err) {
       await db.job.update({
         where: { id: job.id },
@@ -249,6 +342,8 @@ export async function resumeInterruptedJobs(): Promise<void> {
     const params = (() => { try { return j.params ? JSON.parse(j.params) : {} } catch { return {} } })()
     if (j.type === 'metadata') {
       await startMetadataJob(params, j.id).catch(() => {})
+    } else if (j.type === 'art') {
+      await startArtJob(params, j.id).catch(() => {})
     } else if (j.type === 'scan') {
       // Mark the old scan row finished and start a fresh one (scans are idempotent).
       await db.job.update({ where: { id: j.id }, data: { status: 'cancelled', message: 'Superseded by resume', finishedAt: new Date() } }).catch(() => {})

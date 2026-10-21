@@ -57,9 +57,16 @@ model Game {
   // CSV of ISO-639-1 codes, e.g. "es,en,it". Null when none were detected.
   languages   String?
   releaseYear Int?
+  // Texto tal como lo publica la fuente (nombre visible). La entidad canonica es
+  // la fila de Company / Genre a la que apunta; ver docs/reference/database.md.
   genre       String?
   developer   String?
   publisher   String?
+  developerCompanyId Int?
+  publisherCompanyId Int?
+  developerCompany   Company? @relation("developerCompany", fields: [developerCompanyId], references: [id], onDelete: SetNull)
+  publisherCompany   Company? @relation("publisherCompany", fields: [publisherCompanyId], references: [id], onDelete: SetNull)
+  genres      GameGenre[]
 
   coverPath       String?
   coverUrl        String?
@@ -113,9 +120,29 @@ model Game {
   popularityFetchedAt DateTime?
 
   isFavorite   Boolean   @default(false)
+  // Chosen by the owner to be highlighted on the home page.
+  isFeatured   Boolean   @default(false)
   isHidden     Boolean   @default(false)
   userHidden   Boolean   @default(false)
   missingSince DateTime?
+
+  // Home/game-page art, resolved from LaunchBox by priority (Banner, Fanart -
+  // Background, Square, Screenshot - Game Title). `themePalette` is a JSON array
+  // of up to three "#rrggbb" colors taken from the backdrop; the page tints
+  // itself with them. `artCheckedAt` marks a game as processed so a game with no
+  // LaunchBox art is not searched again on every run.
+  backdropPath String?
+  backdropKind String?
+  // 16:9 fanart for the wide tiles; null when the game has none (the tile falls
+  // back to a screenshot). Shares the backdrop's file when that is the fanart.
+  tilePath     String?
+  logoPath     String?
+  themePalette String?
+  artCheckedAt DateTime?
+  // Resultado de buscar arte: ok | no-art | no-match. Alimenta la lista de juegos
+  // a completar a mano o con otra fuente.
+  artStatus    String?
+  images       GameImage[]
 
   sha256            String?
 
@@ -297,6 +324,52 @@ model DownloadLog {
 // Background job state for long-running tasks (scan / auto-metadata). Persisted
 // so the dashboard can show progress when you return, and so an interrupted job
 // (e.g. server restart) can be auto-resumed from where it left off.
+// Editora o desarrolladora canonica: una fila por empresa, con la clave normalizada
+// (publisherKey) que usa el ranking de editoras de la portada.
+model Company {
+  id            Int      @id @default(autoincrement())
+  key           String   @unique
+  name          String
+  createdAt     DateTime @default(now())
+  publishedGames Game[]  @relation("publisherCompany")
+  developedGames Game[]  @relation("developerCompany")
+}
+
+model Genre {
+  id        Int         @id @default(autoincrement())
+  key       String      @unique
+  name      String
+  games     GameGenre[]
+}
+
+model GameGenre {
+  gameId  Int
+  genreId Int
+  game    Game  @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  genre   Genre @relation(fields: [genreId], references: [id], onDelete: Cascade)
+
+  @@id([gameId, genreId])
+  @@index([genreId])
+}
+
+// Una imagen de un juego tal como la publica LaunchBox, en el tamaño original y
+// categorizada. El repositorio entero se monta desde aqui.
+model GameImage {
+  id        Int      @id @default(autoincrement())
+  gameId    Int
+  game      Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  kind      String                // banner | fanart | square | clear-logo | box-front | box-back | box-3d | box-spine | box-front-reconstructed | cart-front | disc | screenshot-gameplay | screenshot-game-title | other
+  region    String?
+  width     Int?
+  height    Int?
+  s3Key     String                // repo/<plataforma>/<juego>/<tipo>-<hash>.webp
+  sourceUrl String
+  createdAt DateTime @default(now())
+
+  @@unique([gameId, sourceUrl])
+  @@index([gameId, kind])
+}
+
 model Job {
   id        Int      @id @default(autoincrement())
   type      String                  // "scan" | "metadata"

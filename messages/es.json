@@ -27,7 +27,20 @@
     "recommended": "Recomendados",
     "surpriseMe": "Sorpréndeme",
     "featured": "Destacado",
-    "featuredView": "Ver juego"
+    "featuredView": "Ver juego",
+    "showAll": "Mostrar todo",
+    "showAllHint": "Explora la colección completa",
+    "kickerNew": "Novedades",
+    "kickerForYou": "Para ti",
+    "kickerTop": "Lo más pedido",
+    "featuredKicker": "Selección",
+    "featuredTitle": "Destacados",
+    "consolesKicker": "Plataformas",
+    "consolesTitle": "Consolas",
+    "platformGames": "{count, plural, one {# juego} other {# juegos}}",
+    "publishersKicker": "Por editora",
+    "publishersTitle": "Las editoras que mandan",
+    "publisherGames": "{count, plural, one {# juego} other {# juegos}}"
   },
   "Platform": {
     "games": "{count, plural, one {# juego} other {# juegos}}",
@@ -506,6 +519,7 @@
     "coverArt": "Portada",
     "flags": "Etiquetas",
     "favorite": "Favorito",
+    "featured": "Destacado en la portada",
     "hidden": "Oculto",
     "on": "Sí",
     "off": "No",
@@ -613,5 +627,14 @@
     "resetEdit": "Deshacer mi edición",
     "riskSharedCard": "Comparte ficha de metadatos con otro juego: el año puede ser del juego equivocado. Compruébalo antes de aceptar.",
     "riskNoSource": "Ningún catálogo respalda este año. No hay nada que lo corrobore."
+  },
+  "ArtJob": {
+    "title": "Fondos y logos de los juegos",
+    "desc": "Descarga de LaunchBox el fondo, el logo y la paleta de cada juego para la portada. Va despacio para no saturar LaunchBox: la primera vez tarda horas.",
+    "start": "Buscar fondos",
+    "redo": "Repetir todos",
+    "cancel": "Cancelar",
+    "progress": "{processed} de {total}",
+    "summary": "{applied} con arte · {skipped} sin arte · {failed} con error"
   }
 }

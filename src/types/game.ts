@@ -48,6 +48,7 @@ export interface Game {
   rawgScore: number | null
   scoreSource: string | null
   isFavorite: boolean
+  isFeatured?: boolean
   isHidden: boolean
   lastSeenAt: Date | string
   metadataFetchedAt: Date | string | null

@@ -53,6 +53,7 @@
     "sharp": "^0.34.5",
     "swr": "^2.4.1",
     "tailwind-merge": "^2.6.1",
+    "three": "^0.170.0",
     "tsx": "^4.22.0",
     "zod": "^4.4.3"
   },
@@ -62,6 +63,7 @@
     "@types/node": "^25.8.0",
     "@types/react": "^18.3.28",
     "@types/react-dom": "^18.3.7",
+    "@types/three": "^0.170.0",
     "autoprefixer": "^10.5.0",
     "esbuild": "^0.23.0",
     "eslint": "^9.39.4",

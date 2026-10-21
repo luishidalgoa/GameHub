@@ -1,6 +1,7 @@
 import { quotaGuard } from '@/lib/quota'
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { adminGuard } from '@/lib/admin-guard'
 
 export const dynamic = 'force-dynamic'
 
@@ -13,6 +14,8 @@ export interface ImageSearchResult {
 }
 
 export async function GET(req: Request) {
+  const denied = await adminGuard()
+  if (denied) return denied
   const limited = quotaGuard(req.headers, 'google-images')
   if (limited) return limited
 

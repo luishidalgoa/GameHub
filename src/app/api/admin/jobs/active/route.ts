@@ -4,7 +4,7 @@ import { adminGuard } from '@/lib/admin-guard'
 
 export const dynamic = 'force-dynamic'
 
-// GET ?type=metadata|scan → the latest job of that type (running or finished),
+// GET ?type=metadata|scan|art → the latest job of that type (running or finished),
 // used by the dashboard to show progress on return. Returns { job: null } when
 // there has never been one.
 export async function GET(req: Request) {
@@ -19,8 +19,8 @@ export async function GET(req: Request) {
   void resumeInterruptedJobs()
 
   const type = new URL(req.url).searchParams.get('type')
-  if (type !== 'metadata' && type !== 'scan') {
-    return NextResponse.json({ error: 'type must be metadata or scan' }, { status: 400 })
+  if (type !== 'metadata' && type !== 'scan' && type !== 'art') {
+    return NextResponse.json({ error: 'type must be metadata, scan or art' }, { status: 400 })
   }
   const job = await getLatestJob(type as JobType)
   if (!job) return NextResponse.json({ job: null })

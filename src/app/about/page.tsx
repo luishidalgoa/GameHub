@@ -170,6 +170,10 @@ export default function AboutPage() {
         </div>
       </div>
 
+      <p className="text-xs text-muted-foreground text-center">
+        Los modelos 3D de las consolas son de sus autores: <a href="/creditos" className="underline hover:text-foreground">ver créditos</a>.
+      </p>
+
     </div>
   )
 }

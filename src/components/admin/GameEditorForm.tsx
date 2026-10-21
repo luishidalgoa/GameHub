@@ -3,7 +3,7 @@
 import { useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { useTranslations } from 'next-intl'
-import { Save, Loader2, ArrowLeft, Heart, EyeOff, Search, ChevronDown, ImageIcon, Link2, Github, Plus, Trash2, GitMerge } from 'lucide-react'
+import { Save, Loader2, ArrowLeft, Heart, Star, EyeOff, Search, ChevronDown, ImageIcon, Link2, Github, Plus, Trash2, GitMerge } from 'lucide-react'
 import useSWR from 'swr'
 import { CoverUploader } from './CoverUploader'
 import { MetadataFetchButton } from './MetadataFetchButton'
@@ -84,6 +84,7 @@ export function GameEditorForm({ game, thumbnailWidth = 200, thumbnailHeight = 3
     trailerUrl: game.trailerUrl ?? '',
     score: game.rawgScore != null ? String(game.rawgScore) : '',
     isFavorite: game.isFavorite,
+    isFeatured: game.isFeatured ?? false,
     isHidden: game.isHidden,
   })
 
@@ -581,6 +582,15 @@ export function GameEditorForm({ game, thumbnailWidth = 200, thumbnailHeight = 3
               value={form.isFavorite}
               onChange={(v) => set('isFavorite', v)}
               activeClass="text-red-400"
+            />
+            <Toggle
+              icon={<Star className="w-4 h-4" />}
+              label={t('featured')}
+              onLabel={t('on')}
+              offLabel={t('off')}
+              value={form.isFeatured}
+              onChange={(v) => set('isFeatured', v)}
+              activeClass="text-amber-400"
             />
             <Toggle
               icon={<EyeOff className="w-4 h-4" />}

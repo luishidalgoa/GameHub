@@ -119,12 +119,13 @@ export async function GET() {
     db.downloadLog.aggregate({
       _count: { id: true },
       _sum: { fileSize: true },
-      where: { completed: true },
+      where: { completed: true, dlcId: null },
     }),
 
-    // Top downloaded games (all time)
+    // Top downloaded games (all time). DLC and updates are not counted for their game.
     db.downloadLog.groupBy({
       by: ['gameId'],
+      where: { dlcId: null },
       _count: { id: true },
       _sum: { fileSize: true },
       orderBy: { _count: { id: 'desc' } },
@@ -134,7 +135,7 @@ export async function GET() {
     // Downloads by device (raw rows, we'll group in JS)
     db.downloadLog.findMany({
       select: { gameId: true, device: true },
-      where: { device: { not: null } },
+      where: { device: { not: null }, dlcId: null },
     }),
 
     // Rate limit alerts
@@ -148,13 +149,14 @@ export async function GET() {
 
     // Sparkline: downloads per day for last 7 days
     db.downloadLog.findMany({
-      where: { startedAt: { gte: sparklineDays[0] } },
+      where: { startedAt: { gte: sparklineDays[0] }, dlcId: null },
       select: { startedAt: true },
     }),
     // Descargas por cliente. Las filas anteriores a esta funcionalidad tienen
     // client=NULL y se agrupan como "unknown" en vez de inventarles un origen.
     db.downloadLog.groupBy({
       by: ['client'],
+      where: { dlcId: null },
       _count: { _all: true },
       _sum: { fileSize: true },
     }),
@@ -163,6 +165,7 @@ export async function GET() {
     // esta cortando descargas a medias.
     db.downloadLog.groupBy({
       by: ['client', 'completed'],
+      where: { dlcId: null },
       _count: { _all: true },
     }),
 
@@ -170,7 +173,7 @@ export async function GET() {
     // "incompleta": una descarga EN CURSO tambien tiene completed=false, y
     // contarla como fallida daria un panel alarmista y falso.
     db.downloadLog.count({
-      where: { completed: false, startedAt: { lt: new Date(Date.now() - 6 * 3600_000) } },
+      where: { completed: false, dlcId: null, startedAt: { lt: new Date(Date.now() - 6 * 3600_000) } },
     }),
 
   ])
@@ -270,7 +273,7 @@ export async function GET() {
   const versionRaw = await db.downloadLog.groupBy({
     by: ['clientVersion'],
     _count: { _all: true },
-    where: { clientVersion: { not: null } },
+    where: { clientVersion: { not: null }, dlcId: null },
     orderBy: { _count: { id: 'desc' } },
     take: 10,
   })
