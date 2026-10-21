@@ -81,6 +81,44 @@ function findModRoots(dir: string, depth = 0): string[] {
   return roots
 }
 
+/**
+ * One mod is one entry, not one per file. Its unit is the top-level folder of
+ * the game that holds it: "Custom ROMs by Ckau/ENG" and ".../RUS" are one mod,
+ * and a 182-ROM pack is one entry. A bare "Mods" folder at the game root holds
+ * one mod per entry (a zip or a folder), so each of those is its own unit.
+ */
+function findModUnits(gameDir: string): string[] {
+  const units = new Set<string>()
+  for (const root of findModRoots(gameDir)) {
+    const rel = path.relative(gameDir, root).split(path.sep)
+    if (rel.length === 1 && /^mods?$/i.test(rel[0])) {
+      try {
+        for (const e of fs.readdirSync(root, { withFileTypes: true })) {
+          if (!e.name.startsWith('.')) units.add(path.join(root, e.name))
+        }
+      } catch { /* unreadable: skip */ }
+    } else {
+      units.add(path.join(gameDir, rel[0]))
+    }
+  }
+  return [...units]
+}
+
+/** Bytes in a mod unit: the file itself, or every file under the folder. */
+function unitSize(unit: string): bigint {
+  const st = fs.statSync(unit)
+  if (!st.isDirectory()) return BigInt(st.size)
+  let total = BigInt(0)
+  let entries: fs.Dirent[]
+  try { entries = fs.readdirSync(unit, { withFileTypes: true }) } catch { return total }
+  for (const e of entries) {
+    const full = path.join(unit, e.name)
+    if (e.isDirectory()) total += unitSize(full)
+    else if (e.isFile()) { try { total += BigInt(fs.statSync(full).size) } catch { /* ignore */ } }
+  }
+  return total
+}
+
 export function scanSwitchFolders(
   rootDir: string,
   extensions: string[],
@@ -117,6 +155,11 @@ export function scanSwitchFolders(
             dlcFiles.push({ ...f, type: fileType })
           }
         }
+      } else if (sub.isFile() && sub.name.toLowerCase().endsWith('.zip')) {
+        // A mod packed into one archive sitting in the game folder: the zip is the mod.
+        let size = BigInt(0)
+        try { size = BigInt(fs.statSync(subPath).size) } catch { /* ignore */ }
+        dlcFiles.push({ filePath: subPath, fileName: sub.name, fileSize: size, extension: '.zip', parentDir: folderPath, type: 'mod' })
       } else if (sub.isFile()) {
         const ext = path.extname(sub.name).toLowerCase()
         if (extensions.includes(ext)) {
@@ -127,15 +170,16 @@ export function scanSwitchFolders(
       }
     }
 
-    // Mods can sit a few levels down (NSO packs: <pack>/<variant>/atmosphere/...).
-    // Each mod root is walked once; nested roots inside it are not walked again.
-    const seenMod = new Set<string>()
-    for (const root of findModRoots(folderPath)) {
-      if ([...seenMod].some(prev => root.startsWith(prev + path.sep))) continue
-      seenMod.add(root)
-      for (const f of walkDirectory(root, [], 6)) {
-        dlcFiles.push({ ...f, type: 'mod' })
-      }
+    // A mod is one entry, not one per file: see findModUnits.
+    for (const unit of findModUnits(folderPath)) {
+      dlcFiles.push({
+        filePath:  unit,
+        fileName:  path.basename(unit),
+        fileSize:  unitSize(unit),
+        extension: '',
+        parentDir: folderPath,
+        type:      'mod',
+      })
     }
 
     if (rootFiles.length === 0 && dlcFiles.length === 0) continue
