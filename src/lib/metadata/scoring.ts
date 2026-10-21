@@ -6,6 +6,11 @@ import type { MetadataResult } from './provider'
 //   >= AUTO_THRESHOLD → apply automatically; below it the match is not used
 export const AUTO_THRESHOLD   = 68
 
+const ROMAN: Record<string, string> = {
+  i: '1', ii: '2', iii: '3', iv: '4', v: '5', vi: '6', vii: '7', viii: '8', ix: '9', x: '10',
+  xi: '11', xii: '12', xiii: '13', xiv: '14', xv: '15', xvi: '16', xvii: '17', xviii: '18', xix: '19', xx: '20',
+}
+
 export function normalize(s: string): string {
   return s
     .normalize('NFD')
@@ -16,6 +21,10 @@ export function normalize(s: string): string {
     .replace(/[^a-z0-9\s]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim()
+    // "Final Fantasy VII" and "Final Fantasy 7" are the same game (#114).
+    .split(' ')
+    .map(tok => ROMAN[tok] ?? tok)
+    .join(' ')
 }
 
 export function jaccard(a: string, b: string): number {
