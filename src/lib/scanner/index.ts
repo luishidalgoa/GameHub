@@ -466,7 +466,11 @@ export async function runScan(triggeredBy = 'manual', platformSlug?: string) {
           // Pass 2: attach each update/DLC to its base game. Four ways to find
           // it, cheapest first: by Title ID or by folder within this scan, then
           // the same two against the DB for a base scanned on an earlier run.
+          const knownDlcs = new Map((await db.gameDlc.findMany({ where: { game: { platformId: platform.id } }, select: { filePath: true, fileSize: true } })).map(d => [d.filePath, d]))
           for (const dlc of [...updates, ...dlcs]) {
+            // Linked on an earlier scan and unchanged: nothing to look up.
+            const knownDlc = knownDlcs.get(dlc.filePath)
+            if (knownDlc && knownDlc.fileSize === dlc.fileSize) continue
             const key = extractGameKey(dlc.fileName)
             let gameId = key ? gameKeyMap.get(key) : undefined
 
@@ -512,6 +516,10 @@ export async function runScan(triggeredBy = 'manual', platformSlug?: string) {
 
       } else {
         // ── Flat: walk recursively, each file = one game ─────────────────────
+        // A file already known with the same size is only marked as seen; the
+        // ids are written in batches once the platform's paths are walked.
+        const knownFlat = await knownGameSizes(platform.id)
+        const touched: number[] = []
         for (const scanPath of scanPaths) {
           if (!fs.existsSync(scanPath)) {
             errors.push(`[WARN] Scan path not found or inaccessible: "${scanPath}" (platform: ${platform.name})`)
@@ -520,6 +528,12 @@ export async function runScan(triggeredBy = 'manual', platformSlug?: string) {
           }
           for (const file of walkDirectory(scanPath, extensions)) {
             found++
+            const prev = knownFlat.get(file.filePath)
+            if (prev && prev.fileSize === file.fileSize) {
+              touched.push(prev.id)
+              if (found % 20 === 0) await tick()
+              continue
+            }
             const title  = fileToTitle(file.fileName)
             const { region, languages } = tagFields(file.fileName)
             const groupKey = gameGroupKey(file.fileName)
@@ -537,6 +551,9 @@ export async function runScan(triggeredBy = 'manual', platformSlug?: string) {
             } catch (err) { errors.push(`Error processing ${file.filePath}: ${err}`) }
             if (found % 20 === 0) await tick()
           }
+        }
+        for (let i = 0; i < touched.length; i += 500) {
+          await db.game.updateMany({ where: { id: { in: touched.slice(i, i + 500) } }, data: { lastSeenAt: scanStart } })
         }
       }
     } catch (err) {
