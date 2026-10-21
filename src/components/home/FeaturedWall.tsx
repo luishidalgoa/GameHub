@@ -8,8 +8,8 @@ import { useStageHover } from './stage-hover'
 /**
  * The owner's picks as a wall of three columns. Each column holds two tiles, and
  * hovering one makes it grow at the expense of the other in its column, so the
- * wall reshapes under the pointer instead of lifting a card. The columns are
- * unequal on purpose. On a phone the wall is a plain stack and nothing grows.
+ * wall reshapes under the pointer instead of lifting a card. All tiles start at
+ * the same height. On a phone the wall is a plain stack and nothing grows.
  */
 export function FeaturedWall({ games, kicker, title, cta }: {
   games: TileGame[]
@@ -19,7 +19,6 @@ export function FeaturedWall({ games, kicker, title, cta }: {
 }) {
   if (games.length === 0) return null
   const columns = [games.slice(0, 2), games.slice(2, 4), games.slice(4, 6)].filter(c => c.length > 0)
-  const widths = ['md:[flex:1.15_1_0]', 'md:[flex:1_1_0]', 'md:[flex:0.9_1_0]']
 
   return (
     <Reveal as="section">
@@ -29,7 +28,7 @@ export function FeaturedWall({ games, kicker, title, cta }: {
       </div>
       <div className="flex flex-col gap-3 px-4 sm:px-6 md:h-[600px] md:flex-row">
         {columns.map((col, c) => (
-          <div key={c} className={`flex flex-col gap-3 ${widths[c]} ${c === 1 ? 'md:pt-8' : ''}`}>
+          <div key={c} className="flex flex-col gap-3 md:flex-1">
             {col.map(g => <WallTile key={g.id} game={g} cta={cta} />)}
           </div>
         ))}
