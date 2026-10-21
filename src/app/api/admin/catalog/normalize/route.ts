@@ -1,6 +1,7 @@
 import { adminGuard } from '@/lib/admin-guard'
 import { NextResponse } from 'next/server'
 import { normalizeCatalog } from '@/lib/catalog'
+import { rawDb } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
@@ -8,5 +9,5 @@ export const dynamic = 'force-dynamic'
 export async function POST() {
   const denied = await adminGuard()
   if (denied) return denied
-  return NextResponse.json({ ok: true, ...(await normalizeCatalog()) })
+  return NextResponse.json({ ok: true, ...(await normalizeCatalog(rawDb)) })
 }
