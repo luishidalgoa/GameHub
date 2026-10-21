@@ -6,13 +6,12 @@ import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { guardShopRequest, shopBaseUrl } from '@/lib/shop-auth'
 import { isSwitchFile, shopFileName, statSize } from '@/lib/shop-files'
+import { updateTitleIdOf } from '@/lib/scanner/titleid'
 
-/** Title ID de la actualizacion de un juego: el suyo con 0x800 puesto. */
+/** Title ID de la actualizacion de un juego: el suyo con 0x800 puesto (#79). */
 function updateTitleId(baseTitleId: string | null): string | null {
   if (!baseTitleId || !/^[0-9a-fA-F]{16}$/.test(baseTitleId)) return null
-  const value = BigInt('0x' + baseTitleId)
-  const base  = value & ~BigInt(0x1fff)
-  return (base | BigInt(0x800)).toString(16).toUpperCase().padStart(16, '0')
+  return updateTitleIdOf(baseTitleId)
 }
 
 export const dynamic = 'force-dynamic'

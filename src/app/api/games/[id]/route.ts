@@ -4,6 +4,7 @@ import { serializeBigInt } from '@/lib/serialize'
 import { resolveCoverPath } from '@/lib/s3'
 import { isAdminSession } from '@/lib/auth'
 import { adminGuard } from '@/lib/admin-guard'
+import { baseApplicationId } from '@/lib/scanner/titleid'
 
 export const dynamic = 'force-dynamic'
 
@@ -51,7 +52,9 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     const raw = typeof data.titleId === 'string'
       ? data.titleId.trim().toUpperCase().replace(/[\[\]\s]/g, '')
       : ''
-    data.titleId = /^[0-9A-F]{16}$/.test(raw) ? raw : null
+    // A game is stored under its base Title ID (#79): an update or DLC ID typed
+    // here is reduced to the base, the same rule the scanner applies.
+    data.titleId = /^[0-9A-F]{16}$/.test(raw) ? baseApplicationId(raw) : null
   }
 
   // Null out legacy local cover paths (public/covers/ folder has been removed)

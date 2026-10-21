@@ -29,6 +29,7 @@ import { extractSwitchTitleId, classifySwitchTitleId } from '@/lib/scanner/title
 import { jpegImageUrl, resolveCoverPath } from '@/lib/cover-url'
 
 import { isSwitchFile, parseScreenshots, shopFileName, statSize } from '@/lib/shop-files'
+import { servedTitleId } from '@/lib/scanner/titleid'
 
 
 export const dynamic = 'force-dynamic'
@@ -113,7 +114,7 @@ export async function GET(req: Request) {
       if (!isBaseGameFile(d.fileName, d.titleId ?? g.titleId)) continue
       // Una edicion regional es un juego base completo: si no trae Title ID
       // propio hereda el del juego, que es el mismo titulo en otra region.
-      const served = shopFileName(d.fileName, d.titleId ?? g.titleId)
+      const served = shopFileName(d.fileName, servedTitleId('region', d.titleId, g.titleId))
       candidates.push({
         url:      `${base}/api/shop/download/dlc/${d.id}/${encodeURIComponent(served)}`,
         filePath: d.filePath,

@@ -83,3 +83,30 @@ export function switchGroupKey(fileNames: string[]): string | null {
 export function nameGroupKey(folderOrFileName: string): string {
   return gameGroupKey(folderOrFileName)
 }
+
+/**
+ * The Title ID an update of this game carries: the base application ID with the
+ * update bit (0x800) set. Derived from baseApplicationId, the same rule the scanner
+ * uses, so the shop and the scanner cannot disagree (#79).
+ */
+export function updateTitleIdOf(titleId: string): string {
+  const base = BigInt('0x' + baseApplicationId(titleId))
+  return (base | BigInt(0x800)).toString(16).toUpperCase().padStart(16, '0')
+}
+
+/**
+ * The Title ID a file is served with, by its kind (#79). A region edition and an
+ * update fall back to the game's ID (an update to its derived update ID); a DLC
+ * never does: the base ID means "this is the game".
+ */
+export function servedTitleId(
+  kind: 'base' | 'region' | 'update' | 'dlc',
+  own: string | null,
+  gameTitleId: string | null,
+): string | null {
+  if (own) return own
+  if (!gameTitleId) return null
+  if (kind === 'dlc') return null
+  if (kind === 'update') return updateTitleIdOf(gameTitleId)
+  return gameTitleId
+}
