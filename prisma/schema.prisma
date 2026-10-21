@@ -115,6 +115,7 @@ model Game {
   isFavorite   Boolean   @default(false)
   isHidden     Boolean   @default(false)
   userHidden   Boolean   @default(false)
+  missingSince DateTime?
 
   sha256            String?
 

@@ -585,19 +585,27 @@ export async function runScan(triggeredBy = 'manual', platformSlug?: string) {
       errors.push(`[WARN] ${platform.name}: el escaneo no encontró ningún juego pero había ${visibleBefore} visibles; no se ocultan`)
     }
     if (allPathsAccessible && !emptyRescan) {
-      // Found again: visible, unless the owner hid it by hand (userHidden).
+      // Found again: visible and no longer missing, unless the owner hid it by
+      // hand (userHidden). Missing: its file was not seen this pass. That is kept
+      // apart from the owner's hide (#111): missingSince says when it went missing.
       await db.game.updateMany({
         where: { platformId: platform.id, lastSeenAt: { gte: scanStart }, userHidden: false },
-        data: { isHidden: false },
+        data: { isHidden: false, missingSince: null },
       })
       const staleResult = await db.game.updateMany({
         where: {
           platformId: platform.id,
           lastSeenAt: { lt: scanStart },
+          missingSince: null,
         },
-        data: { isHidden: true },
+        data: { isHidden: true, missingSince: scanStart },
       })
       stale = staleResult.count
+      // A hand-hidden game stays hidden whatever the files did (#111).
+      await db.game.updateMany({
+        where: { platformId: platform.id, userHidden: true, isHidden: false },
+        data: { isHidden: true },
+      })
 
       // Same for add-on rows, which the sweep above cannot reach: `GameDlc` has
       // no `lastSeenAt`, so a DLC or update whose file moved was left behind as a
