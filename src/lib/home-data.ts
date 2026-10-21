@@ -101,6 +101,8 @@ export interface PublisherTileData {
   name: string
   games: number
   logo: string | null
+  /** The logo keeps its own colors instead of being drawn in white. */
+  plainLogo: boolean
   character: string | null
   /** Two "#rrggbb" gradient colors. */
   colors: string[]
@@ -120,6 +122,7 @@ async function publisherTiles(ranked: RankedPublisher[]): Promise<PublisherTileD
   return ranked.map(p => ({
     key: p.key, name: p.name, games: p.games,
     logo: resolveCoverPath(art[p.key]?.logo ?? null),
+    plainLogo: art[p.key]?.plain === true,
     character: resolveCoverPath(art[p.key]?.character ?? null),
     colors: art[p.key]?.colors?.length ? art[p.key].colors : [],
   }))

@@ -18,7 +18,7 @@ export function PublisherTile({ publisher, href, gamesLabel }: {
 }) {
   const stage = useStage()
   const timer = useRef<ReturnType<typeof setTimeout>>()
-  const { name, logo, character, colors } = publisher
+  const { name, logo, plainLogo, character, colors } = publisher
   const [c1, c2] = [colors[0] ?? '#3a3a55', colors[1] ?? '#14141f']
 
   const enter = () => {
@@ -58,7 +58,7 @@ export function PublisherTile({ publisher, href, gamesLabel }: {
         <div className={`absolute inset-x-0 flex flex-col items-center px-5 text-center ${character ? 'bottom-4' : 'inset-y-0 justify-center'}`}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={logo} alt={name} loading="lazy" decoding="async"
-               className={`w-auto max-w-[78%] object-contain brightness-0 invert drop-shadow-lg ${character ? 'max-h-11' : 'max-h-20 transition-transform duration-700 group-hover:scale-110'}`} />
+               className={`w-auto max-w-[78%] object-contain drop-shadow-lg ${plainLogo ? '' : 'brightness-0 invert'} ${character ? 'max-h-11' : 'max-h-20 transition-transform duration-700 group-hover:scale-110'}`} />
           <p className="mt-2 text-xs text-white/60">{gamesLabel}</p>
         </div>
       ) : (

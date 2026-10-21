@@ -19,6 +19,8 @@ export interface PublisherArt {
   character: string | null
   /** Two "#rrggbb" colors for the tile's gradient. */
   colors: string[]
+  /** The logo is a filled shape (a badge or a box), so it keeps its own colors instead of turning white. */
+  plain?: boolean
   /** When the logo was last looked for, so a miss is not searched again every run. */
   checkedAt: string | null
 }
@@ -129,13 +131,17 @@ export async function findLogoFile(name: string): Promise<string | null> {
   return null
 }
 
-/** The logo as a PNG with transparency, cropped to its content. */
-async function downloadLogo(file: string): Promise<Buffer | null> {
+/** The logo as a PNG with transparency, cropped to its content, and whether it is a filled shape. */
+async function downloadLogo(file: string): Promise<{ png: Buffer; plain: boolean } | null> {
   const url = `https://commons.wikimedia.org/wiki/Special:FilePath/${encodeURIComponent(file)}?width=800`
   const res = await providerFetch(url, { redirect: 'follow' })
   if (!res.ok) return null
   const raw = Buffer.from(await res.arrayBuffer())
-  return sharp(raw).trim().resize({ width: 700, height: 300, fit: 'inside' }).png().toBuffer()
+  const png = await sharp(raw).trim().resize({ width: 700, height: 300, fit: 'inside' }).png().toBuffer()
+  // A logo that fills most of its box (a red badge with white letters) would be a
+  // solid white block as a silhouette, so it is shown in its own colors.
+  const { channels } = await sharp(png).ensureAlpha().stats()
+  return { png, plain: channels[3].mean / 255 > 0.8 }
 }
 
 /**
@@ -154,14 +160,16 @@ export async function ensurePublisherLogos(
     try {
       const file = await findLogoFile(p.name)
       await sleep(400)
-      const png = file ? await downloadLogo(file) : null
-      if (png) {
+      const logo = file ? await downloadLogo(file) : null
+      if (logo) {
+        const { png, plain } = logo
         const webp = await sharp(png).webp({ quality: 90, alphaQuality: 95 }).toBuffer()
         const s3Key = `art/publishers/${p.key.replace(/[^a-z0-9]+/g, '-')}-logo.webp`
         await uploadToS3(webp, s3Key)
         await patch(p.key, {
           logo: `${s3Key}?v=${Date.now()}`,
           colors: tileColors(await paletteOf(png), p.name),
+          plain,
           checkedAt: new Date().toISOString(),
         })
         found++

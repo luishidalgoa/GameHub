@@ -7,7 +7,7 @@ interface Row {
   key: string
   name: string
   games: number
-  art: { logo: string | null; character: string | null; colors: string[]; checkedAt: string | null } | null
+  art: { logo: string | null; plain?: boolean; character: string | null; colors: string[]; checkedAt: string | null } | null
 }
 
 /**
@@ -91,7 +91,7 @@ export function PublisherArtPanel() {
               <div className="grid h-14 w-24 shrink-0 place-items-center rounded-md"
                    style={{ background: `linear-gradient(135deg, ${r.art?.colors?.[0] ?? '#333'}, ${r.art?.colors?.[1] ?? '#111'})` }}>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                {logo && <img src={logo} alt="" className="max-h-9 max-w-[80%] object-contain brightness-0 invert" />}
+                {logo && <img src={logo} alt="" className={`max-h-9 max-w-[80%] object-contain ${r.art?.plain ? '' : 'brightness-0 invert'}`} />}
               </div>
               <div className="min-w-0 flex-1">
                 <p className="truncate font-medium">{r.name}</p>

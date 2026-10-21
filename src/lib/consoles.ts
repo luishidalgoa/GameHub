@@ -51,9 +51,11 @@ export const CONSOLE_MODELS: Record<string, ConsoleModel> = {
   },
   'super-nintendo-entertainment-system': {
     slug: 'super-nintendo-entertainment-system', name: 'Super Nintendo', file: '/models/snes.glb',
-    author: 'quick_loop', authorUrl: 'https://sketchfab.com/so_O',
+    author: 'Hellbrush', authorUrl: 'https://sketchfab.com/hellbrush',
     license: 'CC-BY-4.0', licenseUrl: BY,
-    source: 'https://sketchfab.com/3d-models/super-nintendo-d42c35b117974ade8842f0964f5fd59e',
+    source: 'https://sketchfab.com/3d-models/snes-6c83b715a5f24baaa6f53bd8f3d705db',
+    // Lies flat: tipped toward the camera so the top, with its cartridge slot, shows.
+    baseRotation: [0.9, 0, 0],
   },
   wii: {
     slug: 'wii', name: 'Nintendo Wii', file: '/models/wii.glb',
@@ -66,12 +68,14 @@ export const CONSOLE_MODELS: Record<string, ConsoleModel> = {
     author: 'Ilya Ostrovsky (strov)', authorUrl: 'https://sketchfab.com/strov',
     license: 'CC-BY-4.0', licenseUrl: BY,
     source: 'https://sketchfab.com/3d-models/sony-psp-dca89d10ec304d0cab76837750df7761',
+    baseRotation: [0.61, -0.09, 0.1],
   },
   psvita: {
     slug: 'psvita', name: 'PS Vita', file: '/models/psvita.glb',
     author: 'mxiv', authorUrl: 'https://sketchfab.com/mxiv',
     license: 'CC-BY-4.0', licenseUrl: BY,
     source: 'https://sketchfab.com/3d-models/ps-vita-d0241d08cee04a169148c275cecc1a5b',
+    baseRotation: [1.52, 0.05, 0.47],
   },
 }
 
