@@ -2,6 +2,7 @@ import type { MetadataProvider, MetadataResult } from './provider'
 import { cleanTitle } from './rawg'
 import { AUTO_THRESHOLD, calcTitleConfidence } from './scoring'
 import { db } from '@/lib/db'
+import { fetchHtmlWithRetry, type HtmlFetchPolicy } from './http'
 
 // LaunchBox Games Database — no API key, no browser/GUI required. Everything is
 // scraped from server-rendered HTML over plain HTTP, so it runs headless on the
@@ -147,37 +148,16 @@ export async function getLaunchBoxPlatformName(slug: string): Promise<string | n
 // 404 returns '' immediately (not an error — the game just isn't there).
 const LB_BACKOFFS_MS = [0, 2000, 5000, 9000] // wait before attempts 0..3
 
-async function lbFetch(url: string, attempt = 0): Promise<string> {
-  if (LB_BACKOFFS_MS[attempt]) {
-    await new Promise(r => setTimeout(r, LB_BACKOFFS_MS[attempt]))
-  }
-  const lastAttempt = attempt >= LB_BACKOFFS_MS.length - 1
-  try {
-    const controller = new AbortController()
-    const timer = setTimeout(() => controller.abort(), 25_000)
-    let res: Response
-    try {
-      res = await fetch(url, {
-        headers: { 'User-Agent': UA, Accept: 'text/html,application/xhtml+xml' },
-        signal: controller.signal,
-      })
-    } finally {
-      clearTimeout(timer)
-    }
-    if (res.status === 404) return ''
-    if (res.status === 429 || res.status >= 500) {
-      // Rate-limited / transient server error — back off and retry.
-      if (lastAttempt) return ''
-      return lbFetch(url, attempt + 1)
-    }
-    if (!res.ok) throw new Error(`LaunchBox ${res.status} for ${url}`)
-    const text = await res.text()
-    if (!text && !lastAttempt) return lbFetch(url, attempt + 1) // empty 200 → retry
-    return text
-  } catch (err) {
-    if (!lastAttempt) return lbFetch(url, attempt + 1) // network/abort → retry
-    throw err
-  }
+const LB_FETCH: HtmlFetchPolicy = {
+  userAgent: UA,
+  backoffsMs: LB_BACKOFFS_MS,
+  failOnStatus: true,
+  throwOnError: true,
+  label: 'LaunchBox',
+}
+
+function lbFetch(url: string): Promise<string> {
+  return fetchHtmlWithRetry(url, LB_FETCH)
 }
 
 // ── Small HTML helpers ────────────────────────────────────────────────────────

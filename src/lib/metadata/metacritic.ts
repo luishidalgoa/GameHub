@@ -1,4 +1,5 @@
 import { cleanTitle } from './rawg'
+import { fetchHtmlWithRetry, type HtmlFetchPolicy } from './http'
 
 // Metacritic scraper — used ONLY as a fallback for the game score when RAWG
 // doesn't expose a metacritic (RAWG aggregates Metacritic but has gaps for
@@ -47,37 +48,17 @@ const MC_BACKOFFS_MS = [0, 2000, 5000, 9000]
  * port). We treat that as "no match" (return '') rather than scraping the wrong
  * game's score.
  */
-async function mcFetch(url: string, attempt = 0): Promise<string> {
-  if (MC_BACKOFFS_MS[attempt]) await new Promise(r => setTimeout(r, MC_BACKOFFS_MS[attempt]))
-  const lastAttempt = attempt >= MC_BACKOFFS_MS.length - 1
-  try {
-    const controller = new AbortController()
-    const timer = setTimeout(() => controller.abort(), 25_000)
-    let res: Response
-    try {
-      res = await fetch(url, {
-        headers: { 'User-Agent': UA, Accept: 'text/html,application/xhtml+xml' },
-        signal: controller.signal,
-        redirect: 'manual',
-      })
-    } finally {
-      clearTimeout(timer)
-    }
-    if (res.status === 404) return ''
-    // Any redirect = not a confident match for this exact slug → skip it.
-    if (res.status >= 300 && res.status < 400) return ''
-    if (res.status === 429 || res.status >= 500) {
-      if (lastAttempt) return ''
-      return mcFetch(url, attempt + 1)
-    }
-    if (!res.ok) return ''
-    const text = await res.text()
-    if (!text && !lastAttempt) return mcFetch(url, attempt + 1)
-    return text
-  } catch {
-    if (!lastAttempt) return mcFetch(url, attempt + 1)
-    return ''
-  }
+const MC_FETCH: HtmlFetchPolicy = {
+  userAgent: UA,
+  backoffsMs: MC_BACKOFFS_MS,
+  redirect: 'manual',
+  failOnStatus: false,
+  throwOnError: false,
+  label: 'Metacritic',
+}
+
+function mcFetch(url: string): Promise<string> {
+  return fetchHtmlWithRetry(url, MC_FETCH)
 }
 
 /** Build candidate Metacritic URL slugs from a (DB) game title. */
