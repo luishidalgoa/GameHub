@@ -8,6 +8,7 @@ import { walkDirectory, scanSwitchFolders, scanPortsFolders, walkFlatWithDlcDete
 import type { SwitchGameFolder, FileEntry } from './walker'
 import { extractSwitchTitleId, classifySwitchTitleId } from './titleid'
 import { canonicalGroupKey } from '@/lib/group-key'
+import { extraType } from '@/lib/rom-kind'
 import { consolidatePlatform } from './regions'
 import { scanBus } from './events'
 import type { ScanEvent } from './events'
@@ -253,7 +254,7 @@ async function processFolderGroups(
       // Attach extras as update / dlc / mod / region. A non-Switch 'base' extra
       // is an alternate-region copy of the same game → store it as 'region'.
       for (const e of extras) {
-        const etype = (!switchMode && e.kind === 'base') ? 'region' : e.kind
+        const etype = extraType(e.kind)
         const etags = etype === 'region' ? tagFields(e.fileName) : { region: null, languages: null }
         await db.gameDlc.upsert({
           where:  { filePath: e.filePath },

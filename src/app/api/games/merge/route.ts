@@ -16,6 +16,7 @@ import { db } from '@/lib/db'
 import { fileToTitle } from '@/lib/utils'
 import { extractSwitchTitleId, classifySwitchTitleId } from '@/lib/scanner/titleid'
 import { serializeBigInt } from '@/lib/serialize'
+import { extraType } from '@/lib/rom-kind'
 
 export const dynamic = 'force-dynamic'
 
@@ -77,7 +78,7 @@ export async function POST(req: Request) {
             fileName: src.fileName,
             fileSize: src.fileSize,
             title:    src.title ?? fileToTitle(src.fileName),
-            type:     kind === 'base' ? 'update' : kind,
+            type:     extraType(kind),
           },
         }).catch(() => {})
       }
