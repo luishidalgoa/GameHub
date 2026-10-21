@@ -75,6 +75,12 @@ export const CONSOLE_MODELS: Record<string, ConsoleModel> = {
   },
 }
 
+/** The model with the orientation the owner set in the editor, when there is one. */
+export function withOrientation(model: ConsoleModel, saved: Record<string, [number, number, number]>): ConsoleModel {
+  const rotation = saved[model.slug]
+  return rotation ? { ...model, baseRotation: rotation } : model
+}
+
 /** The model for a platform; the Vita ports platform shares the Vita's. */
 export function consoleModelFor(platformSlug: string): ConsoleModel | null {
   if (platformSlug === 'psvita-ports') return CONSOLE_MODELS.psvita

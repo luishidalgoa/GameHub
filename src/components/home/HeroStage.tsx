@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import type { TileGame } from '@/lib/home-data'
-import { consoleModelFor } from '@/lib/consoles'
+import { consoleModelFor, withOrientation } from '@/lib/consoles'
+import type { OrientationMap } from '@/lib/console-orientation'
 import { ConsoleViewer } from './ConsoleViewer'
 import { useStage } from './HomeStage'
 import { SurpriseButton } from './SurpriseButton'
@@ -15,8 +16,9 @@ const SLIDE_MS = 9000
  * the title. It rotates through the games it is given and retints the page after
  * each one. Hovering or focusing it holds the current slide.
  */
-export function HeroStage({ games, labels }: {
+export function HeroStage({ games, orientations, labels }: {
   games: TileGame[]
+  orientations: OrientationMap
   labels: { featured: string; view: string }
 }) {
   const stage = useStage()
@@ -36,7 +38,8 @@ export function HeroStage({ games, labels }: {
   }, [held, index, games.length])
 
   if (!game) return null
-  const model = consoleModelFor(game.platformSlug)
+  const base = consoleModelFor(game.platformSlug)
+  const model = base && withOrientation(base, orientations)
   const meta = [game.genre, game.year, game.publisher].filter(Boolean).join('  ·  ')
 
   return (
@@ -55,10 +58,12 @@ export function HeroStage({ games, labels }: {
       )}
 
       {model && (
-        <div key={`console-${model.slug}`} className="home-rise pointer-events-none absolute -right-6 top-1/2 hidden aspect-square w-[min(46vw,560px)] -translate-y-1/2 md:block">
-          <div className="absolute inset-[12%] rounded-full opacity-60 blur-3xl"
-               style={{ background: 'radial-gradient(circle, var(--art-a), transparent 68%)' }} />
-          <ConsoleViewer model={model} className="relative h-full w-full" />
+        <div className="pointer-events-none absolute -right-4 top-1/2 hidden aspect-square w-[min(50vw,640px)] -translate-y-[54%] md:block">
+          <div key={`console-${model.slug}`} className="home-rise relative h-full w-full">
+            <div className="absolute inset-[12%] rounded-full opacity-60 blur-3xl"
+                 style={{ background: 'radial-gradient(circle, var(--art-a), transparent 68%)' }} />
+            <ConsoleViewer model={model} className="relative h-full w-full" />
+          </div>
         </div>
       )}
 

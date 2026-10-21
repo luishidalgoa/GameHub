@@ -45,7 +45,7 @@ export function WideRail({ kicker, title, href, moreLabel, moreHint, children }:
     <Reveal as="section" className="group/rail">
       <div className="mb-4 flex items-end justify-between gap-4 px-4 sm:px-6">
         <div>
-          {kicker && <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-[var(--art-a)]">{kicker}</p>}
+          {kicker && <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.22em] art-kicker">{kicker}</p>}
           <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">{title}</h2>
         </div>
         <div className="flex items-center gap-2">

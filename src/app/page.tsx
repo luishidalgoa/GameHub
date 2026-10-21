@@ -1,5 +1,6 @@
 import { getTranslations } from 'next-intl/server'
 import { getHomeData } from '@/lib/home-data'
+import { getOrientations } from '@/lib/console-orientation'
 import { HomeStage } from '@/components/home/HomeStage'
 import { HeroStage } from '@/components/home/HeroStage'
 import { WideRail } from '@/components/home/WideRail'
@@ -11,7 +12,7 @@ import { PublisherTile } from '@/components/home/PublisherTile'
 export const dynamic = 'force-dynamic'
 
 export default async function HomePage() {
-  const [t, data] = await Promise.all([getTranslations('Home'), getHomeData()])
+  const [t, data, orientations] = await Promise.all([getTranslations('Home'), getHomeData(), getOrientations()])
 
   if (data.totalGames === 0) {
     return (
@@ -26,7 +27,7 @@ export default async function HomePage() {
 
   return (
     <HomeStage>
-      <HeroStage games={data.hero} labels={{ featured: t('featured'), view: t('featuredView') }} />
+      <HeroStage games={data.hero} orientations={orientations} labels={{ featured: t('featured'), view: t('featuredView') }} />
 
       <div className="-mx-4 space-y-16 pb-16 pt-10 sm:-mx-6 sm:space-y-24 sm:pt-14">
         {data.recommended.length > 0 && (
@@ -45,9 +46,9 @@ export default async function HomePage() {
 
         <PlatformShowcase
           platforms={data.platforms}
+          orientations={orientations}
           kicker={t('consolesKicker')}
           title={t('consolesTitle')}
-          countLabel={n => t('platformGames', { count: n })}
         />
 
         {data.publishers.length > 0 && (

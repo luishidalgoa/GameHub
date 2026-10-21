@@ -24,7 +24,7 @@ export function FeaturedWall({ games, kicker, title, cta }: {
   return (
     <Reveal as="section">
       <div className="mb-4 px-4 sm:px-6">
-        <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-[var(--art-a)]">{kicker}</p>
+        <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.22em] art-kicker">{kicker}</p>
         <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">{title}</h2>
       </div>
       <div className="flex flex-col gap-3 px-4 sm:px-6 md:h-[600px] md:flex-row">

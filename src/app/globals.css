@@ -171,3 +171,5 @@ input[type="password"]::-ms-clear {
   [data-reveal='pending'] { opacity: 1; transform: none; }
   .home-rise, .home-drift { animation: none; }
 }
+/* Small caps labels tinted by the theme but kept light enough to read on the dark page. */
+.art-kicker { color: color-mix(in srgb, var(--art-a) 45%, white); }

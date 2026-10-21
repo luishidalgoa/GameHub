@@ -13,10 +13,16 @@ export interface MountOptions {
   pitch?: number
   /** Seconds per full turn. */
   turnSeconds?: number
+  /** Draw the model's own X (red), Y (green) and Z (blue) axes: for the orientation editor. */
+  axes?: boolean
 }
 
 export interface ConsoleHandle {
   dispose(): void
+  /** Re-orient the model and re-frame it. */
+  setBaseRotation(rotation: [number, number, number]): void
+  /** true: the floating turn of the home page; false: hold still and orbit by dragging. */
+  setSpin(on: boolean): void
 }
 
 export async function mountConsole(container: HTMLElement, opts: MountOptions): Promise<ConsoleHandle> {
@@ -53,13 +59,13 @@ export async function mountConsole(container: HTMLElement, opts: MountOptions): 
   loader.setMeshoptDecoder(meshoptMod.MeshoptDecoder)
   const gltf = await loader.loadAsync(opts.url)
   const model = gltf.scene
+  let baseRotation: [number, number, number] = opts.baseRotation ?? [0, 0, 0]
   // Some Sketchfab models ship a ground or shadow plane several times larger than the
   // console (the PSP's is 46 units across a 17-unit device). It would shrink the
   // console in the frame, so those objects are dropped before measuring.
   const strays: import('three').Object3D[] = []
   model.traverse(o => { if (/(^|[_ .-])(ground|floor|shadow)/i.test(o.name)) strays.push(o) })
   strays.forEach(o => o.removeFromParent())
-  if (opts.baseRotation) model.rotation.set(...opts.baseRotation)
 
   // Center the model inside a pivot and scale the pivot, so the same camera frames
   // a Wii and a PSP at the same size and they turn about their own middle.
@@ -67,11 +73,23 @@ export async function mountConsole(container: HTMLElement, opts: MountOptions): 
   pivot.rotation.order = 'YXZ'
   pivot.add(model)
   scene.add(pivot)
-  scene.updateMatrixWorld(true)
-  const box = new THREE.Box3().setFromObject(model)
-  const size = box.getSize(new THREE.Vector3())
-  model.position.sub(box.getCenter(new THREE.Vector3()))
-  pivot.scale.setScalar(1.7 / Math.max(size.x, size.y, size.z, 1e-6))
+  const layout = () => {
+    pivot.scale.setScalar(1)
+    model.position.set(0, 0, 0)
+    model.rotation.set(...baseRotation)
+    scene.updateMatrixWorld(true)
+    const box = new THREE.Box3().setFromObject(model)
+    const size = box.getSize(new THREE.Vector3())
+    model.position.sub(box.getCenter(new THREE.Vector3()))
+    pivot.scale.setScalar(1.7 / Math.max(size.x, size.y, size.z, 1e-6))
+  }
+  layout()
+  if (opts.axes) {
+    const axes = new THREE.AxesHelper(1.6)
+    ;(axes.material as import('three').Material).depthTest = false
+    axes.renderOrder = 10
+    pivot.add(axes)
+  }
 
   const resize = () => {
     const w = Math.max(1, container.clientWidth)
@@ -80,7 +98,7 @@ export async function mountConsole(container: HTMLElement, opts: MountOptions): 
     camera.aspect = w / h
     // A narrow container needs the camera farther back to keep the model whole.
     const dist = 4.1 * Math.max(1, 1.2 / camera.aspect)
-    camera.position.set(0, 0.2, dist)
+    camera.position.set(0, 0.04, dist)
     camera.lookAt(0, 0, 0)
     camera.updateProjectionMatrix()
   }
@@ -91,6 +109,9 @@ export async function mountConsole(container: HTMLElement, opts: MountOptions): 
   const fixed = opts.yaw !== undefined
   const reduced = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches
   const turn = opts.turnSeconds ?? 18
+  let spin = true
+  let userYaw = 0.4
+  let userPitch = 0.15
 
   let raf = 0
   let visible = true
@@ -100,12 +121,16 @@ export async function mountConsole(container: HTMLElement, opts: MountOptions): 
   const draw = (t: number) => {
     if (fixed) {
       pivot.rotation.set(opts.pitch ?? 0.2, opts.yaw!, 0)
+    } else if (!spin) {
+      pivot.rotation.set(userPitch, userYaw, 0)
+      pivot.position.y = 0
     } else if (reduced) {
-      pivot.rotation.set(0.2, 0.6, 0)
+      pivot.rotation.set(0.04, 0.5, 0)
     } else {
-      pivot.rotation.y = (t / turn) * Math.PI * 2
-      pivot.rotation.x = 0.22 + Math.sin(t * 0.6) * 0.06
-      pivot.position.y = Math.sin(t * 0.9) * 0.06
+      // A full turn seen from the front, with a slow float: a small bob and a
+      // barely-there nod and roll, so it hangs in the air instead of sitting on a spindle.
+      pivot.rotation.set(0.03 + Math.sin(t * 0.6) * 0.03, (t / turn) * Math.PI * 2, Math.sin(t * 0.45) * 0.02)
+      pivot.position.y = Math.sin(t * 0.9) * 0.07
     }
     renderer.render(scene, camera)
   }
@@ -115,7 +140,7 @@ export async function mountConsole(container: HTMLElement, opts: MountOptions): 
   }
   const sync = () => {
     cancelAnimationFrame(raf)
-    if (fixed || reduced) { draw(0); return }
+    if (fixed || reduced || !spin) { draw(0); return }
     if (visible && !hidden) loop()
   }
   const io = new IntersectionObserver(entries => {
@@ -127,8 +152,30 @@ export async function mountConsole(container: HTMLElement, opts: MountOptions): 
   document.addEventListener('visibilitychange', onVisibility)
   sync()
 
+  // Dragging orbits the model while it is held still (the editor).
+  const canvas = renderer.domElement
+  let drag: { x: number; y: number } | null = null
+  const down = (e: PointerEvent) => { if (!spin) { drag = { x: e.clientX, y: e.clientY }; canvas.setPointerCapture(e.pointerId) } }
+  const move = (e: PointerEvent) => {
+    if (!drag) return
+    userYaw += (e.clientX - drag.x) * 0.01
+    userPitch = Math.max(-1.5, Math.min(1.5, userPitch + (e.clientY - drag.y) * 0.01))
+    drag = { x: e.clientX, y: e.clientY }
+    draw(0)
+  }
+  const up = () => { drag = null }
+  canvas.addEventListener('pointerdown', down)
+  canvas.addEventListener('pointermove', move)
+  canvas.addEventListener('pointerup', up)
+  canvas.style.touchAction = 'none'
+
   return {
+    setBaseRotation(r) { baseRotation = r; layout(); draw(0) },
+    setSpin(on) { spin = on; sync() },
     dispose() {
+      canvas.removeEventListener('pointerdown', down)
+      canvas.removeEventListener('pointermove', move)
+      canvas.removeEventListener('pointerup', up)
       cancelAnimationFrame(raf)
       io.disconnect()
       ro.disconnect()
