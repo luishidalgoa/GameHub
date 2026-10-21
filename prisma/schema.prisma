@@ -113,6 +113,8 @@ model Game {
   popularityFetchedAt DateTime?
 
   isFavorite   Boolean   @default(false)
+  // Chosen by the owner to be highlighted on the home page.
+  isFeatured   Boolean   @default(false)
   isHidden     Boolean   @default(false)
   userHidden   Boolean   @default(false)
   missingSince DateTime?
