@@ -13,6 +13,8 @@ export function normalize(s: string): string {
     .normalize('NFD')
     .replace(/[̀-ͯ]/g, '') // strip accent marks (é → e)
     .toLowerCase()
+    .replace(/['’`]/g, '')        // "Kirby's" and "Kirbys" are the same word
+    .replace(/&/g, ' and ')       // "Ratchet & Clank" and "Ratchet and Clank"
     .replace(/[^a-z0-9\s]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim()
