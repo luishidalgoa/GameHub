@@ -137,3 +137,10 @@ input[type="password"]::-ms-clear {
   ::view-transition-old(*),
   ::view-transition-new(*) { animation: none !important; }
 }
+
+/* Home stage colors: registered so changing game eases the page's tint instead
+   of snapping it (the shader eases on its own). */
+@property --art-a { syntax: '<color>'; inherits: true; initial-value: #b3282d; }
+@property --art-b { syntax: '<color>'; inherits: true; initial-value: #2c2a8c; }
+@property --art-c { syntax: '<color>'; inherits: true; initial-value: #0b5560; }
+.home-stage { transition: --art-a 0.7s ease, --art-b 0.7s ease, --art-c 0.7s ease; }
