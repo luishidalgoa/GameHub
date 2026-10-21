@@ -50,7 +50,6 @@ interface TrafficData {
   deviceBreakdown: Array<{ device: string | null; _count: { id: number } }>
   browserBreakdown: Array<{ browser: string | null; _count: { id: number } }>
   topPlatforms: Array<{ slug: string; count: number }>
-  topPages: Array<{ path: string; _count: { id: number } }>
   topDownloads: Array<{ gameId: number; title: string; count: number; bytes: string }>
   downloadsByDevice: Array<{ title: string; desktop: number; mobile: number; tablet: number; console: number; unknown: number }>
   downloadsByClient: Array<{ client: string; count: number; bytes: string }>

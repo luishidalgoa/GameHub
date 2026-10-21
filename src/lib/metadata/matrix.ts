@@ -29,7 +29,7 @@ export interface ProviderMatrix {
   screenshots: ShotProvider
 }
 
-export const PROVIDER_MATRIX_KEYS = {
+const PROVIDER_MATRIX_KEYS = {
   cover:       'provider_cover',
   info:        'provider_info',
   description: 'provider_description',
@@ -38,7 +38,7 @@ export const PROVIDER_MATRIX_KEYS = {
 
 // Defaults: LaunchBox leads on covers/info/screenshots; RAWG leads on the long
 // description (its overviews are richer than LaunchBox's meta description).
-export const DEFAULT_MATRIX: ProviderMatrix = {
+const DEFAULT_MATRIX: ProviderMatrix = {
   cover:       'launchbox',
   info:        'launchbox',
   description: 'rawg',
@@ -93,26 +93,3 @@ export async function getProviderMatrix(platformSlug?: string): Promise<Provider
   }
 }
 
-/** Option lists, exported so the settings UI and the API validate identically. */
-export const PROVIDER_OPTIONS = {
-  cover:       COVER_OPTS,
-  info:        INFO_OPTS,
-  description: DESC_OPTS,
-  screenshots: SHOT_OPTS,
-} as const
-
-/** Platform columns holding the per-platform overrides, in field order. */
-export const PLATFORM_PROVIDER_COLUMNS = {
-  cover:       'providerCover',
-  info:        'providerInfo',
-  description: 'providerDescription',
-  screenshots: 'providerScreenshots',
-} as const
-
-/** True if any field is sourced from LaunchBox. */
-export const usesLaunchBox = (m: ProviderMatrix): boolean =>
-  m.cover === 'launchbox' || m.info === 'launchbox' || m.description === 'launchbox' || m.screenshots === 'launchbox'
-
-/** True if any field is sourced from RAWG. */
-export const usesRawg = (m: ProviderMatrix): boolean =>
-  m.cover === 'rawg' || m.info === 'rawg' || m.description === 'rawg' || m.screenshots === 'rawg'

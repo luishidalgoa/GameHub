@@ -3,11 +3,8 @@ import { fileToTitle } from '@/lib/utils'
 import type { MetadataResult } from './provider'
 
 // Confidence thresholds (max 100):
-//   >= AUTO_THRESHOLD   → apply automatically
-//   >= REVIEW_THRESHOLD → skip but eligible for manual review
-//   <  REVIEW_THRESHOLD → discard (too different)
+//   >= AUTO_THRESHOLD → apply automatically; below it the match is not used
 export const AUTO_THRESHOLD   = 68
-export const REVIEW_THRESHOLD = 40
 
 export function normalize(s: string): string {
   return s

@@ -35,7 +35,6 @@ export async function GET() {
     browserBreakdown,
     recentSearches,
     topPlatforms,
-    topPages,
     recentIps,
     downloadSummary,
     topDownloadedRaw,
@@ -108,14 +107,6 @@ export async function GET() {
       select: { path: true },
     }),
 
-    // Top pages
-    db.requestLog.groupBy({
-      by: ['path'],
-      _count: { id: true },
-      where: { ts: { gte: weekAgo } },
-      orderBy: { _count: { id: 'desc' } },
-      take: 10,
-    }),
 
     // Recent unique IPs with geo cache
     db.requestLog.findMany({
@@ -328,7 +319,6 @@ export async function GET() {
       browserBreakdown,
       recentSearches,
       topPlatforms: topPlatformsSorted,
-      topPages,
       topDownloads,
       downloadsByDevice,
       downloadsByClient,

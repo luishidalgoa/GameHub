@@ -11,7 +11,7 @@ import { parseMetadataSources, type MetadataSources } from './sources'
 import { WITHOUT_METADATA, hasMetadata } from '@/lib/library'
 
 // Re-exported for callers that imported these from the batch module historically.
-export { AUTO_THRESHOLD, REVIEW_THRESHOLD, calcConfidence } from './scoring'
+export { AUTO_THRESHOLD, calcConfidence } from './scoring'
 
 export type BatchEventType = 'start' | 'applied' | 'skipped' | 'failed' | 'done'
 
