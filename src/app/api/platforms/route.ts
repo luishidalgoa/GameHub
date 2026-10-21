@@ -42,9 +42,21 @@ export async function POST(req: Request) {
   return NextResponse.json(platform, { status: 201 })
 }
 
+// The fields an admin may change on a platform. Anything else in the body is
+// dropped: the id and the slug are handled separately below (#87).
+const PLATFORM_EDITABLE = [
+  'name', 'scanPath', 'extensions', 'scanMode', 'thumbnailWidth', 'thumbnailHeight', 'sortOrder', 'scanDlc',
+  'enabled', 'iconPath', 'emulators', 'emulatorName', 'emulatorUrl',
+  'providerCover', 'providerInfo', 'providerDescription', 'providerScreenshots',
+] as const
+
 export async function PATCH(req: Request) {
+  const denied = await adminGuard()
+  if (denied) return denied
+
   const body = await req.json()
-  const { id, slug, ...data } = body
+  const { id, slug, ...rest } = body
+  const data = Object.fromEntries(Object.entries(rest).filter(([k]) => (PLATFORM_EDITABLE as readonly string[]).includes(k)))
 
   // Renaming the slug is NOT a plain field update: cover object keys in MinIO and
   // the launchbox_platform_map are keyed by slug, so it needs migration. Route it

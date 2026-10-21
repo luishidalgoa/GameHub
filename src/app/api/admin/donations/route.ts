@@ -76,6 +76,11 @@ export async function POST(req: Request) {
   if (!platform || !amount) {
     return NextResponse.json({ error: 'platform and amount are required' }, { status: 400 })
   }
+  // A donation amount is a positive number; NaN or a negative would be stored as-is.
+  const amountValue = Number(amount)
+  if (!Number.isFinite(amountValue) || amountValue <= 0 || typeof platform !== 'string' || platform.length > 40) {
+    return NextResponse.json({ error: 'amount must be a positive number and platform a short name' }, { status: 400 })
+  }
   const donation = await db.donation.create({
     data: {
       platform,
