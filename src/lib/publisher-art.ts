@@ -64,17 +64,17 @@ async function patch(key: string, change: Partial<PublisherArt>): Promise<Publis
  */
 export const BRAND_COLORS: Record<string, [string, string]> = {
   nintendo:       ['#c8102e', '#5a0812'],
-  sony:           ['#1d4fa8', '#0a1a44'],
+  sony:           ['#2b2f38', '#0b0d12'],
   sega:           ['#0a6cc4', '#06305c'],
-  capcom:         ['#1b3f9a', '#0b1a44'],
-  konami:         ['#b3121d', '#3d0609'],
-  activision:     ['#b5281c', '#4a0f0a'],
-  ubisoft:        ['#0f7ac9', '#063356'],
-  ea:             ['#d7261e', '#3f0a07'],
-  'square enix':  ['#1c2c79', '#0b1238'],
-  thq:            ['#b11f2a', '#3d0a10'],
+  capcom:         ['#d9482b', '#4a120a'],
+  konami:         ['#3a3d33', '#14150f'],
+  activision:     ['#e08a1e', '#5a3206'],
+  ubisoft:        ['#3f9a3a', '#143d12'],
+  ea:             ['#c9a227', '#4a3a0a'],
+  'square enix':  ['#4b2a9a', '#170b3d'],
+  thq:            ['#4a4f5c', '#15171d'],
   atari:          ['#d12a1f', '#2a0a08'],
-  'disney interactive': ['#1a4fa0', '#0b2355'],
+  'disney':       ['#1a4fa0', '#0b2355'],
   majesco:        ['#6a1b9a', '#2a0a3d'],
 }
 

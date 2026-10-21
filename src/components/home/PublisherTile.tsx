@@ -51,7 +51,7 @@ export function PublisherTile({ publisher, href, gamesLabel }: {
         // kept, the rest runs off the bottom of the tile behind the logo.
         // eslint-disable-next-line @next/next/no-img-element
         <img src={character} alt="" loading="lazy" decoding="async"
-             className="absolute inset-x-0 bottom-0 h-[78%] w-full object-cover object-top drop-shadow-[0_12px_24px_rgba(0,0,0,0.5)] transition-transform duration-[900ms] ease-out group-hover:scale-[1.04]" />
+             className="absolute inset-x-[8%] top-[9%] bottom-[25%] h-auto w-[84%] max-w-none object-cover object-top drop-shadow-[0_12px_24px_rgba(0,0,0,0.5)] transition-transform duration-[900ms] ease-out group-hover:scale-[1.04]" />
       )}
 
       <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/25 to-black/10" />
