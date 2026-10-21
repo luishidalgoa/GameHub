@@ -40,8 +40,13 @@ export async function POST(req: Request) {
 
   const switchMode = target.platform.scanMode === 'folder'
 
-  // 1. Move source's DLC rows to the target
-  await db.gameDlc.updateMany({ where: { gameId: sId }, data: { gameId: tId } })
+  // 1. Move the source's DLC rows and its download history to the target. The
+  //    history rows reference the game with RESTRICT, so the delete below would
+  //    fail while they still point at the source. Both moves commit together.
+  await db.$transaction([
+    db.gameDlc.updateMany({ where: { gameId: sId }, data: { gameId: tId } }),
+    db.downloadLog.updateMany({ where: { gameId: sId }, data: { gameId: tId } }),
+  ])
 
   // 2. Snapshot source fields, then delete the source row so its unique
   //    filePath frees up (lets us promote it to the target's base if needed).

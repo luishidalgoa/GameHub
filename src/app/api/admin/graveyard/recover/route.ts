@@ -125,6 +125,9 @@ export async function POST(req: Request) {
       },
     })
     if (!graveyardGame) return NextResponse.json({ error: 'Graveyard game not found' }, { status: 404 })
+    if (newGameId === graveyardId) {
+      return NextResponse.json({ error: 'El juego de destino y el del cementerio son el mismo' }, { status: 400 })
+    }
 
     try {
       const [updated] = await db.$transaction([

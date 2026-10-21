@@ -1,3 +1,4 @@
+import { quotaGuard } from '@/lib/quota'
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { searchLibretroCovers, libretroSupports } from '@/lib/metadata/libretro'
@@ -16,6 +17,10 @@ export const dynamic = 'force-dynamic'
  * cartridge being handed the PlayStation 2 box.
  */
 export async function GET(req: Request) {
+  const limited = quotaGuard(req.headers, 'libretro')
+  if (limited) return limited
+
+
   try {
     const { searchParams } = new URL(req.url)
     const q = searchParams.get('q')?.trim()

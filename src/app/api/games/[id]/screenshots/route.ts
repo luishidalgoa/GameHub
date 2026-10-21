@@ -1,3 +1,4 @@
+import { quotaGuard } from '@/lib/quota'
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getRawgProvider } from '@/lib/metadata/rawg'
@@ -5,6 +6,10 @@ import { getRawgProvider } from '@/lib/metadata/rawg'
 export const dynamic = 'force-dynamic'
 
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
+  const limited = quotaGuard(_req.headers, 'screenshots')
+  if (limited) return limited
+
+
   const gameId = parseInt(params.id, 10)
 
   const [game, setting] = await Promise.all([

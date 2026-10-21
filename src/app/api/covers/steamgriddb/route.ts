@@ -1,3 +1,4 @@
+import { quotaGuard } from '@/lib/quota'
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 
@@ -13,6 +14,10 @@ const BASE = 'https://www.steamgriddb.com/api/v2'
 // GET ?q=zelda            → search games, returns { games: [{ id, name }] }
 // GET ?gameId=123         → get covers for game, returns { covers: [{ url, thumb }] }
 export async function GET(req: Request) {
+  const limited = quotaGuard(req.headers, 'steamgriddb')
+  if (limited) return limited
+
+
   try {
     const { searchParams } = new URL(req.url)
     const q      = searchParams.get('q')?.trim()

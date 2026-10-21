@@ -1,3 +1,4 @@
+import { quotaGuard } from '@/lib/quota'
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getLaunchBoxProvider, fetchLaunchBoxGame } from '@/lib/metadata/launchbox'
@@ -27,6 +28,10 @@ const COVER_TYPE_MAX = 7   // ranks >= this aren't offered as covers
 // GET ?gameId=<gh-game-id>&q=<title>  → search LaunchBox, returns { games: [{id,name,platform}] }
 // GET ?lbId=<launchbox-id>            → covers for a LaunchBox game, returns { covers: [{url,thumb,style}] }
 export async function GET(req: Request) {
+  const limited = quotaGuard(req.headers, 'launchbox')
+  if (limited) return limited
+
+
   try {
     const { searchParams } = new URL(req.url)
     const q      = searchParams.get('q')?.trim()

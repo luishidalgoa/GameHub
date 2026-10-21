@@ -8,8 +8,13 @@ import { adminGuard } from '@/lib/admin-guard'
 export const dynamic = 'force-dynamic'
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-function withoutFilePaths<T extends { filePath: string; dlcs: { filePath: string }[] }>({ filePath, dlcs, ...rest }: T) {
-  return { ...rest, dlcs: dlcs.map(({ filePath: _path, ...dlc }) => dlc) }
+// The public view drops every server path: the game's, its DLC's and the
+// platform's scan folder.
+function withoutFilePaths<T extends { filePath: string; dlcs: { filePath: string }[]; platform: { scanPath: string } }>(
+  { filePath, dlcs, platform, ...rest }: T,
+) {
+  const { scanPath: _scanPath, ...publicPlatform } = platform
+  return { ...rest, platform: publicPlatform, dlcs: dlcs.map(({ filePath: _path, ...dlc }) => dlc) }
 }
 
 export async function GET(_req: Request, { params }: { params: { id: string } }) {

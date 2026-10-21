@@ -1,3 +1,4 @@
+import { quotaGuard } from '@/lib/quota'
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 
@@ -12,6 +13,10 @@ export interface ImageSearchResult {
 }
 
 export async function GET(req: Request) {
+  const limited = quotaGuard(req.headers, 'google-images')
+  if (limited) return limited
+
+
   try {
     const { searchParams } = new URL(req.url)
     const q = searchParams.get('q')?.trim()

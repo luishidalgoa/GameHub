@@ -1,3 +1,4 @@
+import { quotaGuard } from '@/lib/quota'
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 
@@ -11,6 +12,10 @@ export interface YoutubeVideoResult {
 }
 
 export async function GET(req: Request) {
+  const limited = quotaGuard(req.headers, 'youtube')
+  if (limited) return limited
+
+
   const { searchParams } = new URL(req.url)
   const q = searchParams.get('q')?.trim()
   if (!q) return NextResponse.json({ error: 'Missing q' }, { status: 400 })
