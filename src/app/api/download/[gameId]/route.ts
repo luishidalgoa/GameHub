@@ -12,7 +12,9 @@ export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
 const FULL_STATUSES = ['ready']
-const RANGE_STATUSES = ['ready', 'downloading', 'done']
+// A range request is only valid while the token is live: a finished token
+// (done) must not serve bytes again, or one queue slot feeds many connections.
+const RANGE_STATUSES = ['ready', 'downloading']
 
 function parseRange(header: string, fileSize: number): { start: number; end: number } | null {
   const m = header.match(/bytes=(\d+)-(\d*)/)
@@ -128,12 +130,19 @@ export async function GET(req: Request, { params }: { params: { gameId: string }
     return NextResponse.json({ error: 'Token already in use' }, { status: 409 })
   }
 
-  const logId = await logDownloadStart({
-    req,
-    gameId,
-    fileName,
-    fileSize: BigInt(fileSize),
-  })
+  let logId: number
+  try {
+    logId = await logDownloadStart({
+      req,
+      gameId,
+      fileName,
+      fileSize: BigInt(fileSize),
+    })
+  } catch (err) {
+    // The slot is already taken: release it, or the queue stalls on this token.
+    await markDone(token)
+    throw err
+  }
 
   const readableStream = await paceDownloadBody(req, createFileWebStream(filePath, undefined, {
     // 'close' fires on both successful completion and client abort → always

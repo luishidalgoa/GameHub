@@ -79,9 +79,6 @@ COPY --from=deps --chown=nextjs:nodejs /app/node_modules/sharp         ./node_mo
 # Data directory (SQLite lives here, mounted as volume)
 RUN mkdir -p /data && chown nextjs:nodejs /data
 
-# Cover cache directory inside public (mounted as volume)
-RUN mkdir -p /app/public/covers && chown nextjs:nodejs /app/public/covers
-
 USER nextjs
 EXPOSE 3000
 
