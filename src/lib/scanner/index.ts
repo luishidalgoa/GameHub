@@ -142,6 +142,11 @@ interface GroupScanResult {
  * canonical game with its updates / DLC / mods attached — even when the files
  * live in different scan directories.
  */
+async function knownGameSizes(platformId: number) {
+  const rows = await db.game.findMany({ where: { platformId }, select: { id: true, filePath: true, fileSize: true } })
+  return new Map(rows.map(g => [g.filePath, g]))
+}
+
 async function processFolderGroups(
   folders:      SwitchGameFolder[],
   platformId:   number,
@@ -353,8 +358,14 @@ export async function runScan(triggeredBy = 'manual', platformSlug?: string) {
         }
 
         // Loose ports files — each is its own game
+        const knownLoose = await knownGameSizes(platform.id)
         for (const file of looseFiles) {
           found++
+          const prevLoose = knownLoose.get(file.filePath)
+          if (prevLoose && prevLoose.fileSize === file.fileSize) {
+            await db.game.update({ where: { id: prevLoose.id }, data: { lastSeenAt: scanStart } }).catch(() => {})
+            continue
+          }
           const title  = cleanTitle(path.basename(file.fileName, path.extname(file.fileName)))
           const { region, languages } = tagFields(file.fileName)
           const groupKey = gameGroupKey(file.fileName)
@@ -399,8 +410,14 @@ export async function runScan(triggeredBy = 'manual', platformSlug?: string) {
           // pick the base game out of a folder.
           baseFiles.sort((a, b) => (a.fileSize > b.fileSize ? -1 : a.fileSize < b.fileSize ? 1 : 0))
 
+          const knownBase = await knownGameSizes(platform.id)
           for (const file of baseFiles) {
             found++
+            const prevBase = knownBase.get(file.filePath)
+            if (prevBase && prevBase.fileSize === file.fileSize) {
+              await db.game.update({ where: { id: prevBase.id }, data: { lastSeenAt: scanStart } }).catch(() => {})
+              continue
+            }
             const title  = cleanTitle(file.fileName)
             const { region, languages } = tagFields(file.fileName)
             const groupKey = gameGroupKey(file.fileName)
