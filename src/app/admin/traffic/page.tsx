@@ -52,6 +52,7 @@ interface TrafficData {
   topDownloads: Array<{ gameId: number; title: string; count: number; bytes: string }>
   downloadsByDevice: Array<{ title: string; desktop: number; mobile: number; tablet: number; console: number; unknown: number }>
   downloadsByClient: Array<{ client: string; count: number; bytes: string }>
+  clientVersions: Array<{ version: string; count: number }>
   completionByClient: Array<{ client: string; completed: number; incomplete: number }>
   abandonedDownloads: number
   recentIps: Array<{
@@ -150,7 +151,7 @@ export default function TrafficPage() {
 
   const { summary, sparklines, deviceBreakdown, browserBreakdown,
     topPlatforms, recentIps, topDownloads, downloadsByDevice,
-    downloadsByClient, completionByClient, abandonedDownloads } = data
+    downloadsByClient, completionByClient, abandonedDownloads, clientVersions } = data
 
   const activeNow       = live?.activeNow      ?? summary.activeNow
   const recentRequests  = live?.recentRequests  ?? []
@@ -278,6 +279,11 @@ export default function TrafficPage() {
           <div className="bg-card border border-border rounded-xl p-4">
             <h3 className="text-sm font-medium mb-1">{t('downloadsByClient')}</h3>
             <p className="text-xs text-muted-foreground mb-4">{t('downloadsByClientSub')}</p>
+            {clientVersions.length > 0 && (
+              <p className="text-xs text-muted-foreground mb-3">
+                GameHubNX: {clientVersions.map((v) => `${v.version} × ${v.count}`).join(' · ')}
+              </p>
+            )}
             {downloadsByClient.length === 0 ? (
               <p className="text-xs text-muted-foreground">{t('noDownloads')}</p>
             ) : (

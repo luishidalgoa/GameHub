@@ -265,6 +265,17 @@ export async function GET() {
 
   // BigInt no sobrevive a JSON.stringify: los bytes van como texto, igual que
   // hace el resto de este endpoint.
+  // Versiones de GameHubNX que descargan (#90): clientVersion se guardaba pero
+  // nadie lo leia. Las filas sin version (navegador, otras apps) no entran aqui.
+  const versionRaw = await db.downloadLog.groupBy({
+    by: ['clientVersion'],
+    _count: { _all: true },
+    where: { clientVersion: { not: null } },
+    orderBy: { _count: { id: 'desc' } },
+    take: 10,
+  })
+  const clientVersions = versionRaw.map((r) => ({ version: r.clientVersion ?? 'unknown', count: r._count._all }))
+
   const downloadsByClient = clientBreakdownRaw.map((r) => ({
     client: r.client ?? 'unknown',
     count: r._count._all,
@@ -304,6 +315,7 @@ export async function GET() {
       topDownloads,
       downloadsByDevice,
       downloadsByClient,
+      clientVersions,
       completionByClient,
       abandonedDownloads: staleIncomplete,
       recentIps: recentIpsWithGeo,
