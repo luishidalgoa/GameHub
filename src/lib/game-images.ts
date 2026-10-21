@@ -24,11 +24,14 @@ const KINDS: [RegExp, string][] = [
   [/^screenshot\s*-\s*game\s*title$/, 'screenshot-game-title'],
 ]
 
-/** The stored kind of a LaunchBox image type: a known category, or `other` with its slug. */
+/**
+ * The stored kind of a LaunchBox image type: a known category, or `other:<slug>`
+ * keeping LaunchBox's own name, so an unfamiliar category can be told apart later.
+ */
 export function kindOf(type: string): string {
   const t = type.trim().toLowerCase()
   for (const [re, kind] of KINDS) if (re.test(t)) return kind
-  return 'other'
+  return `other:${t.replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'unknown'}`
 }
 
 /**
@@ -96,7 +99,7 @@ export async function storeGameImages(
         .toBuffer()
       const meta = await sharp(webp).metadata()
       const hash = createHash('sha1').update(image.url).digest('hex').slice(0, 8)
-      const key = `repo/${game.platformSlug}/${game.id}/${kind}-${hash}.webp`
+      const key = `repo/${game.platformSlug}/${game.id}/${kind.replace(/:/g, '-')}-${hash}.webp`
       await uploadToS3(webp, key)
       await db.gameImage.create({
         data: {

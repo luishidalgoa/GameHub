@@ -12,6 +12,6 @@ describe('kindOf', () => {
     expect(kindOf('Clear Logo')).toBe('clear-logo')
   })
   it('keeps unknown categories as other', () => {
-    expect(kindOf('Something New')).toBe('other')
+    expect(kindOf('Something New')).toBe('other:something-new')
   })
 })
