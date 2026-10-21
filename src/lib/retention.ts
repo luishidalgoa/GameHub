@@ -2,7 +2,7 @@ import { db } from './db'
 
 // Periods declared in the privacy page (src/app/privacy/page.tsx).
 const DAY_MS = 24 * 60 * 60 * 1000
-export const RETENTION_DAYS = { requestLog: 7, searchLog: 30, downloadLog: 90, ip: 7, ipCache: 7 } as const
+export const RETENTION_DAYS = { requestLog: 7, searchLog: 30, downloadLog: 90, ip: 7, ipCache: 7, diagnostics: 30 } as const
 
 let lastRun = 0
 
@@ -17,6 +17,7 @@ export async function pruneLogs(now: number = Date.now()): Promise<{ requests: n
     db.searchLog.updateMany({ where: { ts: { lt: ipCutoff }, ip: { not: '' } }, data: { ip: '' } }),
     db.downloadLog.updateMany({ where: { startedAt: { lt: ipCutoff }, ip: { not: '' } }, data: { ip: '' } }),
     db.ipCache.deleteMany({ where: { cachedAt: { lt: new Date(now - RETENTION_DAYS.ipCache * DAY_MS) } } }),
+    db.clientDiagnostic.deleteMany({ where: { createdAt: { lt: new Date(now - RETENTION_DAYS.diagnostics * DAY_MS) } } }),
   ])
   return {
     requests: requests.count,

@@ -276,6 +276,13 @@ export async function GET() {
   })
   const clientVersions = versionRaw.map((r) => ({ version: r.clientVersion ?? 'unknown', count: r._count._all }))
 
+  // Fallos que comunica GameHubNX (#91), los ultimos 20.
+  const recentDiagnostics = await db.clientDiagnostic.findMany({
+    orderBy: { createdAt: 'desc' },
+    take: 20,
+    select: { createdAt: true, kind: true, message: true, clientVersion: true },
+  })
+
   const downloadsByClient = clientBreakdownRaw.map((r) => ({
     client: r.client ?? 'unknown',
     count: r._count._all,
@@ -316,6 +323,7 @@ export async function GET() {
       downloadsByDevice,
       downloadsByClient,
       clientVersions,
+      recentDiagnostics: recentDiagnostics.map((d) => ({ ...d, createdAt: d.createdAt.toISOString() })),
       completionByClient,
       abandonedDownloads: staleIncomplete,
       recentIps: recentIpsWithGeo,

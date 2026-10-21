@@ -53,6 +53,7 @@ interface TrafficData {
   downloadsByDevice: Array<{ title: string; desktop: number; mobile: number; tablet: number; console: number; unknown: number }>
   downloadsByClient: Array<{ client: string; count: number; bytes: string }>
   clientVersions: Array<{ version: string; count: number }>
+  recentDiagnostics: Array<{ createdAt: string; kind: string; message: string; clientVersion: string | null }>
   completionByClient: Array<{ client: string; completed: number; incomplete: number }>
   abandonedDownloads: number
   recentIps: Array<{
@@ -151,7 +152,7 @@ export default function TrafficPage() {
 
   const { summary, sparklines, deviceBreakdown, browserBreakdown,
     topPlatforms, recentIps, topDownloads, downloadsByDevice,
-    downloadsByClient, completionByClient, abandonedDownloads, clientVersions } = data
+    downloadsByClient, completionByClient, abandonedDownloads, clientVersions, recentDiagnostics } = data
 
   const activeNow       = live?.activeNow      ?? summary.activeNow
   const recentRequests  = live?.recentRequests  ?? []
@@ -279,6 +280,16 @@ export default function TrafficPage() {
           <div className="bg-card border border-border rounded-xl p-4">
             <h3 className="text-sm font-medium mb-1">{t('downloadsByClient')}</h3>
             <p className="text-xs text-muted-foreground mb-4">{t('downloadsByClientSub')}</p>
+            {recentDiagnostics.length > 0 && (
+              <div className="mb-3 space-y-1">
+                <p className="text-xs font-medium">Fallos comunicados por GameHubNX</p>
+                {recentDiagnostics.slice(0, 8).map((d, i) => (
+                  <p key={i} className="text-xs text-muted-foreground">
+                    {new Date(d.createdAt).toLocaleString()} · {d.kind} · {d.clientVersion ?? '?'} · {d.message}
+                  </p>
+                ))}
+              </div>
+            )}
             {clientVersions.length > 0 && (
               <p className="text-xs text-muted-foreground mb-3">
                 GameHubNX: {clientVersions.map((v) => `${v.version} × ${v.count}`).join(' · ')}

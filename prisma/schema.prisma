@@ -236,6 +236,18 @@ model DownloadToken {
   @@index([batchId])
 }
 
+/// Fallos que GameHubNX (Switch) comunica al servidor (#91). Se guardan 30 dias.
+model ClientDiagnostic {
+  id            Int      @id @default(autoincrement())
+  createdAt     DateTime @default(now())
+  clientVersion String?
+  kind          String   // p. ej. "install", "download", "decode"
+  message       String
+  device        String?
+
+  @@index([createdAt])
+}
+
 model Donation {
   id         Int      @id @default(autoincrement())
   platform   String   // kofi | paypal | bmac | crypto | manual
