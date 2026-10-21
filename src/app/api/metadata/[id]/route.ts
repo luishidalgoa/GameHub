@@ -9,6 +9,9 @@ import { fetchSteamGridDBCover } from '@/lib/metadata/steamgriddb'
 import { searchYouTubeTrailer } from '@/lib/youtube'
 import { serializeBigInt } from '@/lib/serialize'
 import type { MetadataResult } from '@/lib/metadata/provider'
+import { chooseCover } from '@/lib/metadata/compose'
+import { fetchLibretroCover } from '@/lib/metadata/libretro'
+import type { LaunchBoxGame } from '@/lib/metadata/launchbox'
 
 export const dynamic = 'force-dynamic'
 
@@ -156,13 +159,20 @@ async function applyManualPick(
   }
   if (!meta) return null
 
-  // Cover: prefer the picked source's art; if it has none, fall back to SteamGridDB.
-  let coverUrl = meta.coverUrl
-  let coverSource: 'launchbox' | 'rawg' | 'steamgriddb' = source
-  if (!coverUrl) {
-    const sgdb = await fetchSteamGridDBCover(meta.title)
-    if (sgdb) { coverUrl = sgdb; coverSource = 'steamgriddb' }
-  }
+  // The picked candidate's own art first; without it, the platform's cover chain.
+  const row = await db.game.findUnique({ where: { id: gameId }, select: { fileName: true } })
+  const cover = meta.coverUrl
+    ? { coverUrl: meta.coverUrl, source }
+    : await chooseCover({
+        matrix:       await getProviderMatrix(platformSlug),
+        lb:           source === 'launchbox' ? (meta as LaunchBoxGame) : null,
+        rawg:         source === 'rawg' ? meta : null,
+        sgdbTitle:    meta.title,
+        libretroBox:  () => fetchLibretroCover(row?.fileName ?? meta.title, platformSlug),
+        sgdbCover:    fetchSteamGridDBCover,
+      })
+  const coverUrl = cover?.coverUrl
+  const coverSource = cover?.source
   let coverPath: string | undefined
   if (coverUrl) {
     try { coverPath = await downloadAndCacheCover(coverUrl, platformSlug, gameId) } catch { /* non-fatal */ }

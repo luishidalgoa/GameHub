@@ -50,6 +50,47 @@ function bestMatch(
   return scored[0]
 }
 
+export interface CoverChoice {
+  coverUrl: string
+  source: 'launchbox' | 'rawg' | 'steamgriddb' | 'libretro'
+}
+
+export interface CoverContext {
+  matrix: ProviderMatrix
+  lb: LaunchBoxGame | null
+  rawg: MetadataResult | null
+  sgdbTitle: string
+  libretroBox: () => Promise<string | null>
+  sgdbCover: (title: string) => Promise<string | null>
+}
+
+/**
+ * The one cover chain, used by automatic gathering and by manual picks: the
+ * platform's configured cover source first, then the fallbacks. libretro goes
+ * ahead of SteamGridDB and RAWG because it is the only one that guarantees this
+ * console's box.
+ */
+export async function chooseCover(ctx: CoverContext): Promise<CoverChoice | null> {
+  const { matrix, lb, rawg } = ctx
+  if (matrix.cover === 'launchbox' && lb?.coverUrl) return { coverUrl: lb.coverUrl, source: 'launchbox' }
+  if (matrix.cover === 'rawg' && rawg?.coverUrl) return { coverUrl: rawg.coverUrl, source: 'rawg' }
+  if (matrix.cover === 'steamgriddb') {
+    const url = await ctx.sgdbCover(ctx.sgdbTitle)
+    if (url) return { coverUrl: url, source: 'steamgriddb' }
+  }
+  if (matrix.cover === 'libretro') {
+    const url = await ctx.libretroBox()
+    if (url) return { coverUrl: url, source: 'libretro' }
+  }
+  if (lb?.coverUrl) return { coverUrl: lb.coverUrl, source: 'launchbox' }
+  const box = await ctx.libretroBox()
+  if (box) return { coverUrl: box, source: 'libretro' }
+  const url = await ctx.sgdbCover(ctx.sgdbTitle)
+  if (url) return { coverUrl: url, source: 'steamgriddb' }
+  if (rawg?.coverUrl) return { coverUrl: rawg.coverUrl, source: 'rawg' }
+  return null
+}
+
 export interface GatherInput {
   title: string
   platformSlug: string
@@ -182,34 +223,14 @@ export async function gatherMetadata(input: GatherInput): Promise<ComposedMetada
   if (description) sources.description = (description === lb?.description ? 'launchbox' : 'rawg')
 
   // ── COVER ──
-  let coverUrl: string | undefined
-  if (matrix.cover === 'launchbox') {
-    coverUrl = lb?.coverUrl
-    if (coverUrl) sources.cover = 'launchbox'
-  } else if (matrix.cover === 'rawg') {
-    coverUrl = rawg?.coverUrl
-    if (coverUrl) sources.cover = 'rawg'
-  } else if (matrix.cover === 'steamgriddb') {
-    const sgdb = await fetchSteamGridDBCover(info?.title ?? title)
-    if (sgdb) { coverUrl = sgdb; sources.cover = 'steamgriddb' }
-  } else if (matrix.cover === 'libretro') {
-    const box = await libretroBox()
-    if (box) { coverUrl = box; sources.cover = 'libretro' }
-  }
-  // Fallback chain when the chosen source came up empty. libretro goes ahead of
-  // SteamGridDB and RAWG because it is the only one that guarantees *this*
-  // console's box: the others index by game and will hand a cartridge the art of
-  // whichever port they happen to hold. LaunchBox stays first, since it is
-  // per-platform too and carries titles libretro's No-Intro naming misses.
-  if (!coverUrl) {
-    if (lb?.coverUrl) { coverUrl = lb.coverUrl; sources.cover = 'launchbox' }
-    else if (await libretroBox()) { coverUrl = (await libretroBox())!; sources.cover = 'libretro' }
-    else {
-      const sgdb = await fetchSteamGridDBCover(info?.title ?? title)
-      if (sgdb) { coverUrl = sgdb; sources.cover = 'steamgriddb' }
-      else if (rawg?.coverUrl) { coverUrl = rawg.coverUrl; sources.cover = 'rawg' }
-    }
-  }
+  const cover = await chooseCover({
+    matrix, lb, rawg,
+    sgdbTitle: info?.title ?? title,
+    libretroBox,
+    sgdbCover: fetchSteamGridDBCover,
+  })
+  const coverUrl = cover?.coverUrl
+  if (cover) sources.cover = cover.source
 
   // ── SCREENSHOTS ──
   let screenshots: string[] = []
