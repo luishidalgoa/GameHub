@@ -1,20 +1,19 @@
 import sharp from 'sharp'
 import { db } from '@/lib/db'
 import { uploadToS3 } from '@/lib/s3'
+import { storeGameImages } from '@/lib/game-images'
 import { providerFetch } from '@/lib/metadata/http'
 import {
   getLaunchBoxProvider, getLaunchBoxPlatformName, LAUNCHBOX_PLATFORM_NAMES,
   type LaunchBoxGame,
 } from '@/lib/metadata/launchbox'
+import type { LaunchBoxImage } from '@/lib/metadata/launchbox'
 import { calcTitleConfidence, AUTO_THRESHOLD } from '@/lib/metadata/scoring'
 import { pickBackdrop, pickFanart, pickLogo } from '@/lib/metadata/launchbox-art'
 import { paletteOf } from '@/lib/palette'
 import { pixelScale } from '@/lib/pixel-art'
 import { fetchLibretroScreens } from '@/lib/metadata/libretro'
 
-const BACKDROP_MAX_WIDTH = 1920
-const TILE_MAX_WIDTH = 1600
-const LOGO_MAX_WIDTH = 800
 const MAX_DOWNLOAD_BYTES = 25 * 1024 * 1024
 
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms))
@@ -71,80 +70,56 @@ async function pixelWebp(url: string): Promise<Buffer> {
 }
 
 /**
- * Fetch the art of one game: from LaunchBox its original backdrop, fanart and
- * logo; for a game with no fanart (the poorly documented ones, mostly GBA and
- * SNES) the in-game snapshot or title screen from libretro-thumbnails stands in
- * for the tile, and for the backdrop when LaunchBox has none. Everything is
- * stored in MinIO as WebP and the backdrop's palette is recorded. A game with no
- * art at all is still marked as checked, so it is not searched again every run;
- * a network failure throws and leaves it unmarked to be retried.
+ * Fetch the art of one game. Every image LaunchBox publishes for it goes into the
+ * repository (GameImage, categorized); the backdrop, the fanart tile and the logo
+ * are then pointed at those stored copies, so nothing is downloaded twice. A game
+ * with no LaunchBox art falls back to the libretro snapshot for its tile. The
+ * status says why a game has no art (no match, or a match with no art), which is
+ * the list of games still to complete by hand or from another source.
  */
 export async function fetchGameArt(game: ArtGame, paceMs = 600): Promise<ArtOutcome> {
   const found = await resolveLaunchBoxGame(game, paceMs)
-  const images = found?.lb.images ?? []
-  const backdrop = pickBackdrop(images)
-  const logo = pickLogo(images)
-  const fanart = pickFanart(images)
+  const images: LaunchBoxImage[] = found?.lb.images ?? []
+  const { byUrl } = await storeGameImages({ id: game.id, platformSlug: game.platformSlug }, images, paceMs)
+  const stored = (img: LaunchBoxImage | null | undefined) => (img ? byUrl.get(img.url) ?? null : null)
 
-  const retro = fanart ? null : await fetchLibretroScreens(game.fileName, game.platformSlug)
-  const retroUrl = retro?.snap ?? retro?.title ?? null
+  const backdrop = pickBackdrop(images)
+  const bd = stored(backdrop?.image)
+  const fa = stored(pickFanart(images))
+  const lo = stored(pickLogo(images))
 
   const data: Record<string, unknown> = { artCheckedAt: new Date() }
   if (found) data.launchboxId = found.id
-  const version = Date.now()
-  const prefix = `art/${game.platformSlug}/${game.id}`
-  let stored = false
-
-  if (backdrop) {
-    await sleep(paceMs)
-    const source = await download(backdrop.image.url)
-    const webp = await sharp(source)
-      .resize({ width: BACKDROP_MAX_WIDTH, withoutEnlargement: true })
-      .webp({ quality: 82 })
-      .toBuffer()
-    await uploadToS3(webp, `${prefix}-backdrop.webp`)
-    data.backdropPath = `${prefix}-backdrop.webp?v=${version}`
+  if (bd && backdrop) {
+    data.backdropPath = bd.key
     data.backdropKind = backdrop.kind
-    data.themePalette = JSON.stringify(await paletteOf(webp))
-    if (backdrop.kind === 'fanart') data.tilePath = data.backdropPath
-    stored = true
+    if (bd.buffer) data.themePalette = JSON.stringify(await paletteOf(bd.buffer))
   }
-  if (fanart && backdrop?.kind !== 'fanart') {
-    await sleep(paceMs)
-    const source = await download(fanart.url)
-    const webp = await sharp(source)
-      .resize({ width: TILE_MAX_WIDTH, withoutEnlargement: true })
-      .webp({ quality: 80 })
-      .toBuffer()
-    await uploadToS3(webp, `${prefix}-tile.webp`)
-    data.tilePath = `${prefix}-tile.webp?v=${version}`
-    stored = true
-  }
-  if (retroUrl) {
-    const webp = await pixelWebp(retroUrl)
-    await uploadToS3(webp, `${prefix}-tile.webp`)
-    data.tilePath = `${prefix}-tile.webp?v=${version}`
-    if (!backdrop) {
-      // No LaunchBox backdrop: the snapshot is blurred behind the page anyway.
-      data.backdropPath = data.tilePath
-      data.backdropKind = retro?.snap ? 'snap' : 'title'
-      data.themePalette = JSON.stringify(await paletteOf(webp))
+  if (fa) data.tilePath = fa.key
+  if (lo) data.logoPath = lo.key
+
+  // No LaunchBox fanart: the libretro snapshot stands in for the wide tile.
+  let retroStored = false
+  if (!fa) {
+    const retro = await fetchLibretroScreens(game.fileName, game.platformSlug)
+    const retroUrl = retro.snap ?? retro.title ?? null
+    if (retroUrl) {
+      const webp = await pixelWebp(retroUrl)
+      const key = `art/${game.platformSlug}/${game.id}-tile.webp`
+      await uploadToS3(webp, key)
+      data.tilePath = `${key}?v=${Date.now()}`
+      if (!bd) {
+        data.backdropPath = data.tilePath
+        data.backdropKind = retro.snap ? 'snap' : 'title'
+        data.themePalette = JSON.stringify(await paletteOf(webp))
+      }
+      retroStored = true
     }
-    stored = true
-  }
-  if (logo) {
-    await sleep(paceMs)
-    const source = await download(logo.url)
-    const webp = await sharp(source)
-      .resize({ width: LOGO_MAX_WIDTH, withoutEnlargement: true })
-      .webp({ quality: 88, alphaQuality: 95 })
-      .toBuffer()
-    await uploadToS3(webp, `${prefix}-logo.webp`)
-    data.logoPath = `${prefix}-logo.webp?v=${version}`
-    stored = true
   }
 
+  const inRepo = await db.gameImage.count({ where: { gameId: game.id } })
+  data.artStatus = inRepo > 0 || retroStored ? 'ok' : found ? 'no-art' : 'no-match'
   await db.game.update({ where: { id: game.id }, data })
-  if (stored) return 'applied'
+  if (data.artStatus === 'ok') return 'applied'
   return found ? 'no-art' : 'no-match'
 }

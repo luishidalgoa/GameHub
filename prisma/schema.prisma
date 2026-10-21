@@ -132,6 +132,10 @@ model Game {
   logoPath     String?
   themePalette String?
   artCheckedAt DateTime?
+  // Resultado de buscar arte: ok | no-art | no-match. Alimenta la lista de juegos
+  // a completar a mano o con otra fuente.
+  artStatus    String?
+  images       GameImage[]
 
   sha256            String?
 
@@ -313,6 +317,24 @@ model DownloadLog {
 // Background job state for long-running tasks (scan / auto-metadata). Persisted
 // so the dashboard can show progress when you return, and so an interrupted job
 // (e.g. server restart) can be auto-resumed from where it left off.
+// Una imagen de un juego tal como la publica LaunchBox, en el tamaño original y
+// categorizada. El repositorio entero se monta desde aqui.
+model GameImage {
+  id        Int      @id @default(autoincrement())
+  gameId    Int
+  game      Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  kind      String                // banner | fanart | square | clear-logo | box-front | box-back | box-3d | box-spine | box-front-reconstructed | cart-front | disc | screenshot-gameplay | screenshot-game-title | other
+  region    String?
+  width     Int?
+  height    Int?
+  s3Key     String                // repo/<plataforma>/<juego>/<tipo>-<hash>.webp
+  sourceUrl String
+  createdAt DateTime @default(now())
+
+  @@unique([gameId, sourceUrl])
+  @@index([gameId, kind])
+}
+
 model Job {
   id        Int      @id @default(autoincrement())
   type      String                  // "scan" | "metadata"
