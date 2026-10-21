@@ -315,6 +315,13 @@ model Job {
   cursorId  Int?
   lastTitle String?                 // last game touched, for the "by X" hint
   message   String?                 // final summary or error reason
+  // Quien lo tiene: un worker reclama el job y renueva heartbeatAt mientras trabaja (#75).
+  ownerId       String?
+  heartbeatAt   DateTime?
+  // Pedido de cancelacion: el worker lo mira entre lotes y termina con status cancelled.
+  cancelRequested Boolean @default(false)
+  // Job que lanza a este otro (p. ej. el autofill de metadatos tras un escaneo).
+  parentId      Int?
   startedAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
   finishedAt DateTime?
