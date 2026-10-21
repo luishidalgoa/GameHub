@@ -214,8 +214,8 @@ async function processFolderGroups(
         // Only (re)write the base file fields when we actually found a base in
         // this scan — otherwise we'd clobber an existing base whose disk is
         // simply offline right now with the empty folder sentinel.
-        const updateData: { groupKey: string; lastSeenAt: Date; isHidden: boolean; region: string | null; languages: string | null; filePath?: string; fileName?: string; fileSize?: bigint } =
-          { groupKey, lastSeenAt: scanStart, isHidden: false, region, languages }
+        const updateData: { groupKey: string; lastSeenAt: Date; region: string | null; languages: string | null; filePath?: string; fileName?: string; fileSize?: bigint } =
+          { groupKey, lastSeenAt: scanStart, region, languages }
         if (base) {
           // Free the target file path from any other row first
           const occ = await db.game.findUnique({ where: { filePath: base.filePath } })
@@ -530,6 +530,11 @@ export async function runScan(triggeredBy = 'manual', platformSlug?: string) {
       errors.push(`[WARN] ${platform.name}: el escaneo no encontró ningún juego pero había ${visibleBefore} visibles; no se ocultan`)
     }
     if (allPathsAccessible && !emptyRescan) {
+      // Found again: visible, unless the owner hid it by hand (userHidden).
+      await db.game.updateMany({
+        where: { platformId: platform.id, lastSeenAt: { gte: scanStart }, userHidden: false },
+        data: { isHidden: false },
+      })
       const staleResult = await db.game.updateMany({
         where: {
           platformId: platform.id,

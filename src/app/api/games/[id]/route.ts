@@ -32,6 +32,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   // Strip read-only / relational fields before update
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { platform, dlcs, createdAt, id: _id, ...data } = body
+  if (typeof data.isHidden === 'boolean') data.userHidden = data.isHidden
 
   // Title ID: 16 hex o nada. Se normaliza aqui y no en el formulario porque
   // esto es lo que acaba en la base de datos y de aqui sale el nombre con el

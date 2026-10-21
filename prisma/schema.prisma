@@ -116,6 +116,7 @@ model Game {
 
   isFavorite   Boolean   @default(false)
   isHidden     Boolean   @default(false)
+  userHidden   Boolean   @default(false)
   playCount    Int       @default(0)
   lastPlayedAt DateTime?
 
