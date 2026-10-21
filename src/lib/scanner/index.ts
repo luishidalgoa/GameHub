@@ -6,7 +6,8 @@ import { fileToTitle, toSortTitle } from '@/lib/utils'
 import { parseRomTags, languagesToCsv, gameGroupKey } from '@/lib/rom-tags'
 import { walkDirectory, scanSwitchFolders, scanPortsFolders, walkFlatWithDlcDetection, extractGameKey } from './walker'
 import type { SwitchGameFolder, FileEntry } from './walker'
-import { extractSwitchTitleId, classifySwitchTitleId, switchGroupKey, nameGroupKey } from './titleid'
+import { extractSwitchTitleId, classifySwitchTitleId } from './titleid'
+import { canonicalGroupKey } from '@/lib/group-key'
 import { consolidatePlatform } from './regions'
 import { scanBus } from './events'
 import type { ScanEvent } from './events'
@@ -163,7 +164,7 @@ async function processFolderGroups(
   const groups = new Map<string, SwitchGameFolder[]>()
   for (const folder of folders) {
     const names = [folder.baseFile, ...folder.dlcFiles].filter(Boolean).map(f => (f as FileEntry).fileName)
-    const key   = (switchMode ? switchGroupKey(names) : null) ?? nameGroupKey(folder.folderName)
+    const key   = canonicalGroupKey({ folderName: folder.folderName, fileNames: names, switchMode })
     const arr   = groups.get(key)
     if (arr) arr.push(folder); else groups.set(key, [folder])
   }

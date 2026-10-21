@@ -198,7 +198,8 @@ export function languagesFromCsv(csv: string | null | undefined): string[] {
  * appending a variant suffix, so a prototype never merges with the retail game.
  */
 export function gameGroupKey(fileName: string): string {
-  const base = fileToTitle(fileName).toLowerCase().replace(/[^a-z0-9]+/g, '')
+  // A version token ("v458752") names a dump, not a different game: it stays out of the key.
+  const base = fileToTitle(fileName).replace(/\s+v\d+\b/gi, '').toLowerCase().replace(/[^a-z0-9]+/g, '')
   // Only inspect bracketed/parenthesised tags so a title word can't false-trip.
   const tags = (fileName.match(/[([][^)\]]*[)\]]/g) ?? []).join(' ').toLowerCase()
   const variants: string[] = []
