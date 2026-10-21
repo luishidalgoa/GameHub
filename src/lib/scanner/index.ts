@@ -163,9 +163,24 @@ async function processFolderGroups(
     if (arr) arr.push(folder); else groups.set(key, [folder])
   }
 
+  // Incremental: a group whose files are all already known with the same size
+  // is left alone; only its base game is marked as seen.
+  const knownGames = new Map((await db.game.findMany({ where: { platformId }, select: { id: true, filePath: true, fileSize: true } })).map(g => [g.filePath, g]))
+  const knownDlcs  = new Map((await db.gameDlc.findMany({ where: { game: { platformId } }, select: { filePath: true, fileSize: true } })).map(d => [d.filePath, d]))
+  const seenIds: number[] = []
+
   // 2. Materialise each group into one canonical game + extras
   for (const [groupKey, groupFolders] of groups) {
     res.found++
+    const groupFiles = groupFolders.flatMap(f => [f.baseFile, ...f.dlcFiles]).filter((f): f is FileEntry => Boolean(f))
+    const unchanged = groupFiles.length > 0 && groupFiles.every(f => {
+      const known = knownGames.get(f.filePath) ?? knownDlcs.get(f.filePath)
+      return known !== undefined && known.fileSize === f.fileSize
+    })
+    if (unchanged) {
+      for (const f of groupFiles) { const g = knownGames.get(f.filePath); if (g) seenIds.push(g.id) }
+      continue
+    }
     try {
       const seen  = new Set<string>()
       const files: Array<FileEntry & { kind: FileKind }> = []
@@ -260,6 +275,10 @@ async function processFolderGroups(
     }
 
     if (res.found % 20 === 0) await tick()
+  }
+
+  for (let i = 0; i < seenIds.length; i += 500) {
+    await db.game.updateMany({ where: { id: { in: seenIds.slice(i, i + 500) } }, data: { lastSeenAt: scanStart } })
   }
 
   return res
