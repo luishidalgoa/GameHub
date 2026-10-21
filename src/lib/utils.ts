@@ -24,9 +24,13 @@ export function toSortTitle(title: string): string {
 // Region/language parsing moved to `@/lib/rom-tags` (parseRomTags / extractRegion),
 // which understands multi-region and language tags. Imported there as needed.
 
+// Only real ROM/package extensions are dropped: a title such as "Dr. Mario"
+// must keep its dot.
+const ROM_EXTENSION = /\.(nsp|nsz|xci|zip|7z|iso|gba|gbc|gb|nds|3ds|cia|sfc|smc|nes|md|gen|z64|n64|v64|bin|cue|chd|pbp|cso|wbfs|rvz|wad|vpk|xex|pkg)$/i
+
 export function cleanTitle(fileName: string): string {
   return fileName
-    .replace(/\.[^.]+$/, '')
+    .replace(ROM_EXTENSION, '')
     .replace(/\(.*?\)/g, '')
     .replace(/\[.*?\]/g, '')
     .replace(/_/g, ' ')
