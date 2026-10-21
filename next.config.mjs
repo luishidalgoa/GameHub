@@ -17,6 +17,8 @@ const nextConfig = {
   },
   experimental: {
     serverComponentsExternalPackages: ['better-sqlite3', 'sharp', 'archiver'],
+    // Starts src/instrumentation.ts once when the server boots (daily log pruning, #61).
+    instrumentationHook: true,
     // Ensure the sharp native binaries are included in the standalone output
     outputFileTracingIncludes: {
       '/api/covers': ['./node_modules/sharp/**/*'],
