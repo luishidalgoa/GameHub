@@ -61,7 +61,7 @@ export function TopBar({ onMenuClick }: Props) {
 
   return (
     <>
-      <header className="fixed top-0 left-0 right-0 md:left-56 h-14 bg-background/80 backdrop-blur-sm border-b border-border z-20 flex items-center px-3 sm:px-6 gap-3">
+      <header className="fixed top-0 left-0 right-0 md:left-14 h-14 bg-background/80 backdrop-blur-sm border-b border-border z-20 flex items-center px-3 sm:px-6 gap-3">
         {/* Hamburger — mobile only */}
         <button
           onClick={onMenuClick}

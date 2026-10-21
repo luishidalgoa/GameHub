@@ -14,6 +14,12 @@ import type { Platform } from '@/types/platform'
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
+/**
+ * Labels of the desktop rail: hidden while the rail is collapsed to its icons and
+ * revealed as it grows on hover. On phones the drawer is always open, so they show.
+ */
+const RAIL_LABEL = 'md:max-w-0 md:opacity-0 md:group-hover/rail:max-w-[11rem] md:group-hover/rail:opacity-100 overflow-hidden whitespace-nowrap transition-[max-width,opacity] duration-200'
+
 interface Props {
   open?: boolean
   onClose?: () => void
@@ -29,16 +35,16 @@ export function Sidebar({ open, onClose }: Props) {
   return (
     <aside
       className={cn(
-        'fixed left-0 top-0 h-full w-64 md:w-56 bg-card border-r border-border flex flex-col z-30',
-        'transition-transform duration-300 ease-in-out',
+        'group/rail fixed left-0 top-0 h-full w-64 md:w-14 md:hover:w-56 md:hover:shadow-2xl bg-card border-r border-border flex flex-col z-30',
+        'transition-[transform,width] duration-300 ease-in-out',
         open ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
       )}
     >
       {/* Logo */}
-      <div className="flex items-center justify-between px-4 py-5 border-b border-border">
+      <div className="flex items-center justify-between px-4 md:px-[14px] py-5 border-b border-border">
         <div className="flex items-center gap-2">
-          <BrandMark className="w-7 h-7" />
-          <span className="font-bold text-lg tracking-tight">GameHub</span>
+          <BrandMark className="w-7 h-7 flex-shrink-0" />
+          <span className={cn('font-bold text-lg tracking-tight', RAIL_LABEL)}>GameHub</span>
         </div>
         <button
           onClick={onClose}
@@ -68,7 +74,7 @@ export function Sidebar({ open, onClose }: Props) {
 
         {platforms && platforms.length > 0 && (
           <div className="mt-4">
-            <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wider px-3 mb-1">
+            <p className={cn('text-xs text-muted-foreground font-semibold uppercase tracking-wider px-3 mb-1', RAIL_LABEL)}>
               {t('platforms')}
             </p>
             {platforms.map((p) => (
@@ -136,7 +142,9 @@ export function Sidebar({ open, onClose }: Props) {
         )}
 
         {/* Language switcher */}
-        <LanguageSwitcher />
+        <div className={RAIL_LABEL}>
+          <LanguageSwitcher />
+        </div>
       </div>
     </aside>
   )
@@ -166,7 +174,7 @@ function NavItem({
       href={href}
       onClick={onNavigate}
       className={cn(
-        'flex items-center gap-3 px-3 py-3 md:py-2 rounded-md text-sm transition-colors group',
+        'flex items-center gap-3 md:gap-0 md:group-hover/rail:gap-3 px-3 py-3 md:py-2 rounded-md text-sm transition-[gap,color,background-color] duration-200 group',
         isActive
           ? `bg-accent ${activeColor} font-medium`
           : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
@@ -175,9 +183,9 @@ function NavItem({
       <span className={cn('flex-shrink-0', isActive ? activeColor : 'group-hover:text-foreground')}>
         {icon}
       </span>
-      <span className="flex-1 truncate">{label}</span>
+      <span className={cn('flex-1 truncate', RAIL_LABEL)}>{label}</span>
       {badge !== undefined && (
-        <span className="text-xs text-muted-foreground tabular-nums">{badge}</span>
+        <span className={cn('text-xs text-muted-foreground tabular-nums', RAIL_LABEL)}>{badge}</span>
       )}
     </Link>
   )

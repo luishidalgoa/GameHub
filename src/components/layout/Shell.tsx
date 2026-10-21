@@ -54,11 +54,11 @@ export function Shell({ children }: { children: React.ReactNode }) {
 
       <TopBar onMenuClick={() => setSidebarOpen(true)} />
 
-      <main className="md:ml-56 mt-14 p-4 sm:p-6 min-h-[calc(100vh-3.5rem)]">
+      <main className="md:ml-14 mt-14 p-4 sm:p-6 min-h-[calc(100vh-3.5rem)]">
         {children}
       </main>
 
-      <footer className="md:ml-56 border-t border-border px-4 sm:px-6 py-3">
+      <footer className="md:ml-14 border-t border-border px-4 sm:px-6 py-3">
         <p className="text-xs text-muted-foreground text-center flex flex-wrap items-center justify-center gap-x-1.5 gap-y-1">
           <span>Hecho por</span>
           <a
