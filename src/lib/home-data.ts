@@ -13,6 +13,8 @@ export interface TileGame {
   platformSlug: string
   /** 16:9 image for tiles: fanart, else a screenshot. Null when the game has neither. */
   image: string | null
+  /** True when `image` is LaunchBox fanart, not a screenshot. */
+  hasFanart: boolean
   /** Image to blur behind the page: the chosen backdrop, else the tile image. */
   backdrop: string | null
   cover: string | null
@@ -77,6 +79,7 @@ export function toTile(g: TileRow): TileGame {
     platformName: g.platform.name,
     platformSlug: g.platform.slug,
     image,
+    hasFanart: g.tilePath != null,
     backdrop: resolveCoverPath(g.backdropPath) ?? image,
     cover: resolveCoverPath(g.coverPath) ?? g.coverUrl,
     logo: resolveCoverPath(g.logoPath),
@@ -87,6 +90,12 @@ export function toTile(g: TileRow): TileGame {
     score: g.rawgScore,
     description: g.description,
   }
+}
+
+/** Best-rated first, but games with real fanart ahead of those with only a screenshot:
+ *  a publisher's tile is a single piece of key art, so it should be the best one. */
+function keyArt(games: TileGame[]): TileGame[] {
+  return [...games.filter(g => g.hasFanart), ...games.filter(g => !g.hasFanart)].slice(0, 3)
 }
 
 /** A tile needs an image to be worth a place in a wide rail. */
@@ -167,7 +176,7 @@ export async function getHomeData(): Promise<HomeData> {
     db.game.findMany({
       where: { ...where, publisher: { in: p.spellings } },
       orderBy: { rawgScore: 'desc' },
-      take: 3,
+      take: 12,
       select: TILE_SELECT,
     }),
   ))
@@ -175,7 +184,7 @@ export async function getHomeData(): Promise<HomeData> {
   return {
     hero, featured, recent: recentRows.map(toTile), recommended, mostDownloaded,
     publishers: topPublishers.map((p, i) => ({
-      key: p.key, name: p.name, games: p.games, weight: p.weight, samples: samples[i].map(toTile),
+      key: p.key, name: p.name, games: p.games, weight: p.weight, samples: keyArt(samples[i].map(toTile)),
     })),
     platforms: platforms.map(p => ({ slug: p.slug, name: p.name, games: p._count.games })),
     totalGames: platforms.reduce((n, p) => n + p._count.games, 0),
@@ -234,9 +243,9 @@ export async function getPublisherIndex(limit = 60) {
   const ranked = rankPublishers(rows.map(r => ({ publisher: r.publisher, score: r.rawgScore }))).slice(0, limit)
   const samples = await Promise.all(ranked.map(p => db.game.findMany({
     where: { ...libraryGameWhere(), ...WITH_ART, publisher: { in: p.spellings } },
-    orderBy: { rawgScore: 'desc' }, take: 3, select: TILE_SELECT,
+    orderBy: { rawgScore: 'desc' }, take: 12, select: TILE_SELECT,
   })))
-  return ranked.map((p, i) => ({ key: p.key, name: p.name, games: p.games, samples: samples[i].map(toTile) }))
+  return ranked.map((p, i) => ({ key: p.key, name: p.name, games: p.games, samples: keyArt(samples[i].map(toTile)) }))
 }
 
 /** The games of one publisher, by the key the rankings use, best rated first. */
