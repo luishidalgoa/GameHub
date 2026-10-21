@@ -21,8 +21,8 @@ export default async function ExplorePage({ params, searchParams }: {
       <ExploreShell kicker={t('publishersKicker')} title={t('publishersTitle')} backLabel={t('title')}>
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6">
           {publishers.map(p => (
-            <PublisherTile key={p.key} name={p.name} href={`/explorar/editora/${encodeURIComponent(p.key)}`}
-                           gamesLabel={t('publisherGames', { count: p.games })} samples={p.samples} />
+            <PublisherTile key={p.key} publisher={p} href={`/explorar/editora/${encodeURIComponent(p.key)}`}
+                           gamesLabel={t('publisherGames', { count: p.games })} />
           ))}
         </div>
       </ExploreShell>

@@ -54,8 +54,8 @@ export default async function HomePage() {
         {data.publishers.length > 0 && (
           <WideRail kicker={t('publishersKicker')} title={t('publishersTitle')} href="/explorar/editoras" portrait {...rail}>
             {data.publishers.map(p => (
-              <PublisherTile key={p.key} name={p.name} href={`/explorar/editora/${encodeURIComponent(p.key)}`}
-                             gamesLabel={t('publisherGames', { count: p.games })} samples={p.samples} />
+              <PublisherTile key={p.key} publisher={p} href={`/explorar/editora/${encodeURIComponent(p.key)}`}
+                             gamesLabel={t('publisherGames', { count: p.games })} />
             ))}
           </WideRail>
         )}

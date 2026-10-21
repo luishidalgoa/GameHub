@@ -1,42 +1,72 @@
 'use client'
 
 import Link from 'next/link'
-import type { TileGame } from '@/lib/home-data'
-import { useStageHover } from './stage-hover'
+import type { PublisherTileData } from '@/lib/home-data'
+import { useStage } from './HomeStage'
+import { useRef } from 'react'
 
 /**
- * A publisher as one tall tile, like the Xbox store's: a single piece of key art
- * from its best-rated game fills the tile and its name stands at the bottom.
- * The art is the game's own, cropped to the portrait shape.
+ * A publisher as one tall tile in the manner of the Xbox store: a custom
+ * gradient, a character cut-out standing in it when the owner has uploaded one,
+ * and the publisher's logo in white along the bottom. Without a character the
+ * logo takes the middle of the tile; without a logo either, the name is set big.
  */
-export function PublisherTile({ name, href, gamesLabel, samples }: {
-  name: string
+export function PublisherTile({ publisher, href, gamesLabel }: {
+  publisher: PublisherTileData
   href: string
   gamesLabel: string
-  samples: TileGame[]
 }) {
-  const lead = samples.find(s => s.image) ?? samples[0]
-  const hover = useStageHover(lead ?? { palette: null, backdrop: null })
-  const tint = lead?.palette?.[0] ?? 'var(--art-a)'
+  const stage = useStage()
+  const timer = useRef<ReturnType<typeof setTimeout>>()
+  const { name, logo, character, colors } = publisher
+  const [c1, c2] = [colors[0] ?? '#3a3a55', colors[1] ?? '#14141f']
+
+  const enter = () => {
+    clearTimeout(timer.current)
+    timer.current = setTimeout(() => stage.show({ palette: colors.length ? colors : null, backdrop: character }), 140)
+  }
+  const leave = () => {
+    clearTimeout(timer.current)
+    timer.current = setTimeout(() => stage.show(null), 420)
+  }
 
   return (
-    <Link href={href} {...hover} style={{ '--glow': tint } as React.CSSProperties}
-          className="group relative block aspect-[3/4] overflow-hidden rounded-xl bg-white/[0.05] outline-none
+    <Link href={href} onPointerEnter={enter} onPointerLeave={leave} onFocus={enter} onBlur={leave}
+          style={{ '--c1': c1, '--c2': c2 } as React.CSSProperties}
+          className="group relative block aspect-[3/4] overflow-hidden rounded-xl outline-none
             transition-[transform,box-shadow] duration-500 hover:-translate-y-1.5
-            hover:shadow-[0_24px_50px_-20px_color-mix(in_srgb,var(--glow)_80%,transparent)]
+            hover:shadow-[0_24px_50px_-20px_color-mix(in_srgb,var(--c1)_85%,transparent)]
             focus-visible:ring-2 focus-visible:ring-white/70">
-      {lead?.image && (
+      {/* The gradient: a lit corner over a deep base, with a soft vertical bloom behind the figure. */}
+      <div className="absolute inset-0" style={{
+        background: `radial-gradient(120% 70% at 85% 0%, color-mix(in srgb, var(--c1) 100%, white 22%), transparent 60%),
+                     radial-gradient(90% 60% at 20% 55%, color-mix(in srgb, var(--c1) 70%, transparent), transparent 70%),
+                     linear-gradient(170deg, var(--c1), var(--c2))`,
+      }} />
+      <div className="absolute inset-0 opacity-[0.12] mix-blend-overlay"
+           style={{ backgroundImage: 'repeating-linear-gradient(115deg, #fff 0 1px, transparent 1px 14px)' }} />
+
+      {character && (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={lead.image} alt="" loading="lazy" decoding="async"
-             className="absolute inset-0 h-full w-full object-cover object-[50%_30%] transition-transform duration-[900ms] ease-out group-hover:scale-110" />
+        <img src={character} alt="" loading="lazy" decoding="async"
+             className="absolute bottom-[16%] left-1/2 h-[80%] w-auto max-w-[110%] -translate-x-1/2 object-contain drop-shadow-[0_12px_24px_rgba(0,0,0,0.5)] transition-transform duration-[900ms] ease-out group-hover:-translate-y-1 group-hover:scale-[1.07]" />
       )}
-      <div className="absolute inset-0 bg-gradient-to-t from-black via-black/35 to-transparent" />
-      <div className="absolute inset-0 opacity-50 mix-blend-soft-light transition-opacity duration-500 group-hover:opacity-90"
-           style={{ background: 'linear-gradient(to top, var(--glow), transparent 55%)' }} />
-      <div className="absolute inset-x-0 bottom-0 p-4 text-center">
-        <p className="text-balance text-xl font-black uppercase leading-tight tracking-tight drop-shadow-lg">{name}</p>
-        <p className="mt-1.5 text-xs text-white/60">{gamesLabel}</p>
-      </div>
+
+      <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent" />
+
+      {logo ? (
+        <div className={`absolute inset-x-0 flex flex-col items-center px-5 text-center ${character ? 'bottom-4' : 'inset-y-0 justify-center'}`}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={logo} alt={name} loading="lazy" decoding="async"
+               className={`w-auto max-w-[78%] object-contain brightness-0 invert drop-shadow-lg ${character ? 'max-h-11' : 'max-h-20 transition-transform duration-700 group-hover:scale-110'}`} />
+          <p className="mt-2 text-xs text-white/60">{gamesLabel}</p>
+        </div>
+      ) : (
+        <div className="absolute inset-x-0 bottom-0 p-4 text-center">
+          <p className="text-balance text-2xl font-black uppercase leading-none tracking-tight drop-shadow-lg">{name}</p>
+          <p className="mt-2 text-xs text-white/60">{gamesLabel}</p>
+        </div>
+      )}
     </Link>
   )
 }
