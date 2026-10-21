@@ -26,18 +26,4 @@ ls -1t "$DST"/gamehub-*.db 2>/dev/null | tail -n +"$((KEEP + 1))" | while read -
   rm -f -- "$old"
 done
 
-# Copia fuera del disco (#64): si GH_OFFSITE_DIR existe, se copia la nueva y se
-# aplica la misma retencion alli. Un fallo aqui no invalida la copia local.
-if [ -n "${GH_OFFSITE_DIR:-}" ]; then
-  if [ -d "$GH_OFFSITE_DIR" ] && cp "$DST/gamehub-$TS.db" "$GH_OFFSITE_DIR/gamehub-$TS.db.part" \
-     && mv "$GH_OFFSITE_DIR/gamehub-$TS.db.part" "$GH_OFFSITE_DIR/gamehub-$TS.db"; then
-    ls -1t "$GH_OFFSITE_DIR"/gamehub-*.db 2>/dev/null | tail -n +"$((KEEP + 1))" | while read -r old; do
-      rm -f -- "$old"
-    done
-    echo "copia fuera del disco: $GH_OFFSITE_DIR/gamehub-$TS.db"
-  else
-    echo "AVISO: no se pudo copiar fuera del disco a $GH_OFFSITE_DIR" >&2
-  fi
-fi
-
 echo "copia ok: $DST/gamehub-$TS.db"
