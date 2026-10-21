@@ -136,7 +136,7 @@ export async function enqueue(gameId: number, dlcId?: number): Promise<QueueEntr
 }
 
 /** Enqueue a whole batch in one transaction and promote once, instead of once per file. */
-export async function enqueueMany(items: Array<{ gameId: number; dlcId?: number }>): Promise<QueueEntry[]> {
+export async function enqueueMany(items: Array<{ gameId: number; dlcId?: number }>, batchId: string | null = null): Promise<QueueEntry[]> {
   await pruneStale()
   const waitingCount = await db.downloadToken.count({ where: { status: 'waiting' } })
   if (waitingCount + items.length > MAX_WAITING) {
@@ -150,12 +150,33 @@ export async function enqueueMany(items: Array<{ gameId: number; dlcId?: number 
     status:    'waiting',
     position:  waitingCount + i + 1,
     createdAt: BigInt(now + i),
+    batchId,
   }))
   await db.$transaction(rows.map(r => db.downloadToken.create({ data: r })))
-  await promoteNext()
-  const saved = await db.downloadToken.findMany({ where: { token: { in: rows.map(r => r.token) } } })
+  // The rows are committed: a failure from here on must not hide them from the caller.
+  await promoteNext().catch(err => console.error('[queue] promoteNext after batch failed:', err))
+  const saved = await db.downloadToken.findMany({ where: { token: { in: rows.map(r => r.token) } } }).catch(() => [])
   const byToken = new Map(saved.map(r => [r.token, toEntry(r)]))
-  return rows.map(r => byToken.get(r.token)!)
+  return rows.map(r => byToken.get(r.token) ?? toEntry({ ...r, readyAt: null, expiresAt: null }))
+}
+
+/** Id for a new batch. Like a token, it is the only key the client keeps. */
+export function newBatchId(): string {
+  return generateToken()
+}
+
+/** Every file of a batch, in the order it was queued. */
+export async function getBatch(batchId: string): Promise<QueueEntry[]> {
+  await pruneStale()
+  const rows = await db.downloadToken.findMany({ where: { batchId }, orderBy: { createdAt: 'asc' } })
+  return rows.map(row => toEntry(row))
+}
+
+/** Cancel the files of a batch that are still waiting. Returns how many were removed. */
+export async function cancelBatchWaiting(batchId: string): Promise<number> {
+  const { count } = await db.downloadToken.deleteMany({ where: { batchId, status: 'waiting' } })
+  if (count > 0) await recomputePositions()
+  return count
 }
 
 export async function cancelWaiting(token: string): Promise<boolean> {

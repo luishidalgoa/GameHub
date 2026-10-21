@@ -23,59 +23,38 @@ export default function BatchQueuePage() {
   const router                      = useRouter()
   const [items, setItems]           = useState<BatchItem[]>([])
   const [loaded, setLoaded]         = useState(false)
+  const [batchId, setBatchId]       = useState<string | null>(null)
+  const [notFound, setNotFound]     = useState(false)
+  const [cancelling, setCancelling] = useState(false)
   const downloadedRef               = useRef<Set<string>>(new Set())
   /** FIFO queue of items waiting to be triggered one-by-one. */
   const dlQueue     = useRef<Array<{ token: string; redirectUrl: string; fileName: string }>>([])
   /** True while a download has been triggered and the gap timer is running. */
   const dlActiveRef = useRef(false)
 
-  // Load batch from sessionStorage
+  // The URL carries only the batch id; the files come from the server.
   useEffect(() => {
-    try {
-      const raw = sessionStorage.getItem('bulkBatch')
-      if (raw) {
-        const parsed = JSON.parse(raw) as BatchItem[]
-        setItems(parsed)
-        sessionStorage.removeItem('bulkBatch')
-      }
-    } catch { /* ignore */ }
+    setBatchId(new URLSearchParams(window.location.search).get('id'))
     setLoaded(true)
   }, [])
 
-  // Poll all non-done tokens
+  // Poll the whole batch with one request per tick, until every file is final.
   useEffect(() => {
-    if (!loaded || items.length === 0) return
-
-    const pending = items.filter(i => i.status !== 'done' && i.status !== 'error')
-    if (pending.length === 0) return
+    if (!loaded || !batchId || notFound) return
+    if (items.length > 0 && items.every(i => i.status === 'done' || i.status === 'expired')) return
 
     const timer = setTimeout(async () => {
-      const updates = await Promise.all(
-        pending.map(async (item) => {
-          try {
-            const res  = await fetch(`/api/queue/${item.token}`)
-            const data = await res.json()
-            if (!res.ok) return { ...item, status: 'error' as const }
-            return {
-              ...item,
-              status:      data.status as BatchItem['status'],
-              position:    data.position ?? 0,
-              redirectUrl: data.redirectUrl,
-            }
-          } catch {
-            return { ...item, status: 'error' as const }
-          }
-        })
-      )
-
-      setItems(prev => prev.map(item => {
-        const upd = updates.find(u => u.token === item.token)
-        return upd ?? item
-      }))
+      try {
+        const res = await fetch(`/api/queue/batch/${batchId}`)
+        if (res.status === 404) { setNotFound(true); setItems([]); return }
+        if (!res.ok) return
+        const data = await res.json()
+        setItems(data.items as BatchItem[])
+      } catch { /* try again on the next tick */ }
     }, POLL_MS)
 
     return () => clearTimeout(timer)
-  }, [items, loaded])
+  }, [items, loaded, batchId, notFound])
 
   /** Trigger the next queued download (if not already busy). */
   const processQueue = useCallback(() => {
@@ -116,6 +95,19 @@ export default function BatchQueuePage() {
     }
     if (enqueued) processQueue()
   }, [items, processQueue])
+
+  /** Cancel what is still waiting in the server queue; ready and running files are left alone. */
+  const cancelWaiting = async () => {
+    if (!batchId) return
+    setCancelling(true)
+    try {
+      await fetch(`/api/queue/batch/${batchId}`, { method: 'DELETE' })
+      const res = await fetch(`/api/queue/batch/${batchId}`)
+      if (res.ok) setItems((await res.json()).items as BatchItem[])
+    } finally {
+      setCancelling(false)
+    }
+  }
 
   if (!loaded) return null
 
@@ -161,6 +153,18 @@ export default function BatchQueuePage() {
           style={{ width: `${totalCount > 0 ? (doneCount / totalCount) * 100 : 0}%` }}
         />
       </div>
+
+      {items.some(i => i.status === 'waiting') && (
+        <div className="flex justify-end">
+          <button
+            onClick={cancelWaiting}
+            disabled={cancelling}
+            className="text-sm text-red-500 hover:underline disabled:opacity-50"
+          >
+            Cancelar los que están en cola
+          </button>
+        </div>
+      )}
 
       {/* File list */}
       <div className="space-y-2">

@@ -2,11 +2,12 @@
  * POST /api/queue/bulk
  * Enqueues every DLC/update/mod file of a given type for a game as
  * individual download tokens (no ZIP, no compression — plain file streaming).
- * Returns the list of tokens so the client can track them on /queue/batch.
+ * Returns the batch id and its tokens. The batch page tracks the batch by that id
+ * (GET /api/queue/batch/[batchId]), so the client keeps nothing else.
  */
 import { NextResponse } from 'next/server'
 import { db }           from '@/lib/db'
-import { enqueueMany, QueueFullError } from '@/lib/download-queue'
+import { enqueueMany, newBatchId, QueueFullError } from '@/lib/download-queue'
 import { serializeBigInt } from '@/lib/serialize'
 
 type DlcType = 'dlc' | 'update' | 'mod'
@@ -38,7 +39,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'No files found' }, { status: 404 })
     }
 
-    const entries = await enqueueMany(dlcs.map(dlc => ({ gameId: Number(gameId), dlcId: dlc.id })))
+    const batchId = newBatchId()
+    const entries = await enqueueMany(dlcs.map(dlc => ({ gameId: Number(gameId), dlcId: dlc.id })), batchId)
     const items = dlcs.map((dlc, i) => ({
       token:    entries[i].token,
       dlcId:    dlc.id,
@@ -48,7 +50,7 @@ export async function POST(req: Request) {
       position: entries[i].position,
     }))
 
-    return NextResponse.json(serializeBigInt({ items }))
+    return NextResponse.json(serializeBigInt({ batchId, items }))
   } catch (err) {
     if (err instanceof QueueFullError) {
       return NextResponse.json({ error: err.message }, { status: 429 })

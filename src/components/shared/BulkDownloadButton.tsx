@@ -37,10 +37,8 @@ export function BulkDownloadButton({ gameId, type, count }: Props) {
         alert(d.error ?? 'Error al encolar la descarga')
         return
       }
-      const { items } = await res.json()
-      // Pass batch data via sessionStorage to avoid huge URLs
-      sessionStorage.setItem('bulkBatch', JSON.stringify(items))
-      router.push('/queue/batch')
+      const { batchId } = await res.json()
+      router.push(`/queue/batch?id=${encodeURIComponent(batchId)}`)
     } catch {
       alert('Error al encolar la descarga')
     } finally {

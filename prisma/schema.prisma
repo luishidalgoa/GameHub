@@ -233,8 +233,10 @@ model DownloadToken {
   createdAt BigInt
   readyAt   BigInt?
   expiresAt BigInt?
+  batchId   String?  // lote al que pertenece (POST /api/queue/bulk); null para descargas sueltas
 
   @@index([status])
+  @@index([batchId])
 }
 
 model Donation {
