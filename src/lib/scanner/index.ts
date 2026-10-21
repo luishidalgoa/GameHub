@@ -149,6 +149,20 @@ async function knownGameSizes(platformId: number) {
   return new Map(rows.map(g => [g.filePath, g]))
 }
 
+
+/** True when the scan root is on the device it was last seen on (or it has no record yet). */
+async function rootIsSameDevice(platformId: number, scanPath: string): Promise<boolean> {
+  let dev: string
+  try { dev = String(fs.statSync(scanPath).dev) } catch { return true }   // missing path: handled elsewhere
+  const key = `scanroot_dev:${platformId}:${scanPath}`
+  const row = await db.setting.findUnique({ where: { key } })
+  if (!row) {
+    await db.setting.create({ data: { key, value: dev } })
+    return true
+  }
+  return row.value === dev
+}
+
 async function processFolderGroups(
   folders:      SwitchGameFolder[],
   platformId:   number,
@@ -333,6 +347,14 @@ export async function runScan(triggeredBy = 'manual', platformSlug?: string) {
     const scanPaths = platform.scanPath.split('|').map(p => p.trim()).filter(Boolean)
     // Track whether all paths were accessible — skip stale marking if any were unreachable
     let allPathsAccessible = true
+    // A root must still be the disk it was: a remounted or replaced disk can look
+    // "found everything gone" (#107). Its device id is remembered on first use.
+    for (const scanPath of scanPaths) {
+      if (!(await rootIsSameDevice(platform.id, scanPath))) {
+        errors.push(`[WARN] ${platform.name}: la ruta ${scanPath} está en otro dispositivo que antes; no se ocultan juegos. Borra la referencia scanroot_dev de Ajustes si el cambio es correcto.`)
+        allPathsAccessible = false
+      }
+    }
 
     try {
       const mode = (platform.scanMode ?? 'flat') as 'flat' | 'folder' | 'ports'
