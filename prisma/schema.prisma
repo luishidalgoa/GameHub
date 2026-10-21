@@ -121,6 +121,10 @@ model Game {
 
   lastSeenAt        DateTime @default(now())
   metadataFetchedAt DateTime?
+  // Estado del ultimo intento de metadatos (#110): matched | no_match | provider_error.
+  metadataStatus    String?
+  metadataAttempts  Int       @default(0)
+  metadataNextRetryAt DateTime?
 
   dlcs         GameDlc[]
   downloadLogs DownloadLog[]

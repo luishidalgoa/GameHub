@@ -186,6 +186,9 @@ export async function runMetadataBatch(opts: {
     include: { platform: true },
     orderBy: { id: 'asc' },
   })
+  // A game whose provider failed waits for its retry time before the batch tries again (#110).
+  const nowMs = Date.now()
+  games = games.filter(g => !g.metadataNextRetryAt || g.metadataNextRetryAt.getTime() <= nowMs)
 
   // 'wrong-provider': keep only games whose stored provenance disagrees with the
   // current matrix (any field whose source ≠ the configured provider, or that
@@ -378,6 +381,10 @@ export async function runMetadataBatch(opts: {
       })
 
       if (!meta) {
+        await db.game.update({
+          where: { id: game.id },
+          data: { metadataStatus: 'no_match', metadataAttempts: { increment: 1 }, metadataNextRetryAt: null },
+        }).catch(() => {})
         skipped++
         emit({ type: 'skipped', gameId: game.id, title: game.title, reason: 'no_match', processed, total, applied, skipped, failed })
         continue
@@ -522,6 +529,9 @@ export async function runMetadataBatch(opts: {
           // drop it out of the pending count with no description, year or genre
           // to show for it.
           ...(meta.sources.info ? { metadataFetchedAt: new Date() } : {}),
+          metadataStatus: 'matched',
+          metadataAttempts: 0,
+          metadataNextRetryAt: null,
         },
       })
 
@@ -531,6 +541,17 @@ export async function runMetadataBatch(opts: {
     } catch (err) {
       failed++
       const reason = err instanceof Error ? err.message : 'unknown_error'
+      // Provider error: wait 1, 2, 4... hours (at most a day) before the next try (#110).
+      const attempts = game.metadataAttempts + 1
+      const waitHours = Math.min(24, 2 ** (attempts - 1))
+      await db.game.update({
+        where: { id: game.id },
+        data: {
+          metadataStatus: 'provider_error',
+          metadataAttempts: { increment: 1 },
+          metadataNextRetryAt: new Date(Date.now() + waitHours * 3600_000),
+        },
+      }).catch(() => {})
       emit({ type: 'failed', gameId: game.id, title: game.title, reason, processed, total, applied, skipped, failed })
     }
   }
