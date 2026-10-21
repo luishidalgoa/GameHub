@@ -470,6 +470,7 @@ export async function runMetadataBatch(opts: {
             ...(screenshotsJson && { screenshotPaths: screenshotsJson }),
             ...(meta.rawgId   != null && { rawgId: meta.rawgId }),
             ...(meta.rawgSlug && { rawgSlug: meta.rawgSlug }),
+            ...(meta.launchboxId != null && { launchboxId: meta.launchboxId }),
             ...(coverPath  && { coverPath }),
             ...(trailerUrl && { trailerUrl }),
           }

@@ -21,6 +21,8 @@ export interface ComposedMetadata {
   esrb?: string
   /** Resolved cover image URL (not yet downloaded). */
   coverUrl?: string
+  /** LaunchBox id of the matched game, kept so later lookups skip the title search. */
+  launchboxId?: number
   /** Screenshot/extra image URLs. */
   screenshots: string[]
   /** Provenance for each field (for logging / UI). */
@@ -266,5 +268,6 @@ export async function gatherMetadata(input: GatherInput): Promise<ComposedMetada
     confidence: Math.max(lbConfidence, rawgConfidence),
     rawgId: rawg?.id,
     rawgSlug: rawg?.slug,
+    launchboxId: lb?.id,
   }
 }
