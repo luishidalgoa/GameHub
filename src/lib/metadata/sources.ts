@@ -12,6 +12,17 @@
  */
 
 /** Where a stored field came from. The first four are automated providers. */
+/** Display name of every provider or origin a field can come from. */
+export const PROVIDER_LABEL: Record<string, string> = {
+  launchbox:   'LaunchBox',
+  rawg:        'RAWG',
+  steamgriddb: 'SteamGridDB',
+  libretro:    'libretro',
+  upload:      'Manual',
+  url:         'URL',
+  screenshot:  'Screenshot',
+}
+
 export type FieldSource =
   | 'launchbox' | 'rawg' | 'steamgriddb' | 'libretro'
   | 'upload'      // a file dropped, pasted or picked from disk

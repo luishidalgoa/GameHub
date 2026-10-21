@@ -1,5 +1,5 @@
 import type { MetadataProvider, MetadataResult } from './provider'
-import { searchTitle } from './rawg'
+import { fileToTitle } from '@/lib/utils'
 import { AUTO_THRESHOLD, calcTitleConfidence } from './scoring'
 import { db } from '@/lib/db'
 import { fetchHtmlWithRetry, type HtmlFetchPolicy } from './http'
@@ -258,7 +258,7 @@ function sanitizeTitle(title: string): string {
  * a broad query just widens the candidate pool — it doesn't lower precision.
  */
 export function launchBoxSearchTerms(rawTitle: string): string[] {
-  const cleaned = searchTitle(rawTitle)
+  const cleaned = fileToTitle(rawTitle)
   const sanitized = sanitizeTitle(cleaned)
   const words = sanitized.split(/\s+/).filter(Boolean)
 

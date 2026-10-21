@@ -5,6 +5,7 @@ import Image from 'next/image'
 import { useTranslations } from 'next-intl'
 import { Sparkles, X, Check, Loader2, Search } from 'lucide-react'
 import type { MetadataResult } from '@/lib/metadata/provider'
+import { PROVIDER_LABEL } from '@/lib/metadata/sources'
 
 interface Props {
   gameId: number
@@ -14,12 +15,6 @@ interface Props {
 type Source = 'launchbox' | 'rawg' | 'steamgriddb'
 type Candidate = MetadataResult & { source: 'launchbox' | 'rawg' }
 type Sources = Partial<Record<'cover' | 'info' | 'description' | 'screenshots', Source>>
-
-const PROVIDER_LABEL: Record<Source, string> = {
-  launchbox: 'LaunchBox',
-  rawg: 'RAWG',
-  steamgriddb: 'SteamGridDB',
-}
 
 export function MetadataFetchButton({ gameId, onApplied }: Props) {
   const t = useTranslations('MetadataFetch')

@@ -1,4 +1,5 @@
-import { searchTitle, RAWG_PLATFORM_SLUGS } from './rawg'
+import { RAWG_PLATFORM_SLUGS } from './rawg'
+import { fileToTitle } from '@/lib/utils'
 import type { MetadataResult } from './provider'
 
 // Confidence thresholds (max 100):
@@ -38,8 +39,8 @@ export function calcTitleConfidence(
   candidateTitle: string,
   platformMatched: boolean,
 ): number {
-  let score = jaccard(searchTitle(gameTitle), candidateTitle) * 50
-  if (normalize(searchTitle(gameTitle)) === normalize(candidateTitle)) score += 20
+  let score = jaccard(fileToTitle(gameTitle), candidateTitle) * 50
+  if (normalize(fileToTitle(gameTitle)) === normalize(candidateTitle)) score += 20
   if (platformMatched) score += 30
   return Math.min(100, Math.round(score))
 }

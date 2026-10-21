@@ -12,7 +12,7 @@ import { parseExternalLinks, type ExternalLinkItem } from '@/components/game/Ext
 import { YouTubeEmbed } from '@/components/shared/YouTubeEmbed'
 import { toast } from '@/components/shared/Toaster'
 import type { Game } from '@/types/game'
-import { parseMetadataSources, type FieldSource, type MetadataSources } from '@/lib/metadata/sources'
+import { PROVIDER_LABEL, parseMetadataSources, type FieldSource, type MetadataSources } from '@/lib/metadata/sources'
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
@@ -689,15 +689,6 @@ function Field({
   )
 }
 
-const PROVIDER_LABEL: Record<string, string> = {
-  launchbox:   'LaunchBox',
-  rawg:        'RAWG',
-  steamgriddb: 'SteamGridDB',
-  libretro:    'libretro',
-  upload:      'Manual',
-  url:         'URL',
-  screenshot:  'Screenshot',
-}
 
 /** Small pill showing where a field came from (or nothing if unknown). */
 function SourceBadge({ source }: { source?: FieldSource }) {

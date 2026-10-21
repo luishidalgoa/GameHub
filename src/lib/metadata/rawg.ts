@@ -1,3 +1,4 @@
+import { fileToTitle } from '@/lib/utils'
 import type { MetadataProvider, MetadataResult } from './provider'
 import { providerFetch } from './http'
 
@@ -32,22 +33,6 @@ export const RAWG_PLATFORM_SLUGS: Record<string, string> = {
   ps2:      'playstation2',
   ps3:      'playstation3',
   pc:       'pc',
-}
-
-/**
- * Strip ROM-naming artifacts before sending to RAWG.
- * Handles Switch TitleIDs in [], region codes (USA/EUR/JPN), Rev markers, etc.
- */
-export function searchTitle(raw: string): string {
-  return raw
-    .replace(/\[[^\]]*\]/g, '')
-    .replace(
-      /\(\s*(?:USA|EUR|JPN|JAP|PAL|NTSC-[JUE]|NTSC|Rev\s?\d+|v[\d.]+|Disc\s?\d+|Beta|Demo|Proto(?:type)?|Sample|Kiosk|eShop|Virtual Console|En(?:[,+]\w+)*|[A-Z][a-z](?:[,+][A-Z][a-z])*)\s*\)/gi,
-      ''
-    )
-    .replace(/\(\s*\)/g, '')
-    .replace(/\s{2,}/g, ' ')
-    .trim()
 }
 
 interface RawgPlatformEntry {
@@ -91,7 +76,7 @@ export class RawgProvider implements MetadataProvider {
   }
 
   async search(title: string, _platform: string, overrideQuery?: string): Promise<MetadataResult[]> {
-    const query = overrideQuery ?? searchTitle(title)
+    const query = overrideQuery ?? fileToTitle(title)
     return this._doSearch(query)
   }
 

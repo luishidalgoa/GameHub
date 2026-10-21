@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getRawgProvider, searchTitle } from '@/lib/metadata/rawg'
+import { getRawgProvider } from '@/lib/metadata/rawg'
+import { fileToTitle } from '@/lib/utils'
 import { getLaunchBoxProvider, fetchLaunchBoxGame } from '@/lib/metadata/launchbox'
 import { getProviderMatrix } from '@/lib/metadata/matrix'
 import { gatherMetadata } from '@/lib/metadata/compose'
@@ -42,7 +43,7 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
 
   const sp = new URL(req.url).searchParams
   const overrideQuery = sp.get('q') ?? undefined
-  const usedQuery = overrideQuery ?? searchTitle(game.title)
+  const usedQuery = overrideQuery ?? fileToTitle(game.title)
 
   // The admin can force which provider serves the manual search — the default,
   // matrix-driven one may not list a given game. Falls back to the matrix choice
