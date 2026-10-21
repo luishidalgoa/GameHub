@@ -204,7 +204,9 @@ export function CoverUploader({ gameId, gameTitle = '', platformSlug, currentCov
     if (!q.trim()) return
     setRawgSearching(true)
     setRawgResults([])
-    const res  = await fetch(`/api/metadata/${gameId}?q=${encodeURIComponent(q.trim())}`)
+    // Ask RAWG explicitly: without the override the endpoint searches the matrix's
+    // info provider, so this tab used to list LaunchBox results under the RAWG label.
+    const res  = await fetch(`/api/metadata/${gameId}?q=${encodeURIComponent(q.trim())}&provider=rawg`)
     const data = await res.json()
     setRawgSearching(false)
     if (res.ok) setRawgResults((data.results ?? []).filter((r: RawgResult) => r.coverUrl))
