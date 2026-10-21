@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import fs from 'fs'
 import path from 'path'
 import { db } from '@/lib/db'
-import { getEntry, markDownloading, markDone } from '@/lib/download-queue'
+import { getEntry, beginDownload, markDone } from '@/lib/download-queue'
 import { logDownloadStart, logDownloadComplete } from '@/lib/traffic'
 import { computeSha256 } from '@/lib/hash'
 import { createFileWebStream } from '@/lib/stream'
@@ -11,10 +11,12 @@ import { paceDownloadBody } from '@/lib/download-limit'
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
-const FULL_STATUSES = ['ready']
+// A full download may start from ready, or restart from done inside the window (#120).
+const FULL_STATUSES = ['ready', 'done']
 // A range request is only valid while the token is live: a finished token
 // (done) must not serve bytes again, or one queue slot feeds many connections.
-const RANGE_STATUSES = ['ready', 'downloading']
+// A cut-off download ends in done and may resume inside its window (#120).
+const RANGE_STATUSES = ['ready', 'downloading', 'done']
 
 function parseRange(header: string, fileSize: number): { start: number; end: number } | null {
   const m = header.match(/bytes=(\d+)-(\d*)/)
@@ -126,8 +128,8 @@ export async function GET(req: Request, { params }: { params: { gameId: string }
   }
 
   // ── Full file (200 OK) ────────────────────────────────────────────────────────
-  if (!(await markDownloading(token))) {
-    return NextResponse.json({ error: 'Token already in use' }, { status: 409 })
+  if (!(await beginDownload(token))) {
+    return NextResponse.json({ error: 'Token already in use or expired' }, { status: 409 })
   }
 
   let logId: number

@@ -22,6 +22,7 @@ export default function QueuePage() {
   const [countdown, setCountdown] = useState<number | null>(null)
   const [downloading, setDownloading] = useState(false)
   const [redirectedToAd, setRedirectedToAd] = useState(false)
+  const [retryError, setRetryError] = useState('')
 
   const poll = useCallback(async () => {
     const res = await fetch(`/api/queue/${token}`)
@@ -83,12 +84,28 @@ export default function QueuePage() {
 
   // Manual retry after the automatic start. It always takes the direct link:
   // the redirect guard in startDownload would make this button a no-op.
-  const manualDownload = useCallback(() => {
-    if (!state || state.status !== 'ready' || typeof window === 'undefined') return
-    setDownloading(true)
+  // The server decides whether a retry is allowed (a cut-off download is done
+  // and may restart inside its window; #120). A 1-byte probe asks first, so a
+  // refusal shows here instead of navigating the tab to a JSON error.
+  const manualDownload = useCallback(async () => {
+    if (!state || typeof window === 'undefined') return
     const url = state.dlcId
       ? `/api/download/dlc/${state.dlcId}?token=${token}`
       : `/api/download/${state.gameId}?token=${token}`
+    setRetryError('')
+    try {
+      const probe = await fetch(url, { headers: { Range: 'bytes=0-0' } })
+      if (!probe.ok) {
+        const body = await probe.json().catch(() => ({}))
+        setRetryError(body.error ?? `No se puede reintentar (${probe.status})`)
+        return
+      }
+      await probe.body?.cancel()
+    } catch {
+      setRetryError('Sin conexión con el servidor. Inténtalo de nuevo.')
+      return
+    }
+    setDownloading(true)
     const a = document.createElement('a')
     a.href = url
     a.click()
@@ -168,6 +185,7 @@ export default function QueuePage() {
           <Download className="w-4 h-4" />
           Download manually
         </button>
+        {retryError && <p className="text-xs text-red-400 mt-3">{retryError}</p>}
       </QueueCard>
     )
   }

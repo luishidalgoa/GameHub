@@ -208,11 +208,18 @@ export async function getEntry(token: string): Promise<QueueEntry | null> {
   return row ? toEntry(row) : null
 }
 
-export async function markDownloading(token: string): Promise<boolean> {
-  const row = await db.downloadToken.findUnique({ where: { token } })
-  if (!row || row.status !== 'ready') return false
-  await db.downloadToken.update({ where: { token }, data: { status: 'downloading' } })
-  return true
+/**
+ * Start a full download. A token can be used again while its window is open:
+ * a download that was cut off (markDone on close) can be retried, not only the
+ * first start (#120). Only ready or done tokens inside their window qualify.
+ */
+export async function beginDownload(token: string): Promise<boolean> {
+  const now = BigInt(Date.now())
+  const { count } = await db.downloadToken.updateMany({
+    where: { token, status: { in: ['ready', 'done'] }, expiresAt: { gt: now } },
+    data:  { status: 'downloading' },
+  })
+  return count === 1
 }
 
 export async function markDone(token: string): Promise<void> {
