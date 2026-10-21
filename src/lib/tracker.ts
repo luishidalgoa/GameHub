@@ -1,4 +1,5 @@
 import { db } from './db'
+import { resolveClientIp } from './net'
 
 // ── Client detection ──────────────────────────────────────────────────────────
 
@@ -131,12 +132,7 @@ export function parseUaDetail(ua: string): UaDetail {
 }
 
 export function getClientIp(req: Request): string {
-  const h = req.headers as unknown as { get: (k: string) => string | null }
-  const ip =
-    h.get('x-forwarded-for')?.split(',')[0].trim() ??
-    h.get('x-real-ip') ??
-    '127.0.0.1'
-  // Normalize IPv6 loopback to the IPv4 equivalent
+  const ip = resolveClientIp(req.headers) ?? '127.0.0.1'
   return ip === '::1' ? '127.0.0.1' : ip
 }
 

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { buildProposal, type RenameProposal } from '@/lib/curation'
+import { adminGuard } from '@/lib/admin-guard'
 
 export const dynamic = 'force-dynamic'
 
@@ -10,6 +11,9 @@ export const dynamic = 'force-dynamic'
  * for why the split matters.
  */
 export async function GET() {
+  const denied = await adminGuard()
+  if (denied) return denied
+
   const [games, cards] = await Promise.all([
     db.game.findMany({
       where: { isHidden: false, releaseYear: { not: null } },

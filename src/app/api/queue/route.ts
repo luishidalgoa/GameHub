@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { enqueue } from '@/lib/download-queue'
+import { db } from '@/lib/db'
 
 export async function POST(req: Request) {
   let body: { gameId?: unknown; dlcId?: unknown }
@@ -14,6 +15,11 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'gameId required' }, { status: 400 })
   }
   const dlcId = body.dlcId != null ? Number(body.dlcId) : undefined
+
+  const game = await db.game.findUnique({ where: { id: gameId }, select: { isHidden: true } })
+  if (!game || game.isHidden) {
+    return NextResponse.json({ error: 'Game not found' }, { status: 404 })
+  }
 
   try {
     const entry = await enqueue(gameId, dlcId)

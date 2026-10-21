@@ -1,10 +1,14 @@
 import { db } from '@/lib/db'
 import { runMetadataBatch } from '@/lib/metadata/batch'
 import type { BatchEvent } from '@/lib/metadata/batch'
+import { adminGuard } from '@/lib/admin-guard'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET(req: Request) {
+  const denied = await adminGuard()
+  if (denied) return denied
+
   const sp           = new URL(req.url).searchParams
   const withCovers   = sp.get('covers') !== 'false'
   // Auto Metadata Fetch also backfills YouTube trailers (incl. games that

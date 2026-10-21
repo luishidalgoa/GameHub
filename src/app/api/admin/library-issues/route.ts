@@ -8,11 +8,15 @@
  */
 import { NextResponse } from 'next/server'
 import { findLibraryIssues } from '@/lib/library-issues'
+import { adminGuard } from '@/lib/admin-guard'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
 export async function GET() {
+  const denied = await adminGuard()
+  if (denied) return denied
+
   try {
     return NextResponse.json(await findLibraryIssues())
   } catch (err) {

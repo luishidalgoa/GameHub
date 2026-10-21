@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { getTranslations } from 'next-intl/server'
 import { db } from '@/lib/db'
 import { formatBytes } from '@/lib/utils'
+import { libraryGameWhere } from '@/lib/library'
 import { ScanPanel } from '@/components/admin/ScanPanel'
 import { MetadataBatchPanel } from '@/components/admin/MetadataBatchPanel'
 import { OrphanCoversPanel } from '@/components/admin/OrphanCoversPanel'
@@ -15,11 +16,11 @@ export const dynamic = 'force-dynamic'
 export default async function AdminPage() {
   const [t, totalGames, totalPlatforms, noCover, noMeta, noScore, scanLogs] = await Promise.all([
     getTranslations('Admin'),
-    db.game.count({ where: { isHidden: false } }),
+    db.game.count({ where: libraryGameWhere() }),
     db.platform.count({ where: { enabled: true } }),
-    db.game.count({ where: { isHidden: false, coverPath: null, coverUrl: null } }),
-    db.game.count({ where: { isHidden: false, metadataFetchedAt: null } }),
-    db.game.count({ where: { isHidden: false, rawgScore: null } }),
+    db.game.count({ where: { ...libraryGameWhere(), coverPath: null, coverUrl: null } }),
+    db.game.count({ where: { ...libraryGameWhere(), metadataFetchedAt: null } }),
+    db.game.count({ where: { ...libraryGameWhere(), rawgScore: null } }),
     db.scanLog.findMany({ orderBy: { startedAt: 'desc' }, take: 5 }),
   ])
 
@@ -31,7 +32,7 @@ export default async function AdminPage() {
 
   const sizeResult = await db.game.aggregate({
     _sum: { fileSize: true },
-    where: { isHidden: false },
+    where: libraryGameWhere(),
   })
   const totalSize = sizeResult._sum.fileSize ?? BigInt(0)
 

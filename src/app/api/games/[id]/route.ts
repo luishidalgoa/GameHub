@@ -2,18 +2,26 @@ import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { serializeBigInt } from '@/lib/serialize'
 import { resolveCoverPath } from '@/lib/s3'
+import { isAdminSession } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function withoutFilePaths<T extends { filePath: string; dlcs: { filePath: string }[] }>({ filePath, dlcs, ...rest }: T) {
+  return { ...rest, dlcs: dlcs.map(({ filePath: _path, ...dlc }) => dlc) }
+}
+
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
   const id = parseInt(params.id, 10)
-  const game = await db.game.findUnique({
-    where: { id },
-    include: { platform: true, dlcs: true },
-  })
-  if (!game) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  const [game, admin] = await Promise.all([
+    db.game.findUnique({ where: { id }, include: { platform: true, dlcs: true } }),
+    isAdminSession(),
+  ])
+  if (!game || (game.isHidden && !admin)) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  }
   const resolved = { ...game, coverPath: resolveCoverPath(game.coverPath) }
-  return NextResponse.json(serializeBigInt(resolved))
+  return NextResponse.json(serializeBigInt(admin ? resolved : withoutFilePaths(resolved)))
 }
 
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {

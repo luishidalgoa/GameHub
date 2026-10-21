@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { Prisma } from '@prisma/client'
 import { db } from '@/lib/db'
+import { adminGuard } from '@/lib/admin-guard'
+import { parseGameFilters, gameListWhere } from '@/lib/games/filters'
 
 export const dynamic = 'force-dynamic'
 
@@ -67,7 +69,9 @@ function toRow(g: GameWithPlatform): Record<(typeof FIELDS)[number], string | nu
 }
 
 function csvCell(value: string | number | boolean): string {
-  const s = value === null || value === undefined ? '' : String(value)
+  let s = value === null || value === undefined ? '' : String(value)
+  // Spreadsheets run a cell starting with = + - @ or a tab/CR as a formula.
+  if (typeof value === 'string' && /^[=+\-@\t\r]/.test(s)) s = `'${s}`
   // Quote when the value contains a comma, quote, or newline; escape quotes by doubling.
   return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
 }
@@ -92,29 +96,24 @@ function fetchGames(where: Prisma.GameWhereInput) {
 }
 
 export async function GET(req: NextRequest) {
+  const denied = await adminGuard()
+  if (denied) return denied
+
   const { searchParams } = new URL(req.url)
   const format = (searchParams.get('format') ?? 'json').toLowerCase() === 'csv' ? 'csv' : 'json'
-  const platformSlug = searchParams.get('platform') ?? ''
-  const search = searchParams.get('search') ?? ''
-  const noScore = searchParams.get('noScore') === '1'
-  const noCover = searchParams.get('noCover') === '1'
-  const noMeta  = searchParams.get('noMeta')  === '1'
+  const filters = parseGameFilters(Object.fromEntries(searchParams))
   const includeHidden = searchParams.get('includeHidden') === '1'
 
   const where: Prisma.GameWhereInput = {
-    ...(includeHidden ? {} : { isHidden: false }),
-    ...(search && { title: { contains: search } }),
-    ...(platformSlug && { platform: { slug: platformSlug } }),
-    ...(noScore && { rawgScore: null }),
-    ...(noCover && { coverPath: null, coverUrl: null }),
-    ...(noMeta  && { metadataFetchedAt: null }),
+    ...gameListWhere(filters),
+    ...(includeHidden && { isHidden: undefined }),
   }
 
   const games = await fetchGames(where)
   const rows = games.map(toRow)
 
   const stamp = new Date().toISOString().slice(0, 10) // YYYY-MM-DD
-  const scope = platformSlug || 'all'
+  const scope = filters.platform || 'all'
   const filename = `gamehub-games-${scope}-${stamp}.${format}`
 
   const body = format === 'csv' ? toCsv(rows) : JSON.stringify(rows, null, 2)

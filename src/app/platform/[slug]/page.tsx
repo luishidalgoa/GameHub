@@ -30,7 +30,7 @@ export default async function PlatformPage({ params }: Props) {
     }),
   ])
 
-  if (!platform) notFound()
+  if (!platform || !platform.enabled) notFound()
 
   // Cheap aggregation — unique region strings from primary games AND from
   // region-variant editions, so every selectable region shows in the filter.

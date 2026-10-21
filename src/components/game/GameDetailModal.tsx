@@ -361,10 +361,6 @@ export function GameDetailModal({ gameId, onClose }: Props) {
               </div>
             )}
 
-            {/* File path */}
-            <div className="pt-4 border-t border-border">
-              <p className="text-xs text-muted-foreground/50 font-mono break-all">{game.filePath}</p>
-            </div>
           </div>
         ) : (
           <div className="flex-1 flex items-center justify-center text-muted-foreground">

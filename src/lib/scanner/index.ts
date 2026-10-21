@@ -520,8 +520,16 @@ export async function runScan(triggeredBy = 'manual', platformSlug?: string) {
     // Mark stale games only when every scan path was accessible.
     // If any path was unreachable (e.g. network share offline), skip stale marking
     // so we don't accidentally hide games from inaccessible paths.
+    // A root that exists but is empty (an unmounted disk leaves its mount folder
+    // behind) passes the existence check. Treat a rescan that finds nothing while
+    // games were visible as a failed scan, not as a mass deletion.
     let stale = 0
-    if (allPathsAccessible) {
+    const visibleBefore = await db.game.count({ where: { platformId: platform.id, isHidden: false } })
+    const emptyRescan = found === 0 && visibleBefore > 0
+    if (emptyRescan) {
+      errors.push(`[WARN] ${platform.name}: el escaneo no encontró ningún juego pero había ${visibleBefore} visibles; no se ocultan`)
+    }
+    if (allPathsAccessible && !emptyRescan) {
       const staleResult = await db.game.updateMany({
         where: {
           platformId: platform.id,

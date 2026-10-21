@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getLatestJob, getJobLog, resumeInterruptedJobs, type JobType } from '@/lib/jobs/runner'
+import { adminGuard } from '@/lib/admin-guard'
 
 export const dynamic = 'force-dynamic'
 
@@ -7,6 +8,9 @@ export const dynamic = 'force-dynamic'
 // used by the dashboard to show progress on return. Returns { job: null } when
 // there has never been one.
 export async function GET(req: Request) {
+  const denied = await adminGuard()
+  if (denied) return denied
+
   // Lazily auto-resume jobs interrupted by a restart, the first time the
   // dashboard polls after the server (re)starts. resumeInterruptedJobs() is
   // idempotent — only acts once per process. (We do this here instead of a

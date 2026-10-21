@@ -81,6 +81,20 @@ export default function QueuePage() {
     }
   }, [state, token, poll, redirectedToAd])
 
+  // Manual retry after the automatic start. It always takes the direct link:
+  // the redirect guard in startDownload would make this button a no-op.
+  const manualDownload = useCallback(() => {
+    if (!state || state.status !== 'ready' || typeof window === 'undefined') return
+    setDownloading(true)
+    const url = state.dlcId
+      ? `/api/download/dlc/${state.dlcId}?token=${token}`
+      : `/api/download/${state.gameId}?token=${token}`
+    const a = document.createElement('a')
+    a.href = url
+    a.click()
+    setTimeout(() => { setDownloading(false); poll() }, 3000)
+  }, [state, token, poll])
+
   // Auto-start download when ready
   useEffect(() => {
     if (state?.status === 'ready' && !downloading && !redirectedToAd) {
@@ -148,7 +162,7 @@ export default function QueuePage() {
           </p>
         )}
         <button
-          onClick={startDownload}
+          onClick={manualDownload}
           className="mt-5 flex items-center gap-2 px-5 py-2.5 bg-green-600 hover:bg-green-500 text-white rounded-md text-sm font-medium transition-colors"
         >
           <Download className="w-4 h-4" />

@@ -546,7 +546,11 @@
     "field_cover": "Carátula",
     "field_info": "Info",
     "field_description": "Descripción",
-    "field_screenshots": "Capturas"
+    "field_screenshots": "Capturas",
+    "networkError": "Error de red. Inténtalo de nuevo.",
+    "requestFailed": "No se pudo completar la operación.",
+    "searchFailed": "La búsqueda falló.",
+    "applyFailed": "No se pudo aplicar el resultado."
   },
   "CommandPalette": {
     "placeholder": "Buscar juegos o plataformas…",

@@ -1,3 +1,4 @@
+import { randomBytes } from 'crypto'
 import { db } from './db'
 
 export type QueueStatus = 'waiting' | 'ready' | 'downloading' | 'done' | 'expired'
@@ -17,7 +18,7 @@ const TOKEN_TTL_MS = 15 * 60_000  // 15 min ready window
 const STALE_MS     = 30 * 60_000  // remove done/expired after 30 min
 
 function generateToken(): string {
-  return Math.random().toString(36).slice(2) + Date.now().toString(36)
+  return randomBytes(24).toString('base64url')
 }
 
 function toEntry(row: {
@@ -75,7 +76,7 @@ async function recomputePositions(): Promise<void> {
 
 async function promoteNext(): Promise<void> {
   const max    = await getMaxConcurrent()
-  const active = await db.downloadToken.count({ where: { status: 'downloading' } })
+  const active = await db.downloadToken.count({ where: { status: { in: ['ready', 'downloading'] } } })
   const slots  = max - active
   if (slots <= 0) return
 

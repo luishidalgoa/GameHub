@@ -32,7 +32,7 @@ export default async function GamePage({ params }: Props) {
     db.setting.findUnique({ where: { key: 'rawg_api_key' } }),
   ])
 
-  if (!game) notFound()
+  if (!game || (game.isHidden && !isAdmin)) notFound()
 
   // Screenshots: prefer the ones stored on the game (LaunchBox/RAWG saved by the
   // metadata job); fall back to a live RAWG fetch only when none are stored.

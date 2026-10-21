@@ -3,12 +3,13 @@ import { db } from '@/lib/db'
 import { serializeBigInt } from '@/lib/serialize'
 import { getClientIp } from '@/lib/tracker'
 import { resolveCoverPath } from '@/lib/s3'
+import { libraryGameWhere } from '@/lib/library'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url)
-  const platformSlug = searchParams.get('platform')
+  const platformSlug = searchParams.get('platform') ?? undefined
   const search = searchParams.get('search') ?? ''
   const sort = searchParams.get('sort') ?? 'title'
   const favorites = searchParams.get('favorites') === 'true'
@@ -22,8 +23,7 @@ export async function GET(req: Request) {
   const minRating = minRatingRaw && !noScore ? Number(minRatingRaw) : null
 
   const where = {
-    isHidden: false,
-    ...(platformSlug && { platform: { slug: platformSlug } }),
+    ...libraryGameWhere(platformSlug),
     ...(search    && { title: { contains: search } }),
     ...(favorites && { isFavorite: true }),
     // Match the primary region OR any region-variant edition, so a card whose

@@ -1,9 +1,13 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { adminGuard } from '@/lib/admin-guard'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET() {
+  const denied = await adminGuard()
+  if (denied) return denied
+
   const sixMonthsAgo = new Date()
   sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6)
 
@@ -64,6 +68,9 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
+  const denied = await adminGuard()
+  if (denied) return denied
+
   const body = await req.json()
   const { platform, amount, currency, note, fromName, receivedAt } = body
   if (!platform || !amount) {
@@ -84,6 +91,9 @@ export async function POST(req: Request) {
 }
 
 export async function DELETE(req: Request) {
+  const denied = await adminGuard()
+  if (denied) return denied
+
   const { id } = await req.json()
   await db.donation.delete({ where: { id } })
   return NextResponse.json({ ok: true })

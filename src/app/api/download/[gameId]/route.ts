@@ -11,6 +11,9 @@ import { paceDownloadBody } from '@/lib/download-limit'
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
+const FULL_STATUSES = ['ready']
+const RANGE_STATUSES = ['ready', 'downloading', 'done']
+
 function parseRange(header: string, fileSize: number): { start: number; end: number } | null {
   const m = header.match(/bytes=(\d+)-(\d*)/)
   if (!m) return null
@@ -48,17 +51,15 @@ export async function GET(req: Request, { params }: { params: { gameId: string }
   const entry = await getEntry(token)
   if (!entry) return NextResponse.json({ error: 'Token not found or expired' }, { status: 404 })
 
-  if (!isRange) {
-    // Full-file download: enforce normal queue flow
-    if (entry.status === 'waiting') {
-      return NextResponse.json({ error: 'Not your turn yet', position: entry.position }, { status: 425 })
-    }
-    if (entry.status !== 'ready') {
-      return NextResponse.json({ error: `Invalid token status: ${entry.status}` }, { status: 409 })
-    }
+  if (entry.status === 'waiting') {
+    return NextResponse.json({ error: 'Not your turn yet', position: entry.position }, { status: 425 })
   }
-  // Range request: token just needs to exist and match the requested game
-  // (covers both active downloads and browser/manager resume after interruption)
+  // A range request may resume a download that already closed (status done),
+  // so only the full-file start is restricted to ready.
+  const allowed = isRange ? RANGE_STATUSES : FULL_STATUSES
+  if (!allowed.includes(entry.status)) {
+    return NextResponse.json({ error: `Invalid token status: ${entry.status}` }, { status: 409 })
+  }
 
   const gameId = parseInt(params.gameId, 10)
   if (entry.gameId !== gameId) {
@@ -66,7 +67,7 @@ export async function GET(req: Request, { params }: { params: { gameId: string }
   }
 
   const game = await db.game.findUnique({ where: { id: gameId } })
-  if (!game) return NextResponse.json({ error: 'Game not found' }, { status: 404 })
+  if (!game || game.isHidden) return NextResponse.json({ error: 'Game not found' }, { status: 404 })
 
   const filePath = game.filePath
   if (!fs.existsSync(filePath)) {

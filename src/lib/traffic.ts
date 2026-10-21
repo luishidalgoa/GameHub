@@ -1,14 +1,5 @@
 import { db } from './db'
-import { detectDevice, detectBrowser, detectClient } from './tracker'
-
-export function getClientIp(req: Request): string {
-  const h = req.headers as unknown as { get: (k: string) => string | null }
-  return (
-    h.get('x-forwarded-for')?.split(',')[0].trim() ??
-    h.get('x-real-ip') ??
-    '127.0.0.1'
-  )
-}
+import { detectDevice, detectBrowser, detectClient, getClientIp } from './tracker'
 
 export async function logDownloadStart(opts: {
   req: Request

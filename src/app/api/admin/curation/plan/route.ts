@@ -3,6 +3,7 @@ import { mkdir, writeFile, readdir } from 'fs/promises'
 import path from 'path'
 import { db } from '@/lib/db'
 import { validateProposedName } from '@/lib/curation'
+import { adminGuard } from '@/lib/admin-guard'
 
 export const dynamic = 'force-dynamic'
 
@@ -33,6 +34,9 @@ function planDir(): string {
  * here is treated as trusted input downstream.
  */
 export async function POST(req: Request) {
+  const denied = await adminGuard()
+  if (denied) return denied
+
   let body: { items?: PlanItem[] }
   try {
     body = await req.json()

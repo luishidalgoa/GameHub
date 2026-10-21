@@ -4,9 +4,14 @@ import path from 'path'
 import { db } from '@/lib/db'
 import { getEntry, markDownloading, markDone } from '@/lib/download-queue'
 import { logDownloadStart, logDownloadComplete } from '@/lib/traffic'
+import { createFileWebStream } from '@/lib/stream'
+import { paceDownloadBody } from '@/lib/download-limit'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
+
+const FULL_STATUSES = ['ready']
+const RANGE_STATUSES = ['ready', 'downloading', 'done']
 
 function parseRange(header: string, fileSize: number): { start: number; end: number } | null {
   const m = header.match(/bytes=(\d+)-(\d*)/)
@@ -28,13 +33,12 @@ export async function GET(req: Request, { params }: { params: { dlcId: string } 
   const entry = await getEntry(token)
   if (!entry) return NextResponse.json({ error: 'Token not found or expired' }, { status: 404 })
 
-  if (!isRange) {
-    if (entry.status === 'waiting') {
-      return NextResponse.json({ error: 'Not your turn yet', position: entry.position }, { status: 425 })
-    }
-    if (entry.status !== 'ready') {
-      return NextResponse.json({ error: `Invalid token status: ${entry.status}` }, { status: 409 })
-    }
+  if (entry.status === 'waiting') {
+    return NextResponse.json({ error: 'Not your turn yet', position: entry.position }, { status: 425 })
+  }
+  const allowed = isRange ? RANGE_STATUSES : FULL_STATUSES
+  if (!allowed.includes(entry.status)) {
+    return NextResponse.json({ error: `Invalid token status: ${entry.status}` }, { status: 409 })
   }
 
   const dlcId = parseInt(params.dlcId, 10)
@@ -44,6 +48,8 @@ export async function GET(req: Request, { params }: { params: { dlcId: string } 
 
   const dlc = await db.gameDlc.findUnique({ where: { id: dlcId } })
   if (!dlc) return NextResponse.json({ error: 'DLC not found' }, { status: 404 })
+  const parent = await db.game.findUnique({ where: { id: dlc.gameId }, select: { isHidden: true } })
+  if (!parent || parent.isHidden) return NextResponse.json({ error: 'DLC not found' }, { status: 404 })
 
   const filePath = dlc.filePath
   if (!fs.existsSync(filePath)) {
@@ -83,15 +89,9 @@ export async function GET(req: Request, { params }: { params: { dlcId: string } 
       fileSize: BigInt(chunkSize),
     })
 
-    const fileStream     = fs.createReadStream(filePath, { start, end })
-    const readableStream = new ReadableStream({
-      start(controller) {
-        fileStream.on('data',  (chunk) => controller.enqueue(chunk))
-        fileStream.on('end',   ()      => { controller.close(); logDownloadComplete(logId) })
-        fileStream.on('error', (err)   => controller.error(err))
-      },
-      cancel() { fileStream.destroy() },
-    })
+    const readableStream = await paceDownloadBody(req, createFileWebStream(filePath, { start, end }, {
+      onEnd: () => logDownloadComplete(logId),
+    }))
 
     return new Response(readableStream, {
       status: 206,
@@ -117,15 +117,10 @@ export async function GET(req: Request, { params }: { params: { dlcId: string } 
     fileSize: BigInt(fileSize),
   })
 
-  const fileStream     = fs.createReadStream(filePath)
-  const readableStream = new ReadableStream({
-    start(controller) {
-      fileStream.on('data',  (chunk) => controller.enqueue(chunk))
-      fileStream.on('end',   ()      => { controller.close(); markDone(token); logDownloadComplete(logId) })
-      fileStream.on('error', (err)   => { controller.error(err); markDone(token) })
-    },
-    cancel() { fileStream.destroy(); markDone(token) },
-  })
+  const readableStream = await paceDownloadBody(req, createFileWebStream(filePath, undefined, {
+    onClose: () => markDone(token),
+    onEnd: () => logDownloadComplete(logId),
+  }))
 
   return new Response(readableStream, {
     headers: {

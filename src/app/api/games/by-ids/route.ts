@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { resolveCoverPath } from '@/lib/s3'
+import { libraryGameWhere } from '@/lib/library'
 
 export const dynamic = 'force-dynamic'
 
@@ -19,7 +20,7 @@ export async function GET(req: Request) {
   if (ids.length === 0) return NextResponse.json({ games: [] })
 
   const games = await db.game.findMany({
-    where: { id: { in: ids }, isHidden: false },
+    where: { ...libraryGameWhere(), id: { in: ids } },
     select: {
       id: true, title: true, coverPath: true, coverUrl: true, releaseYear: true,
       platform: { select: { slug: true, name: true, thumbnailWidth: true, thumbnailHeight: true } },

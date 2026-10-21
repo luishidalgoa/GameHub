@@ -24,6 +24,11 @@ export async function POST(req: Request) {
   }
 
   try {
+    const game = await db.game.findUnique({ where: { id: Number(gameId) }, select: { isHidden: true } })
+    if (!game || game.isHidden) {
+      return NextResponse.json({ error: 'Game not found' }, { status: 404 })
+    }
+
     const dlcs = await db.gameDlc.findMany({
       where:   { gameId: Number(gameId), type },
       orderBy: { fileName: 'asc' },

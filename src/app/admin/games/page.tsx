@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { getTranslations } from 'next-intl/server'
 import { db } from '@/lib/db'
 import { formatBytes } from '@/lib/utils'
+import { parseGameFilters, gameListWhere, gameFilterQuery } from '@/lib/games/filters'
 import { Pencil, FileJson, FileSpreadsheet } from 'lucide-react'
 import { ScrollRestorer } from '@/components/admin/ScrollRestorer'
 
@@ -17,24 +18,11 @@ interface Props {
 
 export default async function AdminGamesPage({ searchParams }: Props) {
   const t = await getTranslations('AdminGames')
-  const search = searchParams.search ?? ''
-  const platformSlug = searchParams.platform ?? ''
-  const noScore = searchParams.score === 'no-score'
-  const noCover = searchParams.cover === 'no-cover'
-  const noMeta  = searchParams.meta  === 'no-metadata'
-  const page = parseInt(searchParams.page ?? '1', 10)
+  const filters = parseGameFilters(searchParams)
+  const { search, platform: platformSlug, noScore, noCover, noMeta } = filters
+  const page = Math.max(1, parseInt(searchParams.page ?? '1', 10) || 1)
   const pageSize = 50
-
-  const where = {
-    isHidden: false,
-    ...(search && { title: { contains: search } }),
-    ...(platformSlug && { platform: { slug: platformSlug } }),
-    ...(noScore && { rawgScore: null }),
-    // "Sin portada" means neither a stored file nor a remote URL — the same test
-    // the dashboard counts with, so the card's number and this list agree.
-    ...(noCover && { coverPath: null, coverUrl: null }),
-    ...(noMeta  && { metadataFetchedAt: null }),
-  }
+  const where = gameListWhere(filters)
 
   const [games, total, platforms] = await Promise.all([
     db.game.findMany({
@@ -49,23 +37,19 @@ export default async function AdminGamesPage({ searchParams }: Props) {
   ])
 
   const totalPages = Math.ceil(total / pageSize)
-
-  // Export links honour the active filters: pick a platform → only that one;
-  // "All Platforms" → everything (the platform column is always included).
-  const exportParams = new URLSearchParams()
-  if (platformSlug) exportParams.set('platform', platformSlug)
-  if (search) exportParams.set('search', search)
-  if (noScore) exportParams.set('noScore', '1')
-  if (noCover) exportParams.set('noCover', '1')
-  if (noMeta)  exportParams.set('noMeta', '1')
-  const exportQs = exportParams.toString()
+  const filterQs = gameFilterQuery(filters)
   const exportHref = (format: 'json' | 'csv') =>
-    `/api/admin/games/export?format=${format}${exportQs ? `&${exportQs}` : ''}`
+    `/api/admin/games/export?format=${format}${filterQs ? `&${filterQs}` : ''}`
+
+  const chips = [
+    noScore && { key: 'score', label: t('filterNoScore'), without: { ...filters, noScore: false }, cls: 'bg-rose-500/15 text-rose-300 border-rose-500/30' },
+    noCover && { key: 'cover', label: t('filterNoCover'), without: { ...filters, noCover: false }, cls: 'bg-amber-500/15 text-amber-300 border-amber-500/30' },
+    noMeta && { key: 'meta', label: t('filterNoMetadata'), without: { ...filters, noMeta: false }, cls: 'bg-violet-500/15 text-violet-300 border-violet-500/30' },
+  ].filter(Boolean) as { key: string; label: string; without: typeof filters; cls: string }[]
 
   return (
     <div>
-      {/* Restore scroll position when returning from a game editor */}
-      <ScrollRestorer storageKey={`admin-games:${search}:${platformSlug}:${page}`} />
+      <ScrollRestorer storageKey={`admin-games:${gameFilterQuery(filters, { page: String(page) })}`} />
       <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
         <h2 className="text-xl font-semibold">{t('title')}</h2>
         <div className="flex items-center gap-3">
@@ -87,25 +71,31 @@ export default async function AdminGamesPage({ searchParams }: Props) {
         </div>
       </div>
 
-      {/* Chip for whichever dashboard card sent us here. Colours match the card
-          that links to each one, so the jump is obvious. */}
-      {(noScore || noCover || noMeta) && (
-        <div className="mb-4 flex items-center gap-2 text-sm">
-          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border ${
-            noScore ? 'bg-rose-500/15 text-rose-300 border-rose-500/30'
-            : noCover ? 'bg-amber-500/15 text-amber-300 border-amber-500/30'
-            : 'bg-violet-500/15 text-violet-300 border-violet-500/30'
-          }`}>
-            {noScore ? t('filterNoScore') : noCover ? t('filterNoCover') : t('filterNoMetadata')}
-          </span>
+      {chips.length > 0 && (
+        <div className="mb-4 flex flex-wrap items-center gap-2 text-sm">
+          {chips.map((c) => (
+            <span key={c.key} className={`inline-flex items-center gap-2 px-2.5 py-1 rounded-full border ${c.cls}`}>
+              {c.label}
+              <Link
+                href={`/admin/games?${gameFilterQuery(c.without)}`}
+                aria-label={`${t('clearFilter')}: ${c.label}`}
+                className="hover:text-foreground"
+              >
+                ×
+              </Link>
+            </span>
+          ))}
           <Link href="/admin/games" className="text-xs text-muted-foreground hover:text-foreground underline">
             {t('clearFilter')}
           </Link>
         </div>
       )}
 
-      {/* Filters */}
+      {/* Filters. Hidden inputs keep the dashboard flags when the form is submitted. */}
       <form className="flex flex-wrap gap-3 mb-6">
+        {noScore && <input type="hidden" name="score" value="no-score" />}
+        {noCover && <input type="hidden" name="cover" value="no-cover" />}
+        {noMeta && <input type="hidden" name="meta" value="no-metadata" />}
         <input
           type="text"
           name="search"
@@ -177,13 +167,12 @@ export default async function AdminGamesPage({ searchParams }: Props) {
         </div>
       </div>
 
-      {/* Pagination */}
       {totalPages > 1 && (
         <div className="flex items-center justify-center gap-2 mt-6">
           {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
             <Link
               key={p}
-              href={`/admin/games?search=${search}&platform=${platformSlug}&page=${p}`}
+              href={`/admin/games?${gameFilterQuery(filters, { page: String(p) })}`}
               className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
                 p === page
                   ? 'bg-primary text-primary-foreground'

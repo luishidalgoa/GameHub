@@ -29,6 +29,14 @@ const PROTECTED_API_PATTERNS = [
   // GET tambien: devuelve rutas de fichero de toda la biblioteca, que es
   // justamente lo que no interesa publicar.
   { method: 'GET',    path: '/api/admin/library-issues' },
+  { method: 'GET',    path: '/api/admin/donations' },
+  { method: 'POST',   path: '/api/admin/donations' },
+  { method: 'DELETE', path: '/api/admin/donations' },
+  { method: 'GET',    path: '/api/admin/traffic' },
+  { method: 'GET',    path: '/api/admin/metadata/batch' },
+  { method: 'GET',    path: '/api/admin/jobs/active' },
+  { method: 'POST',   path: '/api/platforms' },
+  { method: 'DELETE', path: '/api/platforms' },
 ]
 
 export async function middleware(req: NextRequest) {
@@ -96,5 +104,10 @@ export const config = {
     '/api/admin/covers/:path*',
     '/api/admin/platforms/:path*',
     '/api/admin/games/:path*',
+    '/api/admin/curation/:path*',
+    '/api/admin/library-issues/:path*',
+    '/api/admin/donations/:path*',
+    '/api/admin/traffic/:path*',
+    '/api/admin/metadata/:path*',
   ],
 }

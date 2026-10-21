@@ -2,10 +2,14 @@ import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { serializeBigInt } from '@/lib/serialize'
 import { getRateLimitAlerts, parseUaDetail } from '@/lib/tracker'
+import { adminGuard } from '@/lib/admin-guard'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET() {
+  const denied = await adminGuard()
+  if (denied) return denied
+
   const now = new Date()
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate())
   const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)

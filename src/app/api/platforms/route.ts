@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { deletePlatformDeep, renamePlatformSlug } from '@/lib/platforms/maintenance'
+import { adminGuard } from '@/lib/admin-guard'
 
 export const dynamic = 'force-dynamic'
 
@@ -14,6 +15,9 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
+  const denied = await adminGuard()
+  if (denied) return denied
+
   const body = await req.json()
   const { slug, name, scanPath, extensions, scanMode, thumbnailWidth, thumbnailHeight, sortOrder, scanDlc } = body
   if (!slug || !name || !scanPath || !extensions) {
@@ -59,6 +63,9 @@ export async function PATCH(req: Request) {
 }
 
 export async function DELETE(req: Request) {
+  const denied = await adminGuard()
+  if (denied) return denied
+
   const { id } = await req.json()
   try {
     const result = await deletePlatformDeep(id)

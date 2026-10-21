@@ -546,7 +546,11 @@
     "field_cover": "Cover",
     "field_info": "Info",
     "field_description": "Description",
-    "field_screenshots": "Screenshots"
+    "field_screenshots": "Screenshots",
+    "networkError": "Network error. Try again.",
+    "requestFailed": "The operation could not be completed.",
+    "searchFailed": "Search failed.",
+    "applyFailed": "The result could not be applied."
   },
   "CommandPalette": {
     "placeholder": "Search games or platforms…",

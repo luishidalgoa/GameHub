@@ -10,7 +10,7 @@ interface BatchItem {
   dlcId:    number
   fileName: string
   fileSize: string
-  status:   'waiting' | 'ready' | 'downloading' | 'done' | 'error'
+  status:   'waiting' | 'ready' | 'downloading' | 'done' | 'expired' | 'error'
   position: number
   redirectUrl?: string
 }
@@ -218,6 +218,7 @@ function StatusBadge({ status }: { status: BatchItem['status'] }) {
     ready:       { label: 'Iniciando…',  cls: 'text-primary' },
     downloading: { label: 'Descargando', cls: 'text-blue-500' },
     done:        { label: 'Listo',       cls: 'text-green-500' },
+    expired:     { label: 'Caducada',    cls: 'text-amber-500' },
     error:       { label: 'Error',       cls: 'text-red-500' },
   }
   const { label, cls } = map[status]

@@ -1,11 +1,15 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getRateLimitAlerts, parseUaDetail } from '@/lib/tracker'
+import { adminGuard } from '@/lib/admin-guard'
 
 export const dynamic = 'force-dynamic'
 
 /** Lightweight endpoint — only the data that changes second-to-second. */
 export async function GET() {
+  const denied = await adminGuard()
+  if (denied) return denied
+
   const now = new Date()
   const tenMinAgo = new Date(now.getTime() - 10 * 60 * 1000)
 

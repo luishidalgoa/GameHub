@@ -51,15 +51,15 @@ export function MetadataFetchButton({ gameId, onApplied }: Props) {
         headers: { 'Content-Type': 'application/json' },
         body: '{}',
       })
-      const data = await res.json()
+      const data = await res.json().catch(() => ({}))
       if (!res.ok) {
-        setTopError(data.error ?? 'Failed')
+        setTopError(data.error ?? t('requestFailed'))
       } else {
         setSummary(data.sources ?? {})
         onApplied()
       }
     } catch {
-      setTopError('Network error')
+      setTopError(t('networkError'))
     } finally {
       setFilling(false)
     }
@@ -77,15 +77,20 @@ export function MetadataFetchButton({ gameId, onApplied }: Props) {
     if (q) qs.set('q', q)
     if (chosen) qs.set('provider', chosen)
     const query = qs.toString()
-    const res = await fetch(`/api/metadata/${gameId}${query ? `?${query}` : ''}`)
-    const data = await res.json()
-    if (!res.ok) setError(data.error ?? 'Search failed')
-    else {
-      setResults(data.results ?? [])
-      setProvider(data.provider ?? null)
-      setUsedQuery(data.usedQuery ?? q ?? '')
+    try {
+      const res = await fetch(`/api/metadata/${gameId}${query ? `?${query}` : ''}`)
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) setError(data.error ?? t('searchFailed'))
+      else {
+        setResults(data.results ?? [])
+        setProvider(data.provider ?? null)
+        setUsedQuery(data.usedQuery ?? q ?? '')
+      }
+    } catch {
+      setError(t('networkError'))
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
   }
 
   const openManual = () => { setOpen(true); setForcedProvider(null); doSearch(undefined, null) }
@@ -104,23 +109,28 @@ export function MetadataFetchButton({ gameId, onApplied }: Props) {
 
   const applyPick = async (r: Candidate) => {
     setApplying(String(r.id))
-    const res = await fetch(`/api/metadata/${gameId}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ source: r.source, id: r.id }),
-    })
-    setApplying(null)
-    if (res.ok) { setOpen(false); onApplied() }
-    else {
-      const d = await res.json().catch(() => ({}))
-      setError(d.error ?? 'Apply failed')
+    try {
+      const res = await fetch(`/api/metadata/${gameId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ source: r.source, id: r.id }),
+      })
+      if (res.ok) { setOpen(false); onApplied() }
+      else {
+        const d = await res.json().catch(() => ({}))
+        setError(d.error ?? t('applyFailed'))
+      }
+    } catch {
+      setError(t('networkError'))
+    } finally {
+      setApplying(null)
     }
   }
 
   const summaryLine = (s: Sources) =>
     (['cover', 'info', 'description', 'screenshots'] as const)
       .filter(k => s[k])
-      .map(k => `${t(`field_${k}`)}: ${PROVIDER_LABEL[s[k]!]}`)
+      .map(k => `${t(`field_${k}`)}: ${PROVIDER_LABEL[s[k]!] ?? s[k]}`)
       .join('  ·  ')
 
   return (
