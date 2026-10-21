@@ -17,7 +17,7 @@ on:
 
 jobs:
   typecheck:
-    name: Tipos
+    name: Tipos, tests y build
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -48,3 +48,15 @@ jobs:
 
       - name: Comprobar tipos
         run: npx tsc --noEmit
+
+      # Tests con una base SQLite temporal por ejecucion (vitest.config.mts). Las
+      # migraciones se aplican solas en tests/global-setup.ts.
+      - name: Tests
+        run: npm test
+
+      # El mismo build que la imagen: un fallo de next build aparece en el PR, no
+      # en la release.
+      - name: Build
+        env:
+          DATABASE_URL: "file:./ci.db"
+        run: npm run build
