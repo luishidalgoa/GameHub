@@ -46,13 +46,6 @@ export async function GET(req: Request) {
     : sort === 'rating' ? { rawgScore: 'desc' as const }
     : { sortTitle: 'asc' as const }
 
-  // Log searches asynchronously (don't block response)
-  if (search && search.length > 1) {
-    const ip = getClientIp(req)
-    db.searchLog.create({ data: { query: search, ip, results: 0 } })
-      .catch(() => {})
-  }
-
   const [games, total] = await Promise.all([
     db.game.findMany({
       where,
@@ -82,6 +75,12 @@ export async function GET(req: Request) {
     }),
     db.game.count({ where }),
   ])
+
+  // Logged after the query so `results` is the real count. Fire-and-forget.
+  if (search && search.length > 1) {
+    db.searchLog.create({ data: { query: search, ip: getClientIp(req), results: total } })
+      .catch(() => {})
+  }
 
   const resolvedGames = games.map(g => ({ ...g, coverPath: resolveCoverPath(g.coverPath) }))
 
