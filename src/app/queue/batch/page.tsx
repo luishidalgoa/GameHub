@@ -4,13 +4,14 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter }                                  from 'next/navigation'
 import { Download, CheckCircle2, Clock, Loader2, AlertCircle, ArrowLeft } from 'lucide-react'
 import { formatBytes }                                from '@/lib/utils'
+import type { TokenStatus } from '@/lib/queue-status'
 
 interface BatchItem {
   token:    string
   dlcId:    number
   fileName: string
   fileSize: string
-  status:   'waiting' | 'ready' | 'downloading' | 'done' | 'expired' | 'error'
+  status:   TokenStatus | 'error'   // 'error' only exists on the client: a poll that failed
   position: number
   redirectUrl?: string
 }

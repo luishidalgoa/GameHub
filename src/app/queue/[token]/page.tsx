@@ -3,10 +3,11 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { Download, Clock, Users, CheckCircle, XCircle, Loader2 } from 'lucide-react'
+import type { TokenStatus } from '@/lib/queue-status'
 
 interface QueueState {
   token: string
-  status: 'waiting' | 'ready' | 'downloading' | 'done' | 'expired'
+  status: TokenStatus
   position: number
   expiresAt?: number
   gameId?: number
