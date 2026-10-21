@@ -9,10 +9,14 @@ import { NextResponse } from 'next/server'
 import { db }           from '@/lib/db'
 import { enqueueMany, newBatchId, QueueFullError } from '@/lib/download-queue'
 import { serializeBigInt } from '@/lib/serialize'
+import { queueCreateGuard } from '@/lib/queue-limit'
 
 type DlcType = 'dlc' | 'update' | 'mod'
 
 export async function POST(req: Request) {
+  const limited = queueCreateGuard(req.headers)
+  if (limited) return limited
+
   let body: { gameId?: number; type?: DlcType }
   try {
     body = await req.json()

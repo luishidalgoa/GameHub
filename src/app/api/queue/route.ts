@@ -1,8 +1,12 @@
 import { NextResponse } from 'next/server'
 import { enqueue, QueueFullError } from '@/lib/download-queue'
 import { db } from '@/lib/db'
+import { queueCreateGuard } from '@/lib/queue-limit'
 
 export async function POST(req: Request) {
+  const limited = queueCreateGuard(req.headers)
+  if (limited) return limited
+
   let body: { gameId?: unknown; dlcId?: unknown }
   try {
     body = await req.json()

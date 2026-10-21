@@ -15,6 +15,8 @@ export interface QueueEntry {
 }
 
 const TOKEN_TTL_MS = 15 * 60_000  // 15 min ready window
+// A token nobody collects is dropped after this long in the line (#118).
+const WAITING_TTL_MS = 24 * 60 * 60_000
 const STALE_MS     = 30 * 60_000  // remove done/expired after 30 min
 const STUCK_DOWNLOAD_MS = 12 * 60 * 60_000  // free the slot of a downloading token that never finished
 
@@ -53,6 +55,9 @@ async function pruneStale(): Promise<void> {
 
   await db.downloadToken.deleteMany({
     where: { status: { in: ['done', 'expired'] }, createdAt: { lt: cutoff } },
+  })
+  await db.downloadToken.deleteMany({
+    where: { status: 'waiting', createdAt: { lt: now - BigInt(WAITING_TTL_MS) } },
   })
 
   // Mark ready tokens whose window has closed
