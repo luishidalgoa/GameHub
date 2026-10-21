@@ -60,6 +60,27 @@ export interface SwitchGameFolder {
   dlcFiles: FileEntry[]
 }
 
+// Mod content lives under a few conventional names: a "mod"/"mods" folder (any
+// file type), an Atmosphere "atmosphere" tree (atmosphere/contents/<TitleID>/...),
+// or a bare Title ID folder holding romfs/exefs. Everything inside one of these
+// is mod content, whatever its extension.
+const MOD_CONTAINER_RE = /^(mods?|atmosphere|0100[0-9a-f]{12})$/i
+const MOD_SEARCH_DEPTH = 4
+
+function findModRoots(dir: string, depth = 0): string[] {
+  if (depth > MOD_SEARCH_DEPTH) return []
+  let entries: fs.Dirent[]
+  try { entries = fs.readdirSync(dir, { withFileTypes: true }) } catch { return [] }
+  const roots: string[] = []
+  for (const e of entries) {
+    if (!e.isDirectory() || e.name.startsWith('.')) continue
+    const full = path.join(dir, e.name)
+    if (MOD_CONTAINER_RE.test(e.name)) roots.push(full)
+    else roots.push(...findModRoots(full, depth + 1))
+  }
+  return roots
+}
+
 export function scanSwitchFolders(
   rootDir: string,
   extensions: string[],
@@ -88,14 +109,11 @@ export function scanSwitchFolders(
       if (sub.isDirectory()) {
         const subNameLower = sub.name.toLowerCase()
         const isUpdateFolder = subNameLower === 'update' || subNameLower === 'updates'
-        const isModFolder    = subNameLower === 'mod'    || subNameLower === 'mods'
         const isDlcFolder    = subNameLower === 'dlc'    || subNameLower === 'dlcs' || dlcPattern.test(sub.name)
 
-        if (isUpdateFolder || isModFolder || isDlcFolder) {
-          const fileType = isUpdateFolder ? 'update' : isModFolder ? 'mod' : 'dlc'
-          // Mod folders accept any file extension (zips, archives, etc.)
-          const walkExt = isModFolder ? [] : extensions
-          for (const f of walkDirectory(subPath, walkExt, 2)) {
+        if (isUpdateFolder || isDlcFolder) {
+          const fileType = isUpdateFolder ? 'update' : 'dlc'
+          for (const f of walkDirectory(subPath, extensions, 2)) {
             dlcFiles.push({ ...f, type: fileType })
           }
         }
@@ -106,6 +124,17 @@ export function scanSwitchFolders(
           try { size = BigInt(fs.statSync(subPath).size) } catch { /* ignore */ }
           rootFiles.push({ filePath: subPath, fileName: sub.name, fileSize: size, extension: ext, parentDir: folderPath })
         }
+      }
+    }
+
+    // Mods can sit a few levels down (NSO packs: <pack>/<variant>/atmosphere/...).
+    // Each mod root is walked once; nested roots inside it are not walked again.
+    const seenMod = new Set<string>()
+    for (const root of findModRoots(folderPath)) {
+      if ([...seenMod].some(prev => root.startsWith(prev + path.sep))) continue
+      seenMod.add(root)
+      for (const f of walkDirectory(root, [], 6)) {
+        dlcFiles.push({ ...f, type: 'mod' })
       }
     }
 
