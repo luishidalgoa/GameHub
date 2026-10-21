@@ -29,6 +29,11 @@ import { isTrustedIp, resolveClientIp, trustProxy } from '@/lib/net'
 const PASSWORD_TTL_MS = 15_000
 let cachedPassword: { value: string; at: number } | null = null
 
+/** Tests only: the password is cached for a while; a test that changes it must drop the cache. */
+export function resetShopPasswordCache(): void {
+  cachedPassword = null
+}
+
 async function shopPassword(): Promise<string> {
   const now = Date.now()
   if (cachedPassword && now - cachedPassword.at < PASSWORD_TTL_MS) return cachedPassword.value
