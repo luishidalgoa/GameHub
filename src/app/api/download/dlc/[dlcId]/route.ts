@@ -84,17 +84,19 @@ export async function GET(req: Request, { params }: { params: { dlcId: string } 
     const { start, end } = range
     const chunkSize = end - start + 1
 
-    const logId = await logDownloadStart({
+    // One download is one session, not one row per range (#89): only the request
+    // that starts the file is counted; the other ranges belong to the same session.
+    const logId = start === 0 ? await logDownloadStart({
       req,
       gameId: dlc.gameId,
       dlcId,
       dlcType: dlc.type,
       fileName,
       fileSize: BigInt(chunkSize),
-    })
+    }) : null
 
     const readableStream = await paceDownloadBody(req, createFileWebStream(filePath, { start, end }, {
-      onEnd: () => logDownloadComplete(logId),
+      onEnd: () => { if (logId !== null) logDownloadComplete(logId) },
     }))
 
     return new Response(readableStream, {
