@@ -42,14 +42,14 @@ export async function fetchGameScore(input: ScoreChainInput): Promise<ScoreResul
 
   // 1. RAWG metacritic (critic). Use a value already fetched, else look it up.
   if (rawgMetacritic != null) {
-    return { score: rawgMetacritic, source: 'rawg', isCritic: true }
+    return { score: rawgMetacritic, source: 'metacritic', isCritic: true }
   }
   if (rawgId != null) {
     const provider = getRawgProvider(apiKey)
     if (provider) {
       try {
         const m = await provider.fetchPopularity(rawgId)
-        if (m?.metacritic != null) return { score: m.metacritic, source: 'rawg', isCritic: true }
+        if (m?.metacritic != null) return { score: m.metacritic, source: 'metacritic', isCritic: true }
       } catch { /* fall through to scraper */ }
     }
   }

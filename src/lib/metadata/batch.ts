@@ -255,7 +255,9 @@ export async function runMetadataBatch(opts: {
         const keepScore = !popularityRedo && game.rawgScore != null && m.metacritic == null
         let metacritic = m.metacritic            // critic score → rawgMetacritic
         let score      = unifiedScore({ rawgMetacritic: m.metacritic, rawgRating: m.rating })
-        let source: string | null = m.metacritic != null ? 'rawg' : (score != null ? 'rawg' : null)
+        // Two different scales, two labels (#80): a critic score is 'metacritic', a
+        // player rating scaled x20 is 'rawg_rating'.
+        let source: string | null = m.metacritic != null ? 'metacritic' : (score != null ? 'rawg_rating' : null)
         if (metacritic == null && !keepScore) {
           if (signal.aborted) break
           const r = await fetchGameScore({
