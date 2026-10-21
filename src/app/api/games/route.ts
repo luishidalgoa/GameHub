@@ -3,7 +3,7 @@ import { db } from '@/lib/db'
 import { serializeBigInt } from '@/lib/serialize'
 import { getClientIp } from '@/lib/tracker'
 import { resolveCoverPath } from '@/lib/s3'
-import { libraryGameWhere } from '@/lib/library'
+import { libraryGameWhere, NO_SCORE } from '@/lib/library'
 
 export const dynamic = 'force-dynamic'
 
@@ -33,7 +33,7 @@ export async function GET(req: Request) {
     ...(region    && { OR: [{ region }, { dlcs: { some: { type: 'region', region } } }] }),
     ...(genre     && { genre }),
     // "none" → only games without a score; otherwise a min on the unified 0–100.
-    ...(noScore && { rawgScore: null }),
+    ...(noScore && NO_SCORE),
     ...(minRating != null && !Number.isNaN(minRating) && { rawgScore: { gte: minRating } }),
   }
 

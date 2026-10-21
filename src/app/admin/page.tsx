@@ -2,7 +2,7 @@ import Link from 'next/link'
 import { getTranslations } from 'next-intl/server'
 import { db } from '@/lib/db'
 import { formatBytes } from '@/lib/utils'
-import { libraryGameWhere, WITHOUT_METADATA } from '@/lib/library'
+import { libraryGameWhere, WITHOUT_METADATA, NO_COVER, NO_SCORE } from '@/lib/library'
 import { ScanPanel } from '@/components/admin/ScanPanel'
 import { MetadataBatchPanel } from '@/components/admin/MetadataBatchPanel'
 import { OrphanCoversPanel } from '@/components/admin/OrphanCoversPanel'
@@ -18,9 +18,9 @@ export default async function AdminPage() {
     getTranslations('Admin'),
     db.game.count({ where: libraryGameWhere() }),
     db.platform.count({ where: { enabled: true } }),
-    db.game.count({ where: { ...libraryGameWhere(), coverPath: null, coverUrl: null } }),
+    db.game.count({ where: { ...libraryGameWhere(), ...NO_COVER } }),
     db.game.count({ where: { ...libraryGameWhere(), ...WITHOUT_METADATA } }),
-    db.game.count({ where: { ...libraryGameWhere(), rawgScore: null } }),
+    db.game.count({ where: { ...libraryGameWhere(), ...NO_SCORE } }),
     db.scanLog.findMany({ orderBy: { startedAt: 'desc' }, take: 5 }),
   ])
 
