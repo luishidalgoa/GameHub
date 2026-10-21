@@ -16,6 +16,8 @@ export interface TileGame {
   image: string | null
   /** True when `image` is the game's own fanart (a real banner), not a screenshot. */
   fanart: boolean
+  /** Width over height of the platform's box art (GBA square, Switch tall, SNES wide). */
+  coverRatio: number
   /** Image to blur behind the page: the chosen backdrop, else the tile image. */
   backdrop: string | null
   cover: string | null
@@ -33,7 +35,7 @@ const TILE_SELECT = {
   id: true, title: true, coverPath: true, coverUrl: true, screenshotPaths: true,
   tilePath: true, backdropPath: true, logoPath: true, themePalette: true,
   releaseYear: true, genre: true, publisher: true, rawgScore: true, description: true,
-  platform: { select: { slug: true, name: true } },
+  platform: { select: { slug: true, name: true, thumbnailWidth: true, thumbnailHeight: true } },
 } as const
 
 interface TileRow {
@@ -51,7 +53,7 @@ interface TileRow {
   publisher: string | null
   rawgScore: number | null
   description: string | null
-  platform: { slug: string; name: string }
+  platform: { slug: string; name: string; thumbnailWidth: number | null; thumbnailHeight: number | null }
 }
 
 function firstScreenshot(raw: string | null): string | null {
@@ -81,6 +83,9 @@ export function toTile(g: TileRow): TileGame {
     platformSlug: g.platform.slug,
     image,
     fanart: g.tilePath != null,
+    coverRatio: g.platform.thumbnailWidth && g.platform.thumbnailHeight
+      ? g.platform.thumbnailWidth / g.platform.thumbnailHeight
+      : 2 / 3,
     backdrop: resolveCoverPath(g.backdropPath) ?? image,
     cover: resolveCoverPath(g.coverPath) ?? g.coverUrl,
     logo: resolveCoverPath(g.logoPath),

@@ -4,7 +4,7 @@ import type { TileGame } from '@/lib/home-data'
 
 const g = (id: number, title: string, platform: string, fanart = false): TileGame => ({
   id, title, platformName: platform, platformSlug: platform.toLowerCase(), image: fanart ? 'x' : null,
-  fanart, cover: 'c', backdrop: null, logo: null, palette: null, year: null, genre: null,
+  fanart, coverRatio: 2 / 3, cover: 'c', backdrop: null, logo: null, palette: null, year: null, genre: null,
   publisher: null, score: null, description: null, platformSlug_: undefined,
 } as unknown as TileGame)
 
@@ -20,8 +20,9 @@ describe('groupByTitle', () => {
     expect(groups).toHaveLength(2)
     expect(groups[0].platforms.map(p => p.name)).toEqual(['Wii', 'Switch'])
   })
-  it('represents a group by its fanart when any platform has it', () => {
-    const [group] = groupByTitle([g(1, 'Doom', 'Wii'), g(2, 'Doom', 'PSP', true)])
+  it('represents a group by its box art when any platform has it', () => {
+    const boxless = { ...g(1, 'Doom', 'Wii'), cover: null }
+    const [group] = groupByTitle([boxless, g(2, 'Doom', 'PSP')])
     expect(group.game.id).toBe(2)
   })
 })

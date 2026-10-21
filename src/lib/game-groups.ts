@@ -2,7 +2,7 @@ import type { TileGame } from './home-data'
 
 /** One title in a grid, with every platform it is in. */
 export interface GameGroup {
-  /** The entry the tile links to and draws: fanart when any platform has it, else the first. */
+  /** The entry the tile links to and draws: the one with box art when any platform has it, else the first. */
   game: TileGame
   platforms: { id: number; name: string }[]
 }
@@ -29,7 +29,7 @@ export function groupByTitle(games: TileGame[]): GameGroup[] {
       continue
     }
     found.platforms.push({ id: g.id, name: g.platformName })
-    if (!found.game.fanart && g.fanart) found.game = g
+    if (!found.game.cover && g.cover) found.game = g
   }
   return [...groups.values()]
 }
