@@ -16,3 +16,15 @@ describe('tileColors', () => {
     expect(tileColors([], 'X')).toHaveLength(2)
   })
 })
+
+import { knockOutBackground } from '@/lib/publisher-art'
+
+describe('knockOutBackground', () => {
+  it('makes the commonest color transparent and keeps the lettering', () => {
+    const px = (r: number, g: number, b: number, n: number) => Array.from({ length: n }, () => [r, g, b]).flat()
+    const rgb = new Uint8Array([...px(224, 0, 0, 90), ...px(255, 255, 255, 10)])   // red box, white letters
+    const out = knockOutBackground(rgb, 3)
+    expect(out[3]).toBe(0)                    // a red pixel
+    expect(out[(95) * 4 + 3]).toBe(255)       // a white pixel
+  })
+})

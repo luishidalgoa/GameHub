@@ -140,8 +140,48 @@ async function downloadLogo(file: string): Promise<{ png: Buffer; plain: boolean
   return normalizeLogo(raw)
 }
 
+/**
+ * A logo drawn on a solid rectangle (Nintendo's red box) has no transparency, so
+ * as a silhouette it would be a white block. Its background is the commonest
+ * color; every pixel becomes transparent in proportion to how close it is to that
+ * color, which leaves just the lettering and outline.
+ */
+export function knockOutBackground(rgb: Uint8Array, channels: number): Uint8Array {
+  const n = Math.floor(rgb.length / channels)
+  const buckets = new Map<number, { n: number; r: number; g: number; b: number }>()
+  for (let i = 0; i < n; i++) {
+    const o = i * channels
+    const q = ((rgb[o] >> 4) << 8) | ((rgb[o + 1] >> 4) << 4) | (rgb[o + 2] >> 4)
+    const e = buckets.get(q) ?? { n: 0, r: 0, g: 0, b: 0 }
+    e.n++; e.r += rgb[o]; e.g += rgb[o + 1]; e.b += rgb[o + 2]
+    buckets.set(q, e)
+  }
+  // The background is the commonest color, taken at its true average.
+  const top = [...buckets.values()].sort((a, b) => b.n - a.n)[0] ?? { n: 1, r: 0, g: 0, b: 0 }
+  const bg = [top.r / top.n, top.g / top.n, top.b / top.n]
+  const dist = (r: number, g: number, b: number) => Math.hypot(r - bg[0], g - bg[1], b - bg[2])
+  // The foreground is the pixel farthest from the background, so a mix of the two
+  // reads as a fraction of the way between them.
+  let far = 1
+  for (let i = 0; i < n; i++) far = Math.max(far, dist(rgb[i * channels], rgb[i * channels + 1], rgb[i * channels + 2]))
+  const out = new Uint8Array(n * 4)
+  for (let i = 0; i < n; i++) {
+    const o = i * channels
+    const alpha = Math.min(1, dist(rgb[o], rgb[o + 1], rgb[o + 2]) / far)
+    out[i * 4] = out[i * 4 + 1] = out[i * 4 + 2] = 255
+    out[i * 4 + 3] = Math.round(alpha * 255)
+  }
+  return out
+}
+
 /** Crop a logo to its content, size it, and tell whether it is a filled shape. */
 async function normalizeLogo(raw: Buffer): Promise<{ png: Buffer; plain: boolean }> {
+  const meta = await sharp(raw).metadata()
+  if (!meta.hasAlpha) {
+    const { data, info } = await sharp(raw).raw().toBuffer({ resolveWithObject: true })
+    const rgba = knockOutBackground(data, info.channels)
+    raw = await sharp(rgba, { raw: { width: info.width, height: info.height, channels: 4 } }).png().toBuffer()
+  }
   const png = await sharp(raw).trim().resize({ width: 700, height: 300, fit: 'inside' }).png().toBuffer()
   // A logo that fills most of its box (a red badge with white letters) would be a
   // solid white block as a silhouette, so it is shown in its own colors.

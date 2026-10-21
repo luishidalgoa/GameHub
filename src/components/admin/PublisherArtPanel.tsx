@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { resolveCoverPath } from '@/lib/cover-url'
+import { publisherKey } from '@/lib/publishers'
 
 interface Row {
   key: string
@@ -18,6 +19,8 @@ export function PublisherArtPanel() {
   const [rows, setRows] = useState<Row[]>([])
   const [running, setRunning] = useState(false)
   const [busy, setBusy] = useState<string | null>(null)
+  const [note, setNote] = useState('')
+  const many = useRef<HTMLInputElement>(null)
   const pick = useRef<HTMLInputElement>(null)
   const target = useRef<{ key: string; kind: 'character' | 'logo' }>({ key: '', kind: 'character' })
 
@@ -52,6 +55,22 @@ export function PublisherArtPanel() {
     setBusy(null)
     load()
   }
+  // Several characters at once: each file is named after its publisher ("nintendo.png").
+  const uploadMany = async (files: FileList) => {
+    const unmatched: string[] = []
+    for (const file of Array.from(files)) {
+      const key = publisherKey(file.name.replace(/\.[^.]+$/, '').replace(/[-_]+/g, ' '))
+      const row = rows.find(r => r.key === key)
+      if (!row) { unmatched.push(file.name); continue }
+      setBusy(row.key)
+      const form = new FormData()
+      form.set('key', row.key); form.set('kind', 'character'); form.set('file', file)
+      await fetch('/api/admin/publishers', { method: 'PUT', body: form })
+    }
+    setBusy(null)
+    setNote(unmatched.length ? `Sin editora que coincida: ${unmatched.join(', ')}` : '')
+    load()
+  }
   const remove = async (key: string) => {
     await fetch('/api/admin/publishers', {
       method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key }),
@@ -66,7 +85,8 @@ export function PublisherArtPanel() {
         <p className="mt-1 text-sm text-muted-foreground">
           El logo se busca solo en Wikidata y puedes cambiarlo si no se lee bien. Sube un personaje en PNG
           o WebP con fondo transparente: la tile lo muestra de pie y el logo pasa abajo, pequeño. Sin
-          personaje, el logo va grande en el centro.
+          personaje, el logo va grande en el centro. Para subir varios a la vez, nombra cada archivo
+          como su editora (nintendo.png, sega.png…).
         </p>
       </div>
 
@@ -79,7 +99,14 @@ export function PublisherArtPanel() {
                 className="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-secondary disabled:opacity-50">
           Repetir todos
         </button>
+        <button onClick={() => many.current?.click()}
+                className="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-secondary">
+          Subir varios personajes
+        </button>
       </div>
+      {note && <p className="text-sm text-amber-400">{note}</p>}
+      <input ref={many} type="file" multiple accept="image/png,image/webp" className="hidden"
+             onChange={e => { if (e.target.files?.length) uploadMany(e.target.files); e.target.value = '' }} />
 
       <input ref={pick} type="file" accept="image/png,image/webp" className="hidden"
              onChange={e => { const f = e.target.files?.[0]; if (f) upload(f); e.target.value = '' }} />
