@@ -13,7 +13,7 @@ so a homebrew client on the console can browse and install titles directly.
 > and the "LAN only" check has nothing to check. In that situation the only thing
 > keeping your library private is that the port isn't reachable from outside —
 > which stops being true the moment anything forwards or tunnels it. The password
-> covers all six routes, index and sub-indexes included.
+> covers every shop route, index and sub-indexes included.
 
 ## Endpoints
 
@@ -74,7 +74,7 @@ the index keeps working if you ever front the shop with TLS.
 
 ## Authentication
 
-If the `shop_password` setting is set, **all six** shop routes require HTTP
+If the `shop_password` setting is set, **every** shop route requires HTTP
 **Basic Auth** — index, sub-indexes, downloads and `/debug` alike. The username is
 ignored; only the password is checked, with a constant-time comparison. The value
 is cached in memory for 15 s so a multi-GB Range install doesn't re-query SQLite

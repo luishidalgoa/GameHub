@@ -68,7 +68,7 @@ established. Routes handle that explicitly instead of assuming `127.0.0.1`.
 | `STEAMGRIDDB_API_KEY` (or `STEAMGRIDDB_KEY`) | `steamgriddb_key` | SteamGridDB cover art (preferred cover source). |
 | `YOUTUBE_API_KEY` | `youtube_api_key` | YouTube trailer search. |
 | `GOOGLE_SEARCH_API_KEY` | `google_search_api_key` | Fallback key reused for YouTube if `youtube_api_key` is empty. |
-| `BING_IMAGE_KEY` | `bing_image_key` | (Legacy) Bing image search endpoint — not wired into the UI. |
+| `BING_IMAGE_KEY` | `bing_image_key` | Key for Bing image search (cover search, `/api/covers/google-images`). The setting wins over the variable. |
 | `METRICS_TOKEN` | `metrics_token` | Bearer token for `/api/metrics`. If unset, the endpoint is **LAN-only**. |
 
 ### Docker-managed (set in the image)

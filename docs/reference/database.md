@@ -31,7 +31,7 @@ Per-console configuration (edited in Admin → Settings).
 | `coverUrl`, `trailerUrl`, `screenshotPaths` | external media |
 | `externalLinks` | JSON array `[{ title, description, url }]` (GitHub-aware on the UI) |
 | `groupKey` | multi-disc unification key; indexed `(platformId, groupKey)` |
-| `rawgId`, `rawgSlug`, `igdbId` | provider IDs |
+| `rawgId`, `rawgSlug`, `launchboxId` | provider IDs |
 | `sha256` | computed lazily after first full download |
 | `isFavorite`, `isHidden`, `playCount`, `lastPlayedAt` | |
 | `lastSeenAt`, `metadataFetchedAt` | scan / metadata bookkeeping |
@@ -58,7 +58,8 @@ The download queue (`waiting`/`ready`/`downloading`/`done`/`expired`). See
 |---|---|
 | `RequestLog` | per-request log (ip, path, method, status, device, browser, bytes, durationMs, ts) |
 | `SearchLog` | search queries (query, ip, results, ts) |
-| `DownloadLog` | download events (game/dlc, ip, device, bytes, started/finished, completed) |
+| `DownloadLog` | download events (game/dlc, ip, device, fileSize, started/finished, completed) |
+| `Job` | long-running work (scan, metadata batch) with status and progress |
 | `IpCache` | geo/ISP cache per IP (country, city, isp, flag) |
 | `ScanLog` | scan runs (counts found/added/updated/stale, errors, platform breakdown) |
 | `Donation` | manual + Ko-fi webhook donations |

@@ -197,7 +197,7 @@ All settings also have env-var fallbacks in `.env.production` (DB wins over env)
 Raspberry Pi
   ├── Docker
   │   └── gamehub container (port 3000, gamehub-net network)
-  └── Apache2 (port 443 HTTPS, reverse proxy → localhost:3000)
+  └── Apache2 (port 443 HTTPS, reverse proxy → localhost:3001)
       └── mod_headers: RequestHeader set X-Real-IP "expr=%{REMOTE_ADDR}"
 
 MinIO runs separately (different Docker network or bare-metal).
@@ -249,7 +249,7 @@ STEAMGRIDDB_API_KEY=""
 
 | URL | Notes |
 |---|---|
-| `http://<pi-ip>:3000/api/shop/debug` | LAN-only. Shows all games/DLC with inclusion/exclusion reasons |
+| `http://<pi-ip>:3001/api/shop/debug` | LAN-only. Shows all games/DLC with inclusion/exclusion reasons |
 | `/api/admin/s3-test` | Admin session required. Tests MinIO connectivity end-to-end |
 | `/api/admin/traffic` | Analytics stats |
 | `/api/scanner/stream` | SSE stream of live scanner output |

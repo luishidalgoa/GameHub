@@ -55,6 +55,7 @@ src/
       metrics/              #   Prometheus exporter  (see observability/)
       scanner/              #   scan trigger + SSE stream
       shop/                 #   Tinfoil/DBI Switch shop
+  worker/                   # curation worker (esbuild bundle, run by the gamehub-curator service)
       metadata/, games/, platforms/, settings/, admin/…
     platform/[slug]/        # platform game grid (infinite scroll)
     game/[id]/              # full game page

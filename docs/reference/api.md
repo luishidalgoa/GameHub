@@ -38,9 +38,9 @@ for why it is a convenience filter and not a security boundary.
 | `POST /api/platforms` · `PATCH /api/platforms` · `DELETE /api/platforms` | Manage platforms |
 | `PUT /api/settings` | Update settings (keys table) |
 | `POST /api/covers` | Upload/replace a cover (file or URL) |
-| `GET /api/covers/steamgriddb` · `GET /api/covers/google-images` | Cover search providers |
+| `GET /api/covers/steamgriddb` · `GET /api/covers/google-images` | Cover search providers (public, 60 calls per 10 min per client) |
 | `GET /api/covers/proxy/[...key]` | Same-origin cover image proxy (public) |
-| `GET·POST /api/metadata/[id]` | Search / apply RAWG metadata (Autofill) |
+| `GET·POST /api/metadata/[id]` | Manual search / one-click autofill (admin only) |
 | `POST /api/scanner` · `GET /api/scanner/stream` | Trigger scan / SSE progress |
 | `GET /api/admin/metadata/batch` | Auto Metadata Fetch (SSE); `?covers=`, `?trailers=` |
 | `GET /api/admin/traffic` · `GET /api/admin/traffic/live` | Dashboard data |
