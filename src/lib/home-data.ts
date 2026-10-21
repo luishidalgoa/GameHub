@@ -14,6 +14,8 @@ export interface TileGame {
   platformSlug: string
   /** 16:9 image for tiles: fanart, else a screenshot. Null when the game has neither. */
   image: string | null
+  /** True when `image` is the game's own fanart (a real banner), not a screenshot. */
+  fanart: boolean
   /** Image to blur behind the page: the chosen backdrop, else the tile image. */
   backdrop: string | null
   cover: string | null
@@ -78,6 +80,7 @@ export function toTile(g: TileRow): TileGame {
     platformName: g.platform.name,
     platformSlug: g.platform.slug,
     image,
+    fanart: g.tilePath != null,
     backdrop: resolveCoverPath(g.backdropPath) ?? image,
     cover: resolveCoverPath(g.coverPath) ?? g.coverUrl,
     logo: resolveCoverPath(g.logoPath),

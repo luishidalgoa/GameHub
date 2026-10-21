@@ -3,7 +3,9 @@ import { notFound } from 'next/navigation'
 import { getTranslations } from 'next-intl/server'
 import { COLLECTION_KINDS, COLLECTION_PAGE, getCollection, getPublisherIndex, type CollectionKind } from '@/lib/home-data'
 import { ExploreShell } from '@/components/home/ExploreShell'
-import { GameTile } from '@/components/home/GameTile'
+import { GridTile } from '@/components/home/GridTile'
+import { Masonry } from '@/components/home/Masonry'
+import { groupByTitle } from '@/lib/game-groups'
 import { PublisherTile } from '@/components/home/PublisherTile'
 
 export const dynamic = 'force-dynamic'
@@ -43,9 +45,9 @@ export default async function ExplorePage({ params, searchParams }: {
 
   return (
     <ExploreShell kicker={heading.kicker} title={heading.title} backLabel={t('title')}>
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
-        {games.map(g => <GameTile key={g.id} game={g} />)}
-      </div>
+      <Masonry>
+        {groupByTitle(games).map(g => <GridTile key={g.game.id} group={g} />)}
+      </Masonry>
       {pages > 1 && (
         <nav className="mt-10 flex items-center justify-center gap-6 text-sm text-white/70">
           {page > 1 && <Link href={`/explorar/${kind}?page=${page - 1}`} className="hover:text-white">← {page - 1}</Link>}
