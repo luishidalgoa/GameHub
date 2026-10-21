@@ -135,6 +135,29 @@ export async function enqueue(gameId: number, dlcId?: number): Promise<QueueEntr
   return toEntry(updated!)
 }
 
+/** Enqueue a whole batch in one transaction and promote once, instead of once per file. */
+export async function enqueueMany(items: Array<{ gameId: number; dlcId?: number }>): Promise<QueueEntry[]> {
+  await pruneStale()
+  const waitingCount = await db.downloadToken.count({ where: { status: 'waiting' } })
+  if (waitingCount + items.length > MAX_WAITING) {
+    throw new QueueFullError('La cola de espera no tiene sitio para todo el lote. Inténtalo más tarde.')
+  }
+  const now = Date.now()
+  const rows = items.map((it, i) => ({
+    token:     generateToken(),
+    gameId:    it.gameId,
+    dlcId:     it.dlcId ?? null,
+    status:    'waiting',
+    position:  waitingCount + i + 1,
+    createdAt: BigInt(now + i),
+  }))
+  await db.$transaction(rows.map(r => db.downloadToken.create({ data: r })))
+  await promoteNext()
+  const saved = await db.downloadToken.findMany({ where: { token: { in: rows.map(r => r.token) } } })
+  const byToken = new Map(saved.map(r => [r.token, toEntry(r)]))
+  return rows.map(r => byToken.get(r.token)!)
+}
+
 export async function cancelWaiting(token: string): Promise<boolean> {
   const row = await db.downloadToken.findUnique({ where: { token } })
   if (!row || row.status !== 'waiting') return false

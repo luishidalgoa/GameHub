@@ -6,7 +6,7 @@
  */
 import { NextResponse } from 'next/server'
 import { db }           from '@/lib/db'
-import { enqueue, QueueFullError, MAX_WAITING } from '@/lib/download-queue'
+import { enqueueMany, QueueFullError } from '@/lib/download-queue'
 import { serializeBigInt } from '@/lib/serialize'
 
 type DlcType = 'dlc' | 'update' | 'mod'
@@ -38,28 +38,15 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'No files found' }, { status: 404 })
     }
 
-    // Check room for the whole batch first: a 429 halfway would leave tokens the
-    // client never receives.
-    const waiting = await db.downloadToken.count({ where: { status: 'waiting' } })
-    if (waiting + dlcs.length > MAX_WAITING) {
-      return NextResponse.json(
-        { error: 'La cola de espera no tiene sitio para todo el lote. Inténtalo más tarde.' },
-        { status: 429 },
-      )
-    }
-
-    const items = []
-    for (const dlc of dlcs) {
-      const entry = await enqueue(Number(gameId), dlc.id)
-      items.push({
-        token:    entry.token,
-        dlcId:    dlc.id,
-        fileName: dlc.fileName,
-        fileSize: dlc.fileSize.toString(),
-        status:   entry.status,
-        position: entry.position,
-      })
-    }
+    const entries = await enqueueMany(dlcs.map(dlc => ({ gameId: Number(gameId), dlcId: dlc.id })))
+    const items = dlcs.map((dlc, i) => ({
+      token:    entries[i].token,
+      dlcId:    dlc.id,
+      fileName: dlc.fileName,
+      fileSize: dlc.fileSize.toString(),
+      status:   entries[i].status,
+      position: entries[i].position,
+    }))
 
     return NextResponse.json(serializeBigInt({ items }))
   } catch (err) {
