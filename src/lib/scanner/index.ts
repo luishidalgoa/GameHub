@@ -561,6 +561,8 @@ export async function runScan(triggeredBy = 'manual', platformSlug?: string) {
     } catch (err) {
       const msg = `Error scanning platform ${platform.name}: ${err}`
       errors.push(msg)
+      // A walk that died halfway has not seen every file: nothing may be hidden on it (#107).
+      allPathsAccessible = false
     }
 
     // Unify region duplicates into a single card (primary edition + 'region'
@@ -581,10 +583,16 @@ export async function runScan(triggeredBy = 'manual', platformSlug?: string) {
     let stale = 0
     const visibleBefore = await db.game.count({ where: { platformId: platform.id, isHidden: false } })
     const emptyRescan = found === 0 && visibleBefore > 0
+    // A pass that found under half of what was visible is a broken root (an unmounted
+    // disk, a partial walk), not a library that shrank overnight: hide nothing (#107).
+    const sharpDrop = visibleBefore >= 20 && found < visibleBefore * 0.5
+    if (sharpDrop) {
+      errors.push(`[WARN] ${platform.name}: el escaneo encontró ${found} de ${visibleBefore} visibles; no se ocultan`)
+    }
     if (emptyRescan) {
       errors.push(`[WARN] ${platform.name}: el escaneo no encontró ningún juego pero había ${visibleBefore} visibles; no se ocultan`)
     }
-    if (allPathsAccessible && !emptyRescan) {
+    if (allPathsAccessible && !emptyRescan && !sharpDrop) {
       // Found again: visible and no longer missing, unless the owner hid it by
       // hand (userHidden). Missing: its file was not seen this pass. That is kept
       // apart from the owner's hide (#111): missingSince says when it went missing.
