@@ -1,3 +1,4 @@
+import { parseMetadataSources } from '@/lib/metadata/sources'
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { adminGuard } from '@/lib/admin-guard'
@@ -112,8 +113,12 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   })
   if (!meta) return NextResponse.json({ error: 'No confident match found' }, { status: 404 })
 
+  // A cover the admin chose by hand is never replaced by an automatic run (#81).
+  const prevSources = parseMetadataSources(game.metadataSources)
+  const coverLocked = prevSources.coverManual === true
+
   let coverPath: string | undefined
-  if (meta.coverUrl) {
+  if (meta.coverUrl && !coverLocked) {
     try { coverPath = await downloadAndCacheCover(meta.coverUrl, game.platform.slug, gameId) } catch { /* non-fatal */ }
   }
   let trailerUrl: string | undefined
@@ -128,14 +133,16 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       genre:       meta.genre,
       developer:   meta.developer,
       publisher:   meta.publisher,
-      coverUrl:    meta.coverUrl,
+      ...(!coverLocked && { coverUrl: meta.coverUrl }),
       ...(meta.screenshots.length > 0 && { screenshotPaths: JSON.stringify(meta.screenshots) }),
       ...(meta.rawgId   != null && { rawgId: meta.rawgId }),
       ...(meta.rawgSlug && { rawgSlug: meta.rawgSlug }),
       ...(meta.launchboxId != null && { launchboxId: meta.launchboxId }),
       ...(coverPath  && { coverPath }),
       ...(trailerUrl && { trailerUrl }),
-      metadataSources: JSON.stringify(meta.sources),
+      metadataSources: JSON.stringify(coverLocked
+        ? { ...meta.sources, cover: prevSources.cover, coverManual: true }
+        : meta.sources),
       // Same rule as the batch: a cover-only result is not "metadata fetched".
       ...(meta.sources.info ? { metadataFetchedAt: new Date() } : {}),
     },
@@ -188,11 +195,14 @@ async function applyManualPick(
   let trailerUrl: string | undefined
   if (!existingTrailer) trailerUrl = (await searchYouTubeTrailer(meta.title).catch(() => undefined)) ?? undefined
 
+  const prevRow = await db.game.findUnique({ where: { id: gameId }, select: { metadataSources: true } })
   const sources = {
     info:        source,
     description: meta.description ? source : undefined,
     cover:       coverUrl ? coverSource : undefined,
     screenshots: screenshots.length ? source : undefined,
+    // A pick that brings a cover is a manual choice; one without a cover keeps the old flag.
+    ...(coverUrl ? { coverManual: true } : { coverManual: parseMetadataSources(prevRow?.metadataSources).coverManual }),
   }
 
   const updated = await db.game.update({

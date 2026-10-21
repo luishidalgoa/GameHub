@@ -21,9 +21,10 @@ function coverProvenance(
   source: unknown,
   adjusted = false,
 ): { metadataSources?: string; sources: MetadataSources } {
+  // Every cover written here was put there by hand, with or without a source
+  // label, so every write marks it manual (#81). The label only says where it came from.
   const prev = parseMetadataSources(current)
   const isNewSource = isCoverSource(source)
-  if (!isNewSource && !adjusted) return { sources: prev }
   const next: MetadataSources = {
     ...prev,
     ...(isNewSource && { cover: source }),
