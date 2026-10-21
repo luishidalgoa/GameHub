@@ -2,6 +2,7 @@ import { quotaGuard } from '@/lib/quota'
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { searchLibretroCovers, libretroSupports } from '@/lib/metadata/libretro'
+import { adminGuard } from '@/lib/admin-guard'
 
 export const dynamic = 'force-dynamic'
 
@@ -17,6 +18,8 @@ export const dynamic = 'force-dynamic'
  * cartridge being handed the PlayStation 2 box.
  */
 export async function GET(req: Request) {
+  const denied = await adminGuard()
+  if (denied) return denied
   const limited = quotaGuard(req.headers, 'libretro')
   if (limited) return limited
 

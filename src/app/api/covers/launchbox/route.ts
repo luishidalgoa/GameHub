@@ -2,6 +2,7 @@ import { quotaGuard } from '@/lib/quota'
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getLaunchBoxProvider, fetchLaunchBoxGame } from '@/lib/metadata/launchbox'
+import { adminGuard } from '@/lib/admin-guard'
 
 export const dynamic = 'force-dynamic'
 
@@ -28,6 +29,8 @@ const COVER_TYPE_MAX = 7   // ranks >= this aren't offered as covers
 // GET ?gameId=<gh-game-id>&q=<title>  → search LaunchBox, returns { games: [{id,name,platform}] }
 // GET ?lbId=<launchbox-id>            → covers for a LaunchBox game, returns { covers: [{url,thumb,style}] }
 export async function GET(req: Request) {
+  const denied = await adminGuard()
+  if (denied) return denied
   const limited = quotaGuard(req.headers, 'launchbox')
   if (limited) return limited
 
