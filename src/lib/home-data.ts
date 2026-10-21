@@ -4,7 +4,7 @@ import { libraryGameWhere } from '@/lib/library'
 import { resolveCoverPath } from '@/lib/s3'
 import { comparePopularity, weightedSample, MIN_ADDED } from '@/lib/metadata/popularity'
 import { rankPublishers, type RankedPublisher } from '@/lib/publishers'
-import { getPublisherArt } from '@/lib/publisher-art'
+import { getPublisherArt, brandColorsFor } from '@/lib/publisher-art'
 
 /** A game as the home page draws it: one wide image, whatever the game has. */
 export interface TileGame {
@@ -124,7 +124,7 @@ async function publisherTiles(ranked: RankedPublisher[]): Promise<PublisherTileD
     logo: resolveCoverPath(art[p.key]?.logo ?? null),
     plainLogo: art[p.key]?.plain === true,
     character: resolveCoverPath(art[p.key]?.character ?? null),
-    colors: art[p.key]?.colors?.length ? art[p.key].colors : [],
+    colors: brandColorsFor(p.key, art[p.key]?.colors ?? []),
   }))
 }
 

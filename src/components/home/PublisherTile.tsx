@@ -47,9 +47,11 @@ export function PublisherTile({ publisher, href, gamesLabel }: {
            style={{ backgroundImage: 'repeating-linear-gradient(115deg, #fff 0 1px, transparent 1px 14px)' }} />
 
       {character && (
+        // Cut at the chest, the way the store does it: the top of the figure is
+        // kept, the rest runs off the bottom of the tile behind the logo.
         // eslint-disable-next-line @next/next/no-img-element
         <img src={character} alt="" loading="lazy" decoding="async"
-             className="absolute bottom-[16%] left-1/2 h-[80%] w-auto max-w-[110%] -translate-x-1/2 object-contain drop-shadow-[0_12px_24px_rgba(0,0,0,0.5)] transition-transform duration-[900ms] ease-out group-hover:-translate-y-1 group-hover:scale-[1.07]" />
+             className="absolute inset-x-0 bottom-0 h-[78%] w-full object-cover object-top drop-shadow-[0_12px_24px_rgba(0,0,0,0.5)] transition-transform duration-[900ms] ease-out group-hover:scale-[1.04]" />
       )}
 
       <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/25 to-black/10" />

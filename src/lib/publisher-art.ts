@@ -57,6 +57,32 @@ async function patch(key: string, change: Partial<PublisherArt>): Promise<Publis
 
 // ── Colors ────────────────────────────────────────────────────────────────────
 
+/**
+ * Each brand's own colors, by publisher key. A logo's pixels do not always show
+ * the brand (Nintendo's red box is knocked out to transparency before the palette
+ * is taken), so the owner's color wins over the one measured from the logo.
+ */
+export const BRAND_COLORS: Record<string, [string, string]> = {
+  nintendo:       ['#c8102e', '#5a0812'],
+  sony:           ['#1d4fa8', '#0a1a44'],
+  sega:           ['#0a6cc4', '#06305c'],
+  capcom:         ['#1b3f9a', '#0b1a44'],
+  konami:         ['#b3121d', '#3d0609'],
+  activision:     ['#b5281c', '#4a0f0a'],
+  ubisoft:        ['#0f7ac9', '#063356'],
+  ea:             ['#d7261e', '#3f0a07'],
+  'square enix':  ['#1c2c79', '#0b1238'],
+  thq:            ['#b11f2a', '#3d0a10'],
+  atari:          ['#d12a1f', '#2a0a08'],
+  'disney interactive': ['#1a4fa0', '#0b2355'],
+  majesco:        ['#6a1b9a', '#2a0a3d'],
+}
+
+/** The brand's colors when the owner set them, else the ones measured for the publisher. */
+export function brandColorsFor(key: string, measured: string[]): string[] {
+  return BRAND_COLORS[key] ? [...BRAND_COLORS[key]] : measured
+}
+
 /** A stable hue from a name, for publishers whose logo has no color of its own. */
 export function hueFromName(name: string): number {
   let h = 0
