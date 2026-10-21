@@ -1,3 +1,4 @@
+import { adminGuard } from '@/lib/admin-guard'
 import { NextResponse }    from 'next/server'
 import { db }              from '@/lib/db'
 import { isAdminSession }  from '@/lib/auth'
@@ -6,6 +7,9 @@ import { serializeBigInt } from '@/lib/serialize'
 export const dynamic = 'force-dynamic'
 
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
+  const denied = await adminGuard()
+  if (denied) return denied
+
   if (!await isAdminSession()) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }

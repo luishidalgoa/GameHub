@@ -1,3 +1,4 @@
+import { adminGuard } from '@/lib/admin-guard'
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { db } from '@/lib/db'
@@ -8,6 +9,9 @@ export const dynamic = 'force-dynamic'
 // Body: { id: number }  → delete one game
 // Body: { purge: true } → delete all isHidden games
 export async function DELETE(req: NextRequest) {
+  const denied = await adminGuard()
+  if (denied) return denied
+
   const body = await req.json().catch(() => ({}))
 
   if (body.purge === true) {

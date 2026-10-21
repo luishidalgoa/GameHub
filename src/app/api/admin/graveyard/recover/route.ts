@@ -1,3 +1,4 @@
+import { adminGuard } from '@/lib/admin-guard'
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { serializeBigInt } from '@/lib/serialize'
@@ -25,6 +26,9 @@ const META_FIELDS = {
 } as const
 
 export async function POST(req: Request) {
+  const denied = await adminGuard()
+  if (denied) return denied
+
   const body = await req.json()
 
   if (body.action === 'auto') {

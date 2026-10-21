@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { deletePlatformDeep, renamePlatformSlug } from '@/lib/platforms/maintenance'
 import { adminGuard } from '@/lib/admin-guard'
+import { isAdminSession } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
 
@@ -11,7 +12,9 @@ export async function GET() {
     orderBy: { sortOrder: 'asc' },
     include: { _count: { select: { games: { where: { isHidden: false } } } } },
   })
-  return NextResponse.json(platforms)
+  // scanPath is a path on the server's disk: only the admin sees it.
+  if (await isAdminSession()) return NextResponse.json(platforms)
+  return NextResponse.json(platforms.map(({ scanPath: _scanPath, ...p }) => p))
 }
 
 export async function POST(req: Request) {

@@ -1,3 +1,4 @@
+import { adminGuard } from '@/lib/admin-guard'
 /**
  * GET /api/admin/s3-test
  * Admin-session protected.  Tests the current MinIO / S3 config end-to-end:
@@ -16,6 +17,9 @@ import { isAdminSession }                          from '@/lib/auth'
 export const dynamic = 'force-dynamic'
 
 export async function GET() {
+  const denied = await adminGuard()
+  if (denied) return denied
+
   const authenticated = await isAdminSession()
   if (!authenticated) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

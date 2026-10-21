@@ -205,16 +205,3 @@ export async function markDone(token: string): Promise<void> {
   promoteNext().catch(() => {})
 }
 
-export async function getQueueSnapshot() {
-  await pruneStale()
-  const rows = await db.downloadToken.findMany({
-    select: { token: true, status: true, position: true, gameId: true, dlcId: true },
-  })
-  return rows.map((r) => ({
-    token:    r.token,
-    status:   r.status,
-    position: r.position,
-    gameId:   r.gameId,
-    dlcId:    r.dlcId ?? undefined,
-  }))
-}

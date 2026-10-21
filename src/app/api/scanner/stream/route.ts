@@ -1,10 +1,15 @@
 import { scanBus } from '@/lib/scanner/events'
 import type { ScanEvent } from '@/lib/scanner/events'
+import { adminGuard } from '@/lib/admin-guard'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 export async function GET() {
+  // The events carry server file paths: admin only.
+  const denied = await adminGuard()
+  if (denied) return denied
+
   const encoder = new TextEncoder()
 
   let cleanup: () => void = () => {}

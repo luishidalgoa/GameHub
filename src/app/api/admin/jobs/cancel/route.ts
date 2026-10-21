@@ -1,3 +1,4 @@
+import { adminGuard } from '@/lib/admin-guard'
 import { NextResponse } from 'next/server'
 import { cancelJob, type JobType } from '@/lib/jobs/runner'
 
@@ -5,6 +6,9 @@ export const dynamic = 'force-dynamic'
 
 // POST { type: 'metadata' | 'scan' } → request cancellation of the running job.
 export async function POST(req: Request) {
+  const denied = await adminGuard()
+  if (denied) return denied
+
   const body = await req.json().catch(() => ({}))
   const type = body.type
   if (type !== 'metadata' && type !== 'scan') {

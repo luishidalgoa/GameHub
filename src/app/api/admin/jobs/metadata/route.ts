@@ -1,3 +1,4 @@
+import { adminGuard } from '@/lib/admin-guard'
 import { NextResponse } from 'next/server'
 import { startMetadataJob, type MetadataJobParams } from '@/lib/jobs/runner'
 
@@ -6,6 +7,9 @@ export const dynamic = 'force-dynamic'
 // Start a background metadata job. Returns immediately with the job id; progress
 // is polled via GET /api/admin/jobs/active?type=metadata.
 export async function POST(req: Request) {
+  const denied = await adminGuard()
+  if (denied) return denied
+
   const body = await req.json().catch(() => ({})) as Partial<MetadataJobParams>
   const mode = body.mode
   const params: MetadataJobParams = {

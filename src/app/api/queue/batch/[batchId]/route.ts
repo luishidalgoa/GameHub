@@ -12,15 +12,16 @@ export async function GET(_req: Request, { params }: { params: { batchId: string
     return NextResponse.json({ error: 'Batch not found or expired' }, { status: 404 })
   }
 
+  // Files of a hidden game are not listed, same as the download routes refuse them.
   const dlcIds = entries.map(e => e.dlcId).filter((id): id is number => id !== undefined)
   const dlcs   = await db.gameDlc.findMany({
-    where:  { id: { in: dlcIds } },
+    where:  { id: { in: dlcIds }, game: { isHidden: false } },
     select: { id: true, fileName: true, fileSize: true },
   })
   const byId = new Map(dlcs.map(d => [d.id, d]))
 
-  const items = entries.map(e => {
-    const dlc = e.dlcId !== undefined ? byId.get(e.dlcId) : undefined
+  const items = entries.filter(e => e.dlcId !== undefined && byId.has(e.dlcId)).map(e => {
+    const dlc = byId.get(e.dlcId!)
     return {
       token:       e.token,
       dlcId:       e.dlcId ?? null,

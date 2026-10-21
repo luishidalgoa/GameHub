@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { adminGuard } from '@/lib/admin-guard'
 import { getRawgProvider } from '@/lib/metadata/rawg'
 import { fileToTitle } from '@/lib/utils'
 import { getLaunchBoxProvider, fetchLaunchBoxGame } from '@/lib/metadata/launchbox'
@@ -37,6 +38,9 @@ async function manualSearchSource(platformSlug: string): Promise<Source> {
 
 // ── GET: manual search (fallback) — candidates from the info provider ─────────
 export async function GET(req: Request, { params }: { params: { id: string } }) {
+  const denied = await adminGuard()
+  if (denied) return denied
+
   const gameId = parseInt(params.id, 10)
   const game = await db.game.findUnique({ where: { id: gameId }, include: { platform: true } })
   if (!game) return NextResponse.json({ error: 'Not found' }, { status: 404 })

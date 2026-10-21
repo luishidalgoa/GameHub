@@ -1,3 +1,4 @@
+import { adminGuard } from '@/lib/admin-guard'
 import { NextResponse } from 'next/server'
 import sharp from 'sharp'
 import { db } from '@/lib/db'
@@ -12,6 +13,9 @@ const iconKey = (slug: string) => `icons/${slug}.webp`
 // set Platform.iconPath. Accepts PNG/SVG/JPG; always rasterized to webp (uniform
 // content-type, no raw-SVG XSS surface).
 export async function POST(req: Request) {
+  const denied = await adminGuard()
+  if (denied) return denied
+
   try {
     const form = await req.formData()
     const platformId = parseInt(form.get('platformId') as string, 10)
@@ -45,6 +49,9 @@ export async function POST(req: Request) {
 
 // DELETE { platformId } → remove the uploaded icon, revert to the emoji fallback.
 export async function DELETE(req: Request) {
+  const denied = await adminGuard()
+  if (denied) return denied
+
   try {
     const { platformId } = await req.json().catch(() => ({}))
     if (!platformId) return NextResponse.json({ error: 'platformId required' }, { status: 400 })

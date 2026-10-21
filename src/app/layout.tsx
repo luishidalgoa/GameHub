@@ -4,7 +4,6 @@ import { NextIntlClientProvider } from 'next-intl'
 import { getMessages, getLocale } from 'next-intl/server'
 import './globals.css'
 import { Shell } from '@/components/layout/Shell'
-import { Toaster } from '@/components/ui/toaster'
 import { TrackingBeacon } from '@/components/shared/TrackingBeacon'
 import { CookieConsent } from '@/components/shared/CookieConsent'
 
@@ -72,7 +71,6 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       <body className={`${jakarta.variable} font-sans antialiased`}>
         <NextIntlClientProvider locale={locale} messages={messages}>
           <Shell>{children}</Shell>
-          <Toaster />
           <TrackingBeacon />
           <CookieConsent />
         </NextIntlClientProvider>

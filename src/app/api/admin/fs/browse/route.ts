@@ -1,3 +1,4 @@
+import { adminGuard } from '@/lib/admin-guard'
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import fs from 'fs'
@@ -10,6 +11,9 @@ export const runtime = 'nodejs'
 const HIDDEN = new Set(['$Recycle.Bin', 'System Volume Information', 'Recovery', 'Config.Msi'])
 
 export async function GET(req: NextRequest) {
+  const denied = await adminGuard()
+  if (denied) return denied
+
   const isAdmin = await getSessionFromRequest(req)
   if (!isAdmin) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
