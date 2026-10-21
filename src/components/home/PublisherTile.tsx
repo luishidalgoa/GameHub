@@ -4,6 +4,8 @@ import Link from 'next/link'
 import type { PublisherTileData } from '@/lib/home-data'
 import { useStage } from './HomeStage'
 import { useRef } from 'react'
+import { BRAND_STYLE } from '@/lib/publisher-style'
+import { PublisherBackdrop } from './PublisherBackdrop'
 
 /**
  * A publisher as one tall tile in the manner of the Xbox store: a custom
@@ -37,14 +39,7 @@ export function PublisherTile({ publisher, href, gamesLabel }: {
             transition-[transform,box-shadow] duration-500 hover:-translate-y-1.5
             hover:shadow-[0_24px_50px_-20px_color-mix(in_srgb,var(--c1)_85%,transparent)]
             focus-visible:ring-2 focus-visible:ring-white/70">
-      {/* The gradient: a lit corner over a deep base, with a soft vertical bloom behind the figure. */}
-      <div className="absolute inset-0" style={{
-        background: `radial-gradient(120% 70% at 85% 0%, color-mix(in srgb, var(--c1) 100%, white 22%), transparent 60%),
-                     radial-gradient(90% 60% at 20% 55%, color-mix(in srgb, var(--c1) 70%, transparent), transparent 70%),
-                     linear-gradient(170deg, var(--c1), var(--c2))`,
-      }} />
-      <div className="absolute inset-0 opacity-[0.12] mix-blend-overlay"
-           style={{ backgroundImage: 'repeating-linear-gradient(115deg, #fff 0 1px, transparent 1px 14px)' }} />
+      <PublisherBackdrop style={BRAND_STYLE[publisher.key] ?? 'smoke'} c1={c1} c2={c2} id={`pt-${publisher.key.replace(/[^a-z0-9]/g, '')}`} />
 
       {character && (
         // Cut at the chest, the way the store does it: the top of the figure is

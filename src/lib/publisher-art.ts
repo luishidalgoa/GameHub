@@ -78,6 +78,8 @@ export const BRAND_COLORS: Record<string, [string, string]> = {
   majesco:        ['#6a1b9a', '#2a0a3d'],
 }
 
+export { BRAND_STYLE, type BackdropStyle } from './publisher-style'
+
 /** The brand's colors when the owner set them, else the ones measured for the publisher. */
 export function brandColorsFor(key: string, measured: string[]): string[] {
   return BRAND_COLORS[key] ? [...BRAND_COLORS[key]] : measured
