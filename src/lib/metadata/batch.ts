@@ -8,6 +8,7 @@ import { AUTO_THRESHOLD } from './scoring'
 import { getProviderMatrix, type ProviderMatrix } from './matrix'
 import { gatherMetadata } from './compose'
 import { parseMetadataSources, type MetadataSources } from './sources'
+import { WITHOUT_METADATA, hasMetadata } from '@/lib/library'
 
 // Re-exported for callers that imported these from the batch module historically.
 export { AUTO_THRESHOLD, REVIEW_THRESHOLD, calcConfidence } from './scoring'
@@ -174,7 +175,7 @@ export async function runMetadataBatch(opts: {
             ...platformFilter,
             ...resumeFilter,
             OR: [
-              { metadataFetchedAt: null },
+              WITHOUT_METADATA,
               ...(withTrailers && backfillTrailers ? [{ trailerUrl: null }] : []),
             ],
           }
@@ -322,7 +323,7 @@ export async function runMetadataBatch(opts: {
 
     // ── Trailer-only backfill: game already has metadata, just needs a trailer ─
     // Only in 'missing' mode; 'fill'/'redo' send every game through the full flow.
-    if (mode === 'missing' && game.metadataFetchedAt !== null) {
+    if (mode === 'missing' && hasMetadata(game)) {
       if (!withTrailers || game.trailerUrl) {
         // nothing to do (shouldn't normally be selected) — count as skipped silently
         skipped++

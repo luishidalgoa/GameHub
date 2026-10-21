@@ -94,6 +94,7 @@ model Game {
   igdbId   Int?
   rawgId   Int?
   rawgSlug String?
+  launchboxId Int?
 
   // Objective popularity metrics from RAWG (for per-platform recommendations).
   // Raw signals stored as-is so the score formula can be tuned without re-syncing.

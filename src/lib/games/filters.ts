@@ -1,4 +1,5 @@
 import type { Prisma } from '@prisma/client'
+import { WITHOUT_METADATA } from '@/lib/library'
 
 export interface GameListFilters {
   search: string
@@ -35,7 +36,7 @@ export function gameListWhere(f: GameListFilters): Prisma.GameWhereInput {
     // "Sin portada" means neither a stored file nor a remote URL, the same test
     // the dashboard counts with.
     ...(f.noCover && { coverPath: null, coverUrl: null }),
-    ...(f.noMeta && { metadataFetchedAt: null }),
+    ...(f.noMeta && WITHOUT_METADATA),
   }
 }
 

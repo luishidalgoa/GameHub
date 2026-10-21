@@ -191,6 +191,7 @@ async function applyManualPick(
       ...(screenshots.length > 0 && { screenshotPaths: JSON.stringify(screenshots) }),
       ...(source === 'rawg' && typeof meta.id === 'number' && { rawgId: meta.id }),
       ...(source === 'rawg' && meta.slug && { rawgSlug: meta.slug }),
+      ...(source === 'launchbox' && { launchboxId: Number(id) }),
       ...(coverPath  && { coverPath }),
       ...(trailerUrl && { trailerUrl }),
       metadataSources: JSON.stringify(sources),
