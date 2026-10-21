@@ -42,7 +42,6 @@ interface TrafficData {
     pageViewsWeek: number
     activeNow: number
     bounceRate: number
-    avgLatencyMs: number
     totalDownloads: number
     totalBytesTransferred: string
   }
@@ -60,7 +59,6 @@ interface TrafficData {
     ts: string; country: string | null; city: string | null; flagEmoji: string | null; isp: string | null
     os: string; osVersion: string; deviceModel: string
   }>
-  errorCounts: Array<{ status: number; _count: { id: number } }>
 }
 
 interface LiveData {
@@ -151,7 +149,7 @@ export default function TrafficPage() {
   }
 
   const { summary, sparklines, deviceBreakdown, browserBreakdown,
-    topPlatforms, recentIps, errorCounts, topDownloads, downloadsByDevice,
+    topPlatforms, recentIps, topDownloads, downloadsByDevice,
     downloadsByClient, completionByClient, abandonedDownloads } = data
 
   const activeNow       = live?.activeNow      ?? summary.activeNow
@@ -194,15 +192,8 @@ export default function TrafficPage() {
       <section>
         <SectionTitle icon={<Monitor className="w-4 h-4" />} title={t('systemPerf')} />
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 mb-6">
-          <StatCard icon={<Clock className="w-4 h-4" />} label={t('avgResponse')}
-            value={summary.avgLatencyMs ? `${summary.avgLatencyMs}ms` : '—'}
-            sub={t('lastHour')} alert={summary.avgLatencyMs > 2000} />
           <StatCard icon={<HardDrive className="w-4 h-4" />} label={t('bandwidth')}
             value={formatBytes(BigInt(summary.totalBytesTransferred))} sub={t('bandwidthSub')} />
-          <StatCard icon={<AlertTriangle className="w-4 h-4" />} label={t('httpErrors')}
-            value={String(errorCounts.reduce((s, e) => s + e._count.id, 0))}
-            sub={errorCounts.map((e) => `${e.status}×${e._count.id}`).join(' ')}
-            alert={errorCounts.reduce((s, e) => s + e._count.id, 0) > 50} />
           <StatCard icon={<Eye className="w-4 h-4" />} label={t('totalPageViews')}
             value={String(summary.totalPageViews)} sub={t('allTime')} />
         </div>

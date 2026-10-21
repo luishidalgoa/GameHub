@@ -40,8 +40,6 @@ export async function GET() {
     topDownloadedRaw,
     downloadsByDeviceRaw,
     rateLimitAlerts,
-    avgLatency,
-    errorCounts,
     sparklineRaw,
     downloadSparklineRaw,
     clientBreakdownRaw,
@@ -141,21 +139,6 @@ export async function GET() {
 
     // Rate limit alerts
     getRateLimitAlerts(),
-
-    // Average latency (last hour)
-    db.requestLog.aggregate({
-      _avg: { durationMs: true },
-      where: { ts: { gte: oneHourAgo }, durationMs: { not: null } },
-    }),
-
-    // HTTP error breakdown
-    db.requestLog.groupBy({
-      by: ['status'],
-      _count: { id: true },
-      where: { ts: { gte: weekAgo }, status: { gte: 400 } },
-      orderBy: { _count: { id: 'desc' } },
-      take: 10,
-    }),
 
     // Sparkline: page views per day for last 7 days
     db.requestLog.findMany({
@@ -310,7 +293,6 @@ export async function GET() {
         pageViewsWeek,
         activeNow: activeNow.length,
         bounceRate,
-        avgLatencyMs: Math.round(avgLatency._avg.durationMs ?? 0),
         totalDownloads: downloadSummary._count.id,
         totalBytesTransferred: downloadSummary._sum.fileSize ?? BigInt(0),
       },
@@ -326,7 +308,6 @@ export async function GET() {
       abandonedDownloads: staleIncomplete,
       recentIps: recentIpsWithGeo,
       rateLimitAlerts,
-      errorCounts,
       recentRequests: recentRequests.slice(0, 50),
     })
   )
