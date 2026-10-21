@@ -166,7 +166,7 @@ export async function getHomeData(): Promise<HomeData> {
     db.game.findMany({ where: { ...where, isFeatured: true }, orderBy: { rawgScore: 'desc' }, take: 6, select: TILE_SELECT }),
     // Recomputed at most every 10 minutes: the top downloads change slowly (#92).
     cachedAggregate('home:top-downloads', 10 * 60_000, () => db.downloadLog.groupBy({
-      by: ['gameId'], _count: { id: true }, orderBy: { _count: { id: 'desc' } }, take: 40,
+      by: ['gameId'], where: { dlcId: null }, _count: { id: true }, orderBy: { _count: { id: 'desc' } }, take: 40,
     })),
     rankedPublishers(10),
   ])
@@ -241,7 +241,7 @@ export async function getCollection(kind: CollectionKind, page: number): Promise
   }
 
   const counts = await cachedAggregate('collection:downloads', 10 * 60_000, () => db.downloadLog.groupBy({
-    by: ['gameId'], _count: { id: true }, orderBy: { _count: { id: 'desc' } }, take: 500,
+    by: ['gameId'], where: { dlcId: null }, _count: { id: true }, orderBy: { _count: { id: 'desc' } }, take: 500,
   }))
   const ids = counts.map(c => c.gameId)
   const rows = await db.game.findMany({ where: { ...where, id: { in: ids } }, select: TILE_SELECT })

@@ -72,9 +72,9 @@ export async function GET(req: Request) {
     db.requestLog.count({ where: { ts: { gte: startToday } } }),
     db.requestLog.findMany({ where: { ts: { gte: startToday } }, distinct: ['ip'], select: { ip: true } }),
     db.requestLog.findMany({ where: { ts: { gte: tenMinAgo } }, distinct: ['ip'], select: { ip: true } }),
-    cachedAggregate('metrics:downloads-total', 60_000, () => db.downloadLog.count()),
-    cachedAggregate('metrics:downloads-completed', 60_000, () => db.downloadLog.count({ where: { completed: true } })),
-    cachedAggregate('metrics:downloads-bytes', 60_000, () => db.downloadLog.aggregate({ _sum: { fileSize: true }, where: { completed: true } })),
+    cachedAggregate('metrics:downloads-total', 60_000, () => db.downloadLog.count({ where: { dlcId: null } })),
+    cachedAggregate('metrics:downloads-completed', 60_000, () => db.downloadLog.count({ where: { completed: true, dlcId: null } })),
+    cachedAggregate('metrics:downloads-bytes', 60_000, () => db.downloadLog.aggregate({ _sum: { fileSize: true }, where: { completed: true, dlcId: null } })),
     cachedAggregate('metrics:searches', 60_000, () => db.searchLog.count()),
   ])
 

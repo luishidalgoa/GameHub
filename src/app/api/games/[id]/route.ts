@@ -71,7 +71,7 @@ export async function DELETE(_req: Request, { params }: { params: { id: string }
   if (denied) return denied
 
   const id = parseInt(params.id, 10)
-  const downloads = await db.downloadLog.count({ where: { gameId: id } })
+  const downloads = await db.downloadLog.count({ where: { gameId: id, dlcId: null } })
   if (downloads > 0) {
     return NextResponse.json(
       { error: 'El juego tiene historial de descargas. Ocúltalo en lugar de borrarlo.' },

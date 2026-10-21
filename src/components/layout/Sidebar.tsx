@@ -5,7 +5,7 @@ import { BrandMark } from '@/components/shared/BrandMark'
 import { usePathname } from 'next/navigation'
 import { useTranslations } from 'next-intl'
 import useSWR from 'swr'
-import { Settings, LayoutDashboard, Home, X, Heart, Shield, User, History } from 'lucide-react'
+import { LayoutDashboard, Home, X, Heart, Shield, User, History } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { LanguageSwitcher } from '@/components/shared/LanguageSwitcher'
 import { getPlatformIdentity } from '@/lib/platform-identity'
@@ -128,13 +128,6 @@ export function Sidebar({ open, onClose }: Props) {
               href="/admin"
               icon={<LayoutDashboard className="w-4 h-4" />}
               label={t('admin')}
-              pathname={pathname}
-              onNavigate={onClose}
-            />
-            <NavItem
-              href="/admin/settings"
-              icon={<Settings className="w-4 h-4" />}
-              label={t('settings')}
               pathname={pathname}
               onNavigate={onClose}
             />
