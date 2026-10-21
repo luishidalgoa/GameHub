@@ -19,10 +19,10 @@ export default async function ExplorePage({ params, searchParams }: {
     const publishers = await getPublisherIndex()
     return (
       <ExploreShell kicker={t('publishersKicker')} title={t('publishersTitle')} backLabel={t('title')}>
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6">
           {publishers.map(p => (
             <PublisherTile key={p.key} name={p.name} href={`/explorar/editora/${encodeURIComponent(p.key)}`}
-                           games={p.games} gamesLabel={t('publisherGames', { count: p.games })} samples={p.samples} />
+                           gamesLabel={t('publisherGames', { count: p.games })} samples={p.samples} />
           ))}
         </div>
       </ExploreShell>
