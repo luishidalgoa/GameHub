@@ -1,5 +1,5 @@
 import type { Prisma } from '@prisma/client'
-import { WITHOUT_METADATA, NO_COVER, NO_SCORE } from '@/lib/library'
+import { WITHOUT_METADATA, NO_COVER, NO_SCORE, UNFINDABLE, pendingWhere } from '@/lib/library'
 
 export interface GameListFilters {
   search: string
@@ -7,6 +7,8 @@ export interface GameListFilters {
   noScore: boolean
   noCover: boolean
   noMeta: boolean
+  /** Games no source could identify: listed apart, not as pending work. */
+  unfindable: boolean
 }
 
 type RawParams = Record<string, string | undefined>
@@ -23,6 +25,7 @@ export function parseGameFilters(p: RawParams): GameListFilters {
     noScore: p.score === 'no-score' || p.noScore === '1',
     noCover: p.cover === 'no-cover' || p.noCover === '1',
     noMeta: p.meta === 'no-metadata' || p.noMeta === '1',
+    unfindable: p.meta === 'unfindable',
   }
 }
 
@@ -32,11 +35,12 @@ export function gameListWhere(f: GameListFilters): Prisma.GameWhereInput {
     isHidden: false,
     platform: f.platform ? { slug: f.platform } : { enabled: true },
     ...(f.search && { title: { contains: f.search } }),
-    ...(f.noScore && NO_SCORE),
+    ...(f.noScore && pendingWhere(NO_SCORE)),
     // "Sin portada" means neither a stored file nor a remote URL, the same test
     // the dashboard counts with.
-    ...(f.noCover && NO_COVER),
-    ...(f.noMeta && WITHOUT_METADATA),
+    ...(f.noCover && pendingWhere(NO_COVER)),
+    ...(f.noMeta && pendingWhere(WITHOUT_METADATA)),
+    ...(f.unfindable && UNFINDABLE),
   }
 }
 
