@@ -95,15 +95,17 @@ export function TopBar({ onMenuClick }: Props) {
             </button>
           )}
           {open && query.length > 1 && data?.games && (
-            <div className="absolute top-full mt-1 left-0 right-0 bg-popover border border-border rounded-xl shadow-lg overflow-hidden z-50">
+            <div role="listbox" className="absolute top-full mt-2 left-0 right-0 origin-top rounded-2xl border border-white/10 bg-background/60 backdrop-blur-xl shadow-2xl shadow-black/50 overflow-hidden z-50 animate-in fade-in-0 slide-in-from-top-2 duration-200">
               {data.games.length === 0 ? (
                 <p className="px-4 py-3 text-sm text-muted-foreground">No results</p>
               ) : (
                 data.games.map((g: Sugerencia) => (
                   <button
                     key={g.id}
+                    role="option"
+                    aria-selected={false}
                     onMouseDown={() => navigateTo(g.id)}
-                    className="w-full text-left px-4 py-2.5 text-sm hover:bg-accent transition-colors"
+                    className="w-full text-left px-4 py-2.5 text-sm hover:bg-white/[0.07] transition-colors"
                   >
                     <span className="block truncate">{g.title}</span>
                     <Badge game={g} />
