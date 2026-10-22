@@ -1,18 +1,28 @@
 /**
- * Which picture a home tile shows, in the owner's order: banner, fanart, square,
- * game-title screen, then the box art. The backdrop already holds the best of
- * the first four (LaunchBox, sized and filtered), so it is used when it is one
- * of those kinds. The libretro snapshots (low-resolution, stored as "-tile.webp")
- * are not used as tiles; the box art stands in for them.
+ * The art every game shows, in the owner's order:
+ *   1. Banner            (LaunchBox, at least 960 px wide and wide-shaped)
+ *   2. Fanart background (LaunchBox, same size rule)
+ *   3. Square            (LaunchBox)
+ *   4. Screenshot - Game Title (LaunchBox)
+ *   5. Box art           (the game's cover; the home falls back here last)
+ * Libretro snapshots (stored as "-tile.webp") are never used: they are low
+ * resolution. Screenshots from RAWG are never used as art.
+ *
+ * `backdropPath` already holds the best of 1-4 (picked in order by
+ * pickBackdrop), so it wins over `tilePath`, which holds the fanart.
  */
+const LAUNCHBOX_KINDS = ['banner', 'fanart', 'square', 'title']
+
+const isLibretro = (key: string | null) => !!key && key.includes('-tile.webp')
+
 export function tileImageKey(
   tilePath: string | null,
   backdropPath: string | null,
   backdropKind: string | null,
 ): string | null {
-  if (tilePath) return tilePath
-  if (!backdropPath) return null
-  const wide = backdropKind === 'banner' || backdropKind === 'fanart' || backdropKind === 'square'
-  const titleScreen = backdropKind === 'title' && !backdropPath.includes('-tile.webp')
-  return wide || titleScreen ? backdropPath : null
+  if (backdropPath && !isLibretro(backdropPath) && backdropKind && LAUNCHBOX_KINDS.includes(backdropKind)) {
+    return backdropPath
+  }
+  if (tilePath && !isLibretro(tilePath)) return tilePath
+  return null
 }

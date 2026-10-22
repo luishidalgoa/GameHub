@@ -13,10 +13,8 @@ export interface TileGame {
   title: string
   platformName: string
   platformSlug: string
-  /** The game's own fanart (a real wide banner). Null when it has none: a small screenshot is never stretched into a tile. */
+    /** The best LaunchBox art in the owner's order (banner, fanart, square, title). Null when none. */
   image: string | null
-  /** A screenshot, for the hero only; never used as a tile. */
-  shot: string | null
   /** True when `image` is the game's own fanart (a real banner), not a screenshot. */
   fanart: boolean
   /** Width over height of the platform's box art (GBA square, Switch tall, SNES wide). */
@@ -60,15 +58,6 @@ interface TileRow {
   platform: { slug: string; name: string; thumbnailWidth: number | null; thumbnailHeight: number | null }
 }
 
-function firstScreenshot(raw: string | null): string | null {
-  if (!raw) return null
-  try {
-    const arr = JSON.parse(raw)
-    if (Array.isArray(arr)) return arr.find((x: unknown): x is string => typeof x === 'string' && x.length > 0) ?? null
-  } catch { /* not JSON: ignore */ }
-  return null
-}
-
 function parsePalette(raw: string | null): string[] | null {
   if (!raw) return null
   try {
@@ -80,19 +69,17 @@ function parsePalette(raw: string | null): string[] | null {
 
 export function toTile(g: TileRow): TileGame {
   const image = resolveCoverPath(tileImageKey(g.tilePath, g.backdropPath, g.backdropKind))
-  const shot = firstScreenshot(g.screenshotPaths)
   return {
     id: g.id,
     title: g.title,
     platformName: g.platform.name,
     platformSlug: g.platform.slug,
     image,
-    shot,
     fanart: g.tilePath != null,
     coverRatio: g.platform.thumbnailWidth && g.platform.thumbnailHeight
       ? g.platform.thumbnailWidth / g.platform.thumbnailHeight
       : 2 / 3,
-    backdrop: resolveCoverPath(g.backdropPath) ?? image ?? shot,
+    backdrop: image ?? resolveCoverPath(g.coverPath) ?? g.coverUrl,
     cover: resolveCoverPath(g.coverPath) ?? g.coverUrl,
     logo: resolveCoverPath(g.logoPath),
     palette: parsePalette(g.themePalette),

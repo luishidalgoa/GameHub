@@ -48,9 +48,9 @@ function WallTile({ game, cta }: { game: TileGame; cta: string }) {
         md:[flex:1_1_0] md:hover:[flex:2.3_1_0] md:focus-visible:[flex:2.3_1_0]
         focus-visible:ring-2 focus-visible:ring-white/70"
     >
-      {game.image && (
+      {(game.image ?? game.cover) && (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={game.image} alt="" loading="lazy" decoding="async"
+        <img src={(game.image ?? game.cover)!} alt="" loading="lazy" decoding="async"
              className="absolute inset-0 h-full w-full object-cover transition-transform duration-[1200ms] ease-out group-hover:scale-110" />
       )}
       <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/25 to-black/10" />

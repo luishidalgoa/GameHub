@@ -49,11 +49,11 @@ export function HeroStage({ games, orientations, labels }: {
       onFocusCapture={() => setHeld(true)} onBlurCapture={() => setHeld(false)}
     >
       {/* Crisp art, fading out toward the text. Keyed so each slide cross-fades in. */}
-      {(game.image ?? game.shot) && (
+      {(game.image ?? game.cover) && (
         <div key={`art-${game.id}`} className="home-rise absolute inset-y-0 right-0 w-full md:w-[68%]"
              style={{ maskImage: 'linear-gradient(to left, black 25%, transparent 92%), linear-gradient(to top, transparent 0, black 28%)', maskComposite: 'intersect', WebkitMaskComposite: 'source-in' }}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={(game.image ?? game.shot)!} alt="" className="home-drift h-full w-full object-cover opacity-70" />
+          <img src={(game.image ?? game.cover)!} alt="" className="home-drift h-full w-full object-cover opacity-70" />
         </div>
       )}
 
