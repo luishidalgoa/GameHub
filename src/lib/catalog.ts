@@ -21,6 +21,9 @@ export async function companyId(client: Client, name: string | null | undefined)
   if (!n) return null
   const key = publisherKey(n)
   if (!key) return null
+  // A merged duplicate's key resolves to the company it was merged into (#143).
+  const alias = await client.companyAlias.findUnique({ where: { key }, select: { companyId: true } })
+  if (alias) return alias.companyId
   const row = await client.company.upsert({ where: { key }, update: {}, create: { key, name: n }, select: { id: true } })
   return row.id
 }

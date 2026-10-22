@@ -341,6 +341,17 @@ model Company {
   createdAt     DateTime @default(now())
   publishedGames Game[]  @relation("publisherCompany")
   developedGames Game[]  @relation("developerCompany")
+  aliases       CompanyAlias[]
+}
+
+// A publisher key that now means another company: the merged duplicate's key, so a
+// name the games still carry resolves to the company it was merged into (#143).
+model CompanyAlias {
+  key       String  @id
+  companyId Int
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
 }
 
 model Genre {
