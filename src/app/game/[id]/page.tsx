@@ -200,8 +200,22 @@ export default async function GamePage({ params, searchParams }: Props) {
               </section>
             )}
 
-            <div className="flow-root">
-              {/* The facts float to the right: the text wraps beside them and runs the full width below. */}
+            <div className="flow-root lg:w-4/5">
+              {/* The facts come first in the markup so they can float right: the text wraps beside them and runs under them. */}
+              {facts.length > 0 && (
+                <aside className="mb-6 flex flex-col gap-3 lg:float-right lg:ml-12 lg:w-80">
+                  <h2 className="text-lg font-semibold">{t('ficha')}</h2>
+                  <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
+                    {facts.map(([label, value]) => (
+                      <Fragment key={label}>
+                        <dt className="text-muted-foreground">{label}</dt>
+                        <dd className="text-foreground/90">{value}</dd>
+                      </Fragment>
+                    ))}
+                  </dl>
+                </aside>
+              )}
+
               <section className="min-w-0">
                 {game.description && (
                   <>
@@ -216,20 +230,6 @@ export default async function GamePage({ params, searchParams }: Props) {
                   </>
                 )}
               </section>
-
-              {facts.length > 0 && (
-                <aside className="mb-6 flex flex-col gap-3 lg:float-right lg:ml-12 lg:w-80">
-                  <h2 className="text-lg font-semibold">{t('ficha')}</h2>
-                  <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
-                    {facts.map(([label, value]) => (
-                      <Fragment key={label}>
-                        <dt className="text-muted-foreground">{label}</dt>
-                        <dd className="text-foreground/90">{value}</dd>
-                      </Fragment>
-                    ))}
-                  </dl>
-                </aside>
-              )}
             </div>
 
             {/* Descargas y contenido: solo los grupos que existen. El juego base sale del botón y del selector de región. */}
