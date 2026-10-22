@@ -1,5 +1,4 @@
 import { db } from '@/lib/db'
-import { artKindOf, type ArtGroup } from '@/lib/art-catalog'
 import { deleteManyFromS3 } from '@/lib/s3'
 
 /**
@@ -33,28 +32,4 @@ export async function purgeExpiredManualArt(now = Date.now()): Promise<number> {
   return expired.length
 }
 
-/** The tabs of the game editor's images: each group of the catalogue, plus the owner's cover. */
-export type ArtCategory = ArtGroup
-
-const MANUAL_GROUP: Record<string, ArtGroup> = {
-  banner: 'banner', fanart: 'fanart', logo: 'logo', screenshot: 'screenshot', cover: 'cover',
-}
-
-/** The tab an image of this stored kind belongs to. */
-export function categoryOf(kind: string): ArtCategory {
-  if (isManualKind(kind)) return MANUAL_GROUP[kind.replace(/^manual-/, '')] ?? 'other'
-  return artKindOf(kind)?.group ?? 'other'
-}
-
-/** The game art slot an image of this kind fills: the banner, the background or the logo. */
-export function slotOf(kind: string): ManualKind | null {
-  const base = kind.replace(/^manual-/, '')
-  if (base === 'banner' || base === 'fanart' || base === 'logo') return base
-  if (base === 'clear-logo') return 'logo'
-  return null
-}
-
-/** True for the images the owner brought in: only those can be removed. */
-export function isManualKind(kind: string): boolean {
-  return kind.startsWith('manual-')
-}
+export { categoryOf, slotOf, isManualKind, type ArtCategory } from '@/lib/art-catalog'

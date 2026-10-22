@@ -7,9 +7,7 @@ import { Upload, Link2, Trash2, Check, ChevronLeft, ChevronRight, Loader2 } from
 import { CoverUploader } from './CoverUploader'
 import { toast } from '@/components/shared/Toaster'
 import type { GameArt, ArtImage, ShotEntry } from '@/lib/game-art'
-import type { ArtCategory } from '@/lib/art-manual'
-import { artTitle } from '@/lib/art-catalog'
-import { slotOf } from '@/lib/art-manual'
+import { artTitle, slotOf, type ArtCategory } from '@/lib/art-catalog'
 import type { MetadataSources } from '@/lib/metadata/sources'
 
 const TABS: ArtCategory[] = ['cover', 'banner', 'fanart', 'logo', 'screenshot', 'box', 'media', 'other']
