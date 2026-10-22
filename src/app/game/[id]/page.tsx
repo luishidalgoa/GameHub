@@ -4,6 +4,7 @@ import Image from 'next/image'
 import { ArrowLeft, Calendar, Tag, User, Building2, HardDrive, Pencil } from 'lucide-react'
 import { db } from '@/lib/db'
 import { resolveCoverPath } from '@/lib/s3'
+import { backdropUrl } from '@/lib/tile-art'
 import { formatBytes } from '@/lib/utils'
 import { extractUpdateVersion, extractDlcName } from '@/lib/switch-labels'
 import { DownloadButton }     from '@/components/shared/DownloadButton'
@@ -49,6 +50,8 @@ export default async function GamePage({ params }: Props) {
   }
 
   const cover = resolveCoverPath(game.coverPath) ?? game.coverUrl
+  // Background: the same rule as the home (banner first, box art last), see tile-art.ts.
+  const backdrop = backdropUrl(game)
   const thumbW = game.platform?.thumbnailWidth  ?? 200
   const thumbH = game.platform?.thumbnailHeight ?? 300
 

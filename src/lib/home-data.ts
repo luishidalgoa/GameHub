@@ -4,7 +4,7 @@ import { libraryGameWhere } from '@/lib/library'
 import { resolveCoverPath } from '@/lib/s3'
 import { comparePopularity, weightedSample, MIN_ADDED } from '@/lib/metadata/popularity'
 import { rankPublishers, type RankedPublisher } from '@/lib/publishers'
-import { tileImageKey } from '@/lib/tile-art'
+import { tileImageKey, backdropUrl } from '@/lib/tile-art'
 import { getPublisherArt, brandColorsFor } from '@/lib/publisher-art'
 
 /** A game as the home page draws it: one wide image, whatever the game has. */
@@ -79,7 +79,7 @@ export function toTile(g: TileRow): TileGame {
     coverRatio: g.platform.thumbnailWidth && g.platform.thumbnailHeight
       ? g.platform.thumbnailWidth / g.platform.thumbnailHeight
       : 2 / 3,
-    backdrop: image ?? resolveCoverPath(g.coverPath) ?? g.coverUrl,
+    backdrop: backdropUrl(g),
     cover: resolveCoverPath(g.coverPath) ?? g.coverUrl,
     logo: resolveCoverPath(g.logoPath),
     palette: parsePalette(g.themePalette),
