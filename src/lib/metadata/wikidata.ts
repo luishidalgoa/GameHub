@@ -1,5 +1,6 @@
 import { db } from '@/lib/db'
 import { providerFetch } from './http'
+import { noMatchRetryAt } from './retry'
 
 /**
  * Wikidata as a free fallback for the facts a game is missing: developer, publisher,
@@ -119,7 +120,7 @@ export async function fillGameFacts(gameId: number): Promise<string[]> {
     // sources is "unfindable" (see UNFINDABLE), not a pending job.
     await db.game.update({
       where: { id: gameId },
-      data: { metadataStatus: 'no_match', metadataAttempts: { increment: 1 }, metadataNextRetryAt: null },
+      data: { metadataStatus: 'no_match', metadataAttempts: { increment: 1 }, metadataNextRetryAt: noMatchRetryAt() },
     })
     return []
   }

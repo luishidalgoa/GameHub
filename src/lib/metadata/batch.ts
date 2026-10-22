@@ -1,6 +1,7 @@
 import { db } from '@/lib/db'
 import { runAutomatic } from '@/lib/automatic'
 import { fillGameFacts } from './wikidata'
+import { noMatchRetryAt } from './retry'
 import { downloadAndCacheCover } from '@/lib/covers'
 import { getRawgProvider } from './rawg'
 import { fetchGameScore } from './scoreChain'
@@ -385,7 +386,7 @@ async function runMetadataBatchInner(opts: {
       if (!meta) {
         await db.game.update({
           where: { id: game.id },
-          data: { metadataStatus: 'no_match', metadataAttempts: { increment: 1 }, metadataNextRetryAt: null },
+          data: { metadataStatus: 'no_match', metadataAttempts: { increment: 1 }, metadataNextRetryAt: noMatchRetryAt() },
         }).catch(() => {})
         // The platform's own providers found nothing: Wikidata is the last word.
         await fillGameFacts(game.id).catch(() => [] as string[])
