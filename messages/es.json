@@ -87,7 +87,17 @@
     "notFound": "Juego no encontrado",
     "watchTrailer": "Ver tráiler",
     "links": "Enlaces",
-    "close": "Cerrar"
+    "close": "Cerrar",
+    "about": "Sobre el juego",
+    "screenshots": "Capturas",
+    "ficha": "Ficha",
+    "moreContent": "Más contenido",
+    "contentTitle": "Descargas y contenido",
+    "translations": "Traducciones y enlaces ({count})",
+    "download": "Descargar",
+    "downloadRegion": "Descargar · {region}",
+    "region": "Región de descarga",
+    "editSheet": "Editar ficha"
   },
   "CookieConsent": {
     "description": "Usamos una cookie de sesión para el acceso de administrador y, con tu consentimiento, cookies analíticas para entender cómo se usa la biblioteca.",

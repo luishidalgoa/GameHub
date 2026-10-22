@@ -1,43 +1,9 @@
 'use client'
 
 import { Github, ExternalLink, Link2 } from 'lucide-react'
+import { parseExternalLinks, githubInfo, type ExternalLinkItem } from '@/lib/external-links'
 
-export interface ExternalLinkItem {
-  title: string
-  description?: string
-  url: string
-}
-
-/** Safely parse the JSON string stored in Game.externalLinks. */
-export function parseExternalLinks(raw: string | null | undefined): ExternalLinkItem[] {
-  if (!raw) return []
-  try {
-    const arr = JSON.parse(raw)
-    if (!Array.isArray(arr)) return []
-    return arr
-      .filter((l) => l && typeof l.url === 'string' && l.url.trim())
-      .map((l) => ({
-        title:       String(l.title ?? ''),
-        description: l.description ? String(l.description) : undefined,
-        url:         String(l.url),
-      }))
-  } catch {
-    return []
-  }
-}
-
-/** Detect github.com URLs and pull out owner/repo for richer display. */
-function githubInfo(url: string): { owner: string; repo: string } | null {
-  try {
-    const u = new URL(url)
-    if (!/(^|\.)github\.com$/i.test(u.hostname)) return null
-    const parts = u.pathname.split('/').filter(Boolean)
-    if (parts.length < 2) return null
-    return { owner: parts[0], repo: parts[1].replace(/\.git$/, '') }
-  } catch {
-    return null
-  }
-}
+export { parseExternalLinks, type ExternalLinkItem }
 
 export function ExternalLinks({ raw, title }: { raw: string | null | undefined; title: string }) {
   const links = parseExternalLinks(raw)
@@ -79,5 +45,33 @@ export function ExternalLinks({ raw, title }: { raw: string | null | undefined; 
         })}
       </div>
     </div>
+  )
+}
+
+/** The same links as plain rows (no cards), the icon follows the source: GitHub or a generic link. */
+export function ExternalLinkRows({ links }: { links: ExternalLinkItem[] }) {
+  return (
+    <ul className="flex flex-col">
+      {links.map((link, i) => {
+        const gh = githubInfo(link.url)
+        return (
+          <li key={i} className="flex items-center gap-3.5 py-3 border-b border-border/60 text-sm last:border-b-0">
+            <span className="flex-shrink-0 text-muted-foreground">
+              {gh ? <Github className="w-5 h-5" aria-label="GitHub" /> : <Link2 className="w-5 h-5" aria-label="Enlace" />}
+            </span>
+            <span className="flex-1 min-w-0 flex flex-wrap items-baseline gap-x-2">
+              <a href={link.url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline truncate">
+                {link.title || (gh ? `${gh.owner}/${gh.repo}` : link.url)}
+              </a>
+              {(link.description || gh) && (
+                <span className="text-xs text-muted-foreground">
+                  {[gh ? `${gh.owner}/${gh.repo}` : null, link.description].filter(Boolean).join(' · ')}
+                </span>
+              )}
+            </span>
+          </li>
+        )
+      })}
+    </ul>
   )
 }

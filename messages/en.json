@@ -87,7 +87,17 @@
     "notFound": "Game not found",
     "watchTrailer": "Watch trailer",
     "links": "Links",
-    "close": "Close"
+    "close": "Close",
+    "about": "About",
+    "screenshots": "Screenshots",
+    "ficha": "Details",
+    "moreContent": "More content",
+    "contentTitle": "Downloads and extras",
+    "translations": "Translations and links ({count})",
+    "download": "Download",
+    "downloadRegion": "Download · {region}",
+    "region": "Download region",
+    "editSheet": "Edit entry"
   },
   "CookieConsent": {
     "description": "We use a session cookie for admin access and, with your consent, analytics cookies to understand how the library is used.",

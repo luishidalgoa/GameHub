@@ -1,20 +1,23 @@
+import { Fragment, type ReactNode } from 'react'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
-import { ArrowLeft, Calendar, Tag, User, Building2, HardDrive, Pencil } from 'lucide-react'
+import { getTranslations } from 'next-intl/server'
+import { ArrowLeft, ArrowUpCircle, Languages, Package, Pencil, Puzzle } from 'lucide-react'
 import { db } from '@/lib/db'
-import { resolveCoverPath } from '@/lib/s3'
 import { backdropUrl } from '@/lib/tile-art'
 import { formatBytes } from '@/lib/utils'
+import { languagesFromCsv } from '@/lib/rom-tags'
 import { extractUpdateVersion, extractDlcName } from '@/lib/switch-labels'
+import { parseExternalLinks } from '@/lib/external-links'
+import { pickEditionKey, type Edition } from '@/lib/game-editions'
 import { DownloadButton }     from '@/components/shared/DownloadButton'
 import { BulkDownloadButton } from '@/components/shared/BulkDownloadButton'
-import { RegionVersions }     from '@/components/shared/RegionVersions'
-import { LanguageBadges }     from '@/components/shared/LanguageBadges'
 import { RatingPill } from '@/components/shared/RatingPill'
 import { RecordView } from '@/components/game/RecordView'
 import { ScreenshotCarousel } from '@/components/game/ScreenshotCarousel'
-import { ExternalLinks }      from '@/components/game/ExternalLinks'
+import { ExternalLinkRows }   from '@/components/game/ExternalLinks'
+import { RegionPicker, type PickerEdition } from '@/components/game/RegionPicker'
 import { YouTubeEmbed }       from '@/components/shared/YouTubeEmbed'
 import { isAdminSession } from '@/lib/auth'
 import { getRawgProvider } from '@/lib/metadata/rawg'
@@ -23,14 +26,17 @@ export const dynamic = 'force-dynamic'
 
 interface Props {
   params: { id: string }
+  /** `region` is the grid's region filter, when the visitor came from a filtered grid. */
+  searchParams: { region?: string }
 }
 
-export default async function GamePage({ params }: Props) {
+export default async function GamePage({ params, searchParams }: Props) {
   const id = parseInt(params.id, 10)
-  const [game, isAdmin, rawgSetting] = await Promise.all([
+  const [game, isAdmin, rawgSetting, t] = await Promise.all([
     db.game.findUnique({ where: { id }, include: { platform: true, dlcs: true } }),
     isAdminSession(),
     db.setting.findUnique({ where: { key: 'rawg_api_key' } }),
+    getTranslations('GameDetail'),
   ])
 
   if (!game || (game.isHidden && !isAdmin)) notFound()
@@ -49,235 +55,253 @@ export default async function GamePage({ params }: Props) {
     }
   }
 
-  const cover = resolveCoverPath(game.coverPath) ?? game.coverUrl
   // Background: the same rule as the home (banner first, box art last), see tile-art.ts.
   const backdrop = backdropUrl(game)
-  const thumbW = game.platform?.thumbnailWidth  ?? 200
-  const thumbH = game.platform?.thumbnailHeight ?? 300
+
+  const editions: Edition[] = [
+    { key: 'primary', region: game.region, languages: languagesFromCsv(game.languages), fileSize: game.fileSize.toString() },
+    ...game.dlcs
+      .filter((d) => d.type === 'region')
+      .map((d) => ({ key: `dlc-${d.id}`, dlcId: d.id, region: d.region, languages: languagesFromCsv(d.languages), fileSize: d.fileSize.toString() })),
+  ]
+  const pickerEditions: PickerEdition[] = editions.map((e) => ({
+    ...e,
+    downloadLabel: t('downloadRegion', { region: e.region ?? '—' }),
+  }))
+  const initialEdition = pickEditionKey(editions, searchParams.region)
+
+  const updates = game.dlcs.filter((d) => d.type === 'update')
+  const dlcs    = game.dlcs.filter((d) => d.type === 'dlc')
+  const mods    = game.dlcs.filter((d) => d.type === 'mod')
+  const links   = parseExternalLinks(game.externalLinks)
+  const hasContent = updates.length + dlcs.length + mods.length + links.length > 0
+
+  const facts: [string, string][] = [
+    game.releaseYear ? [t('year'), String(game.releaseYear)] : null,
+    game.genre       ? [t('genre'), game.genre] : null,
+    game.developer   ? [t('developer'), game.developer] : null,
+    game.publisher   ? [t('publisher'), game.publisher] : null,
+  ].filter((f): f is [string, string] => f !== null)
+  const meta = facts.map(([, v]) => v).join(' · ')
 
   return (
     <div>
       <RecordView gameId={game.id} />
-      <Link
-        href={game.platform ? `/platform/${game.platform.slug}` : '/'}
-        className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground mb-6 transition-colors"
+
+      {/* Cabecera: fondo de banner, información, selector de región y tráiler. */}
+      <section
+        className="relative overflow-hidden rounded-2xl border border-border xl:h-[470px]"
+        style={backdrop ? { background: '#14101f' } : {
+          background: 'radial-gradient(60% 80% at 30% 20%, #5b3aa8 0%, transparent 60%), radial-gradient(50% 70% at 80% 60%, #1f5f7a 0%, transparent 65%), #14101f',
+        }}
       >
-        <ArrowLeft className="w-4 h-4" />
-        Back to {game.platform?.name ?? 'Library'}
-      </Link>
+        {backdrop && <Image src={backdrop} alt="" fill className="object-cover" unoptimized />}
+        <div aria-hidden="true" className="absolute inset-0 bg-gradient-to-r from-background via-background/80 to-background/30" />
+        <div aria-hidden="true" className="absolute inset-0 bg-gradient-to-t from-background via-transparent to-transparent" />
 
-      <div className="flex gap-4 sm:gap-8 lg:gap-12">
-        {/* Cover — aspect ratio from platform thumbnail settings, wider on large screens */}
-        <div className="flex-shrink-0 w-28 sm:w-44 lg:w-64">
-          <div
-            className="relative rounded-xl overflow-hidden bg-secondary shadow-2xl"
-            style={{ aspectRatio: `${thumbW} / ${thumbH}`, viewTransitionName: `game-cover-${game.id}` }}
-          >
-            {cover ? (
-              <Image src={cover} alt={game.title} fill className="object-cover" unoptimized />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center">
-                <span className="text-6xl font-bold text-muted-foreground/30">{game.title.charAt(0)}</span>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Content */}
-        <div className="flex-1 min-w-0">
-          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
-            <h1 className="text-2xl sm:text-3xl font-bold leading-tight break-words">{game.title}</h1>
-            <div className="flex-shrink-0 flex items-center gap-2">
-              {game.fileSize > BigInt(0) && (
-                <DownloadButton gameId={game.id} fileSize={game.fileSize.toString()} />
-              )}
+        <div className="relative z-10 flex h-full flex-col justify-between gap-8 p-6 sm:p-10 xl:flex-row xl:items-center">
+          <div className="flex min-w-0 flex-col gap-4 xl:max-w-[600px]">
+            <nav className="flex items-center justify-between gap-3 text-sm">
+              <Link
+                href={game.platform ? `/platform/${game.platform.slug}` : '/'}
+                className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                Back to {game.platform?.name ?? 'Library'}
+              </Link>
               {isAdmin && (
                 <Link
                   href={`/admin/games/${game.id}`}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md bg-secondary hover:bg-accent transition-colors"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-border bg-background/40 text-muted-foreground hover:text-foreground transition-colors"
                 >
-                  <Pencil className="w-4 h-4" />
-                  Edit
+                  <Pencil className="w-3.5 h-3.5" />
+                  {t('editSheet')}
                 </Link>
               )}
+            </nav>
+
+            <h1 className="text-3xl sm:text-4xl font-bold leading-tight break-words">{game.title}</h1>
+            {meta && <p className="text-sm text-muted-foreground">{meta}</p>}
+
+            <div className="flex flex-wrap items-center gap-2">
+              <RatingPill score={game.rawgScore} metacritic={game.rawgMetacritic} rating={game.rawgRating} size="md" />
+              {game.platform && (
+                <span className="text-xs px-2 py-0.5 rounded-full bg-secondary text-muted-foreground border border-border">
+                  {game.platform.name}
+                </span>
+              )}
             </div>
+
+            <RegionPicker
+              gameId={game.id}
+              editions={pickerEditions}
+              initialKey={initialEdition}
+              groupLabel={t('region')}
+            >
+              {hasContent && (
+                <a
+                  href="#contenido"
+                  className="px-4 py-2.5 rounded-lg text-sm bg-background/60 border border-border text-foreground hover:bg-accent transition-colors"
+                >
+                  {t('moreContent')} ↓
+                </a>
+              )}
+            </RegionPicker>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2 mt-3">
-            <RatingPill score={game.rawgScore} metacritic={game.rawgMetacritic} rating={game.rawgRating} size="md" />
-            {game.platform && (
-              <span className="text-xs px-2 py-0.5 rounded-full bg-secondary text-muted-foreground border border-border">
-                {game.platform.name}
-              </span>
-            )}
-            {game.region && (
-              <span className="text-xs px-2 py-0.5 rounded-full bg-secondary text-muted-foreground border border-border">
-                {game.region}
-              </span>
-            )}
-            <LanguageBadges languages={game.languages} />
-          </div>
-
-          <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
-            {game.releaseYear && <MetaRow icon={<Calendar className="w-4 h-4" />} label="Year" value={String(game.releaseYear)} />}
-            {game.genre && <MetaRow icon={<Tag className="w-4 h-4" />} label="Genre" value={game.genre} />}
-            {game.developer && <MetaRow icon={<User className="w-4 h-4" />} label="Developer" value={game.developer} />}
-            {game.publisher && <MetaRow icon={<Building2 className="w-4 h-4" />} label="Publisher" value={game.publisher} />}
-            {game.fileSize > BigInt(0) && (
-              <MetaRow icon={<HardDrive className="w-4 h-4" />} label="Size" value={formatBytes(game.fileSize)} />
-            )}
-          </div>
-
-          {game.description && (
-            <div className="mt-6">
-              <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-2">Description</h2>
-              <p className="text-sm text-foreground/80 leading-relaxed">{game.description}</p>
+          {/* Tráiler: solo si el juego tiene uno. */}
+          {game.trailerUrl && (
+            <div className="w-full xl:w-[560px] flex-shrink-0">
+              <YouTubeEmbed
+                url={game.trailerUrl}
+                watchLabel={t('watchTrailer')}
+                className="aspect-video w-full rounded-xl overflow-hidden border border-white/10 shadow-2xl"
+              />
             </div>
           )}
         </div>
+      </section>
+
+      <div className="mt-8 flex flex-col gap-9">
+        {/* Capturas: justo debajo de la cabecera. */}
+        {screenshots.length > 0 && (
+          <section aria-labelledby="capturas" className="flex flex-col gap-3">
+            <h2 id="capturas" className="text-lg font-semibold">{t('screenshots')}</h2>
+            <ScreenshotCarousel screenshots={screenshots} />
+          </section>
+        )}
+
+        <div className="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] lg:gap-12">
+          <section className="flex flex-col gap-4 min-w-0">
+            {game.description && (
+              <>
+                <h2 className="text-lg font-semibold">{t('about')}</h2>
+                <p className="max-w-[68ch] text-[15px] leading-relaxed text-foreground/80 whitespace-pre-line">{game.description}</p>
+              </>
+            )}
+            {game.customNotes && (
+              <>
+                <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">{t('notes')}</h3>
+                <p className="text-sm leading-relaxed text-foreground/70 whitespace-pre-line">{game.customNotes}</p>
+              </>
+            )}
+          </section>
+
+          {facts.length > 0 && (
+            <aside className="flex flex-col gap-3">
+              <h2 className="text-lg font-semibold">{t('ficha')}</h2>
+              <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
+                {facts.map(([label, value]) => (
+                  <Fragment key={label}>
+                    <dt className="text-muted-foreground">{label}</dt>
+                    <dd className="text-foreground/90">{value}</dd>
+                  </Fragment>
+                ))}
+              </dl>
+            </aside>
+          )}
+        </div>
+
+        {/* Descargas y contenido: solo los grupos que existen. El juego base sale del botón y del selector de región. */}
+        {hasContent && (
+          <section id="contenido" aria-labelledby="contenido-h" className="flex flex-col gap-7 border-t border-border pt-7 scroll-mt-6">
+            <h2 id="contenido-h" className="text-lg font-semibold">{t('contentTitle')}</h2>
+
+            {updates.length > 0 && (
+              <Group
+                icon={<ArrowUpCircle className="w-4 h-4" />}
+                title={t('updates', { count: updates.length })}
+                action={<BulkDownloadButton gameId={game.id} type="update" count={updates.length} />}
+              >
+                {updates.map((dlc) => (
+                  <ContentRow
+                    key={dlc.id}
+                    name={extractUpdateVersion(dlc.fileName) ?? dlc.title ?? dlc.fileName}
+                    title={dlc.fileName}
+                    size={dlc.fileSize}
+                    action={<DownloadButton gameId={game.id} dlcId={dlc.id} label={t('download')} fileSize={dlc.fileSize.toString()} variant="secondary" />}
+                  />
+                ))}
+              </Group>
+            )}
+
+            {dlcs.length > 0 && (
+              <Group
+                icon={<Package className="w-4 h-4" />}
+                title={t('dlc', { count: dlcs.length })}
+                action={<BulkDownloadButton gameId={game.id} type="dlc" count={dlcs.length} />}
+              >
+                {dlcs.map((dlc) => (
+                  <ContentRow
+                    key={dlc.id}
+                    name={extractDlcName(dlc.fileName) ?? dlc.title ?? dlc.fileName}
+                    title={dlc.fileName}
+                    size={dlc.fileSize}
+                    action={<DownloadButton gameId={game.id} dlcId={dlc.id} label={t('download')} fileSize={dlc.fileSize.toString()} variant="secondary" />}
+                  />
+                ))}
+              </Group>
+            )}
+
+            {mods.length > 0 && (
+              <Group
+                icon={<Puzzle className="w-4 h-4" />}
+                title={t('mods', { count: mods.length })}
+                action={<BulkDownloadButton gameId={game.id} type="mod" count={mods.length} />}
+              >
+                {mods.map((mod) => (
+                  <ContentRow
+                    key={mod.id}
+                    name={mod.title ?? mod.fileName}
+                    title={mod.fileName}
+                    size={mod.fileSize}
+                    action={<DownloadButton gameId={game.id} dlcId={mod.id} label={t('download')} fileSize={mod.fileSize.toString()} variant="secondary" />}
+                  />
+                ))}
+              </Group>
+            )}
+
+            {links.length > 0 && (
+              <Group icon={<Languages className="w-4 h-4" />} title={t('translations', { count: links.length })}>
+                <ExternalLinkRows links={links} />
+              </Group>
+            )}
+          </section>
+        )}
+
+        {isAdmin && (
+          <div className="pt-4 border-t border-border">
+            <p className="text-xs text-muted-foreground/40 font-mono break-all">{game.filePath}</p>
+          </div>
+        )}
       </div>
-
-      {/* Regiones / versiones descargables */}
-      {game.dlcs.some((d) => d.type === 'region') && (
-        <div className="mt-8">
-          <RegionVersions
-            gameId={game.id}
-            title="Regions"
-            editions={[
-              { region: game.region, languages: game.languages, fileSize: game.fileSize.toString() },
-              ...game.dlcs
-                .filter((d) => d.type === 'region')
-                .map((d) => ({ dlcId: d.id, region: d.region, languages: d.languages, fileSize: d.fileSize.toString() })),
-            ]}
-          />
-        </div>
-      )}
-
-      {/* Screenshots */}
-      {screenshots.length > 0 && (
-        <div className="mt-8">
-          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">Screenshots</h2>
-          <ScreenshotCarousel screenshots={screenshots} />
-        </div>
-      )}
-
-      {/* Trailer */}
-      {game.trailerUrl && (
-        <div className="mt-8">
-          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">Trailer</h2>
-          <YouTubeEmbed url={game.trailerUrl} watchLabel="Ver tráiler" className="aspect-video rounded-xl overflow-hidden max-w-2xl" />
-        </div>
-      )}
-
-      {/* Notes */}
-      {game.customNotes && (
-        <div className="mt-8">
-          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-2">Notes</h2>
-          <p className="text-sm text-foreground/70 leading-relaxed whitespace-pre-line">{game.customNotes}</p>
-        </div>
-      )}
-
-      {/* External links (community mods, translations…) */}
-      <div className="mt-8">
-        <ExternalLinks raw={game.externalLinks} title="Links" />
-      </div>
-
-      {/* Updates */}
-      {game.dlcs.filter((d) => d.type === 'update').length > 0 && (
-        <div className="mt-8">
-          <div className="flex items-center gap-3 mb-3">
-            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
-              Updates ({game.dlcs.filter((d) => d.type === 'update').length})
-            </h2>
-            <BulkDownloadButton gameId={game.id} type="update" count={game.dlcs.filter(d => d.type === 'update').length} />
-          </div>
-          <div className="space-y-1.5">
-            {game.dlcs.filter((d) => d.type === 'update').map((dlc) => {
-              // The scanner strips the version out of `title`, so two patches
-              // for the same game are indistinguishable without this.
-              const version = extractUpdateVersion(dlc.fileName)
-              return (
-                <div key={dlc.id} className="flex items-center gap-3 bg-secondary/50 rounded-lg px-4 py-2.5 text-sm">
-                  <span className="flex-1 text-foreground/80 truncate">{dlc.title ?? dlc.fileName}</span>
-                  {version && (
-                    <span
-                      title={dlc.fileName}
-                      className="flex-shrink-0 font-mono text-[10px] leading-none px-1.5 py-0.5 rounded bg-background/70 text-foreground/70 border border-border"
-                    >
-                      {version}
-                    </span>
-                  )}
-                  <span className="text-muted-foreground text-xs mr-2">{formatBytes(dlc.fileSize)}</span>
-                  <DownloadButton gameId={game.id} dlcId={dlc.id} label="Update" fileSize={dlc.fileSize.toString()} variant="secondary" />
-                </div>
-              )
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* DLCs */}
-      {game.dlcs.filter((d) => d.type === 'dlc').length > 0 && (
-        <div className="mt-8">
-          <div className="flex items-center gap-3 mb-3">
-            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
-              DLC ({game.dlcs.filter((d) => d.type === 'dlc').length})
-            </h2>
-            <BulkDownloadButton gameId={game.id} type="dlc" count={game.dlcs.filter(d => d.type === 'dlc').length} />
-          </div>
-          <div className="space-y-1.5">
-            {game.dlcs.filter((d) => d.type === 'dlc').map((dlc) => (
-              <div key={dlc.id} className="flex items-center gap-3 bg-secondary/50 rounded-lg px-4 py-2.5 text-sm">
-                {/* `title` holds the parent game's name for most rows, which
-                    makes every DLC of a game look identical. */}
-                <span className="flex-1 text-foreground/80 truncate" title={dlc.fileName}>
-                  {extractDlcName(dlc.fileName) ?? dlc.title ?? dlc.fileName}
-                </span>
-                <span className="text-muted-foreground text-xs mr-2">{formatBytes(dlc.fileSize)}</span>
-                <DownloadButton gameId={game.id} dlcId={dlc.id} label="DLC" fileSize={dlc.fileSize.toString()} variant="secondary" />
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Mods */}
-      {game.dlcs.filter((d) => d.type === 'mod').length > 0 && (
-        <div className="mt-8">
-          <div className="flex items-center gap-3 mb-3">
-            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
-              Mods ({game.dlcs.filter((d) => d.type === 'mod').length})
-            </h2>
-            <BulkDownloadButton gameId={game.id} type="mod" count={game.dlcs.filter(d => d.type === 'mod').length} />
-          </div>
-          <div className="space-y-1.5">
-            {game.dlcs.filter((d) => d.type === 'mod').map((mod) => (
-              <div key={mod.id} className="flex items-center gap-3 bg-secondary/50 rounded-lg px-4 py-2.5 text-sm">
-                <span className="flex-1 text-foreground/80 truncate">{mod.title ?? mod.fileName}</span>
-                <span className="text-muted-foreground text-xs mr-2">{formatBytes(mod.fileSize)}</span>
-                <DownloadButton gameId={game.id} dlcId={mod.id} label="Mod" fileSize={mod.fileSize.toString()} variant="secondary" />
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {isAdmin && (
-        <div className="mt-8 pt-4 border-t border-border">
-          <p className="text-xs text-muted-foreground/40 font-mono break-all">{game.filePath}</p>
-        </div>
-      )}
     </div>
   )
 }
 
-function MetaRow({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
+function Group({ icon, title, action, children }: { icon: ReactNode; title: string; action?: ReactNode; children: ReactNode }) {
   return (
-    <div className="flex items-center gap-2 text-muted-foreground">
-      <span className="flex-shrink-0">{icon}</span>
-      <span className="text-muted-foreground/70">{label}:</span>
-      <span className="text-foreground/90">{value}</span>
+    <div className="flex flex-col">
+      <div className="flex items-center justify-between gap-3 pb-2.5 border-b border-border">
+        <h3 className="flex items-center gap-2.5 text-[15px] font-semibold">
+          <span className="text-primary">{icon}</span>
+          {title}
+        </h3>
+        {action}
+      </div>
+      <div>{children}</div>
     </div>
   )
 }
 
+function ContentRow({ name, title, size, action }: { name: string; title: string; size: bigint; action: ReactNode }) {
+  return (
+    <div className="flex items-center justify-between gap-4 py-3 border-b border-border/60 text-sm last:border-b-0">
+      <span className="min-w-0 truncate text-foreground/90" title={title}>{name}</span>
+      <span className="flex flex-shrink-0 items-center gap-4">
+        <span className="text-xs text-muted-foreground tabular-nums">{formatBytes(size)}</span>
+        {action}
+      </span>
+    </div>
+  )
+}
