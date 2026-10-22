@@ -9,7 +9,8 @@ import { searchYouTubeTrailer, YouTubeApiError } from '@/lib/youtube'
 import { AUTO_THRESHOLD } from './scoring'
 import { getProviderMatrix, type ProviderMatrix } from './matrix'
 import { gatherMetadata } from './compose'
-import { applyMetadata } from './apply'
+import { applyMetadata, textPatch, type TextField } from './apply'
+import type { FieldSource } from './sources'
 import { parseMetadataSources, type MetadataSources } from './sources'
 import { WITHOUT_METADATA, hasMetadata } from '@/lib/library'
 
@@ -509,11 +510,20 @@ async function runMetadataBatchInner(opts: {
         continue
       }
 
+      // Text values carry the provider that gave them; the rest are plain columns.
+      const row = data as Record<string, unknown>
+      const { title: _t, description: _d, releaseYear: _y, genre: _g, developer: _dv, publisher: _p, ...columns } = row
+      const facts = meta.facts as Partial<Record<TextField, FieldSource>> | undefined
+      const patch = textPatch(
+        { title: row.title, description: row.description, releaseYear: row.releaseYear, genre: row.genre, developer: row.developer, publisher: row.publisher } as Partial<Record<TextField, unknown>>,
+        f => f === 'description' ? meta.sources.description : (facts?.[f] ?? meta.sources.info),
+      )
       await applyMetadata(game.id, {
         origin: 'auto',
-        sources: merged,
+        patch,
+        sources: { cover: merged.cover, screenshots: merged.screenshots, coverManual: merged.coverManual },
         data: {
-          ...data,
+          ...columns,
           ...scoreData,
           // Only stamp the marker when actual metadata arrived. A cover-only
           // result — the rescue for games no provider has heard of, which returns

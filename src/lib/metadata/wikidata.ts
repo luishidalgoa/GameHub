@@ -1,8 +1,7 @@
 import { db } from '@/lib/db'
 import { providerFetch } from './http'
 import { noMatchRetryAt } from './retry'
-import { parseMetadataSources } from './sources'
-import { applyMetadata } from './apply'
+import { applyMetadata, type MetadataPatch } from './apply'
 
 /**
  * Wikidata as a free fallback for the facts a game is missing: developer, publisher,
@@ -126,19 +125,12 @@ export async function fillGameFacts(gameId: number): Promise<string[]> {
     })
     return []
   }
-  const data: Record<string, string | number> = {}
-  if (!game.developer && facts.developer) data.developer = facts.developer
-  if (!game.publisher && facts.publisher) data.publisher = facts.publisher
-  if (!game.releaseYear && facts.releaseYear) data.releaseYear = facts.releaseYear
-  if (!game.genre && facts.genre) data.genre = facts.genre
-  data.metadataStatus = 'matched'
-  const current = await db.game.findUnique({ where: { id: gameId }, select: { metadataSources: true } })
-  const sources = parseMetadataSources(current?.metadataSources)
-  const origin: NonNullable<typeof sources.facts> = { ...(sources.facts ?? {}) }
-  for (const k of ['developer', 'publisher', 'releaseYear', 'genre'] as const) {
-    if (k in data) origin[k] = 'wikidata'
-  }
-  const { metadataStatus, ...columns } = data
-  await applyMetadata(gameId, { origin: 'auto', sources: { ...sources, facts: origin }, data: { ...columns, metadataStatus } })
-  return Object.keys(data)
+  // Each fact carries its own source, so the editor labels it as Wikidata's (#133).
+  const patch: MetadataPatch = {}
+  if (!game.developer   && facts.developer)   patch.developer   = { value: facts.developer,   source: 'wikidata' }
+  if (!game.publisher   && facts.publisher)   patch.publisher   = { value: facts.publisher,   source: 'wikidata' }
+  if (!game.releaseYear && facts.releaseYear) patch.releaseYear = { value: facts.releaseYear, source: 'wikidata' }
+  if (!game.genre       && facts.genre)       patch.genre       = { value: facts.genre,       source: 'wikidata' }
+  await applyMetadata(gameId, { origin: 'auto', patch, data: { metadataStatus: 'matched' } })
+  return Object.keys(patch)
 }

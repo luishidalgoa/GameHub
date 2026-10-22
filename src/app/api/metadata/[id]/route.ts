@@ -16,7 +16,8 @@ import { chooseCover } from '@/lib/metadata/compose'
 import { fetchLibretroCover } from '@/lib/metadata/libretro'
 import type { LaunchBoxGame } from '@/lib/metadata/launchbox'
 import { changedFields, lockFields, LOCKABLE_FIELDS } from '@/lib/manual-fields'
-import { applyMetadata } from '@/lib/metadata/apply'
+import { applyMetadata, textPatch, type TextField } from '@/lib/metadata/apply'
+import type { FieldSource } from '@/lib/metadata/sources'
 import { scoreForGame } from '@/lib/metadata/one-score'
 import { parseRomTags, languagesToCsv } from '@/lib/rom-tags'
 import { extractSwitchTitleId } from '@/lib/scanner/titleid'
@@ -144,10 +145,17 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     ? await scoreForGame({ title: game.title, platformSlug: game.platform.slug, rawgId: game.rawgId }, await rawgKey(), 350)
     : null
 
-  const updated = await applyMetadata(gameId, { origin: 'auto', sources: {
-    ...meta.sources,
-    ...(meta.facts && Object.keys(meta.facts).length > 0 ? { facts: meta.facts } : {}),
-    ...(coverLocked ? { cover: prevSources.cover, coverManual: true } : {}),
+  // Each text field carries the provider that gave it: the info source, or the
+  // per-fact source Wikidata-style facts record (#133).
+  const facts = meta.facts as Partial<Record<TextField, FieldSource>> | undefined
+  const patch = textPatch({
+    title: meta.title, description: meta.description, releaseYear: meta.releaseYear,
+    genre: meta.genre, developer: meta.developer, publisher: meta.publisher,
+  }, f => f === 'description' ? meta.sources.description : (facts?.[f] ?? meta.sources.info))
+  const updated = await applyMetadata(gameId, { origin: 'auto', patch, sources: {
+    cover:       coverLocked ? prevSources.cover : meta.sources.cover,
+    screenshots: meta.sources.screenshots,
+    ...(coverLocked ? { coverManual: true } : {}),
   }, data: {
       ...fromName,
       ...(scoreFill && {
@@ -157,12 +165,6 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         rawgRating:     scoreFill.rawgRating,
         rawgAdded:      scoreFill.rawgAdded,
       }),
-      title:       meta.title,
-      description: meta.description,
-      releaseYear: meta.releaseYear,
-      genre:       meta.genre,
-      developer:   meta.developer,
-      publisher:   meta.publisher,
       ...(!coverLocked && { coverUrl: meta.coverUrl }),
       ...(meta.screenshots.length > 0 && { screenshotPaths: JSON.stringify(meta.screenshots) }),
       ...(meta.rawgId   != null && { rawgId: meta.rawgId }),
@@ -240,13 +242,16 @@ async function applyManualPick(
     ...(coverUrl ? { coverManual: true } : { coverManual: parseMetadataSources(prevRow?.metadataSources).coverManual }),
   }
 
-  const updated = await applyMetadata(gameId, { origin: 'pick', sources, data: {
-      title:       meta.title,
-      description: meta.description,
-      releaseYear: meta.releaseYear,
-      genre:       meta.genre,
-      developer:   meta.developer,
-      publisher:   meta.publisher,
+  // The candidate's text, each field labelled with the provider it came from.
+  const patch = textPatch({
+    title: meta.title, description: meta.description, releaseYear: meta.releaseYear,
+    genre: meta.genre, developer: meta.developer, publisher: meta.publisher,
+  }, () => source)
+  const updated = await applyMetadata(gameId, { origin: 'pick', patch, sources: {
+    cover:       coverUrl ? coverSource : undefined,
+    screenshots: screenshots.length ? source : undefined,
+    coverManual: coverUrl ? true : parseMetadataSources(prevRow?.metadataSources).coverManual,
+  }, data: {
       coverUrl,
       ...(screenshots.length > 0 && { screenshotPaths: JSON.stringify(screenshots) }),
       ...(source === 'rawg' && typeof meta.id === 'number' && { rawgId: meta.id }),
