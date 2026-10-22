@@ -22,9 +22,21 @@ export function libraryGameWhere(platformSlug?: string): Prisma.GameWhereInput {
  */
 export const UNFINDABLE: Prisma.GameWhereInput = { artStatus: 'no-match', metadataStatus: 'no_match' }
 
+/**
+ * The complement of UNFINDABLE, written out. `NOT: UNFINDABLE` would drop every game
+ * where one of the two fields is still NULL (SQL: NOT(NULL) is NULL), which is most
+ * games that were never searched.
+ */
+export const NOT_UNFINDABLE: Prisma.GameWhereInput = {
+  OR: [
+    { artStatus: null }, { artStatus: { not: 'no-match' } },
+    { metadataStatus: null }, { metadataStatus: { not: 'no_match' } },
+  ],
+}
+
 /** A pending list: games missing the given fields that some source can still fill. */
 export function pendingWhere(missing: Prisma.GameWhereInput): Prisma.GameWhereInput {
-  return { AND: [missing, { NOT: UNFINDABLE }] }
+  return { AND: [missing, NOT_UNFINDABLE] }
 }
 
 /**

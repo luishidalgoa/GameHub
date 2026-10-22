@@ -1,11 +1,11 @@
 import { describe, it, expect } from 'vitest'
-import { pendingWhere, UNFINDABLE } from '@/lib/library'
+import { pendingWhere, UNFINDABLE, NOT_UNFINDABLE } from '@/lib/library'
 import { parseGameFilters, gameListWhere } from '@/lib/games/filters'
 
 describe('pending lists leave out games no source can identify', () => {
-  it('pendingWhere excludes the unfindable set', () => {
+  it('pendingWhere excludes the unfindable set, NULL-safe', () => {
     const w = pendingWhere({ description: null }) as { AND: unknown[] }
-    expect(w.AND).toContainEqual({ NOT: UNFINDABLE })
+    expect(w.AND).toContainEqual(NOT_UNFINDABLE)
   })
   it('the meta=unfindable filter lists exactly the unfindable games', () => {
     const f = parseGameFilters({ meta: 'unfindable' })

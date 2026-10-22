@@ -1,5 +1,5 @@
 import { db } from '@/lib/db'
-import { libraryGameWhere, UNFINDABLE, pendingWhere, WITHOUT_METADATA } from '@/lib/library'
+import { libraryGameWhere, UNFINDABLE, NOT_UNFINDABLE, pendingWhere, WITHOUT_METADATA } from '@/lib/library'
 
 export type BatchMode = 'missing' | 'fill' | 'redo' | 'wrong-provider' | 'popularity' | 'autocomplete-scores'
 
@@ -22,7 +22,7 @@ export interface BatchPreview {
  * requeue, and fields the owner locked are not counted as fillable.
  */
 export async function previewBatch(mode: BatchMode, platformSlug?: string): Promise<BatchPreview> {
-  const base = { ...libraryGameWhere(platformSlug), NOT: UNFINDABLE }
+  const base = { AND: [libraryGameWhere(platformSlug), NOT_UNFINDABLE] }
   const skippedUnfindable = await db.game.count({ where: { ...libraryGameWhere(platformSlug), ...UNFINDABLE } })
 
   if (mode === 'redo') {
