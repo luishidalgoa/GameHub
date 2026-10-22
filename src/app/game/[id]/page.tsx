@@ -108,7 +108,7 @@ export default async function GamePage({ params, searchParams }: Props) {
                 <Image src={backdrop} alt="" fill className="object-cover" style={{ filter: 'blur(18px)' }} unoptimized />
               )}
             </div>
-            <div className="absolute inset-0 bg-background/80" />
+            <div className="absolute inset-0 bg-background/72" />
             <div className="absolute inset-0 bg-gradient-to-r from-background/90 via-background/60 to-transparent" />
           </div>
 
@@ -188,8 +188,7 @@ export default async function GamePage({ params, searchParams }: Props) {
         {/* Lo que va debajo de la cabecera: el relleno procedural cubre toda esa parte. */}
         <div className="relative px-4 pb-12 pt-8 sm:px-6">
           <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
-            <ProceduralFill palette={palette ?? []} />
-            <div className="absolute inset-0 bg-background/65" />
+            <ProceduralFill src={backdrop} palette={palette ?? []} />
           </div>
 
           <div className="relative flex flex-col gap-9">
