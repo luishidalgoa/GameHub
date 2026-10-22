@@ -2,9 +2,10 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { useTranslations } from 'next-intl'
-import { Play, RefreshCw, ChevronDown, StopCircle } from 'lucide-react'
+import { Play, RefreshCw, ChevronDown, StopCircle, Eye } from 'lucide-react'
 import useSWR from 'swr'
 import type { Platform } from '@/types/platform'
+import type { ScanPreview } from '@/lib/scanner/preview'
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
@@ -16,6 +17,9 @@ export function ScanPanel() {
   const [selectedSlug, setSelectedSlug] = useState<string>('all')
   const [phase, setPhase]               = useState<'idle' | 'scanning' | 'metadata'>('idle')
   const [meta, setMeta]                 = useState<{ done: number; total: number }>({ done: 0, total: 0 })
+  const [preview, setPreview]           = useState<ScanPreview | null>(null)
+  const [previewing, setPreviewing]     = useState(false)
+  const [previewError, setPreviewError] = useState(false)
   const logRef = useRef<HTMLDivElement>(null)
 
   const { data: platforms } = useSWR<Platform[]>('/api/platforms', fetcher)
@@ -174,6 +178,23 @@ export function ScanPanel() {
     }
   }
 
+  // Reads only: what the next scan would add, change or hide (#137).
+  async function runPreview() {
+    setPreviewing(true)
+    setPreviewError(false)
+    try {
+      const q = selectedSlug !== 'all' ? `?platformSlug=${encodeURIComponent(selectedSlug)}` : ''
+      const res = await fetch(`/api/admin/scanner/preview${q}`)
+      if (!res.ok) throw new Error(String(res.status))
+      setPreview(await res.json())
+    } catch {
+      setPreview(null)
+      setPreviewError(true)
+    } finally {
+      setPreviewing(false)
+    }
+  }
+
   return (
     <div className="bg-card border border-border rounded-xl p-6">
       <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-3 mb-4">
@@ -200,6 +221,15 @@ export function ScanPanel() {
             </select>
             <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
           </div>
+
+          <button
+            onClick={runPreview}
+            disabled={scanning || previewing}
+            className="flex items-center justify-center gap-2 px-4 py-2 bg-secondary text-foreground hover:bg-secondary/80 disabled:opacity-50 disabled:cursor-not-allowed rounded-md text-sm font-medium transition-colors"
+          >
+            {previewing ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Eye className="w-4 h-4" />}
+            {previewing ? t('previewLoading') : t('previewButton')}
+          </button>
 
           {scanning ? (
             <button
@@ -259,6 +289,72 @@ export function ScanPanel() {
             <div key={i} className="whitespace-pre-wrap">{line}</div>
           ))}
           {scanning && <span className="animate-pulse">█</span>}
+        </div>
+      )}
+
+      {(preview || previewError) && (
+        <div className="mt-4 border border-border rounded-lg p-4 space-y-3">
+          <div className="flex justify-between items-start gap-3">
+            <div className="min-w-0">
+              <p className="text-sm font-medium">{t('previewTitle')}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">{t('previewNote')}</p>
+            </div>
+            <button
+              onClick={() => { setPreview(null); setPreviewError(false) }}
+              className="text-xs text-muted-foreground hover:text-foreground flex-shrink-0"
+            >
+              {t('previewClose')}
+            </button>
+          </div>
+
+          {previewError && <p className="text-sm text-destructive">{t('previewFailed')}</p>}
+
+          {preview && (
+            <>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {([
+                  ['previewNew', preview.totals.new],
+                  ['previewChanged', preview.totals.changed],
+                  ['previewUnchanged', preview.totals.unchanged],
+                  ['previewGone', preview.totals.gone],
+                ] as const).map(([key, n]) => (
+                  <div key={key} className="bg-secondary rounded-md px-3 py-2">
+                    <div className="text-xs text-muted-foreground">{t(key)}</div>
+                    <div className="text-lg font-semibold tabular-nums">{n}</div>
+                  </div>
+                ))}
+              </div>
+
+              <ul className="divide-y divide-border text-sm">
+                {preview.platforms.map(p => {
+                  const examples = [
+                    ...p.sample.new.map(x => `+ ${x}`),
+                    ...p.sample.changed.map(x => `~ ${x}`),
+                    ...p.sample.gone.map(x => `- ${x}`),
+                  ]
+                  return (
+                    <li key={p.slug} className="py-2">
+                      <div className="flex flex-wrap justify-between gap-x-4 gap-y-1">
+                        <span className="font-medium">{p.name}</span>
+                        <span className="tabular-nums text-muted-foreground text-xs">
+                          {t('previewNew')} {p.files.new} · {t('previewChanged')} {p.files.changed} · {t('previewUnchanged')} {p.files.unchanged} · {t('previewGone')} {p.gone}
+                        </span>
+                      </div>
+                      {!p.accessible && <p className="text-xs text-amber-500 mt-1">{t('previewInaccessible')}</p>}
+                      {examples.length > 0 && (
+                        <details className="mt-1 text-xs text-muted-foreground">
+                          <summary className="cursor-pointer">{t('previewSamples')}</summary>
+                          <div className="mt-1 font-mono break-all space-y-0.5">
+                            {examples.map((line, i) => <div key={i}>{line}</div>)}
+                          </div>
+                        </details>
+                      )}
+                    </li>
+                  )
+                })}
+              </ul>
+            </>
+          )}
         </div>
       )}
     </div>

@@ -146,7 +146,19 @@
     "errors": "Errors",
     "done": "Done",
     "scanningRoms": "Scanning ROMs…",
-    "metaProgress": "Metadata"
+    "metaProgress": "Metadata",
+    "previewButton": "Preview",
+    "previewLoading": "Calculating…",
+    "previewTitle": "What the next scan would do",
+    "previewNew": "New",
+    "previewChanged": "Changed",
+    "previewUnchanged": "Unchanged",
+    "previewGone": "Gone",
+    "previewInaccessible": "A scan path is not reachable: its games are not counted as gone.",
+    "previewNote": "Writes nothing. Compares each file's size and date with the library.",
+    "previewSamples": "Examples",
+    "previewClose": "Close",
+    "previewFailed": "The preview could not be calculated"
   },
   "MetadataBatch": {
     "title": "Auto Metadata Fetch",

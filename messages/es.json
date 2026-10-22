@@ -146,7 +146,19 @@
     "errors": "Errores",
     "done": "Hecho",
     "scanningRoms": "Buscando ROMs…",
-    "metaProgress": "Metadatos"
+    "metaProgress": "Metadatos",
+    "previewButton": "Vista previa",
+    "previewLoading": "Calculando…",
+    "previewTitle": "Lo que haría el próximo escaneo",
+    "previewNew": "Nuevos",
+    "previewChanged": "Cambiados",
+    "previewUnchanged": "Sin cambios",
+    "previewGone": "Desaparecen",
+    "previewInaccessible": "Una ruta no está accesible: sus juegos no se cuentan como desaparecidos.",
+    "previewNote": "No escribe nada. Compara tamaño y fecha de cada archivo con la biblioteca.",
+    "previewSamples": "Ejemplos",
+    "previewClose": "Cerrar",
+    "previewFailed": "No se pudo calcular la vista previa"
   },
   "MetadataBatch": {
     "title": "Metadatos automáticos",
