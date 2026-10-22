@@ -741,11 +741,12 @@
   },
   "ArtJob": {
     "title": "Fondos y logos de los juegos",
-    "desc": "Descarga de LaunchBox el fondo, el logo y la paleta de cada juego para la portada. Va despacio para no saturar LaunchBox: la primera vez tarda horas.",
+    "desc": "Descarga de LaunchBox todas sus categorías de imagen (portada, cajas, cartuchos, fondos, logos y capturas), y elige el fondo, el logo y la paleta de cada juego. Va despacio para no saturar LaunchBox: la primera vez tarda horas.",
     "start": "Buscar fondos",
     "redo": "Repetir todos",
     "cancel": "Cancelar",
     "progress": "{processed} de {total}",
-    "summary": "{applied} con arte · {skipped} sin arte · {failed} con error"
+    "summary": "{applied} con arte · {skipped} sin arte · {failed} con error",
+    "fillMissing": "Buscar categorías que faltan"
   }
 }

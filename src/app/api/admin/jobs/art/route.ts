@@ -14,6 +14,7 @@ export async function POST(req: Request) {
   const params: ArtJobParams = {
     platformSlug: typeof body.platformSlug === 'string' && body.platformSlug ? body.platformSlug : undefined,
     redo: body.redo === true,
+    checkedBefore: typeof body.checkedBefore === 'string' && !Number.isNaN(Date.parse(body.checkedBefore)) ? body.checkedBefore : undefined,
   }
   const id = await startArtJob(params)
   return NextResponse.json({ ok: true, jobId: id })

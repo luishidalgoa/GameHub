@@ -25,6 +25,8 @@ export interface ArtJobParams {
   platformSlug?: string
   /** Fetch again even for games already checked. */
   redo?: boolean
+  /** Only games never checked, or checked before this instant (ISO): the ones that lack the newer categories. */
+  checkedBefore?: string
 }
 export interface ScanJobParams {
   platformSlug?: string
@@ -241,7 +243,10 @@ export async function startArtJob(params: ArtJobParams, resumeJobId?: number): P
     try {
       const where = {
         isHidden: false, userHidden: false, missingSince: null,
-        ...(params.redo ? {} : { artCheckedAt: null }),
+        ...(params.redo ? {}
+          : params.checkedBefore
+            ? { OR: [{ artCheckedAt: null }, { artCheckedAt: { lt: new Date(params.checkedBefore) } }] }
+            : { artCheckedAt: null }),
         ...(params.platformSlug ? { platform: { slug: params.platformSlug } } : {}),
       }
       const fresh = await db.job.findUnique({ where: { id: job.id } })

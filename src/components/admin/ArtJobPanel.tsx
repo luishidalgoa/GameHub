@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslations } from 'next-intl'
+import { CATALOGUE_SINCE } from '@/lib/art-catalog'
 import { Loader2 } from 'lucide-react'
 
 interface ArtJob {
@@ -53,9 +54,9 @@ export function ArtJobPanel() {
     return () => clearInterval(timer)
   }, [load, running])
 
-  const start = async (redo: boolean) => {
+  const start = async (redo: boolean, checkedBefore?: string) => {
     await fetch('/api/admin/jobs/art', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ redo }),
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ redo, checkedBefore }),
     })
     load()
   }
@@ -120,6 +121,7 @@ export function ArtJobPanel() {
         ) : (
           <>
             <button onClick={() => start(false)} className="px-3 py-1.5 text-sm rounded-md bg-primary text-primary-foreground hover:opacity-90">{t('start')}</button>
+            <button onClick={() => start(false, CATALOGUE_SINCE)} className="px-3 py-1.5 text-sm rounded-md border border-border hover:bg-secondary">{t('fillMissing')}</button>
             <button onClick={() => start(true)} className="px-3 py-1.5 text-sm rounded-md border border-border hover:bg-secondary">{t('redo')}</button>
           </>
         )}

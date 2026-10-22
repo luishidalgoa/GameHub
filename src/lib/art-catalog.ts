@@ -47,6 +47,12 @@ export const ART_KINDS: ArtKind[] = [
 
 const BY_KIND = new Map(ART_KINDS.map(k => [k.kind, k]))
 
+/**
+ * When the art job started storing every LaunchBox category (commit 969e9d5). A game checked
+ * before this instant has only the categories the old job stored, so "missing categories" revisits it.
+ */
+export const CATALOGUE_SINCE = '2026-10-22T22:54:36Z'
+
 /** LaunchBox spells a few categories differently from the stored kind. */
 const ALIASES: Record<string, string> = { 'fanart-background': 'fanart' }
 
