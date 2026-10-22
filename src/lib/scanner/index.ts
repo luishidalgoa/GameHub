@@ -4,7 +4,7 @@ import fsp from 'fs/promises'
 import { db } from '@/lib/db'
 import { fileToTitle, toSortTitle } from '@/lib/utils'
 import { parseRomTags, languagesToCsv, gameGroupKey } from '@/lib/rom-tags'
-import { walkDirectory, scanSwitchFolders, scanPortsFolders, walkFlatWithDlcDetection, extractGameKey } from './walker'
+import { walkDirectory, scanSwitchFolders, scanPortsFolders, walkFlatWithDlcDetection, extractGameKey, isUnchanged } from './walker'
 import type { SwitchGameFolder, FileEntry } from './walker'
 import { extractSwitchTitleId, classifySwitchTitleId } from './titleid'
 import { canonicalGroupKey } from '@/lib/group-key'
@@ -123,7 +123,7 @@ async function reparentAndDelete(srcId: number, dstId: number, switchMode: boole
         if (kind !== 'base') {
           const tags = kind === 'region' ? tagFields(src.fileName) : { region: null, languages: null }
           await db.gameDlc.create({
-            data: { gameId: dstId, filePath: src.filePath, fileName: src.fileName, fileSize: src.fileSize, title: tags.region ?? fileToTitle(src.fileName), type: kind, region: tags.region, languages: tags.languages },
+            data: { gameId: dstId, filePath: src.filePath, fileName: src.fileName, fileSize: src.fileSize, fileMtime: src.fileMtime, title: tags.region ?? fileToTitle(src.fileName), type: kind, region: tags.region, languages: tags.languages },
           }).catch(() => {})
         }
       }
@@ -145,7 +145,7 @@ interface GroupScanResult {
  * live in different scan directories.
  */
 async function knownGameSizes(platformId: number) {
-  const rows = await db.game.findMany({ where: { platformId }, select: { id: true, filePath: true, fileSize: true } })
+  const rows = await db.game.findMany({ where: { platformId }, select: { id: true, filePath: true, fileSize: true, fileMtime: true } })
   return new Map(rows.map(g => [g.filePath, g]))
 }
 
@@ -186,8 +186,8 @@ async function processFolderGroups(
 
   // Incremental: a group whose files are all already known with the same size
   // is left alone; only its base game is marked as seen.
-  const knownGames = new Map((await db.game.findMany({ where: { platformId }, select: { id: true, filePath: true, fileSize: true } })).map(g => [g.filePath, g]))
-  const knownDlcs  = new Map((await db.gameDlc.findMany({ where: { game: { platformId } }, select: { filePath: true, fileSize: true } })).map(d => [d.filePath, d]))
+  const knownGames = new Map((await db.game.findMany({ where: { platformId }, select: { id: true, filePath: true, fileSize: true, fileMtime: true } })).map(g => [g.filePath, g]))
+  const knownDlcs  = new Map((await db.gameDlc.findMany({ where: { game: { platformId } }, select: { filePath: true, fileSize: true, fileMtime: true } })).map(d => [d.filePath, d]))
   const seenIds: number[] = []
 
   // 2. Materialise each group into one canonical game + extras
@@ -196,7 +196,7 @@ async function processFolderGroups(
     const groupFiles = groupFolders.flatMap(f => [f.baseFile, ...f.dlcFiles]).filter((f): f is FileEntry => Boolean(f))
     const unchanged = groupFiles.length > 0 && groupFiles.every(f => {
       const known = knownGames.get(f.filePath) ?? knownDlcs.get(f.filePath)
-      return known !== undefined && known.fileSize === f.fileSize
+      return known !== undefined && isUnchanged(known, f)
     })
     if (unchanged) {
       for (const f of groupFiles) { const g = knownGames.get(f.filePath); if (g) seenIds.push(g.id) }
@@ -230,8 +230,8 @@ async function processFolderGroups(
       const { region, languages } = tagFields(base?.fileName ?? titleFolder.folderName)
 
       const baseData = base
-        ? { filePath: base.filePath, fileName: base.fileName, fileSize: base.fileSize }
-        : { filePath: groupFolders[0].folderPath, fileName: '', fileSize: BigInt(0) }
+        ? { filePath: base.filePath, fileName: base.fileName, fileSize: base.fileSize, fileMtime: base.fileMtime }
+        : { filePath: groupFolders[0].folderPath, fileName: '', fileSize: BigInt(0), fileMtime: new Date(0) }
 
       // Find (or adopt) the canonical game row
       let canonical = await db.game.findFirst({ where: { platformId, groupKey } })
@@ -250,7 +250,7 @@ async function processFolderGroups(
         // Only (re)write the base file fields when we actually found a base in
         // this scan — otherwise we'd clobber an existing base whose disk is
         // simply offline right now with the empty folder sentinel.
-        const updateData: { groupKey: string; lastSeenAt: Date; region: string | null; languages: string | null; filePath?: string; fileName?: string; fileSize?: bigint } =
+        const updateData: { groupKey: string; lastSeenAt: Date; region: string | null; languages: string | null; filePath?: string; fileName?: string; fileSize?: bigint; fileMtime?: Date } =
           { groupKey, lastSeenAt: scanStart, region, languages }
         if (base) {
           // Free the target file path from any other row first
@@ -259,6 +259,7 @@ async function processFolderGroups(
           updateData.filePath = base.filePath
           updateData.fileName = base.fileName
           updateData.fileSize = base.fileSize
+          updateData.fileMtime = base.fileMtime
         }
         await db.game.update({ where: { id: canonical.id }, data: updateData })
         res.updated++
@@ -272,8 +273,8 @@ async function processFolderGroups(
         const etags = etype === 'region' ? tagFields(e.fileName) : { region: null, languages: null }
         await db.gameDlc.upsert({
           where:  { filePath: e.filePath },
-          update: { gameId: canonical.id, fileSize: e.fileSize, type: etype, region: etags.region, languages: etags.languages },
-          create: { gameId: canonical.id, filePath: e.filePath, fileName: e.fileName, fileSize: e.fileSize, title: etags.region ?? fileToTitle(e.fileName), type: etype, region: etags.region, languages: etags.languages },
+          update: { gameId: canonical.id, fileSize: e.fileSize, fileMtime: e.fileMtime, type: etype, region: etags.region, languages: etags.languages },
+          create: { gameId: canonical.id, filePath: e.filePath, fileName: e.fileName, fileSize: e.fileSize, fileMtime: e.fileMtime, title: etags.region ?? fileToTitle(e.fileName), type: etype, region: etags.region, languages: etags.languages },
         }).catch(err => errors.push(`Error linking ${e.filePath}: ${err}`))
         if (etype === 'mod') res.modsFound++
         else if (etype === 'update') res.updatesFound++
@@ -398,7 +399,7 @@ export async function runScan(triggeredBy = 'manual', platformSlug?: string) {
         for (const file of looseFiles) {
           found++
           const prevLoose = knownLoose.get(file.filePath)
-          if (prevLoose && prevLoose.fileSize === file.fileSize) {
+          if (prevLoose && isUnchanged(prevLoose, file)) {
             unchangedIds.push(prevLoose.id)
             continue
           }
@@ -408,11 +409,11 @@ export async function runScan(triggeredBy = 'manual', platformSlug?: string) {
           try {
             const existing = await findExistingGame(platform.id, file.filePath, groupKey)
             if (!existing) {
-              await db.game.create({ data: { filePath: file.filePath, fileName: file.fileName, fileSize: file.fileSize, platformId: platform.id, title, sortTitle: toSortTitle(title), region, languages, groupKey, lastSeenAt: scanStart } })
+              await db.game.create({ data: { filePath: file.filePath, fileName: file.fileName, fileSize: file.fileSize, fileMtime: file.fileMtime, platformId: platform.id, title, sortTitle: toSortTitle(title), region, languages, groupKey, lastSeenAt: scanStart } })
               added++
               emit({ type: 'file_found', filePath: file.filePath, isNew: true, platform: platform.name })
             } else {
-              await db.game.update({ where: { id: existing.id }, data: { filePath: file.filePath, fileName: file.fileName, fileSize: file.fileSize, region, languages, groupKey, lastSeenAt: scanStart, isHidden: false } })
+              await db.game.update({ where: { id: existing.id }, data: { filePath: file.filePath, fileName: file.fileName, fileSize: file.fileSize, fileMtime: file.fileMtime, region, languages, groupKey, lastSeenAt: scanStart, isHidden: false } })
               updated++
               emit({ type: 'file_found', filePath: file.filePath, isNew: false, platform: platform.name })
             }
@@ -450,7 +451,7 @@ export async function runScan(triggeredBy = 'manual', platformSlug?: string) {
           for (const file of baseFiles) {
             found++
             const prevBase = knownBase.get(file.filePath)
-            if (prevBase && prevBase.fileSize === file.fileSize) {
+            if (prevBase && isUnchanged(prevBase, file)) {
               unchangedIds.push(prevBase.id)
               continue
             }
@@ -476,12 +477,12 @@ export async function runScan(triggeredBy = 'manual', platformSlug?: string) {
               const existing = await findExistingGame(platform.id, file.filePath, groupKey)
               let gameId: number
               if (!existing) {
-                const game = await db.game.create({ data: { filePath: file.filePath, fileName: file.fileName, fileSize: file.fileSize, platformId: platform.id, title, sortTitle: toSortTitle(title), region, languages, groupKey, lastSeenAt: scanStart } })
+                const game = await db.game.create({ data: { filePath: file.filePath, fileName: file.fileName, fileSize: file.fileSize, fileMtime: file.fileMtime, platformId: platform.id, title, sortTitle: toSortTitle(title), region, languages, groupKey, lastSeenAt: scanStart } })
                 added++
                 gameId = game.id
                 emit({ type: 'file_found', filePath: file.filePath, isNew: true, platform: platform.name })
               } else {
-                await db.game.update({ where: { id: existing.id }, data: { filePath: file.filePath, fileName: file.fileName, fileSize: file.fileSize, region, languages, groupKey, lastSeenAt: scanStart, isHidden: false } })
+                await db.game.update({ where: { id: existing.id }, data: { filePath: file.filePath, fileName: file.fileName, fileSize: file.fileSize, fileMtime: file.fileMtime, region, languages, groupKey, lastSeenAt: scanStart, isHidden: false } })
                 updated++
                 gameId = existing.id
                 emit({ type: 'file_found', filePath: file.filePath, isNew: false, platform: platform.name })
@@ -502,11 +503,11 @@ export async function runScan(triggeredBy = 'manual', platformSlug?: string) {
           // Pass 2: attach each update/DLC to its base game. Four ways to find
           // it, cheapest first: by Title ID or by folder within this scan, then
           // the same two against the DB for a base scanned on an earlier run.
-          const knownDlcs = new Map((await db.gameDlc.findMany({ where: { game: { platformId: platform.id } }, select: { filePath: true, fileSize: true } })).map(d => [d.filePath, d]))
+          const knownDlcs = new Map((await db.gameDlc.findMany({ where: { game: { platformId: platform.id } }, select: { filePath: true, fileSize: true, fileMtime: true } })).map(d => [d.filePath, d]))
           for (const dlc of [...updates, ...dlcs]) {
             // Linked on an earlier scan and unchanged: nothing to look up.
             const knownDlc = knownDlcs.get(dlc.filePath)
-            if (knownDlc && knownDlc.fileSize === dlc.fileSize) continue
+            if (knownDlc && isUnchanged(knownDlc, dlc)) continue
             const key = extractGameKey(dlc.fileName)
             let gameId = key ? gameKeyMap.get(key) : undefined
 
@@ -543,8 +544,8 @@ export async function runScan(triggeredBy = 'manual', platformSlug?: string) {
             try {
               await db.gameDlc.upsert({
                 where:  { filePath: dlc.filePath },
-                update: { fileSize: dlc.fileSize, type: dlc.type ?? 'update' },
-                create: { gameId, filePath: dlc.filePath, fileName: dlc.fileName, fileSize: dlc.fileSize, title: fileToTitle(dlc.fileName), type: dlc.type ?? 'update' },
+                update: { fileSize: dlc.fileSize, fileMtime: dlc.fileMtime, type: dlc.type ?? 'update' },
+                create: { gameId, filePath: dlc.filePath, fileName: dlc.fileName, fileSize: dlc.fileSize, fileMtime: dlc.fileMtime, title: fileToTitle(dlc.fileName), type: dlc.type ?? 'update' },
               })
             } catch (err) { errors.push(`Error linking DLC ${dlc.filePath}: ${err}`) }
           }
@@ -565,7 +566,7 @@ export async function runScan(triggeredBy = 'manual', platformSlug?: string) {
           for (const file of walkDirectory(scanPath, extensions)) {
             found++
             const prev = knownFlat.get(file.filePath)
-            if (prev && prev.fileSize === file.fileSize) {
+            if (prev && isUnchanged(prev, file)) {
               touched.push(prev.id)
               if (found % 20 === 0) await tick()
               continue
@@ -576,11 +577,11 @@ export async function runScan(triggeredBy = 'manual', platformSlug?: string) {
             try {
               const existing = await findExistingGame(platform.id, file.filePath, groupKey)
               if (!existing) {
-                await db.game.create({ data: { filePath: file.filePath, fileName: file.fileName, fileSize: file.fileSize, platformId: platform.id, title, sortTitle: toSortTitle(title), region, languages, groupKey, lastSeenAt: scanStart } })
+                await db.game.create({ data: { filePath: file.filePath, fileName: file.fileName, fileSize: file.fileSize, fileMtime: file.fileMtime, platformId: platform.id, title, sortTitle: toSortTitle(title), region, languages, groupKey, lastSeenAt: scanStart } })
                 added++
                 emit({ type: 'file_found', filePath: file.filePath, isNew: true, platform: platform.name })
               } else {
-                await db.game.update({ where: { id: existing.id }, data: { filePath: file.filePath, fileName: file.fileName, fileSize: file.fileSize, region, languages, groupKey, lastSeenAt: scanStart, isHidden: false } })
+                await db.game.update({ where: { id: existing.id }, data: { filePath: file.filePath, fileName: file.fileName, fileSize: file.fileSize, fileMtime: file.fileMtime, region, languages, groupKey, lastSeenAt: scanStart, isHidden: false } })
                 updated++
                 emit({ type: 'file_found', filePath: file.filePath, isNew: false, platform: platform.name })
               }

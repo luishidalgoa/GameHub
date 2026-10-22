@@ -46,6 +46,8 @@ model Game {
   filePath   String   @unique
   fileName   String
   fileSize   BigInt
+  // Newest mtime of the file (or of the folder's files): with fileSize, the scanner's "unchanged" test (#136).
+  fileMtime  DateTime?
 
   platformId Int
   platform   Platform @relation(fields: [platformId], references: [id])
@@ -178,6 +180,7 @@ model GameDlc {
   filePath String @unique
   fileName String
   fileSize BigInt
+  fileMtime DateTime?
   title    String?
   type     String @default("dlc")   // "dlc" | "update" | "mod" | "region"
 

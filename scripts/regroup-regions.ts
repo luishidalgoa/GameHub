@@ -39,7 +39,7 @@ async function main() {
   for (const platform of platforms) {
     const games = await db.game.findMany({
       where:  { platformId: platform.id },
-      select: { id: true, filePath: true, fileName: true, fileSize: true, region: true, languages: true, groupKey: true },
+      select: { id: true, filePath: true, fileName: true, fileSize: true, fileMtime: true, region: true, languages: true, groupKey: true },
     })
     if (games.length === 0) continue
 

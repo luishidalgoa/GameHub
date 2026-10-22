@@ -27,6 +27,7 @@ export type GameRow = {
   filePath: string
   fileName: string
   fileSize: bigint
+  fileMtime: Date | null
   region: string | null
   languages: string | null
 }
@@ -80,7 +81,7 @@ export async function consolidateRegionGroup(
 ): Promise<ConsolidationResult> {
   const games = await db.game.findMany({
     where: { platformId, groupKey },
-    select: { id: true, filePath: true, fileName: true, fileSize: true, region: true, languages: true },
+    select: { id: true, filePath: true, fileName: true, fileSize: true, fileMtime: true, region: true, languages: true },
   })
   if (games.length < 2) return { primaryId: games[0]?.id ?? null, merged: 0 }
 
@@ -97,12 +98,13 @@ export async function consolidateRegionGroup(
     if (g.fileSize > BigInt(0) && g.filePath !== primary.filePath) {
       await db.gameDlc.upsert({
         where:  { filePath: g.filePath },
-        update: { gameId: primary.id, type: 'region', fileSize: g.fileSize, region: g.region, languages: g.languages },
+        update: { gameId: primary.id, type: 'region', fileSize: g.fileSize, fileMtime: g.fileMtime, region: g.region, languages: g.languages },
         create: {
           gameId:    primary.id,
           filePath:  g.filePath,
           fileName:  g.fileName,
           fileSize:  g.fileSize,
+          fileMtime: g.fileMtime,
           title:     g.region ?? g.fileName,
           type:      'region',
           region:    g.region,

@@ -6,6 +6,8 @@ export interface FileEntry {
   filePath:  string
   fileName:  string
   fileSize:  bigint
+  /** Newest modification time: the file's own, or for a folder unit the newest file in it. */
+  fileMtime: Date
   extension: string
   parentDir: string
   type?: 'game' | 'update' | 'dlc' | 'mod'
@@ -13,6 +15,31 @@ export interface FileEntry {
    *  root ("Pokemon Y" for "Pokemon Y/Updates/foo.cia"). Lets an add-on find its
    *  base game when neither file carries a Title ID. */
   groupDir?: string
+}
+
+// ── Size and modification time ───────────────────────────────────────────────
+
+/** Size and mtime of one file. A file that cannot be stat'ed counts as empty. */
+export function statFile(filePath: string): { fileSize: bigint; fileMtime: Date } {
+  try {
+    const st = fs.statSync(filePath)
+    return { fileSize: BigInt(st.size), fileMtime: st.mtime }
+  } catch {
+    return { fileSize: BigInt(0), fileMtime: new Date(0) }
+  }
+}
+
+/**
+ * Whether a stored row still matches the file on disk: same size and same mtime.
+ * A row written before mtime was recorded has none, so it is re-examined once.
+ */
+export function isUnchanged(
+  known: { fileSize: bigint; fileMtime: Date | null },
+  file: { fileSize: bigint; fileMtime: Date },
+): boolean {
+  return known.fileSize === file.fileSize
+    && known.fileMtime !== null
+    && known.fileMtime.getTime() === file.fileMtime.getTime()
 }
 
 // ── Generic recursive walker ──────────────────────────────────────────────────
@@ -40,9 +67,8 @@ export function* walkDirectory(
     } else if (entry.isFile()) {
       const ext = path.extname(entry.name).toLowerCase()
       if (anyExt || extensions.includes(ext)) {
-        let size = BigInt(0)
-        try { size = BigInt(fs.statSync(fullPath).size) } catch { /* ignore */ }
-        yield { filePath: fullPath, fileName: entry.name, fileSize: size, extension: ext, parentDir: dir }
+        const { fileSize: size, fileMtime } = statFile(fullPath)
+        yield { filePath: fullPath, fileName: entry.name, fileSize: size, fileMtime, extension: ext, parentDir: dir }
       }
     }
   }
@@ -104,19 +130,32 @@ function findModUnits(gameDir: string): string[] {
   return [...units]
 }
 
-/** Bytes in a mod unit: the file itself, or every file under the folder. */
-function unitSize(unit: string): bigint {
+/**
+ * Size and mtime of a mod unit: the file itself, or for a folder every file under
+ * it. A folder's mtime alone does not change when a file inside is replaced, so
+ * the unit's mtime is the newest of the files in it.
+ */
+export function unitStat(unit: string): { fileSize: bigint; fileMtime: Date } {
   const st = fs.statSync(unit)
-  if (!st.isDirectory()) return BigInt(st.size)
+  if (!st.isDirectory()) return { fileSize: BigInt(st.size), fileMtime: st.mtime }
   let total = BigInt(0)
+  // Start from the epoch: the folder's own mtime moves on every add or rename, so it says nothing about a file's contents.
+  let newest = new Date(0)
   let entries: fs.Dirent[]
-  try { entries = fs.readdirSync(unit, { withFileTypes: true }) } catch { return total }
+  try { entries = fs.readdirSync(unit, { withFileTypes: true }) } catch { return { fileSize: total, fileMtime: newest } }
   for (const e of entries) {
     const full = path.join(unit, e.name)
-    if (e.isDirectory()) total += unitSize(full)
-    else if (e.isFile()) { try { total += BigInt(fs.statSync(full).size) } catch { /* ignore */ } }
+    if (e.isDirectory()) {
+      const sub = unitStat(full)
+      total += sub.fileSize
+      if (sub.fileMtime > newest) newest = sub.fileMtime
+    } else if (e.isFile()) {
+      const f = statFile(full)
+      total += f.fileSize
+      if (f.fileMtime > newest) newest = f.fileMtime
+    }
   }
-  return total
+  return { fileSize: total, fileMtime: newest }
 }
 
 export function scanSwitchFolders(
@@ -157,15 +196,13 @@ export function scanSwitchFolders(
         }
       } else if (sub.isFile() && sub.name.toLowerCase().endsWith('.zip')) {
         // A mod packed into one archive sitting in the game folder: the zip is the mod.
-        let size = BigInt(0)
-        try { size = BigInt(fs.statSync(subPath).size) } catch { /* ignore */ }
-        dlcFiles.push({ filePath: subPath, fileName: sub.name, fileSize: size, extension: '.zip', parentDir: folderPath, type: 'mod' })
+        const { fileSize: size, fileMtime } = statFile(subPath)
+        dlcFiles.push({ filePath: subPath, fileName: sub.name, fileSize: size, fileMtime, extension: '.zip', parentDir: folderPath, type: 'mod' })
       } else if (sub.isFile()) {
         const ext = path.extname(sub.name).toLowerCase()
         if (extensions.includes(ext)) {
-          let size = BigInt(0)
-          try { size = BigInt(fs.statSync(subPath).size) } catch { /* ignore */ }
-          rootFiles.push({ filePath: subPath, fileName: sub.name, fileSize: size, extension: ext, parentDir: folderPath })
+          const { fileSize: size, fileMtime } = statFile(subPath)
+          rootFiles.push({ filePath: subPath, fileName: sub.name, fileSize: size, fileMtime, extension: ext, parentDir: folderPath })
         }
       }
     }
@@ -175,7 +212,7 @@ export function scanSwitchFolders(
       dlcFiles.push({
         filePath:  unit,
         fileName:  path.basename(unit),
-        fileSize:  unitSize(unit),
+        ...unitStat(unit),
         extension: '',
         parentDir: folderPath,
         type:      'mod',
@@ -343,9 +380,8 @@ export function scanPortsFolders(rootDir: string, extensions: string[]): PortsRe
       // Loose file at root level → 1 game
       const ext = path.extname(entry.name).toLowerCase()
       if (extensions.includes(ext)) {
-        let size = BigInt(0)
-        try { size = BigInt(fs.statSync(fullPath).size) } catch { /* ignore */ }
-        loose.push({ filePath: fullPath, fileName: entry.name, fileSize: size, extension: ext, parentDir: rootDir })
+        const { fileSize: size, fileMtime } = statFile(fullPath)
+        loose.push({ filePath: fullPath, fileName: entry.name, fileSize: size, fileMtime, extension: ext, parentDir: rootDir })
       }
 
     } else if (entry.isDirectory()) {
@@ -394,9 +430,8 @@ function collectPortFiles(
     if (entry.isFile()) {
       const ext = path.extname(entry.name).toLowerCase()
       if (extensions.includes(ext)) {
-        let size = BigInt(0)
-        try { size = BigInt(fs.statSync(fullPath).size) } catch { /* ignore */ }
-        result.push({ filePath: fullPath, fileName: entry.name, fileSize: size, extension: ext, parentDir: dir })
+        const { fileSize: size, fileMtime } = statFile(fullPath)
+        result.push({ filePath: fullPath, fileName: entry.name, fileSize: size, fileMtime, extension: ext, parentDir: dir })
       }
 
     } else if (entry.isDirectory()) {
