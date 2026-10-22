@@ -10,7 +10,7 @@ describe('pickBackdrop', () => {
   it('follows banner > fanart > square > game title', () => {
     const all = [
       img('Screenshot - Game Title', 640), img('Square', 512),
-      img('Fanart - Background', 1920), img('Banner', 760),
+      img('Fanart - Background', 1920), img('Banner', 1200),
     ]
     expect(pickBackdrop(all)?.kind).toBe('banner')
     expect(pickBackdrop(all.filter(i => i.type !== 'Banner'))?.kind).toBe('fanart')
@@ -29,17 +29,17 @@ describe('pickBackdrop', () => {
       img('Fanart - Background', 1280, 'World'),
     ])
     expect(picked?.image.region).toBe('World')
-    const sameRegion = pickBackdrop([img('Banner', 760), img('Banner', 1520)])
+    const sameRegion = pickBackdrop([img('Banner', 1200), img('Banner', 1520)])
     expect(sameRegion?.image.width).toBe(1520)
   })
 })
 
 describe('pickFanart', () => {
   it('returns the fanart even when a banner outranks it as backdrop', () => {
-    const all = [img('Banner', 760), img('Fanart - Background', 1920)]
+    const all = [img('Banner', 1200), img('Fanart - Background', 1920)]
     expect(pickBackdrop(all)?.kind).toBe('banner')
     expect(pickFanart(all)?.width).toBe(1920)
-    expect(pickFanart([img('Banner', 760)])).toBeNull()
+    expect(pickFanart([img('Banner', 1200)])).toBeNull()
   })
 })
 
@@ -80,7 +80,16 @@ describe('wide categories', () => {
     expect(pickBackdrop([upright])).toBeNull()
   })
   it('keeps a landscape banner', () => {
-    const wideBanner = { url: 'https://x/b', type: 'Banner', width: 760, height: 140 } as LaunchBoxImage
+    const wideBanner = { url: 'https://x/b', type: 'Banner', width: 1200, height: 240 } as LaunchBoxImage
     expect(pickBackdrop([wideBanner])?.kind).toBe('banner')
+  })
+})
+
+describe('small banners', () => {
+  it('passes over a banner too small to stretch across a page', () => {
+    const tiny = { url: 'https://x/ds', type: 'Banner', width: 400, height: 80 } as LaunchBoxImage
+    const big = { url: 'https://x/hd', type: 'Banner', width: 1200, height: 240 } as LaunchBoxImage
+    expect(pickBackdrop([tiny])).toBeNull()
+    expect(pickBackdrop([tiny, big])?.image.url).toBe('https://x/hd')
   })
 })

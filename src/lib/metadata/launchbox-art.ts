@@ -35,8 +35,17 @@ function regionRank(region: string | undefined): number {
  */
 const MIN_WIDE_RATIO: Record<string, number> = { banner: 2, fanartbackground: 1.2, screenshotgametitle: 1.1 }
 
+/**
+ * Smallest width for a category stretched across a page. A DS banner is a few
+ * hundred pixels wide; stretched to a 1920 background it turns soft and blotchy,
+ * so it is passed over for the next category.
+ */
+const MIN_WIDE_WIDTH: Record<string, number> = { banner: 960, fanartbackground: 960 }
+
 function isWideEnough(image: LaunchBoxImage, type: string): boolean {
   const min = MIN_WIDE_RATIO[type]
+  const minWidth = MIN_WIDE_WIDTH[type]
+  if (minWidth && image.width && image.width < minWidth) return false
   if (!min || !image.width || !image.height) return true
   return image.width / image.height >= min
 }
