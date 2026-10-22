@@ -71,12 +71,10 @@ export function TopBar({ onMenuClick }: Props) {
           <Menu className="w-5 h-5" />
         </button>
 
-        {/* Brand — mobile only */}
-        <span className="md:hidden font-bold text-sm tracking-tight flex-shrink-0">GameHub</span>
-
-        {/* Desktop search */}
-        <div className="hidden sm:block relative flex-1 max-w-md">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+        {/* Desktop search: centred in the bar, same width as its results */}
+        <div className="hidden sm:flex flex-1 justify-center">
+        <div className="relative w-full max-w-2xl">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
           <input
             ref={inputRef}
             type="text"
@@ -85,25 +83,19 @@ export function TopBar({ onMenuClick }: Props) {
             onFocus={() => setOpen(true)}
             onBlur={() => setTimeout(() => setOpen(false), 150)}
             onChange={(e) => setQuery(e.target.value)}
-            className="w-full bg-secondary border border-border rounded-md pl-9 pr-8 py-1.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+            className="w-full h-10 bg-secondary/70 border border-border rounded-xl pl-11 pr-10 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
           />
-          {query ? (
+          {query && (
             <button
               onClick={() => setQuery('')}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              aria-label="Clear search"
+              className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
             >
               <X className="w-3.5 h-3.5" />
             </button>
-          ) : (
-            <button
-              onClick={() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true }))}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 hidden sm:flex items-center text-[10px] font-mono text-muted-foreground/50 bg-secondary border border-border/60 rounded px-1.5 py-0.5 hover:text-muted-foreground transition-colors"
-            >
-              Ctrl K
-            </button>
           )}
           {open && query.length > 1 && data?.games && (
-            <div className="absolute top-full mt-1 left-0 right-0 bg-popover border border-border rounded-md shadow-lg overflow-hidden z-50">
+            <div className="absolute top-full mt-1 left-0 right-0 bg-popover border border-border rounded-xl shadow-lg overflow-hidden z-50">
               {data.games.length === 0 ? (
                 <p className="px-4 py-3 text-sm text-muted-foreground">No results</p>
               ) : (
@@ -120,6 +112,7 @@ export function TopBar({ onMenuClick }: Props) {
               )}
             </div>
           )}
+        </div>
         </div>
 
         {/* Mobile search icon */}
