@@ -3,7 +3,7 @@
 import { useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react'
 import { resolveCoverPath } from '@/lib/cover-url'
 
-interface Place { x: number; y: number; w: number }
+interface Place { x: number; y: number; w?: number; h?: number }
 type Which = 'character' | 'logo'
 
 export interface CanvasRow {
@@ -18,19 +18,46 @@ export interface CanvasRow {
   } | null
 }
 
-/** The place each element has in the home tile when the owner has not arranged it. */
+/** The width of a publisher card on Home at the widest breakpoint: the canvas is drawn at this size, 1x. */
+const CARD_WIDTH = 216
+
+/**
+ * The place each element has on Home when the owner has not arranged it. These are the boxes
+ * Home draws: the character covers the middle of the tile down to the logo; with a character the
+ * logo is a small line at the bottom; without one it is the big logo in the middle.
+ */
 function defaults(hasCharacter: boolean): Record<Which, Place> {
   return {
-    character: { x: 50, y: 48, w: 84 },
-    logo: hasCharacter ? { x: 50, y: 88, w: 42 } : { x: 50, y: 50, w: 82 },
+    character: { x: 50, y: 42, w: 84, h: 66 },
+    logo: hasCharacter ? { x: 50, y: 88.9, h: 11.1 } : { x: 50, y: 50, w: 82, h: 39 },
   }
 }
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v))
 
+/** Box size of an element in the canvas: a crop covers its box, a logo fits inside it. */
+function boxStyle(p: Place): CSSProperties {
+  return {
+    position: 'absolute',
+    left: `${p.x}%`,
+    top: `${p.y}%`,
+    width: p.w !== undefined ? `${p.w}%` : 'auto',
+    height: p.h !== undefined ? `${p.h}%` : 'auto',
+    transform: 'translate(-50%, -50%)',
+  }
+}
+
+/** The picture inside its box, the way Home draws it. */
+function pictureStyle(p: Place, crop: boolean): CSSProperties {
+  const fit = crop ? { objectFit: 'cover' as const, objectPosition: 'top' } : { objectFit: 'contain' as const, objectPosition: 'center' }
+  if (p.w !== undefined && p.h !== undefined) return { width: '100%', height: '100%', ...fit }
+  if (p.w !== undefined) return { width: '100%', height: 'auto' }
+  return { width: 'auto', height: '100%' }
+}
+
 /**
- * The tile as a canvas: drag an element to move it, drag its corner to resize it.
- * The toolbar only chooses which element is being edited, and resets it.
+ * The tile as a canvas, at the size it has on Home. Drag an element to move it, drag its corner to
+ * resize it. The toolbar only chooses which element is edited, resets it, and sets the zoom.
  */
 export function PublisherCanvas({ row, onClose, onSaved }: { row: CanvasRow; onClose: () => void; onSaved: () => void }) {
   const hasCharacter = !!row.art?.character
@@ -41,6 +68,7 @@ export function PublisherCanvas({ row, onClose, onSaved }: { row: CanvasRow; onC
     logo: row.art?.layout?.logo ?? base.logo,
   })
   const [tool, setTool] = useState<Which>(hasCharacter ? 'character' : 'logo')
+  const [zoom, setZoom] = useState<1 | 2>(1)
   const [saving, setSaving] = useState(false)
   const surface = useRef<HTMLDivElement>(null)
   const drag = useRef<{ which: Which; mode: 'move' | 'scale'; sx: number; sy: number; start: Place } | null>(null)
@@ -59,9 +87,19 @@ export function PublisherCanvas({ row, onClose, onSaved }: { row: CanvasRow; onC
     if (!d || !rect) return
     const dx = ((e.clientX - d.sx) / rect.width) * 100
     const dy = ((e.clientY - d.sy) / rect.height) * 100
-    const next: Place = d.mode === 'move'
-      ? { ...d.start, x: clamp(d.start.x + dx, 0, 100), y: clamp(d.start.y + dy, 0, 100) }
-      : { ...d.start, w: clamp(d.start.w + dx, 4, 200) }
+    const s = d.start
+    let next: Place
+    if (d.mode === 'move') {
+      next = { ...s, x: clamp(s.x + dx, 0, 100), y: clamp(s.y + dy, 0, 100) }
+    } else if (s.w !== undefined && s.h !== undefined) {
+      // A box keeps its proportions when its corner moves.
+      const w = clamp(s.w + dx, 4, 200)
+      next = { ...s, w, h: clamp(s.h * (w / s.w), 4, 200) }
+    } else if (s.w !== undefined) {
+      next = { ...s, w: clamp(s.w + dx, 4, 200) }
+    } else {
+      next = { ...s, h: clamp((s.h ?? 10) + dy, 4, 200) }
+    }
     setDraft(prev => ({ ...prev, [d.which]: next }))
   }
 
@@ -79,17 +117,16 @@ export function PublisherCanvas({ row, onClose, onSaved }: { row: CanvasRow; onC
     onSaved()
   }
 
-  const piece = (which: Which, src: string, plain: boolean) => {
+  const piece = (which: Which, src: string, crop: boolean) => {
     const p = draft[which]
-    const style: CSSProperties = {
-      position: 'absolute', left: `${p.x}%`, top: `${p.y}%`, width: `${p.w}%`, transform: 'translate(-50%, -50%)',
-    }
     const selected = tool === which
     return (
-      <div key={which} style={style} onPointerDown={grab(which, 'move')} onPointerMove={move} onPointerUp={release}
+      <div key={which} style={boxStyle(p)} onPointerDown={grab(which, 'move')} onPointerMove={move} onPointerUp={release}
            className={`cursor-move touch-none ${selected ? 'outline outline-2 outline-white/80 outline-offset-2' : ''}`}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={src} alt="" draggable={false} className={`block h-auto w-full select-none pointer-events-none ${which === 'logo' && !plain ? 'brightness-0 invert' : ''}`} />
+        <img src={src} alt="" draggable={false}
+             className={`block select-none pointer-events-none ${which === 'logo' && !(row.art?.plain === true) ? 'brightness-0 invert' : ''}`}
+             style={pictureStyle(p, crop)} />
         {selected && (
           <span onPointerDown={grab(which, 'scale')} onPointerMove={move} onPointerUp={release} role="presentation"
                 className="absolute -bottom-2 -right-2 h-4 w-4 cursor-nwse-resize rounded-sm border border-black/40 bg-white" />
@@ -102,21 +139,25 @@ export function PublisherCanvas({ row, onClose, onSaved }: { row: CanvasRow; onC
   const c2 = row.art?.colors?.[1] ?? '#14141f'
   const character = resolveCoverPath(row.art?.character ?? null)
   const logo = resolveCoverPath(row.art?.logo ?? null)
+  const width = CARD_WIDTH * zoom
 
   return (
-    <div role="dialog" aria-modal="true" aria-label={`Ajustar ${row.name}`} className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-      <div className="w-full max-w-3xl space-y-4 rounded-2xl border border-border bg-card p-5">
+    <div role="dialog" aria-modal="true" aria-label={`Ajustar ${row.name}`} className="fixed inset-0 z-50 flex items-center justify-center overflow-auto bg-black/70 p-4">
+      <div className="w-full max-w-4xl space-y-4 rounded-2xl border border-border bg-card p-5">
         <header className="flex items-center justify-between gap-3">
           <h2 className="text-lg font-semibold">Ajustar {row.name}</h2>
           <button type="button" onClick={onClose} className="rounded-md border border-border px-2.5 py-1 text-sm hover:bg-secondary">Cerrar</button>
         </header>
 
         <div className="flex flex-wrap items-start gap-6">
-          <div ref={surface} onPointerMove={move} onPointerUp={release} onPointerLeave={release}
-               className="relative aspect-[3/4] w-[300px] select-none touch-none overflow-hidden rounded-xl"
-               style={{ background: `linear-gradient(135deg, ${c1}, ${c2})` }}>
-            {character && hasCharacter && piece('character', character, true)}
-            {logo && hasLogo && piece('logo', logo, row.art?.plain === true)}
+          <div className="space-y-2">
+            <div ref={surface} onPointerMove={move} onPointerUp={release} onPointerLeave={release}
+                 className="relative aspect-[3/4] select-none touch-none overflow-hidden rounded-xl"
+                 style={{ width, background: `linear-gradient(135deg, ${c1}, ${c2})` }}>
+              {character && hasCharacter && piece('character', character, true)}
+              {logo && hasLogo && piece('logo', logo, row.art?.plain === true)}
+            </div>
+            <p className="text-xs text-muted-foreground">Tamaño de la tarjeta en Home: {CARD_WIDTH} × {Math.round(CARD_WIDTH * 4 / 3)} px.</p>
           </div>
 
           <aside className="min-w-[200px] flex-1 space-y-4 text-sm">
@@ -134,11 +175,19 @@ export function PublisherCanvas({ row, onClose, onSaved }: { row: CanvasRow; onC
                 </button>
               )}
             </div>
+            <div role="radiogroup" aria-label="Zoom" className="flex gap-2">
+              {([1, 2] as const).map(z => (
+                <button key={z} type="button" role="radio" aria-checked={zoom === z} onClick={() => setZoom(z)}
+                        className={`rounded-md border px-3 py-1.5 ${zoom === z ? 'border-primary bg-primary/15' : 'border-border hover:bg-secondary'}`}>
+                  {z === 1 ? 'Tamaño real' : 'Ampliado 2×'}
+                </button>
+              ))}
+            </div>
             <button type="button" onClick={reset} className="rounded-md border border-border px-3 py-1.5 hover:bg-secondary">
               Restablecer {tool === 'character' ? 'el personaje' : 'el logo'}
             </button>
             <p className="text-xs text-muted-foreground">
-              Arrastra el elemento para moverlo. Arrastra su esquina para cambiarle el tamaño. Así se verá en la portada de Home.
+              Arrastra el elemento para moverlo. Arrastra su esquina para cambiarle el tamaño. Esta vista es el tamaño real de la tarjeta, así que lo que ves aquí es lo que sale en Home.
             </p>
             <div className="flex gap-2 pt-2">
               <button type="button" onClick={save} disabled={saving}

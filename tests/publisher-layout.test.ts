@@ -15,3 +15,13 @@ describe('the owner\'s arrangement of a publisher tile', () => {
     expect(cleanLayout('not an object')).toEqual({})
   })
 })
+
+describe('a box with a height', () => {
+  it('keeps a crop box (both sides) and a logo with only a height', () => {
+    expect(cleanLayout({ character: { x: 50, y: 42, w: 84, h: 66 }, logo: { x: 50, y: 88.9, h: 11.1 } }))
+      .toEqual({ character: { x: 50, y: 42, w: 84, h: 66 }, logo: { x: 50, y: 88.9, h: 11.1 } })
+  })
+  it('a place with neither a width nor a height is dropped', () => {
+    expect(cleanLayout({ logo: { x: 50, y: 50 } })).toEqual({})
+  })
+})

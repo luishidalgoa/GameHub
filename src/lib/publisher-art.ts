@@ -12,11 +12,16 @@ import { paletteOf } from '@/lib/palette'
  * cut-out of one of its characters. Kept in one Setting row: a few dozen entries,
  * no table for them.
  */
-/** Where an element sits in the tile: the centre and the width, in percent of the tile's size. */
+/**
+ * Where an element sits in the tile, in percent of the tile's size: the centre (x, y), and a box
+ * of width w and height h. A missing w or h follows the picture's own proportions. A box with
+ * both is a crop: the picture covers it, as the character does on Home.
+ */
 export interface Place {
   x: number
   y: number
-  w: number
+  w?: number
+  h?: number
 }
 
 /** The owner's arrangement of the tile. An element without a place keeps the default arrangement. */
@@ -60,7 +65,7 @@ async function save(map: PublisherArtMap): Promise<void> {
   await db.setting.upsert({ where: { key: KEY }, update: { value }, create: { key: KEY, value } })
 }
 
-/** A layout as stored: known elements only, centres inside the tile, widths between 4% and 200%. */
+/** A layout as stored: known elements only, centres inside the tile, sizes between 4% and 200%. */
 export function cleanLayout(input: unknown): PublisherLayout {
   const out: PublisherLayout = {}
   if (!input || typeof input !== 'object') return out
@@ -69,8 +74,11 @@ export function cleanLayout(input: unknown): PublisherLayout {
     if (!v || typeof v !== 'object') return undefined
     const p = v as Record<string, unknown>
     const num = (n: unknown, lo: number, hi: number) => (typeof n === 'number' && Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : null)
-    const x = num(p.x, 0, 100), y = num(p.y, 0, 100), w = num(p.w, 4, 200)
-    return x === null || y === null || w === null ? undefined : { x, y, w }
+    const x = num(p.x, 0, 100), y = num(p.y, 0, 100)
+    const w = p.w === undefined ? undefined : num(p.w, 4, 200) ?? undefined
+    const h = p.h === undefined ? undefined : num(p.h, 4, 200) ?? undefined
+    if (x === null || y === null || (w === undefined && h === undefined)) return undefined
+    return { x, y, ...(w !== undefined && { w }), ...(h !== undefined && { h }) }
   }
   const character = place(src.character)
   const logo = place(src.logo)

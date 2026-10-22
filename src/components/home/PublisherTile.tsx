@@ -8,9 +8,11 @@ import { BRAND_STYLE } from '@/lib/publisher-style'
 import { PublisherBackdrop } from './PublisherBackdrop'
 import type { Place } from '@/lib/publisher-art'
 
-/** An element the owner placed: its centre and width, in percent of the tile. */
+/** An element the owner placed: its centre, and its box in percent of the tile. */
 const placed = (p: Place): React.CSSProperties => ({
-  position: 'absolute', left: `${p.x}%`, top: `${p.y}%`, width: `${p.w}%`, height: 'auto',
+  position: 'absolute', left: `${p.x}%`, top: `${p.y}%`,
+  width: p.w !== undefined ? `${p.w}%` : 'auto',
+  height: p.h !== undefined ? `${p.h}%` : 'auto',
   maxWidth: 'none', transform: 'translate(-50%, -50%)',
 })
 
@@ -51,7 +53,7 @@ export function PublisherTile({ publisher, href, gamesLabel }: {
       {character && layout?.character && (
         // eslint-disable-next-line @next/next/no-img-element
         <img src={character} alt="" loading="lazy" decoding="async" style={placed(layout.character)}
-             className="drop-shadow-[0_12px_24px_rgba(0,0,0,0.5)] transition-transform duration-[900ms] ease-out group-hover:scale-[1.04]" />
+             className="object-cover object-top drop-shadow-[0_12px_24px_rgba(0,0,0,0.5)] transition-transform duration-[900ms] ease-out group-hover:scale-[1.04]" />
       )}
       {character && !layout?.character && (
         // Cut at the chest, the way the store does it: the top of the figure is
@@ -69,11 +71,9 @@ export function PublisherTile({ publisher, href, gamesLabel }: {
 
       {logo && layout?.logo ? (
         // The owner placed the logo: it keeps its place, and the name line goes under it.
-        <div style={placed(layout.logo)} className="text-center">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={logo} alt={name} loading="lazy" decoding="async"
-               className={`block h-auto w-full object-contain drop-shadow-[0_2px_10px_rgba(0,0,0,0.6)] ${plainLogo ? '' : 'brightness-0 invert'}`} />
-        </div>
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={logo} alt={name} loading="lazy" decoding="async" style={placed(layout.logo)}
+             className={`object-contain drop-shadow-[0_2px_10px_rgba(0,0,0,0.6)] ${plainLogo ? '' : 'brightness-0 invert'}`} />
       ) : logo ? (
         <div className={`absolute inset-x-0 flex flex-col items-center px-5 text-center ${character ? 'bottom-4' : 'inset-y-0 justify-center'}`}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
