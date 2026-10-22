@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import useSWR from 'swr'
 import { Search, X, Menu } from 'lucide-react'
 import { PlatformIcon } from '@/components/shared/PlatformIcon'
+import { cn } from '@/lib/utils'
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
@@ -13,6 +14,8 @@ interface Sugerencia {
   id: number
   title: string
   releaseYear: number | null
+  coverPath: string | null
+  coverUrl: string | null
   platform: { name: string; slug: string; iconPath: string | null }
 }
 
@@ -61,13 +64,14 @@ export function TopBar({ onMenuClick }: Props) {
 
   return (
     <>
-      {/* Full-screen glass sweep while results are open: slides down from the top in 0.75s. */}
-      {open && query.length > 1 && (
-        <div
-          aria-hidden="true"
-          className="hidden sm:block fixed inset-0 z-[19] bg-background/50 backdrop-blur-xl animate-in fade-in-0 slide-in-from-top duration-[750ms]"
-        />
-      )}
+      {/* Full-screen glass sweep: always mounted above the screen, it slides down over 0.75s while results are open. */}
+      <div
+        aria-hidden="true"
+        className={cn(
+          'pointer-events-none hidden sm:block fixed inset-0 z-[19] bg-background/60 backdrop-blur-md will-change-transform transition-transform duration-[750ms] ease-out',
+          open && query.length > 1 ? 'translate-y-0' : '-translate-y-full',
+        )}
+      />
 
       <header className="fixed top-0 left-0 right-0 md:left-14 h-14 bg-background/80 backdrop-blur-sm border-b border-border z-20 flex items-center px-3 sm:px-6 gap-3">
         {/* Hamburger — mobile only */}
@@ -118,7 +122,18 @@ export function TopBar({ onMenuClick }: Props) {
                     onMouseDown={() => navigateTo(g.id)}
                     className="flex w-full items-center gap-3 rounded-[10px] px-2.5 py-2 text-left transition-colors hover:bg-white/[0.07]"
                   >
-                    <span className="h-10 w-10 flex-shrink-0 rounded-lg bg-[#22222b]" aria-hidden="true" />
+                    {g.coverPath ?? g.coverUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={(g.coverPath ?? g.coverUrl)!}
+                        alt=""
+                        loading="lazy"
+                        decoding="async"
+                        className="h-10 w-10 flex-shrink-0 rounded-lg bg-[#22222b] object-cover"
+                      />
+                    ) : (
+                      <span className="h-10 w-10 flex-shrink-0 rounded-lg bg-[#22222b]" aria-hidden="true" />
+                    )}
                     <span className="flex min-w-0 flex-col gap-0.5">
                       <span className="truncate text-sm font-semibold">{g.title}</span>
                       <span className="truncate text-xs text-muted-foreground">
