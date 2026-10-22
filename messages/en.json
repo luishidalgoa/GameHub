@@ -132,6 +132,13 @@
     "donations": "Donations",
     "settings": "Settings",
     "curation": "Curation"
+  ,
+    "scanner": "Scanner",
+    "metadata": "Metadata",
+    "art": "Art",
+    "storage": "Storage",
+    "integrity": "Integrity",
+    "catalog": "Catalog"
   },
   "ScanPanel": {
     "title": "ROM Scanner",

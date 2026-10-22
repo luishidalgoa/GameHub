@@ -3,11 +3,6 @@ import { getTranslations } from 'next-intl/server'
 import { db } from '@/lib/db'
 import { formatBytes } from '@/lib/utils'
 import { libraryGameWhere, WITHOUT_METADATA, NO_COVER, NO_SCORE, UNFINDABLE, pendingWhere } from '@/lib/library'
-import { ScanPanel } from '@/components/admin/ScanPanel'
-import { MetadataBatchPanel } from '@/components/admin/MetadataBatchPanel'
-import { ArtJobPanel } from '@/components/admin/ArtJobPanel'
-import { OrphanCoversPanel } from '@/components/admin/OrphanCoversPanel'
-import { LibraryIssuesPanel } from '@/components/admin/LibraryIssuesPanel'
 import { HealthPanel } from '@/components/admin/HealthPanel'
 import { ScanLogsTable } from '@/components/admin/ScanLogsTable'
 import { Gamepad2, Monitor, HardDrive, ImageOff, FileQuestion, StarOff } from 'lucide-react'
@@ -24,12 +19,6 @@ export default async function AdminPage() {
     db.game.count({ where: { ...libraryGameWhere(), ...pendingWhere(NO_SCORE) } }),
     db.scanLog.findMany({ orderBy: { startedAt: 'desc' }, take: 5 }),
   ])
-
-  const platforms = await db.platform.findMany({
-    where: { enabled: true },
-    select: { slug: true, name: true },
-    orderBy: { sortOrder: 'asc' },
-  })
 
   const [gameSize, dlcSize] = await Promise.all([
     db.game.aggregate({ _sum: { fileSize: true }, where: libraryGameWhere() }),
@@ -57,27 +46,6 @@ export default async function AdminPage() {
 
       {/* Service health */}
       <HealthPanel />
-
-      {/* Scan panel */}
-      <ScanPanel />
-
-      {/* Auto metadata batch */}
-      <MetadataBatchPanel platforms={platforms} />
-      <ArtJobPanel />
-      <Link href="/admin/editoras" className="block rounded-xl border border-border bg-card p-5 hover:bg-secondary/50">
-        <h2 className="font-semibold">Editoras de la portada</h2>
-        <p className="mt-1 text-sm text-muted-foreground">Logos y personajes de las teselas de editoras.</p>
-      </Link>
-      <Link href="/admin/modelos" className="block rounded-xl border border-border bg-card p-5 hover:bg-secondary/50">
-        <h2 className="font-semibold">Orientación de los modelos 3D</h2>
-        <p className="mt-1 text-sm text-muted-foreground">Gira cada consola hasta que mire de frente; la portada usa lo que guardes.</p>
-      </Link>
-
-      {/* Orphan cover cleanup */}
-      <OrphanCoversPanel />
-
-      {/* Integridad de la biblioteca */}
-      <LibraryIssuesPanel />
 
       {/* Recent scan logs */}
       {scanLogs.length > 0 && (
