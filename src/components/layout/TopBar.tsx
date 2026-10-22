@@ -94,7 +94,7 @@ export function TopBar({ onMenuClick }: Props) {
             value={query}
             onFocus={() => setOpen(true)}
             onBlur={() => setTimeout(() => setOpen(false), 150)}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={(e) => { setQuery(e.target.value); setOpen(true) }}
             className="w-full h-10 bg-secondary/70 border border-border rounded-xl pl-11 pr-10 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
           />
           {query && (
