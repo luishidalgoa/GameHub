@@ -1,10 +1,8 @@
 import { db } from '@/lib/db'
-import { resolveCoverPath } from '@/lib/cover-url'
 import { ArtJobPanel } from '@/components/admin/ArtJobPanel'
-import { ArtManualUpload, type ArtUploadRow } from '@/components/admin/ArtManualUpload'
-import { ManualArtList, type ManualArtRow } from '@/components/admin/ManualArtList'
 import Link from 'next/link'
 import { purgeExpiredManualArt } from '@/lib/art-manual'
+import { ART_KINDS, artTitle, artKindOf } from '@/lib/art-catalog'
 import {
   DEFAULT_ART_FILTER, hasRichMetadata, isValuableForArt, selectArtGames,
   type ArtFilter, type ArtMissing, type ArtView,
@@ -33,20 +31,20 @@ function filterFrom(sp: Record<string, string | string[] | undefined>): ArtFilte
 }
 
 // Arte (#142). Por defecto: juegos valiosos (metadatos completos y popular en RAWG o descargado).
-// Los demás están a un filtro de distancia: nada queda fuera sin poder verse.
+// Esta página es referencia: el arte se edita en la ficha de cada juego.
 export default async function AdminArtPage({ searchParams }: { searchParams: Record<string, string | string[] | undefined> }) {
   await purgeExpiredManualArt()
   const filter = filterFrom(searchParams)
   const shownRaw = typeof searchParams.n === 'string' ? parseInt(searchParams.n, 10) : NaN
   const shown = Number.isFinite(shownRaw) && shownRaw > PAGE ? shownRaw : PAGE
 
-  const [games, downloads, byKind, platforms, manual] = await Promise.all([
+  const [games, downloads, byKind, platforms] = await Promise.all([
     db.game.findMany({
       where: { isHidden: false },
       select: {
         id: true, title: true, coverPath: true, description: true, releaseYear: true,
-        developer: true, genre: true, rawgAdded: true, backdropPath: true, logoPath: true,
-        tilePath: true, screenshotPaths: true,
+        developer: true, genre: true, rawgAdded: true, backdropPath: true, backdropKind: true,
+        logoPath: true, tilePath: true, screenshotPaths: true,
         platform: { select: { name: true } },
       },
       orderBy: { title: 'asc' },
@@ -54,24 +52,29 @@ export default async function AdminArtPage({ searchParams }: { searchParams: Rec
     db.downloadLog.findMany({ distinct: ['gameId'], select: { gameId: true } }),
     db.gameImage.groupBy({ by: ['kind'], _count: { _all: true } }),
     db.platform.findMany({ where: { enabled: true }, select: { name: true }, orderBy: { sortOrder: 'asc' } }),
-    db.gameImage.findMany({
-      where: { kind: { startsWith: 'manual-' } },
-      orderBy: { createdAt: 'desc' }, take: 100,
-      include: { game: { select: { id: true, title: true, platform: { select: { name: true } } } } },
-    }),
   ])
 
   const downloaded = new Set(downloads.map(d => d.gameId))
   const visible = games.length
-  const repo = (kind: string) => byKind.find(k => k.kind === kind)?._count._all ?? 0
-  const typeRows = [
-    { label: 'Fondo', has: games.filter(g => g.backdropPath).length, files: repo('fanart'), missing: 'fondo' as const },
-    { label: 'Logo', has: games.filter(g => g.logoPath).length, files: repo('clear-logo'), missing: 'logo' as const },
-    { label: 'Tile', has: games.filter(g => g.tilePath).length, files: null, missing: null },
+  const files = (kind: string) => byKind.find(k => k.kind === kind)?._count._all ?? 0
+
+  // Game-level: what each game shows. Then one row per kind in the data model, with the files the repository holds.
+  const fieldRows = [
+    { label: 'Portada', has: games.filter(g => g.coverPath).length, files: null, missing: null },
+    { label: 'Banner', has: games.filter(g => g.backdropKind === 'banner').length, files: null, missing: null },
+    { label: 'Fondo', has: games.filter(g => g.backdropPath && g.backdropKind !== 'banner').length, files: null, missing: 'fondo' as const },
+    { label: 'Logo', has: games.filter(g => g.logoPath).length, files: null, missing: 'logo' as const },
     { label: 'Capturas', has: games.filter(g => g.screenshotPaths).length, files: null, missing: null },
-    { label: 'Banner', has: null, files: repo('banner'), missing: null },
-    { label: 'Carátula frontal', has: null, files: repo('box-front'), missing: null },
   ]
+
+  // Every kind the repository holds: the catalogue first, in its order, then any kind it does not know.
+  const stored = byKind.map(k => k.kind).filter(k => !k.startsWith('manual-'))
+  const catalogue = ART_KINDS.map(k => k.kind)
+  const kinds = [...catalogue, ...stored.filter(k => !catalogue.includes(k) && !artKindOf(k))]
+  const kindRows = kinds
+    .map(k => ({ kind: k, label: artTitle(k), group: artKindOf(k)?.group ?? 'other', files: files(k) }))
+    .filter(r => r.files > 0 || catalogue.includes(r.kind))
+
   const candidates = games.map(g => ({ ...g, platformName: g.platform.name }))
   const count = (view: ArtView) => candidates.filter(g => {
     if (view === 'valiosos') return isValuableForArt(g, downloaded.has(g.id))
@@ -81,21 +84,7 @@ export default async function AdminArtPage({ searchParams }: { searchParams: Rec
 
   const selected = selectArtGames(candidates, filter, downloaded)
   const byId = new Map(candidates.map(g => [g.id, g]))
-  const uploadRows: ArtUploadRow[] = selected.slice(0, shown).map(({ id, missing }) => {
-    const g = byId.get(id)!
-    return { id, title: g.title, platform: g.platform.name, coverUrl: resolveCoverPath(g.coverPath), missing }
-  })
-
-  const manualRows: ManualArtRow[] = manual.map(i => ({
-    imageId: i.id,
-    gameId: i.game.id,
-    title: i.game.title,
-    platform: i.game.platform.name,
-    kind: (i.kind.replace('manual-', '') as ManualArtRow['kind']),
-    imageUrl: resolveCoverPath(i.s3Key),
-    createdAt: i.createdAt.toISOString(),
-    removedAt: i.removedAt ? i.removedAt.toISOString() : null,
-  }))
+  const rows = selected.slice(0, shown).map(({ id, missing }) => ({ id, title: byId.get(id)!.title, platform: byId.get(id)!.platform.name, missing }))
 
   const viewLabel: Record<ArtView, string> = {
     valiosos: `Valiosos (${count('valiosos')})`,
@@ -112,23 +101,33 @@ export default async function AdminArtPage({ searchParams }: { searchParams: Rec
       <div className="bg-card border border-border rounded-xl p-6 space-y-4">
         <div>
           <h3 className="font-semibold">Vista por tipo</h3>
-          <p className="text-sm text-muted-foreground mt-0.5">Cuántos juegos visibles ({visible}) tienen cada tipo de arte, y cuántos ficheros guarda el repositorio. Pulsa una fila con «falta» para verla abajo.</p>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            Juegos visibles ({visible}) con cada arte, y los ficheros que guarda el repositorio por categoría de LaunchBox. Los nombres son los del modelo de datos.
+          </p>
         </div>
         <table className="w-full text-sm">
           <thead className="text-left text-xs text-muted-foreground">
-            <tr><th className="py-2">Tipo</th><th className="py-2 text-right">Con este arte</th><th className="py-2 text-right">Sin este arte</th><th className="py-2 text-right">Ficheros en el repositorio</th></tr>
+            <tr><th className="py-2">Tipo</th><th className="py-2 text-right">Juegos con este arte</th><th className="py-2 text-right">Sin este arte</th><th className="py-2 text-right">Ficheros en el repositorio</th></tr>
           </thead>
           <tbody className="divide-y divide-border">
-            {typeRows.map(r => (
+            {fieldRows.map(r => (
               <tr key={r.label}>
                 <td className="py-2">
                   {r.missing
                     ? <Link href={`/admin/arte?falta=${r.missing}`} className="hover:underline">{r.label}</Link>
                     : r.label}
                 </td>
-                <td className="py-2 text-right tabular-nums">{r.has ?? '—'}</td>
-                <td className="py-2 text-right tabular-nums">{r.has === null ? '—' : visible - r.has}</td>
-                <td className="py-2 text-right tabular-nums">{r.files ?? '—'}</td>
+                <td className="py-2 text-right tabular-nums">{r.has}</td>
+                <td className="py-2 text-right tabular-nums">{visible - r.has}</td>
+                <td className="py-2 text-right tabular-nums">—</td>
+              </tr>
+            ))}
+            {kindRows.map(r => (
+              <tr key={r.kind} className="text-muted-foreground">
+                <td className="py-2 pl-4">{r.label} <span className="text-xs opacity-60">· {r.group}</span></td>
+                <td className="py-2 text-right tabular-nums">—</td>
+                <td className="py-2 text-right tabular-nums">—</td>
+                <td className="py-2 text-right tabular-nums">{r.files}</td>
               </tr>
             ))}
           </tbody>
@@ -137,17 +136,9 @@ export default async function AdminArtPage({ searchParams }: { searchParams: Rec
 
       <div className="bg-card border border-border rounded-xl p-6 space-y-4">
         <div>
-          <h3 className="font-semibold">Subidas a mano</h3>
-          <p className="text-sm text-muted-foreground mt-0.5">Lo que has subido, con su vista previa. «Quitar» devuelve el juego a como estaba.</p>
-        </div>
-        <ManualArtList rows={manualRows} />
-      </div>
-
-      <div className="bg-card border border-border rounded-xl p-6 space-y-4">
-        <div>
           <h3 className="font-semibold">Sin fondo o sin logo</h3>
           <p className="text-sm text-muted-foreground mt-0.5">
-            {selected.length} resultados con estos filtros. Se muestran {Math.min(shown, selected.length)}. Eliges la imagen y la ves antes de subirla.
+            {selected.length} resultados con estos filtros. Se muestran {Math.min(shown, selected.length)}. Pulsa un juego para editar su arte en su ficha.
           </p>
         </div>
 
@@ -176,7 +167,22 @@ export default async function AdminArtPage({ searchParams }: { searchParams: Rec
           <button type="submit" className="px-3 py-2 rounded-md text-sm font-medium bg-violet-600 hover:bg-violet-500 text-white">Aplicar</button>
         </form>
 
-        <ArtManualUpload rows={uploadRows} emptyText={EMPTY[filter.vista]} />
+        {rows.length === 0 ? (
+          <p className="text-sm text-muted-foreground py-6 text-center">{EMPTY[filter.vista]}</p>
+        ) : (
+          <ul className="divide-y divide-border">
+            {rows.map(r => (
+              <li key={r.id} className="flex items-center justify-between gap-4 py-2.5 text-sm">
+                <span className="min-w-0">
+                  <span className="font-medium truncate block">{r.title}</span>
+                  <span className="text-xs text-muted-foreground">{r.platform} · falta {r.missing === 'fanart' ? 'fondo' : r.missing === 'logo' ? 'logo' : 'fondo o logo'}</span>
+                </span>
+                <Link href={`/admin/games/${r.id}`} className="px-3 py-1.5 rounded-md text-xs bg-secondary hover:bg-secondary/80 flex-shrink-0">Editar arte</Link>
+              </li>
+            ))}
+          </ul>
+        )}
+
         {selected.length > shown && (
           <div className="flex items-center justify-between gap-4 border-t border-border pt-4">
             <span className="text-xs text-muted-foreground">Mostrando {shown} de {selected.length}</span>
