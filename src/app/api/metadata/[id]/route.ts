@@ -17,6 +17,7 @@ import { fetchLibretroCover } from '@/lib/metadata/libretro'
 import type { LaunchBoxGame } from '@/lib/metadata/launchbox'
 import { changedFields, lockFields, LOCKABLE_FIELDS } from '@/lib/manual-fields'
 import { runAutomatic } from '@/lib/automatic'
+import { scoreForGame } from '@/lib/metadata/one-score'
 import { parseRomTags, languagesToCsv } from '@/lib/rom-tags'
 import { extractSwitchTitleId } from '@/lib/scanner/titleid'
 
@@ -138,10 +139,22 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     ...(!game.languages && tags.languages?.length && { languages: languagesToCsv(tags.languages) }),
   }
 
+  // The score the scores batch would write, when the game has none yet (#80 scale).
+  const scoreFill = game.rawgScore == null
+    ? await scoreForGame({ title: game.title, platformSlug: game.platform.slug, rawgId: game.rawgId }, await rawgKey())
+    : null
+
   const updated = await runAutomatic(() => db.game.update({
     where: { id: gameId },
     data: {
       ...fromName,
+      ...(scoreFill && {
+        rawgScore:      scoreFill.rawgScore,
+        scoreSource:    scoreFill.scoreSource,
+        rawgMetacritic: scoreFill.rawgMetacritic,
+        rawgRating:     scoreFill.rawgRating,
+        rawgAdded:      scoreFill.rawgAdded,
+      }),
       title:       meta.title,
       description: meta.description,
       releaseYear: meta.releaseYear,
