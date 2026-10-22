@@ -200,24 +200,25 @@ export default async function GamePage({ params, searchParams }: Props) {
               </section>
             )}
 
-            <div className="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] lg:gap-10">
-              <section className="flex flex-col gap-4 min-w-0">
+            <div className="flow-root">
+              {/* The facts float to the right: the text wraps beside them and runs the full width below. */}
+              <section className="min-w-0">
                 {game.description && (
                   <>
-                    <h2 className="text-lg font-semibold">{t('about')}</h2>
-                    <p className="text-[15px] leading-relaxed text-foreground/80 whitespace-pre-line">{game.description}</p>
+                    <h2 className="mb-4 text-lg font-semibold">{t('about')}</h2>
+                    <p className="mb-6 text-[15px] leading-relaxed text-foreground/80 whitespace-pre-line">{game.description}</p>
                   </>
                 )}
                 {game.customNotes && (
                   <>
-                    <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">{t('notes')}</h3>
+                    <h3 className="mb-2 text-sm font-semibold text-muted-foreground uppercase tracking-wider">{t('notes')}</h3>
                     <p className="text-sm leading-relaxed text-foreground/70 whitespace-pre-line">{game.customNotes}</p>
                   </>
                 )}
               </section>
 
               {facts.length > 0 && (
-                <aside className="flex flex-col gap-3">
+                <aside className="mb-6 flex flex-col gap-3 lg:float-right lg:ml-12 lg:w-80">
                   <h2 className="text-lg font-semibold">{t('ficha')}</h2>
                   <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
                     {facts.map(([label, value]) => (
