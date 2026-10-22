@@ -12,8 +12,10 @@ export interface TileGame {
   title: string
   platformName: string
   platformSlug: string
-  /** 16:9 image for tiles: fanart, else a screenshot. Null when the game has neither. */
+  /** The game's own fanart (a real wide banner). Null when it has none: a small screenshot is never stretched into a tile. */
   image: string | null
+  /** A screenshot, for the hero only; never used as a tile. */
+  shot: string | null
   /** True when `image` is the game's own fanart (a real banner), not a screenshot. */
   fanart: boolean
   /** Width over height of the platform's box art (GBA square, Switch tall, SNES wide). */
@@ -75,18 +77,20 @@ function parsePalette(raw: string | null): string[] | null {
 }
 
 export function toTile(g: TileRow): TileGame {
-  const image = resolveCoverPath(g.tilePath) ?? firstScreenshot(g.screenshotPaths)
+  const image = resolveCoverPath(g.tilePath)
+  const shot = firstScreenshot(g.screenshotPaths)
   return {
     id: g.id,
     title: g.title,
     platformName: g.platform.name,
     platformSlug: g.platform.slug,
     image,
+    shot,
     fanart: g.tilePath != null,
     coverRatio: g.platform.thumbnailWidth && g.platform.thumbnailHeight
       ? g.platform.thumbnailWidth / g.platform.thumbnailHeight
       : 2 / 3,
-    backdrop: resolveCoverPath(g.backdropPath) ?? image,
+    backdrop: resolveCoverPath(g.backdropPath) ?? image ?? shot,
     cover: resolveCoverPath(g.coverPath) ?? g.coverUrl,
     logo: resolveCoverPath(g.logoPath),
     palette: parsePalette(g.themePalette),
