@@ -24,9 +24,11 @@ const fetcher = (url: string) => fetch(url).then((r) => r.json())
 interface Props {
   gameId: number
   onClose: () => void
+  /** The grid's region filter; the full game page opens on this region. */
+  region?: string
 }
 
-export function GameDetailModal({ gameId, onClose }: Props) {
+export function GameDetailModal({ gameId, onClose, region }: Props) {
   const t = useTranslations('GameDetail')
   const [game, setGame] = useState<Game | null>(null)
   const [loading, setLoading] = useState(true)
@@ -136,6 +138,12 @@ export function GameDetailModal({ gameId, onClose }: Props) {
                   fileSize={game.fileSize}
                   variant="primary"
                 />
+                <Link
+                  href={`/game/${game.id}${region ? `?region=${encodeURIComponent(region)}` : ''}`}
+                  className="hidden sm:inline-flex items-center px-3 py-2 text-sm rounded-md bg-secondary hover:bg-accent transition-colors"
+                >
+                  {t('fullPage')}
+                </Link>
                 {auth?.admin && (
                   <Link
                     href={`/admin/games/${game.id}`}

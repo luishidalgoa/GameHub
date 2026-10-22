@@ -340,6 +340,7 @@ export function GameGrid({
         <GameDetailModal
           gameId={selectedId}
           onClose={() => setSelectedId(null)}
+          region={region}
         />
       )}
     </div>

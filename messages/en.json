@@ -97,7 +97,8 @@
     "download": "Download",
     "downloadRegion": "Download · {region}",
     "region": "Download region",
-    "editSheet": "Edit entry"
+    "editSheet": "Edit entry",
+    "fullPage": "Full page"
   },
   "CookieConsent": {
     "description": "We use a session cookie for admin access and, with your consent, analytics cookies to understand how the library is used.",

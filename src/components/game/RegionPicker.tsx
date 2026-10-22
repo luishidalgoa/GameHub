@@ -32,32 +32,37 @@ export function RegionPicker({
   const selected = editions.find((e) => e.key === key) ?? editions[0]
   if (!selected) return null
 
+  // A game with no region name has nothing to choose: the badges would only show a dash.
+  const showBadges = !(editions.length === 1 && !selected.region)
+
   return (
     <div className="flex flex-col gap-3">
-      <div role="group" aria-label={groupLabel} className="flex flex-wrap gap-2">
-        {editions.map((e) => {
-          const on = e.key === selected.key
-          return (
-            <button
-              key={e.key}
-              type="button"
-              aria-pressed={on}
-              onClick={() => setKey(e.key)}
-              className={cn(
-                'px-3.5 py-2 rounded-lg text-sm border transition-colors',
-                on
-                  ? 'bg-secondary border-primary/60 text-foreground'
-                  : 'border-border text-muted-foreground hover:text-foreground hover:bg-secondary/60',
-              )}
-            >
-              <span className="font-medium">{e.region ?? '—'}</span>
-              {e.languages.length > 0 && (
-                <span className="ml-2 text-[11px] uppercase tracking-wide opacity-70">{e.languages.join(' ')}</span>
-              )}
-            </button>
-          )
-        })}
-      </div>
+      {showBadges && (
+        <div role="group" aria-label={groupLabel} className="flex flex-wrap gap-2">
+          {editions.map((e) => {
+            const on = e.key === selected.key
+            return (
+              <button
+                key={e.key}
+                type="button"
+                aria-pressed={on}
+                onClick={() => setKey(e.key)}
+                className={cn(
+                  'px-3.5 py-2 rounded-lg text-sm border transition-colors',
+                  on
+                    ? 'bg-secondary border-primary/60 text-foreground'
+                    : 'border-border text-muted-foreground hover:text-foreground hover:bg-secondary/60',
+                )}
+              >
+                <span className="font-medium">{e.region ?? '—'}</span>
+                {e.languages.length > 0 && (
+                  <span className="ml-2 text-[11px] uppercase tracking-wide opacity-70">{e.languages.join(' ')}</span>
+                )}
+              </button>
+            )
+          })}
+        </div>
+      )}
 
       <div className="flex flex-wrap items-center gap-3">
         {BigInt(selected.fileSize) > BigInt(0) && (
