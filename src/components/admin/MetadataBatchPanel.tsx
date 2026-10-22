@@ -30,8 +30,23 @@ export function MetadataBatchPanel({ platforms = [] }: { platforms?: PlatformOpt
   const [job, setJob]               = useState<JobState | null>(null)
   const [withCovers, setWithCovers] = useState(true)
   const [mode, setMode]             = useState<Mode>('missing')
+  const [preview, setPreview]       = useState<{ games: number | null; fields?: number; skippedUnfindable: number } | null>(null)
+  // One line per mode, so the choice reads without the manual: what it does, and to whom.
+  const MODE_TEXT: Record<Mode, string> = {
+    'missing':              'Busca los juegos que no tienen ningún metadato. Lo que ya existe no se toca.',
+    'fill':                 'Rellena solo los campos vacíos de cada juego. Nunca cambia lo que ya tiene valor ni lo que fijaste tú.',
+    'redo':                 'Vuelve a buscar en todas las fuentes y sobrescribe lo automático. Lo que fijaste tú se conserva.',
+    'wrong-provider':       'Vuelve a buscar solo en los juegos cuyos datos vienen de una fuente que no es la preferente de su plataforma.',
+    'popularity':           'Recalcula popularidad y recomendados desde RAWG.',
+    'autocomplete-scores':  'Pone la nota a los juegos que no tienen ninguna, con la fuente configurada.',
+  }
   const [popularityRedo, setPopularityRedo] = useState(false)
   const [platform, setPlatform]     = useState('')
+  useEffect(() => {
+    const q = new URLSearchParams({ mode })
+    if (platform) q.set('platformSlug', platform)
+    fetch(`/api/admin/metadata/batch/preview?${q}`).then(r => r.ok ? r.json() : null).then(setPreview).catch(() => setPreview(null))
+  }, [mode, platform])
   const [starting, setStarting]     = useState(false)
   const [withScores, setWithScores] = useState(true)
   const [logLines, setLogLines]     = useState<string[]>([])
@@ -125,6 +140,17 @@ export function MetadataBatchPanel({ platforms = [] }: { platforms?: PlatformOpt
             <option value="popularity">{t('modePopularity')}</option>
             <option value="autocomplete-scores">{t('modeAutocompleteScores')}</option>
           </select>
+          <div className="basis-full text-xs text-muted-foreground leading-relaxed">
+            <p>{MODE_TEXT[mode]}</p>
+            {preview && (
+              <p className="mt-1 text-foreground">
+                {preview.games === null
+                  ? 'Cuántos juegos toca: se sabrá al empezar, porque depende de la fuente de cada juego.'
+                  : <>Tocará <b>{preview.games.toLocaleString('es-ES')}</b> juegos{preview.fields !== undefined ? <> · <b>{preview.fields.toLocaleString('es-ES')}</b> campos vacíos</> : null}.</>}
+                {preview.skippedUnfindable > 0 && <span className="text-muted-foreground"> No se tocan {preview.skippedUnfindable} sin fuente.</span>}
+              </p>
+            )}
+          </div>
 
           {/* Platform selector */}
           <select
