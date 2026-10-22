@@ -3,6 +3,7 @@ import { resolveCoverPath } from '@/lib/cover-url'
 import { ArtJobPanel } from '@/components/admin/ArtJobPanel'
 import { ArtManualUpload, type ArtUploadRow } from '@/components/admin/ArtManualUpload'
 import { ManualArtList, type ManualArtRow } from '@/components/admin/ManualArtList'
+import Link from 'next/link'
 import {
   DEFAULT_ART_FILTER, hasRichMetadata, isValuableForArt, selectArtGames,
   type ArtFilter, type ArtMissing, type ArtView,
@@ -10,9 +11,15 @@ import {
 
 export const dynamic = 'force-dynamic'
 
-const SAMPLE = 60
+const PAGE = 60
 const VIEWS: ArtView[] = ['valiosos', 'todos', 'pobres']
 const MISSING: ArtMissing[] = ['ambos', 'fondo', 'logo']
+
+const EMPTY: Record<ArtView, string> = {
+  valiosos: 'Ningún juego valioso con estos filtros. Cambia la vista a «Todos los visibles» para ver el resto.',
+  todos: 'Ningún juego visible con estos filtros.',
+  pobres: 'Ningún juego con metadatos pobres con estos filtros.',
+}
 
 function filterFrom(sp: Record<string, string | string[] | undefined>): ArtFilter {
   const pick = <T extends string>(v: string | string[] | undefined, allowed: readonly T[], fallback: T): T =>
@@ -28,6 +35,8 @@ function filterFrom(sp: Record<string, string | string[] | undefined>): ArtFilte
 // Los demás están a un filtro de distancia: nada queda fuera sin poder verse.
 export default async function AdminArtPage({ searchParams }: { searchParams: Record<string, string | string[] | undefined> }) {
   const filter = filterFrom(searchParams)
+  const shownRaw = typeof searchParams.n === 'string' ? parseInt(searchParams.n, 10) : NaN
+  const shown = Number.isFinite(shownRaw) && shownRaw > PAGE ? shownRaw : PAGE
 
   const [games, downloads, platforms, manual] = await Promise.all([
     db.game.findMany({
@@ -58,7 +67,7 @@ export default async function AdminArtPage({ searchParams }: { searchParams: Rec
 
   const selected = selectArtGames(candidates, filter, downloaded)
   const byId = new Map(candidates.map(g => [g.id, g]))
-  const uploadRows: ArtUploadRow[] = selected.slice(0, SAMPLE).map(({ id, missing }) => {
+  const uploadRows: ArtUploadRow[] = selected.slice(0, shown).map(({ id, missing }) => {
     const g = byId.get(id)!
     return { id, title: g.title, platform: g.platform.name, coverUrl: resolveCoverPath(g.coverPath), missing }
   })
@@ -79,6 +88,7 @@ export default async function AdminArtPage({ searchParams }: { searchParams: Rec
     pobres: `Metadatos pobres (${count('pobres')})`,
   }
   const select = 'bg-secondary border border-border rounded-md px-2.5 py-2 text-sm'
+  const moreParams = new URLSearchParams({ vista: filter.vista, falta: filter.falta, plataforma: filter.plataforma, n: String(shown + PAGE) })
 
   return (
     <div className="space-y-8">
@@ -96,7 +106,7 @@ export default async function AdminArtPage({ searchParams }: { searchParams: Rec
         <div>
           <h3 className="font-semibold">Sin fondo o sin logo</h3>
           <p className="text-sm text-muted-foreground mt-0.5">
-            {selected.length} resultados con estos filtros. Se muestran {Math.min(SAMPLE, selected.length)}. Eliges la imagen y la ves antes de subirla.
+            {selected.length} resultados con estos filtros. Se muestran {Math.min(shown, selected.length)}. Eliges la imagen y la ves antes de subirla.
           </p>
         </div>
 
@@ -125,7 +135,15 @@ export default async function AdminArtPage({ searchParams }: { searchParams: Rec
           <button type="submit" className="px-3 py-2 rounded-md text-sm font-medium bg-violet-600 hover:bg-violet-500 text-white">Aplicar</button>
         </form>
 
-        <ArtManualUpload rows={uploadRows} />
+        <ArtManualUpload rows={uploadRows} emptyText={EMPTY[filter.vista]} />
+        {selected.length > shown && (
+          <div className="flex items-center justify-between gap-4 border-t border-border pt-4">
+            <span className="text-xs text-muted-foreground">Mostrando {shown} de {selected.length}</span>
+            <Link href={`/admin/arte?${moreParams.toString()}`} className="px-3 py-2 rounded-md text-sm bg-secondary hover:bg-secondary/80">
+              Mostrar {PAGE} más
+            </Link>
+          </div>
+        )}
       </div>
     </div>
   )

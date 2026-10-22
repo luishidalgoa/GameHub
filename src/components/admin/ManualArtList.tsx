@@ -21,14 +21,17 @@ export function ManualArtList({ rows }: { rows: ManualArtRow[] }) {
   const router = useRouter()
   const [busy, setBusy] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [done, setDone] = useState<string | null>(null)
 
   async function remove(row: ManualArtRow) {
     if (!window.confirm(`¿Quitar ${KIND[row.kind].toLowerCase()} de «${row.title}»? El juego vuelve a como estaba sin ella.`)) return
     setBusy(row.imageId)
     setError(null)
+    setDone(null)
     try {
       const res = await fetch(`/api/admin/games/${row.gameId}/art?imageId=${row.imageId}`, { method: 'DELETE' })
       if (!res.ok) throw new Error(String(res.status))
+      setDone(`Quitado: «${row.title}» vuelve a como estaba. La imagen se borra del almacén.`)
       router.refresh()
     } catch {
       setError(`No se pudo quitar la imagen de «${row.title}».`)
@@ -41,13 +44,18 @@ export function ManualArtList({ rows }: { rows: ManualArtRow[] }) {
 
   return (
     <div className="space-y-3">
-      {error && <p className="text-sm text-destructive">{error}</p>}
+      {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
+      {done && <p role="status" className="text-sm text-green-500">{done}</p>}
       <ul className="divide-y divide-border">
         {rows.map(row => (
           <li key={row.imageId} className="py-3 flex items-center gap-4">
             <div className="w-24 h-14 flex-shrink-0 rounded-md bg-secondary overflow-hidden flex items-center justify-center">
               {row.imageUrl
-                ? <img src={row.imageUrl} alt="" className="w-full h-full object-cover" />
+                ? <img
+                    src={row.imageUrl}
+                    alt={`${KIND[row.kind]} de ${row.title}`}
+                    className={row.kind === 'logo' ? 'w-full h-full object-contain bg-[repeating-conic-gradient(#1c1c24_0%_25%,#15151b_0%_50%)] bg-[length:12px_12px]' : 'w-full h-full object-cover'}
+                  />
                 : <span className="text-xs text-muted-foreground">sin vista</span>}
             </div>
             <div className="min-w-0 flex-1">
