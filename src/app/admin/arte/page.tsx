@@ -40,17 +40,19 @@ export default async function AdminArtPage({ searchParams }: { searchParams: Rec
   const shownRaw = typeof searchParams.n === 'string' ? parseInt(searchParams.n, 10) : NaN
   const shown = Number.isFinite(shownRaw) && shownRaw > PAGE ? shownRaw : PAGE
 
-  const [games, downloads, platforms, manual] = await Promise.all([
+  const [games, downloads, byKind, platforms, manual] = await Promise.all([
     db.game.findMany({
       where: { isHidden: false },
       select: {
         id: true, title: true, coverPath: true, description: true, releaseYear: true,
         developer: true, genre: true, rawgAdded: true, backdropPath: true, logoPath: true,
+        tilePath: true, screenshotPaths: true,
         platform: { select: { name: true } },
       },
       orderBy: { title: 'asc' },
     }),
     db.downloadLog.findMany({ distinct: ['gameId'], select: { gameId: true } }),
+    db.gameImage.groupBy({ by: ['kind'], _count: { _all: true } }),
     db.platform.findMany({ where: { enabled: true }, select: { name: true }, orderBy: { sortOrder: 'asc' } }),
     db.gameImage.findMany({
       where: { kind: { startsWith: 'manual-' } },
@@ -60,6 +62,16 @@ export default async function AdminArtPage({ searchParams }: { searchParams: Rec
   ])
 
   const downloaded = new Set(downloads.map(d => d.gameId))
+  const visible = games.length
+  const repo = (kind: string) => byKind.find(k => k.kind === kind)?._count._all ?? 0
+  const typeRows = [
+    { label: 'Fondo', has: games.filter(g => g.backdropPath).length, files: repo('fanart'), missing: 'fondo' as const },
+    { label: 'Logo', has: games.filter(g => g.logoPath).length, files: repo('clear-logo'), missing: 'logo' as const },
+    { label: 'Tile', has: games.filter(g => g.tilePath).length, files: null, missing: null },
+    { label: 'Capturas', has: games.filter(g => g.screenshotPaths).length, files: null, missing: null },
+    { label: 'Banner', has: null, files: repo('banner'), missing: null },
+    { label: 'Carátula frontal', has: null, files: repo('box-front'), missing: null },
+  ]
   const candidates = games.map(g => ({ ...g, platformName: g.platform.name }))
   const count = (view: ArtView) => candidates.filter(g => {
     if (view === 'valiosos') return isValuableForArt(g, downloaded.has(g.id))
@@ -96,6 +108,32 @@ export default async function AdminArtPage({ searchParams }: { searchParams: Rec
   return (
     <div className="space-y-8">
       <ArtJobPanel />
+
+      <div className="bg-card border border-border rounded-xl p-6 space-y-4">
+        <div>
+          <h3 className="font-semibold">Vista por tipo</h3>
+          <p className="text-sm text-muted-foreground mt-0.5">Cuántos juegos visibles ({visible}) tienen cada tipo de arte, y cuántos ficheros guarda el repositorio. Pulsa una fila con «falta» para verla abajo.</p>
+        </div>
+        <table className="w-full text-sm">
+          <thead className="text-left text-xs text-muted-foreground">
+            <tr><th className="py-2">Tipo</th><th className="py-2 text-right">Con este arte</th><th className="py-2 text-right">Sin este arte</th><th className="py-2 text-right">Ficheros en el repositorio</th></tr>
+          </thead>
+          <tbody className="divide-y divide-border">
+            {typeRows.map(r => (
+              <tr key={r.label}>
+                <td className="py-2">
+                  {r.missing
+                    ? <Link href={`/admin/arte?falta=${r.missing}`} className="hover:underline">{r.label}</Link>
+                    : r.label}
+                </td>
+                <td className="py-2 text-right tabular-nums">{r.has ?? '—'}</td>
+                <td className="py-2 text-right tabular-nums">{r.has === null ? '—' : visible - r.has}</td>
+                <td className="py-2 text-right tabular-nums">{r.files ?? '—'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
 
       <div className="bg-card border border-border rounded-xl p-6 space-y-4">
         <div>
