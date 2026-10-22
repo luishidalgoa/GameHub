@@ -31,3 +31,41 @@ export async function purgeExpiredManualArt(now = Date.now()): Promise<number> {
   await db.gameImage.deleteMany({ where: { id: { in: expired.map(e => e.id) } } })
   return expired.length
 }
+
+/** The categories the editor sorts images into. */
+export type ArtCategory = 'cover' | 'banner' | 'fanart' | 'logo' | 'screenshot' | 'other'
+
+/** The category of a stored image (GameImage.kind), manual or from LaunchBox. */
+export function categoryOf(kind: string): ArtCategory {
+  switch (kind) {
+    case 'box-front':
+    case 'box-front-reconstructed':
+      return 'cover'
+    case 'banner':
+    case 'manual-banner':
+      return 'banner'
+    case 'fanart':
+    case 'manual-fanart':
+      return 'fanart'
+    case 'clear-logo':
+    case 'manual-logo':
+      return 'logo'
+    case 'screenshot-gameplay':
+    case 'screenshot-game-title':
+    case 'manual-screenshot':
+      return 'screenshot'
+    default:
+      return 'other'
+  }
+}
+
+/** The game art slot an image of this kind can fill (the cover and the screenshots have their own). */
+export function slotOf(kind: string): ManualKind | null {
+  const c = categoryOf(kind)
+  return c === 'banner' || c === 'fanart' || c === 'logo' ? c : null
+}
+
+/** True for the images the owner brought in: only those can be removed. */
+export function isManualKind(kind: string): boolean {
+  return kind.startsWith('manual-')
+}

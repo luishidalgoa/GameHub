@@ -18,6 +18,7 @@ import { YouTubeEmbed }       from '@/components/shared/YouTubeEmbed'
 import { addRecentlyViewed }  from '@/lib/recently-viewed'
 import { extractUpdateVersion, extractDlcName } from '@/lib/switch-labels'
 import type { Game } from '@/types/game'
+import { resolveCoverPath } from '@/lib/cover-url'
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
@@ -38,7 +39,7 @@ export function GameDetailModal({ gameId, onClose, region }: Props) {
   const storedScreenshots = useMemo<string[]>(() => {
     try {
       const arr = game?.screenshotPaths ? JSON.parse(game.screenshotPaths) : []
-      return Array.isArray(arr) ? arr.filter((s: unknown): s is string => typeof s === 'string') : []
+      return Array.isArray(arr) ? arr.filter((s: unknown): s is string => typeof s === 'string').map((s) => resolveCoverPath(s) ?? s) : []
     } catch { return [] }
   }, [game?.screenshotPaths])
   const { data: ssData } = useSWR<{ screenshots: string[] }>(

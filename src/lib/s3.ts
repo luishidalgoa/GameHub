@@ -6,6 +6,7 @@ import {
   HeadObjectCommand,
   ListObjectsV2Command,
   CopyObjectCommand,
+  GetObjectCommand,
 } from '@aws-sdk/client-s3'
 import { db } from './db'
 import { resolveCoverPath } from './cover-url'
@@ -134,6 +135,15 @@ export async function uploadCoverToS3(
   }
 
   await client.send(new PutObjectCommand({ Bucket: bucket, Key: key, Body: buffer, ContentType: 'image/webp' }))
+}
+
+/** The bytes of one stored object. Throws when it does not exist. */
+export async function getFromS3(key: string, config?: S3Config): Promise<Buffer> {
+  const cfg    = config ?? await getS3Config()
+  const client = makeS3Client(cfg)
+  const res    = await client.send(new GetObjectCommand({ Bucket: cfg.bucketName, Key: key }))
+  if (!res.Body) throw new Error(`Empty object: ${key}`)
+  return Buffer.from(await res.Body.transformToByteArray())
 }
 
 export async function deleteFromS3(key: string, config?: S3Config): Promise<void> {

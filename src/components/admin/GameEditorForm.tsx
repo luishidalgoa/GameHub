@@ -1,21 +1,24 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useTranslations } from 'next-intl'
 import { Save, Loader2, ArrowLeft, Heart, Star, EyeOff, Search, ChevronDown, ImageIcon, Link2, Github, Plus, Trash2, GitMerge } from 'lucide-react'
 import useSWR from 'swr'
-import { CoverUploader } from './CoverUploader'
+import { GameImagesPanel } from './GameImagesPanel'
 import { MetadataFetchButton } from './MetadataFetchButton'
-import { ScreenshotCarousel } from '@/components/game/ScreenshotCarousel'
 import { parseExternalLinks, type ExternalLinkItem } from '@/components/game/ExternalLinks'
 import { YouTubeEmbed } from '@/components/shared/YouTubeEmbed'
 import { toast } from '@/components/shared/Toaster'
 import type { Game } from '@/types/game'
+import type { GameArt } from '@/lib/game-art'
 import { PROVIDER_LABEL, parseMetadataSources, type FieldSource, type MetadataSources } from '@/lib/metadata/sources'
 import { parseLocks } from '@/lib/manual-fields'
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
+
+const SECTIONS = ['datos', 'imagenes', 'trailer', 'archivo'] as const
+type Section = (typeof SECTIONS)[number]
 
 interface Props {
   game: Game
@@ -26,6 +29,16 @@ interface Props {
 export function GameEditorForm({ game, thumbnailWidth = 200, thumbnailHeight = 300 }: Props) {
   const router = useRouter()
   const t = useTranslations('GameEditor')
+  const [section, setSection] = useState<Section>('datos')
+  const openSection = (id: Section) => {
+    setSection(id)
+    window.history.replaceState(null, '', `#${id}`)
+  }
+  // A link to #imagenes (or any section) opens on it.
+  useEffect(() => {
+    const id = window.location.hash.slice(1)
+    if ((SECTIONS as readonly string[]).includes(id)) setSection(id as Section)
+  }, [])
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [coverPath, setCoverPath] = useState(game.coverPath)
@@ -34,42 +47,6 @@ export function GameEditorForm({ game, thumbnailWidth = 200, thumbnailHeight = 3
   const [trailerSearchQuery, setTrailerSearchQuery] = useState(`${game.title} trailer`)
   const [trailerResults, setTrailerResults] = useState<Array<{ videoId: string; title: string; channel: string; thumbnail: string }>>([])
   const [trailerError, setTrailerError] = useState('')
-
-  // Screenshots already stored on the game (e.g. fetched from LaunchBox/RAWG by
-  // the metadata job and saved to screenshotPaths). These take priority.
-  const storedScreenshots = useMemo<string[]>(() => {
-    try {
-      const arr = game.screenshotPaths ? JSON.parse(game.screenshotPaths) : []
-      return Array.isArray(arr) ? arr.filter((s: unknown): s is string => typeof s === 'string') : []
-    } catch { return [] }
-  }, [game.screenshotPaths])
-
-  // Fall back to a live RAWG fetch only when nothing is stored yet (and the game
-  // is matched on RAWG), so a RAWG-matched game without saved shots still shows some.
-  const { data: ssData } = useSWR<{ screenshots: string[] }>(
-    storedScreenshots.length === 0 && game.rawgSlug ? `/api/games/${game.id}/screenshots` : null,
-    fetcher,
-  )
-  const screenshots = storedScreenshots.length > 0 ? storedScreenshots : (ssData?.screenshots ?? [])
-  const [settingCover, setSettingCover] = useState<string | null>(null)
-
-  const useCoverFromScreenshot = async (url: string) => {
-    setSettingCover(url)
-    try {
-      const res = await fetch('/api/covers', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ gameId: game.id, url, source: 'screenshot' }),
-      })
-      if (res.ok) {
-        const data = await res.json()
-        setCoverPath(data.coverPath)
-        if (data.sources) setSources(data.sources)
-      }
-    } finally {
-      setSettingCover(null)
-    }
-  }
 
   const [form, setForm] = useState({
     title: game.title ?? '',
@@ -206,7 +183,6 @@ export function GameEditorForm({ game, thumbnailWidth = 200, thumbnailHeight = 3
       body: JSON.stringify({
         ...rest,
         releaseYear: rest.releaseYear ? parseInt(rest.releaseYear, 10) : null,
-        coverPath,
         externalLinks: JSON.stringify(links.filter((l) => l.url.trim())),
         rawgScore:           finalScore,
         rawgMetacritic:      isCritic ? finalScore : null,
@@ -231,7 +207,7 @@ export function GameEditorForm({ game, thumbnailWidth = 200, thumbnailHeight = 3
   return (
     <div>
       {/* Header */}
-      <div className="flex items-center justify-between mb-8">
+      <div className="flex flex-wrap items-center justify-between gap-4 mb-8">
         <div className="flex items-center gap-3">
           <button
             onClick={() => router.back()}
@@ -258,10 +234,25 @@ export function GameEditorForm({ game, thumbnailWidth = 200, thumbnailHeight = 3
         </div>
       </div>
 
-      {/* Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Left: main form (2/3) */}
-        <div className="lg:col-span-2 space-y-5">
+      <div className="flex flex-col lg:flex-row gap-8">
+        <nav aria-label={t('navAria')} className="lg:w-56 flex-shrink-0 flex lg:flex-col gap-1 overflow-x-auto text-sm">
+          {SECTIONS.map((id) => (
+            <button
+              key={id}
+              type="button"
+              aria-current={section === id ? 'page' : undefined}
+              onClick={() => openSection(id)}
+              className={`px-3 py-2.5 rounded-lg text-left whitespace-nowrap transition-colors ${section === id ? 'bg-accent text-foreground font-semibold' : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'}`}
+            >
+              {t(`section_${id}`)}
+            </button>
+          ))}
+        </nav>
+
+        <div className="min-w-0 flex-1 max-w-4xl">
+          {section === 'datos' && (
+            <div className="space-y-5">
+              <h2 className="text-lg font-semibold">{t('sectionData')}</h2>
           <Field label={t('fieldTitle')}>
             <input
               value={form.title}
@@ -348,6 +339,60 @@ export function GameEditorForm({ game, thumbnailWidth = 200, thumbnailHeight = 3
               </Field>
           </div>
 
+          {/* Flags */}
+          <div className="bg-secondary/50 rounded-xl p-4 space-y-3">
+            <p className="text-sm font-medium text-muted-foreground uppercase tracking-wide text-xs">{t('flags')}</p>
+
+            <Toggle
+              icon={<Heart className="w-4 h-4" />}
+              label={t('favorite')}
+              onLabel={t('on')}
+              offLabel={t('off')}
+              value={form.isFavorite}
+              onChange={(v) => set('isFavorite', v)}
+              activeClass="text-red-400"
+            />
+            <Toggle
+              icon={<Star className="w-4 h-4" />}
+              label={t('featured')}
+              onLabel={t('on')}
+              offLabel={t('off')}
+              value={form.isFeatured}
+              onChange={(v) => set('isFeatured', v)}
+              activeClass="text-amber-400"
+            />
+            <Toggle
+              icon={<EyeOff className="w-4 h-4" />}
+              label={t('hidden')}
+              onLabel={t('on')}
+              offLabel={t('off')}
+              value={form.isHidden}
+              onChange={(v) => set('isHidden', v)}
+              activeClass="text-amber-400"
+            />
+          </div>
+
+
+              <ImageSummary gameId={game.id} onOpen={() => openSection('imagenes')} />
+            </div>
+          )}
+
+          {section === 'imagenes' && (
+            <GameImagesPanel
+              gameId={game.id}
+              gameTitle={game.title}
+              platformSlug={game.platform?.slug}
+              coverPath={coverPath}
+              onCover={(path, next) => { setCoverPath(path); if (next) setSources(next) }}
+              thumbnailWidth={thumbnailWidth}
+              thumbnailHeight={thumbnailHeight}
+              onRelease={releaseField}
+            />
+          )}
+
+          {section === 'trailer' && (
+            <div className="space-y-5">
+              <h2 className="text-lg font-semibold">{t('sectionTrailer')}</h2>
           <Field label={t('fieldTrailer')}>
             <div className="relative">
               <div className="flex gap-2">
@@ -451,46 +496,6 @@ export function GameEditorForm({ game, thumbnailWidth = 200, thumbnailHeight = 3
             <YouTubeEmbed url={form.trailerUrl} className="aspect-video rounded-lg overflow-hidden" />
           )}
 
-          {/* RAWG Screenshots */}
-          {screenshots.length > 0 && (
-            <div>
-              <p className="text-sm font-medium mb-2 flex items-center gap-2">
-                <ImageIcon className="w-4 h-4 text-muted-foreground" />
-                {t('screenshots')}
-                <SourceBadge source={sources.screenshots} />
-                <span className="text-xs text-muted-foreground font-normal">— {t('screenshotsHint')}</span>
-              </p>
-              <div
-                className="flex gap-2 overflow-x-auto pb-1"
-                style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
-              >
-                {screenshots.map((src, i) => (
-                  <div key={i} className="relative shrink-0 group">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={src}
-                      alt={`Screenshot ${i + 1}`}
-                      className="h-24 w-auto rounded-lg object-cover"
-                    />
-                    {/* "Use as cover" overlay */}
-                    <button
-                      type="button"
-                      onClick={() => useCoverFromScreenshot(src)}
-                      disabled={settingCover !== null}
-                      className="absolute inset-0 flex items-center justify-center rounded-lg bg-black/0 group-hover:bg-black/60 transition-colors"
-                    >
-                      <span className="opacity-0 group-hover:opacity-100 transition-opacity text-[10px] font-semibold text-white text-center leading-tight px-1.5">
-                        {settingCover === src
-                          ? <Loader2 className="w-4 h-4 animate-spin" />
-                          : t('screenshotsUseCover')}
-                      </span>
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
           {/* External links (community mods, translations, GitHub projects…) */}
           <div>
             <div className="flex items-center justify-between mb-2">
@@ -555,64 +560,18 @@ export function GameEditorForm({ game, thumbnailWidth = 200, thumbnailHeight = 3
             )}
           </div>
 
+
+            </div>
+          )}
+
+          {section === 'archivo' && (
+            <div className="space-y-6">
+              <h2 className="text-lg font-semibold">{t('sectionFile')}</h2>
           {/* File path (read-only) */}
           <div className="bg-secondary/50 rounded-lg px-4 py-3">
             <p className="text-xs text-muted-foreground mb-1 font-medium uppercase tracking-wide">{t('filePath')}</p>
             <p className="text-xs font-mono text-muted-foreground/70 break-all">{game.filePath}</p>
           </div>
-        </div>
-
-        {/* Right: cover + flags (1/3) */}
-        <div className="space-y-6">
-          <div>
-            <p className="flex items-center gap-2 text-sm font-medium mb-3">
-              {t('coverArt')}
-              <SourceBadge source={sources.cover} />
-            </p>
-            <CoverUploader
-              gameId={game.id}
-              gameTitle={game.title}
-              platformSlug={game.platform?.slug}
-              currentCover={coverPath}
-              onUploaded={(path, next) => { setCoverPath(path); if (next) setSources(next) }}
-              thumbnailWidth={thumbnailWidth}
-              thumbnailHeight={thumbnailHeight}
-            />
-          </div>
-
-          {/* Flags */}
-          <div className="bg-secondary/50 rounded-xl p-4 space-y-3">
-            <p className="text-sm font-medium text-muted-foreground uppercase tracking-wide text-xs">{t('flags')}</p>
-
-            <Toggle
-              icon={<Heart className="w-4 h-4" />}
-              label={t('favorite')}
-              onLabel={t('on')}
-              offLabel={t('off')}
-              value={form.isFavorite}
-              onChange={(v) => set('isFavorite', v)}
-              activeClass="text-red-400"
-            />
-            <Toggle
-              icon={<Star className="w-4 h-4" />}
-              label={t('featured')}
-              onLabel={t('on')}
-              offLabel={t('off')}
-              value={form.isFeatured}
-              onChange={(v) => set('isFeatured', v)}
-              activeClass="text-amber-400"
-            />
-            <Toggle
-              icon={<EyeOff className="w-4 h-4" />}
-              label={t('hidden')}
-              onLabel={t('on')}
-              offLabel={t('off')}
-              value={form.isHidden}
-              onChange={(v) => set('isHidden', v)}
-              activeClass="text-amber-400"
-            />
-          </div>
-
           {/* Metadata info + provenance */}
           {game.metadataFetchedAt && (
             <div className="text-xs text-muted-foreground space-y-1">
@@ -678,6 +637,9 @@ export function GameEditorForm({ game, thumbnailWidth = 200, thumbnailHeight = 3
               </div>
             )}
           </div>
+
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -769,3 +731,44 @@ function Toggle({
   )
 }
 
+
+/** The images at a glance, in the Details section: what each category has, and the way into the section. */
+function ImageSummary({ gameId, onOpen }: { gameId: number; onOpen: () => void }) {
+  const t = useTranslations('GameEditor')
+  const { data: art } = useSWR<GameArt>(`/api/admin/games/${gameId}/images`, fetcher, { revalidateOnFocus: false })
+  if (!art) return null
+  const backdropIsBanner = art.backdrop?.kind === 'banner'
+  const rows: { key: string; label: string; url: string | null; note: string; missing: boolean }[] = [
+    { key: 'cover', label: t('cat_cover'), url: art.cover, note: art.cover ? '' : t('imgSummaryMissing'), missing: !art.cover },
+    { key: 'banner', label: t('cat_banner'), url: backdropIsBanner ? art.backdrop!.url : null, note: backdropIsBanner ? '' : t('imgSummaryMissing'), missing: !backdropIsBanner },
+    { key: 'fanart', label: t('cat_fanart'), url: art.backdrop && !backdropIsBanner ? art.backdrop.url : null, note: art.backdrop && !backdropIsBanner ? '' : t('imgSummaryMissing'), missing: !(art.backdrop && !backdropIsBanner) },
+    { key: 'logo', label: t('cat_logo'), url: art.logo?.url ?? null, note: art.logo ? '' : t('imgSummaryMissing'), missing: !art.logo },
+    {
+      key: 'shots', label: t('cat_screenshot'), url: art.screenshots[0]?.url ?? null,
+      note: art.screenshots.length ? t('imgSummaryShots', { count: art.screenshots.length, external: art.screenshots.filter(s => s.external).length }) : t('imgSummaryMissing'),
+      missing: art.screenshots.length === 0,
+    },
+  ]
+  return (
+    <section aria-labelledby="img-summary" className="border-t border-border pt-6 space-y-4">
+      <div className="flex items-baseline justify-between gap-4">
+        <h2 id="img-summary" className="text-lg font-semibold">{t('sectionImages')}</h2>
+        <button type="button" onClick={onOpen} className="text-sm text-primary hover:underline">{t('imgManage')}</button>
+      </div>
+      <ul className="grid grid-cols-2 sm:grid-cols-3 gap-x-5 gap-y-3 text-sm">
+        {rows.map(r => (
+          <li key={r.key} className="flex items-center gap-3">
+            {r.url
+              // eslint-disable-next-line @next/next/no-img-element
+              ? <img src={r.url} alt="" className="w-14 h-10 rounded-md object-cover bg-secondary flex-shrink-0" />
+              : <span className="w-14 h-10 rounded-md border border-dashed border-border flex-shrink-0" aria-hidden="true" />}
+            <span className="flex flex-col min-w-0">
+              <span>{r.label}</span>
+              {r.note && <span className={`text-xs ${r.missing ? 'text-amber-300' : 'text-muted-foreground'}`}>{r.note}</span>}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  )
+}

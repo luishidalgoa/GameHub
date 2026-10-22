@@ -48,7 +48,8 @@ export default async function GamePage({ params, searchParams }: Props) {
   let screenshots: string[] = []
   try {
     const stored = game.screenshotPaths ? JSON.parse(game.screenshotPaths) : []
-    if (Array.isArray(stored)) screenshots = stored.filter((s: unknown): s is string => typeof s === 'string')
+    // A screenshot is an external link or a bucket key the owner uploaded: both become a URL.
+    if (Array.isArray(stored)) screenshots = stored.filter((s: unknown): s is string => typeof s === 'string').map((s) => resolveCoverPath(s) ?? s)
   } catch { /* ignore malformed */ }
   if (screenshots.length === 0 && game.rawgSlug) {
     const provider = getRawgProvider(rawgSetting?.value)
