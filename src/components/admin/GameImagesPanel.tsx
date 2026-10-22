@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import useSWR from 'swr'
 import { useTranslations } from 'next-intl'
-import { Upload, Link2, Trash2, Check, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react'
+import { Upload, Link2, Trash2, Check, ChevronLeft, ChevronRight, Loader2, RefreshCw } from 'lucide-react'
 import { CoverUploader } from './CoverUploader'
 import { toast } from '@/components/shared/Toaster'
 import type { GameArt, ArtImage, ShotEntry } from '@/lib/game-art'
@@ -42,9 +42,14 @@ interface Props {
   thumbnailHeight: number
   /** Lets the owner hand a field back to the automatic flows. */
   onRelease: (field: string) => Promise<void> | void
+  /**
+   * The reference panel of the art page: pictures come only from the library and from LaunchBox
+   * ("Buscar arte"); the owner does not upload here, that happens in the game's sheet.
+   */
+  panel?: boolean
 }
 
-export function GameImagesPanel({ gameId, gameTitle, platformSlug, coverPath, onCover, thumbnailWidth, thumbnailHeight, onRelease }: Props) {
+export function GameImagesPanel({ gameId, gameTitle, platformSlug, coverPath, onCover, thumbnailWidth, thumbnailHeight, onRelease, panel = false }: Props) {
   const t = useTranslations('GameEditor')
   const base = `/api/admin/games/${gameId}`
   const { data: art, mutate } = useSWR<GameArt>(`${base}/images`, fetcher, { revalidateOnFocus: false })
@@ -77,7 +82,7 @@ export function GameImagesPanel({ gameId, gameTitle, platformSlug, coverPath, on
    * Every category takes one except "other", which is for reference only.
    */
   const bringIn = (files: File[], urls: string[]) => {
-    if (REFERENCE.includes(tab)) { toast(t('imgPasteNotHere'), 'info'); return }
+    if (panel || REFERENCE.includes(tab)) { toast(t('imgPasteNotHere'), 'info'); return }
     void run('paste', async () => {
       if (tab === 'screenshot') {
         const form = new FormData()
@@ -107,6 +112,7 @@ export function GameImagesPanel({ gameId, gameTitle, platformSlug, coverPath, on
   // Ctrl+V anywhere in the section: an image on the clipboard, or a link when no field has the focus.
   const pasteRef = useRef<(e: ClipboardEvent) => void>(() => {})
   pasteRef.current = (e: ClipboardEvent) => {
+    if (panel) return
     const target = e.target as HTMLElement | null
     const typing = !!target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)
     const files = Array.from(e.clipboardData?.files ?? []).filter(f => f.type.startsWith('image/'))
@@ -132,11 +138,18 @@ export function GameImagesPanel({ gameId, gameTitle, platformSlug, coverPath, on
     : library(cat).length
   const label = (cat: ArtCategory) => t(`cat_${cat}`)
 
+  // "Buscar arte": reads LaunchBox's images for this game again and stores them. Metadata is not touched.
+  const fill = () => run('fill', async () => {
+    const r = await call<{ outcome: string }>(`${base}/art/fill`, { method: 'POST' })
+    toast(r.outcome === 'applied' ? t('imgFillDone') : t('imgFillNone'), r.outcome === 'applied' ? 'success' : 'info')
+  })
+
   return (
     <div
       className="space-y-6"
-      onDragOver={e => { if (e.dataTransfer.types.includes('Files')) e.preventDefault() }}
+      onDragOver={e => { if (!panel && e.dataTransfer.types.includes('Files')) e.preventDefault() }}
       onDrop={e => {
+        if (panel) return
         const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/'))
         if (files.length) { e.preventDefault(); bringIn(files, []) }
       }}
@@ -147,6 +160,16 @@ export function GameImagesPanel({ gameId, gameTitle, platformSlug, coverPath, on
         {!REFERENCE.includes(tab) && <p className="text-sm text-muted-foreground max-w-prose mt-1">{t('imgPasteHint', { category: label(tab) })}</p>}
         {busy === 'paste' && <p className="flex items-center gap-2 text-sm mt-2"><Loader2 className="w-4 h-4 animate-spin" />{t('imgPasting')}</p>}
       </div>
+
+      {panel && (
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-sm text-muted-foreground">{t('imgPanelHint')}</p>
+          <button type="button" className={btnPrimary} disabled={busy !== null} onClick={() => void fill()}>
+            {busy === 'fill' ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+            {t('imgFill')}
+          </button>
+        </div>
+      )}
 
       <div role="tablist" aria-label={t('imgCategory')} className="flex flex-wrap gap-1 border-b border-border">
         {TABS.map(c => (
@@ -165,15 +188,17 @@ export function GameImagesPanel({ gameId, gameTitle, platformSlug, coverPath, on
 
       {tab === 'cover' && (
         <div className="space-y-6">
-          <CoverUploader
-            gameId={gameId}
-            gameTitle={gameTitle}
-            platformSlug={platformSlug}
-            currentCover={coverPath}
-            onUploaded={(path, next) => { onCover(path, next); void mutate() }}
-            thumbnailWidth={thumbnailWidth}
-            thumbnailHeight={thumbnailHeight}
-          />
+          {!panel && (
+            <CoverUploader
+              gameId={gameId}
+              gameTitle={gameTitle}
+              platformSlug={platformSlug}
+              currentCover={coverPath}
+              onUploaded={(path, next) => { onCover(path, next); void mutate() }}
+              thumbnailWidth={thumbnailWidth}
+              thumbnailHeight={thumbnailHeight}
+            />
+          )}
           <Library
             title={t('imgLibraryOf', { category: label('cover') })}
             images={library('cover')}
@@ -199,11 +224,12 @@ export function GameImagesPanel({ gameId, gameTitle, platformSlug, coverPath, on
           onRelease={async () => { await onRelease(SLOT_FIELD[tab]); await mutate() }}
           run={run}
           offerUndo={offerUndo}
+          panel={panel}
         />
       )}
 
       {tab === 'screenshot' && (
-        <ScreenshotsPanel art={art} base={base} gameId={gameId} busy={busy} run={run} offerUndo={offerUndo} onCover={onCover} />
+        <ScreenshotsPanel art={art} base={base} gameId={gameId} busy={busy} run={run} offerUndo={offerUndo} onCover={onCover} panel={panel} />
       )}
 
       {REFERENCE.includes(tab) && (
@@ -224,7 +250,8 @@ const post = (body: unknown): RequestInit => ({ method: 'POST', headers: { 'Cont
 
 // ── Banner, fanart and logo: one active image, a library, and ways to bring a new one ──────────
 
-function SlotPanel({ slot, art, images, busy, base, label, onRelease, run, offerUndo }: {
+function SlotPanel({ slot, art, images, busy, base, label, onRelease, run, offerUndo, panel }: {
+  panel: boolean
   slot: Slot
   art: GameArt
   images: ArtImage[]
@@ -287,29 +314,35 @@ function SlotPanel({ slot, art, images, busy, base, label, onRelease, run, offer
         <p className="text-sm text-muted-foreground">{t(`imgUse_${slot}`)}</p>
 
         <div className="flex flex-wrap gap-2.5">
-          <button type="button" className={btnPrimary} disabled={busy !== null} onClick={() => fileRef.current?.click()}>
-            {busy === `upload-${slot}` ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-            {t('imgUpload')}
-          </button>
-          <button type="button" className={btnSecondary} disabled={busy !== null} onClick={() => setLinkOpen(o => !o)}>
-            <Link2 className="w-4 h-4" />{t('imgPasteLink')}
-          </button>
+          {!panel && (
+            <button type="button" className={btnPrimary} disabled={busy !== null} onClick={() => fileRef.current?.click()}>
+              {busy === `upload-${slot}` ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+              {t('imgUpload')}
+            </button>
+          )}
+          {!panel && (
+            <button type="button" className={btnSecondary} disabled={busy !== null} onClick={() => setLinkOpen(o => !o)}>
+              <Link2 className="w-4 h-4" />{t('imgPasteLink')}
+            </button>
+          )}
           {canRemove && activeImage && (
             <button type="button" className={btnDanger} disabled={busy !== null} onClick={() => void remove(activeImage)}>
               <Trash2 className="w-4 h-4" />{t('imgRemove')}
             </button>
           )}
-          <input
-            ref={fileRef}
-            type="file"
-            accept="image/*"
-            className="sr-only"
-            aria-label={t('imgUpload')}
-            onChange={e => { const f = e.target.files?.[0]; if (f) void upload(f); e.target.value = '' }}
-          />
+          {!panel && (
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/*"
+              className="sr-only"
+              aria-label={t('imgUpload')}
+              onChange={e => { const f = e.target.files?.[0]; if (f) void upload(f); e.target.value = '' }}
+            />
+          )}
         </div>
 
-        {linkOpen && (
+        {!panel && linkOpen && (
           <form className="flex gap-2" onSubmit={e => { e.preventDefault(); if (link.trim()) void upload(undefined, link.trim()) }}>
             <input
               value={link}
@@ -341,11 +374,11 @@ function SlotPanel({ slot, art, images, busy, base, label, onRelease, run, offer
           busy={busy}
           onUse={img => run(`use-${img.id}`, () => call(`${base}/art/activate`, post({ imageId: img.id })), t('imgSaved'))}
           onRemove={remove}
-          extra={
+          extra={panel ? undefined : (
             <button type="button" onClick={() => fileRef.current?.click()} className="aspect-video rounded-lg border-2 border-dashed border-border text-sm text-muted-foreground hover:text-foreground hover:border-muted-foreground transition-colors">
               + {t('imgUploadAnother')}
             </button>
-          }
+          )}
         />
       </div>
     </div>
@@ -406,7 +439,8 @@ function Library({ title, images, activeId, busy, onUse, onRemove, extra }: {
 
 // ── Screenshots: the list the public page shows, in its order ──────────────────────────────
 
-function ScreenshotsPanel({ art, base, gameId, busy, run, offerUndo, onCover }: {
+function ScreenshotsPanel({ art, base, gameId, busy, run, offerUndo, onCover, panel }: {
+  panel: boolean
   art: GameArt
   base: string
   gameId: number
@@ -474,22 +508,28 @@ function ScreenshotsPanel({ art, base, gameId, busy, run, offerUndo, onCover }: 
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center gap-2.5">
-        <button type="button" className={btnPrimary} disabled={busy !== null} onClick={() => fileRef.current?.click()}>
-          {busy === 'add-shots' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-          {t('imgAddShots')}
-        </button>
-        <button type="button" className={btnSecondary} disabled={busy !== null} onClick={() => setLinksOpen(o => !o)}>
-          <Link2 className="w-4 h-4" />{t('imgPasteLinks')}
-        </button>
-        <input
-          ref={fileRef}
-          type="file"
-          accept="image/*"
-          multiple
-          className="sr-only"
-          aria-label={t('imgAddShots')}
-          onChange={e => { const f = Array.from(e.target.files ?? []); if (f.length) void add(f, []); e.target.value = '' }}
-        />
+        {!panel && (
+          <button type="button" className={btnPrimary} disabled={busy !== null} onClick={() => fileRef.current?.click()}>
+            {busy === 'add-shots' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+            {t('imgAddShots')}
+          </button>
+        )}
+        {!panel && (
+          <button type="button" className={btnSecondary} disabled={busy !== null} onClick={() => setLinksOpen(o => !o)}>
+            <Link2 className="w-4 h-4" />{t('imgPasteLinks')}
+          </button>
+        )}
+        {!panel && (
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/*"
+            multiple
+            className="sr-only"
+            aria-label={t('imgAddShots')}
+            onChange={e => { const f = Array.from(e.target.files ?? []); if (f.length) void add(f, []); e.target.value = '' }}
+          />
+        )}
         {external > 0 && (
           <span className="ml-auto text-sm text-amber-300">
             {t('imgExternalNote', { external, total: shots.length })}{' '}
@@ -500,7 +540,7 @@ function ScreenshotsPanel({ art, base, gameId, busy, run, offerUndo, onCover }: 
         )}
       </div>
 
-      {linksOpen && (
+      {!panel && linksOpen && (
         <form className="space-y-2 max-w-xl" onSubmit={e => { e.preventDefault(); const urls = links.split(/\s+/).filter(Boolean); if (urls.length) void add([], urls) }}>
           <textarea
             value={links}

@@ -648,7 +648,11 @@
     "cat_media": "Cartridge and disc",
     "imgRefHint_box": "Packaging art LaunchBox publishes: back of the box, 3D, spine and the boxes with a background. For reference.",
     "imgRefHint_media": "Cartridge, disc and their backgrounds. For reference.",
-    "imgRefHint_other": "Advertising, arcade cabinets, manuals, maps and icons LaunchBox has. For reference."
+    "imgRefHint_other": "Advertising, arcade cabinets, manuals, maps and icons LaunchBox has. For reference.",
+    "imgPanelHint": "Pick the art from the library or remove what you do not want. What LaunchBox has is searched again with the button on the right.",
+    "imgFill": "Find art",
+    "imgFillDone": "Art found and saved",
+    "imgFillNone": "LaunchBox has no new art for this game"
   },
   "MetadataFetch": {
     "button": "Fill metadata",

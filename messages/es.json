@@ -648,7 +648,11 @@
     "cat_media": "Cartucho y disco",
     "imgRefHint_box": "Arte de empaquetado que publica LaunchBox: caja trasera, 3D, lomo y las cajas con fondo. Es de consulta.",
     "imgRefHint_media": "Cartucho, disco y sus fondos. Es de consulta.",
-    "imgRefHint_other": "Publicidad, máquinas recreativas, manuales, mapas e iconos que trae LaunchBox. Es de consulta."
+    "imgRefHint_other": "Publicidad, máquinas recreativas, manuales, mapas e iconos que trae LaunchBox. Es de consulta.",
+    "imgPanelHint": "Elige el arte de la biblioteca o quita el que no quieras. Lo que LaunchBox trae se busca de nuevo con el botón de la derecha.",
+    "imgFill": "Buscar arte",
+    "imgFillDone": "Arte buscado y guardado",
+    "imgFillNone": "LaunchBox no tiene arte nuevo para este juego"
   },
   "MetadataFetch": {
     "button": "Rellenar metadatos",

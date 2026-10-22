@@ -1,5 +1,6 @@
 import { db } from '@/lib/db'
 import { ArtJobPanel } from '@/components/admin/ArtJobPanel'
+import { ArtGameList } from '@/components/admin/ArtGameList'
 import Link from 'next/link'
 import { purgeExpiredManualArt } from '@/lib/art-manual'
 import { ART_KINDS, artTitle, artKindOf } from '@/lib/art-catalog'
@@ -31,7 +32,7 @@ function filterFrom(sp: Record<string, string | string[] | undefined>): ArtFilte
 }
 
 // Arte (#142). Por defecto: juegos valiosos (metadatos completos y popular en RAWG o descargado).
-// Esta página es referencia: el arte se edita en la ficha de cada juego.
+// Esta página es referencia; el arte de cada juego se edita en su panel, sin subir archivos aquí.
 export default async function AdminArtPage({ searchParams }: { searchParams: Record<string, string | string[] | undefined> }) {
   await purgeExpiredManualArt()
   const filter = filterFrom(searchParams)
@@ -138,7 +139,7 @@ export default async function AdminArtPage({ searchParams }: { searchParams: Rec
         <div>
           <h3 className="font-semibold">Sin fondo o sin logo</h3>
           <p className="text-sm text-muted-foreground mt-0.5">
-            {selected.length} resultados con estos filtros. Se muestran {Math.min(shown, selected.length)}. Pulsa un juego para editar su arte en su ficha.
+            {selected.length} resultados con estos filtros. Se muestran {Math.min(shown, selected.length)}. Pulsa «Editar arte» para ver y cambiar el arte de un juego en un panel.
           </p>
         </div>
 
@@ -167,21 +168,7 @@ export default async function AdminArtPage({ searchParams }: { searchParams: Rec
           <button type="submit" className="px-3 py-2 rounded-md text-sm font-medium bg-violet-600 hover:bg-violet-500 text-white">Aplicar</button>
         </form>
 
-        {rows.length === 0 ? (
-          <p className="text-sm text-muted-foreground py-6 text-center">{EMPTY[filter.vista]}</p>
-        ) : (
-          <ul className="divide-y divide-border">
-            {rows.map(r => (
-              <li key={r.id} className="flex items-center justify-between gap-4 py-2.5 text-sm">
-                <span className="min-w-0">
-                  <span className="font-medium truncate block">{r.title}</span>
-                  <span className="text-xs text-muted-foreground">{r.platform} · falta {r.missing === 'fanart' ? 'fondo' : r.missing === 'logo' ? 'logo' : 'fondo o logo'}</span>
-                </span>
-                <Link href={`/admin/games/${r.id}`} className="px-3 py-1.5 rounded-md text-xs bg-secondary hover:bg-secondary/80 flex-shrink-0">Editar arte</Link>
-              </li>
-            ))}
-          </ul>
-        )}
+        <ArtGameList rows={rows} emptyText={EMPTY[filter.vista]} />
 
         {selected.length > shown && (
           <div className="flex items-center justify-between gap-4 border-t border-border pt-4">
