@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import useSWR from 'swr'
 import { useTranslations } from 'next-intl'
 import { Upload, Link2, Trash2, Check, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react'
@@ -70,6 +70,55 @@ export function GameImagesPanel({ gameId, gameTitle, platformSlug, coverPath, on
     undoTimer.current = setTimeout(() => setUndo(null), 9 * 60 * 1000)
   }
 
+  /**
+   * Brings images into the category that is open, from the clipboard or a drop: a file, or a link.
+   * Every category takes one except "other", which is for reference only.
+   */
+  const bringIn = (files: File[], urls: string[]) => {
+    if (tab === 'other') { toast(t('imgPasteNotHere'), 'info'); return }
+    void run('paste', async () => {
+      if (tab === 'screenshot') {
+        const form = new FormData()
+        files.forEach(f => form.append('file', f))
+        urls.forEach(u => form.append('url', u))
+        await call(`${base}/screenshots`, { method: 'POST', body: form })
+      } else if (tab === 'cover') {
+        let init: RequestInit
+        if (files[0]) {
+          const form = new FormData()
+          form.append('gameId', String(gameId)); form.append('file', files[0]); form.append('source', 'upload')
+          init = { method: 'POST', body: form }
+        } else {
+          init = post({ gameId, url: urls[0], source: 'url' })
+        }
+        const r = await call<{ coverPath: string; sources?: MetadataSources }>('/api/covers', init)
+        onCover(r.coverPath, r.sources)
+      } else {
+        const form = new FormData()
+        form.append('kind', tab)
+        if (files[0]) form.append('file', files[0]); else form.append('url', urls[0])
+        await call(`${base}/art`, { method: 'POST', body: form })
+      }
+    }, t('imgSaved'))
+  }
+
+  // Ctrl+V anywhere in the section: an image on the clipboard, or a link when no field has the focus.
+  const pasteRef = useRef<(e: ClipboardEvent) => void>(() => {})
+  pasteRef.current = (e: ClipboardEvent) => {
+    const target = e.target as HTMLElement | null
+    const typing = !!target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)
+    const files = Array.from(e.clipboardData?.files ?? []).filter(f => f.type.startsWith('image/'))
+    if (files.length) { e.preventDefault(); bringIn(files, []); return }
+    if (typing) return
+    const text = e.clipboardData?.getData('text')?.trim()
+    if (text && /^https?:\/\/\S+$/i.test(text)) { e.preventDefault(); bringIn([], [text]) }
+  }
+  useEffect(() => {
+    const onPaste = (e: ClipboardEvent) => pasteRef.current(e)
+    document.addEventListener('paste', onPaste)
+    return () => document.removeEventListener('paste', onPaste)
+  }, [])
+
   if (!art) {
     return <div className="flex items-center gap-2 text-sm text-muted-foreground py-8"><Loader2 className="w-4 h-4 animate-spin" />{t('imgLoading')}</div>
   }
@@ -82,10 +131,19 @@ export function GameImagesPanel({ gameId, gameTitle, platformSlug, coverPath, on
   const label = (cat: ArtCategory) => t(`cat_${cat}`)
 
   return (
-    <div className="space-y-6">
+    <div
+      className="space-y-6"
+      onDragOver={e => { if (e.dataTransfer.types.includes('Files')) e.preventDefault() }}
+      onDrop={e => {
+        const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/'))
+        if (files.length) { e.preventDefault(); bringIn(files, []) }
+      }}
+    >
       <div>
         <h2 className="text-lg font-semibold">{t('sectionImages')}</h2>
         <p className="text-sm text-muted-foreground max-w-prose mt-1">{t('imgIntro')}</p>
+        {tab !== 'other' && <p className="text-sm text-muted-foreground max-w-prose mt-1">{t('imgPasteHint', { category: label(tab) })}</p>}
+        {busy === 'paste' && <p className="flex items-center gap-2 text-sm mt-2"><Loader2 className="w-4 h-4 animate-spin" />{t('imgPasting')}</p>}
       </div>
 
       <div role="tablist" aria-label={t('imgCategory')} className="flex flex-wrap gap-1 border-b border-border">

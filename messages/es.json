@@ -640,7 +640,10 @@
     "section_datos": "Datos",
     "section_imagenes": "Imágenes",
     "section_trailer": "Tráiler y enlaces",
-    "section_archivo": "Archivo y estado"
+    "section_archivo": "Archivo y estado",
+    "imgPasteHint": "Puedes pegar una imagen o un enlace (Ctrl+V), o arrastrar un archivo, y entra en «{category}».",
+    "imgPasteNotHere": "Aquí no se pueden añadir imágenes: es solo de consulta.",
+    "imgPasting": "Guardando la imagen pegada…"
   },
   "MetadataFetch": {
     "button": "Rellenar metadatos",

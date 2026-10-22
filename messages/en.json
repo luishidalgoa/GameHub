@@ -640,7 +640,10 @@
     "section_datos": "Details",
     "section_imagenes": "Images",
     "section_trailer": "Trailer and links",
-    "section_archivo": "File and status"
+    "section_archivo": "File and status",
+    "imgPasteHint": "You can paste an image or a link (Ctrl+V), or drag a file here, and it goes into \"{category}\".",
+    "imgPasteNotHere": "Images cannot be added here: it is for reference only.",
+    "imgPasting": "Saving the pasted image…"
   },
   "MetadataFetch": {
     "button": "Fill metadata",
