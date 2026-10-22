@@ -287,6 +287,7 @@ export function GameEditorForm({ game, thumbnailWidth = 200, thumbnailHeight = 3
               placeholder={t('fieldCustomNotesPlaceholder')}
               className={`${inputCls} resize-y`}
             />
+            <p className="mt-1 text-xs text-muted-foreground">{t('fieldCustomNotesHint')}</p>
           </Field>
 
           <div className="grid grid-cols-2 gap-4">
@@ -343,7 +344,8 @@ export function GameEditorForm({ game, thumbnailWidth = 200, thumbnailHeight = 3
                 </button>
                 {scoreMsg && <span className="text-xs text-muted-foreground">{scoreMsg}</span>}
               </div>
-            </Field>
+                <p className="text-xs text-muted-foreground">{t('fieldScoreHint')}</p>
+              </Field>
           </div>
 
           <Field label={t('fieldTrailer')}>

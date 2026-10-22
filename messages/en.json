@@ -131,8 +131,7 @@
     "traffic": "Traffic",
     "donations": "Donations",
     "settings": "Settings",
-    "curation": "Curation"
-  ,
+    "curation": "Curation",
     "scanner": "Scanner",
     "metadata": "Metadata",
     "art": "Art",
@@ -560,7 +559,9 @@
     "mergeHint": "If this game is split across several cards (base on one disk, DLC/update on another), find the other card and absorb it into this one.",
     "mergeSearchPlaceholder": "Search another card of the same game…",
     "mergeAbsorb": "Absorb",
-    "merging": "Merging…"
+    "merging": "Merging…",
+    "fieldCustomNotesHint": "Only you write this: no process fills or overwrites it.",
+    "fieldScoreHint": "Filled by the RAWG scores batch, not by the “Fill metadata” button."
   },
   "MetadataFetch": {
     "button": "Fill metadata",

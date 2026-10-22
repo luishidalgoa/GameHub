@@ -104,6 +104,8 @@ export interface GatherInput {
   fileName?: string
   /** LaunchBox id saved from an earlier pick: fetched directly, no title search. */
   launchboxId?: number | null
+  /** RAWG id saved from an earlier match: fetched directly, no title search. */
+  rawgId?: number | null
   matrix: ProviderMatrix
   rawgApiKey?: string
   /** Minimum confidence for the primary match to be accepted. */
@@ -120,14 +122,17 @@ const sleep = (ms: number) => new Promise(r => setTimeout(r, ms))
  * a confident-enough match for the fields that need a game match.
  */
 export async function gatherMetadata(input: GatherInput): Promise<ComposedMetadata | null> {
-  const { title, platformSlug, fileName, launchboxId, matrix, rawgApiKey, threshold = AUTO_THRESHOLD, paceMs = 600 } = input
+  const { title, platformSlug, fileName, launchboxId, rawgId, matrix, rawgApiKey, threshold = AUTO_THRESHOLD, paceMs = 600 } = input
 
   const needsLaunchBox =
     matrix.cover === 'launchbox' || matrix.info === 'launchbox' ||
     matrix.description === 'launchbox' || matrix.screenshots === 'launchbox'
+  // A RAWG id saved on the game is fetched even when the matrix does not use RAWG
+  // as primary: it is the fallback for info, and without it a game LaunchBox does
+  // not match would have no source at all.
   const needsRawg =
     matrix.cover === 'rawg' || matrix.info === 'rawg' ||
-    matrix.description === 'rawg' || matrix.screenshots === 'rawg'
+    matrix.description === 'rawg' || matrix.screenshots === 'rawg' || Boolean(rawgId)
 
   // ── Resolve LaunchBox match + detail ──
   let lb: LaunchBoxGame | null = null
@@ -166,7 +171,11 @@ export async function gatherMetadata(input: GatherInput): Promise<ComposedMetada
   if (needsRawg) {
     try {
       rawgProvider = getRawgProvider(rawgApiKey)
-      if (rawgProvider) {
+      if (rawgProvider && rawgId) {
+        // Already matched once: the saved id is the same game, no search needed.
+        rawg = await rawgProvider.fetchById(rawgId)
+        rawgConfidence = rawg ? 100 : 0
+      } else if (rawgProvider) {
         const results = await rawgProvider.search(title, platformSlug)
         const match = bestMatch(title, results, r => calcConfidence(title, platformSlug, r))
         if (match && match.confidence >= threshold) {

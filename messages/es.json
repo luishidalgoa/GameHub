@@ -131,8 +131,7 @@
     "traffic": "Tráfico",
     "donations": "Donaciones",
     "settings": "Configuración",
-    "curation": "Curación"
-  ,
+    "curation": "Curación",
     "scanner": "Escáner",
     "metadata": "Metadatos",
     "art": "Arte",
@@ -560,7 +559,9 @@
     "mergeHint": "Si este juego aparece partido en varias fichas (base en un disco, DLC/update en otro), busca la otra ficha y absórbela en esta.",
     "mergeSearchPlaceholder": "Buscar otra ficha del mismo juego…",
     "mergeAbsorb": "Absorber",
-    "merging": "Fusionando…"
+    "merging": "Fusionando…",
+    "fieldCustomNotesHint": "Solo lo escribes tú: ningún proceso lo rellena ni lo sobrescribe.",
+    "fieldScoreHint": "La rellena el lote de puntuaciones de RAWG, no el botón «Rellenar metadatos»."
   },
   "MetadataFetch": {
     "button": "Rellenar metadatos",

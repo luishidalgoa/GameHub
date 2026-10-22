@@ -17,6 +17,8 @@ import { fetchLibretroCover } from '@/lib/metadata/libretro'
 import type { LaunchBoxGame } from '@/lib/metadata/launchbox'
 import { changedFields, lockFields, LOCKABLE_FIELDS } from '@/lib/manual-fields'
 import { runAutomatic } from '@/lib/automatic'
+import { parseRomTags, languagesToCsv } from '@/lib/rom-tags'
+import { extractSwitchTitleId } from '@/lib/scanner/titleid'
 
 export const dynamic = 'force-dynamic'
 
@@ -110,6 +112,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     platformSlug: game.platform.slug,
     fileName:     game.fileName,
     launchboxId:  game.launchboxId,
+    rawgId:       game.rawgId,
     matrix,
     rawgApiKey:   await rawgKey(),
   })
@@ -126,9 +129,19 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   let trailerUrl: string | undefined
   if (!game.trailerUrl) trailerUrl = (await searchYouTubeTrailer(meta.title).catch(() => undefined)) ?? undefined
 
+  // Tags the file name carries (region, languages, Nintendo title id) fill the
+  // ghost fields when they are empty; the owner's values are never overwritten.
+  const tags = parseRomTags(game.fileName)
+  const fromName = {
+    ...(!game.titleId && extractSwitchTitleId(game.fileName) && { titleId: extractSwitchTitleId(game.fileName) }),
+    ...(!game.region && tags.region && { region: tags.region }),
+    ...(!game.languages && tags.languages?.length && { languages: languagesToCsv(tags.languages) }),
+  }
+
   const updated = await runAutomatic(() => db.game.update({
     where: { id: gameId },
     data: {
+      ...fromName,
       title:       meta.title,
       description: meta.description,
       releaseYear: meta.releaseYear,
