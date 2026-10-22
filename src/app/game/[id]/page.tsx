@@ -98,12 +98,11 @@ export default async function GamePage({ params, searchParams }: Props) {
     <div>
       <RecordView gameId={game.id} />
 
-      {/* Fondo a sangre: el banner difuminado ocupa toda la página y se desvanece al final. */}
+      {/* Fondo: el banner difuminado cubre toda la página, así el color baja hasta el final y no hay corte bajo la cabecera. */}
       <div className="relative -mx-4 -mt-4 sm:-mx-6 sm:-mt-6">
         <div
           aria-hidden="true"
-          className="pointer-events-none absolute inset-0 overflow-hidden"
-          style={{ maskImage: BACKDROP_FADE, WebkitMaskImage: BACKDROP_FADE }}
+          className="pointer-events-none absolute inset-0 overflow-hidden opacity-70"
         >
           <div className="absolute -inset-10" style={{ background: heroFallback }}>
             {backdrop && (
@@ -306,10 +305,7 @@ export default async function GamePage({ params, searchParams }: Props) {
     )
   }
 
-  /** The banner fades out over the page, so the colour reaches the end of it. */
-const BACKDROP_FADE = 'linear-gradient(to bottom, #000 0%, #000 35%, transparent 100%)'
-
-function parsePalette(raw: string | null): string[] | null {
+  function parsePalette(raw: string | null): string[] | null {
     if (!raw) return null
     try {
       const arr = JSON.parse(raw)

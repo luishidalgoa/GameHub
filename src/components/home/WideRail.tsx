@@ -9,7 +9,7 @@ import { Reveal } from './Reveal'
  * when `href` is given, a last tile that opens the whole collection. The caller
  * passes the tiles as children.
  */
-export function WideRail({ kicker, title, href, moreLabel, moreHint, portrait = false, children }: {
+export function WideRail({ kicker, title, href, moreLabel, moreHint, portrait = false, itemClassName, children }: {
   kicker?: string
   /** Omit for a rail that sits under its own heading. */
   title?: string
@@ -19,6 +19,8 @@ export function WideRail({ kicker, title, href, moreLabel, moreHint, portrait = 
   moreHint?: string
   /** Tall 3:4 tiles (publishers) instead of 16:9 ones. */
   portrait?: boolean
+  /** Replaces the default tile width, e.g. to show four tiles at a time. */
+  itemClassName?: string
   children: React.ReactNode
 }) {
   const scroller = useRef<HTMLDivElement>(null)
@@ -44,9 +46,9 @@ export function WideRail({ kicker, title, href, moreLabel, moreHint, portrait = 
     if (el) el.scrollBy({ left: dir * el.clientWidth * 0.85, behavior: 'smooth' })
   }
 
-  const itemWidth = portrait
+  const itemWidth = itemClassName ?? (portrait
     ? 'w-[168px] shrink-0 snap-start sm:w-[196px] xl:w-[216px]'
-    : 'w-[min(78vw,400px)] shrink-0 snap-start sm:w-[360px] xl:w-[400px]'
+    : 'w-[min(78vw,400px)] shrink-0 snap-start sm:w-[360px] xl:w-[400px]')
   return (
     <Reveal as="section" className="group/rail">
       <div className="mb-4 flex items-end justify-between gap-4 px-4 sm:px-6">
