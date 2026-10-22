@@ -16,6 +16,7 @@ import { chooseCover } from '@/lib/metadata/compose'
 import { fetchLibretroCover } from '@/lib/metadata/libretro'
 import type { LaunchBoxGame } from '@/lib/metadata/launchbox'
 import { changedFields, lockFields, LOCKABLE_FIELDS } from '@/lib/manual-fields'
+import { runAutomatic } from '@/lib/automatic'
 
 export const dynamic = 'force-dynamic'
 
@@ -125,7 +126,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   let trailerUrl: string | undefined
   if (!game.trailerUrl) trailerUrl = (await searchYouTubeTrailer(meta.title).catch(() => undefined)) ?? undefined
 
-  const updated = await db.game.update({
+  const updated = await runAutomatic(() => db.game.update({
     where: { id: gameId },
     data: {
       title:       meta.title,
@@ -141,16 +142,17 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       ...(meta.launchboxId != null && { launchboxId: meta.launchboxId }),
       ...(coverPath  && { coverPath }),
       ...(trailerUrl && { trailerUrl }),
-      metadataSources: JSON.stringify(coverLocked
-        ? { ...meta.sources, cover: prevSources.cover, coverManual: true }
-        : meta.sources),
+      // Each fact carries the provider it came from, so the editor labels it (#133).
+      metadataSources: JSON.stringify({
+        ...meta.sources,
+        ...(meta.facts && Object.keys(meta.facts).length > 0 ? { facts: meta.facts } : {}),
+        ...(coverLocked ? { cover: prevSources.cover, coverManual: true } : {}),
+      }),
       // Same rule as the batch: a cover-only result is not "metadata fetched".
       ...(meta.sources.info ? { metadataFetchedAt: new Date() } : {}),
-      // The owner applied this from the editor: those fields are now the owner's.
-      manualFields: lockFields(game.manualFields, ['title', 'description', 'releaseYear', 'genre', 'developer', 'publisher', ...(coverPath ? ['coverPath'] : []), ...(coverLocked ? [] : ['coverUrl']), ...(meta.screenshots.length > 0 ? ['screenshotPaths'] : []), ...(trailerUrl ? ['trailerUrl'] : [])]),
     },
-  })
-  return NextResponse.json({ ...serializeBigInt(updated), sources: meta.sources })
+  }))
+  return NextResponse.json({ ...serializeBigInt(updated), sources: { ...meta.sources, facts: meta.facts } })
 }
 
 /** Apply a single chosen candidate wholesale (all its fields from its source). */
@@ -198,9 +200,15 @@ async function applyManualPick(
   let trailerUrl: string | undefined
   if (!existingTrailer) trailerUrl = (await searchYouTubeTrailer(meta.title).catch(() => undefined)) ?? undefined
 
-  const prevRow = await db.game.findUnique({ where: { id: gameId }, select: { metadataSources: true } })
+  const prevRow = await db.game.findUnique({ where: { id: gameId }, select: { metadataSources: true, manualFields: true } })
+  const facts: Record<string, typeof source> = {}
+  if (meta.developer)   facts.developer = source
+  if (meta.publisher)   facts.publisher = source
+  if (meta.releaseYear) facts.releaseYear = source
+  if (meta.genre)       facts.genre = source
   const sources = {
     info:        source,
+    ...(Object.keys(facts).length ? { facts } : {}),
     description: meta.description ? source : undefined,
     cover:       coverUrl ? coverSource : undefined,
     screenshots: screenshots.length ? source : undefined,
@@ -226,6 +234,14 @@ async function applyManualPick(
       ...(trailerUrl && { trailerUrl }),
       metadataSources: JSON.stringify(sources),
       metadataFetchedAt: new Date(),
+      // Chosen by hand: the owner's now, so automation leaves these fields alone.
+      manualFields: lockFields(prevRow?.manualFields, [
+        'title', 'description', 'releaseYear', 'genre', 'developer', 'publisher',
+        ...(coverUrl ? ['coverUrl'] : []),
+        ...(coverPath ? ['coverPath'] : []),
+        ...(screenshots.length > 0 ? ['screenshotPaths'] : []),
+        ...(trailerUrl ? ['trailerUrl'] : []),
+      ]),
     },
   })
   return { ...updated, sources }

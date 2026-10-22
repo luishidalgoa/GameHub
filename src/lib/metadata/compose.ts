@@ -27,6 +27,8 @@ export interface ComposedMetadata {
   screenshots: string[]
   /** Provenance for each field (for logging / UI). */
   sources: Partial<Record<'cover' | 'info' | 'description' | 'screenshots', 'launchbox' | 'rawg' | 'steamgriddb' | 'libretro'>>
+  /** Which provider gave each fact field, so the editor labels it (#133). */
+  facts?: Partial<Record<'developer' | 'publisher' | 'releaseYear' | 'genre', 'launchbox' | 'rawg'>>
   /** Best confidence achieved by the primary info match. */
   confidence: number
   /** IDs for persistence. */
@@ -216,6 +218,15 @@ export async function gatherMetadata(input: GatherInput): Promise<ComposedMetada
   const infoFallback = matrix.info === 'launchbox' ? rawg : lb
   const info = infoPrimary ?? infoFallback
   if (info) sources.info = (info === lb ? 'launchbox' : 'rawg')
+  // The info source is LaunchBox or RAWG; those are the providers that can carry facts.
+  const infoSource: 'launchbox' | 'rawg' | undefined = info ? (info === lb ? 'launchbox' : 'rawg') : undefined
+  const facts: NonNullable<ComposedMetadata['facts']> = {}
+  if (info && infoSource) {
+    if (info.developer)   facts.developer   = infoSource
+    if (info.publisher)   facts.publisher   = infoSource
+    if (info.releaseYear) facts.releaseYear = infoSource
+    if (info.genre)       facts.genre       = infoSource
+  }
 
   // ── DESCRIPTION ──
   let description: string | undefined
@@ -257,6 +268,7 @@ export async function gatherMetadata(input: GatherInput): Promise<ComposedMetada
   return {
     title: title2,
     description,
+    facts,
     releaseYear: info?.releaseYear,
     genre: info?.genre,
     developer: info?.developer,
