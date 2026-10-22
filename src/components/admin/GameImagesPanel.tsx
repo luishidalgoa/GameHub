@@ -248,7 +248,7 @@ function SlotPanel({ slot, art, images, busy, base, label, onRelease, run, offer
   const field = SLOT_FIELD[slot]
   const locked = art.locks.includes(field)
   const activeImage = active?.imageId != null ? art.images.find(i => i.id === active.imageId) : undefined
-  const canRemove = !!activeImage?.manual
+  const canRemove = !!activeImage
 
   const upload = (file?: File, url?: string) => run(`upload-${slot}`, async () => {
     const form = new FormData()
@@ -391,7 +391,7 @@ function Library({ title, images, activeId, busy, onUse, onRemove, extra }: {
                 <span className="truncate">
                   {img.manual ? t('imgSourceManual') : 'LaunchBox'}{img.width && img.height ? ` · ${img.width} × ${img.height}` : ''}{img.region ? ` · ${img.region}` : ''}
                 </span>
-                {img.manual && onRemove && (
+                {onRemove && (
                   <button type="button" onClick={() => onRemove(img)} disabled={busy !== null} className="text-destructive hover:underline flex-shrink-0">{t('imgRemove')}</button>
                 )}
               </div>

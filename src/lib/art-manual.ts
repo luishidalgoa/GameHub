@@ -22,8 +22,10 @@ export function isInWindow(removedAt: Date, now = Date.now()): boolean {
 
 /** Deletes the removed manual images whose window has closed. Returns how many. */
 export async function purgeExpiredManualArt(now = Date.now()): Promise<number> {
+  // Only the owner's own images are deleted from the bucket. A removed LaunchBox image keeps its
+  // row: that is what stops a later metadata fill from bringing it back.
   const expired = await db.gameImage.findMany({
-    where: { removedAt: { lt: new Date(now - REMOVAL_WINDOW_MS) } },
+    where: { removedAt: { lt: new Date(now - REMOVAL_WINDOW_MS) }, kind: { startsWith: 'manual-' } },
     select: { id: true, s3Key: true },
   })
   if (expired.length === 0) return 0

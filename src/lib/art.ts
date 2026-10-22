@@ -81,9 +81,15 @@ export type ArtOutcome = 'applied' | 'no-art' | 'no-match'
  */
 export async function storeLaunchBoxArt(
   game: { id: number; platformSlug: string; fileName?: string },
-  images: LaunchBoxImage[],
+  imagesIn: LaunchBoxImage[],
   opts: { found: boolean; launchboxId?: number | null; paceMs?: number },
 ): Promise<ArtOutcome> {
+  // Images the owner removed are left out: not stored again, and never picked as banner, fanart or logo.
+  let images = imagesIn
+  const removed = new Set((await db.gameImage.findMany({
+    where: { gameId: game.id, removedAt: { not: null } }, select: { sourceUrl: true },
+  })).map(r => r.sourceUrl))
+  images = images.filter(i => !removed.has(i.url))
   const { byUrl } = await storeGameImages({ id: game.id, platformSlug: game.platformSlug }, images, opts.paceMs ?? 600)
   const stored = (img: LaunchBoxImage | null | undefined) => (img ? byUrl.get(img.url) ?? null : null)
 

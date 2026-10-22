@@ -17,8 +17,13 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   await purgeExpiredManualArt()
 
   const image = await db.gameImage.findFirst({ where: { id: imageId, gameId } })
-  if (!image || !image.removedAt || !image.kind.startsWith('manual-')) {
+  if (!image || !image.removedAt) {
     return NextResponse.json({ error: 'Ya no se puede deshacer' }, { status: 410 })
+  }
+  // A LaunchBox image was only hidden: it comes back whenever the owner asks.
+  if (!image.kind.startsWith('manual-')) {
+    await db.gameImage.update({ where: { id: image.id }, data: { removedAt: null } })
+    return NextResponse.json({ ok: true })
   }
   if (!isInWindow(image.removedAt)) {
     return NextResponse.json({ error: 'Ya no se puede deshacer' }, { status: 410 })

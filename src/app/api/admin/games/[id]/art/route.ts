@@ -53,7 +53,7 @@ export async function DELETE(req: Request, { params }: { params: { id: string } 
   const gameId = parseInt(params.id, 10)
   const imageId = parseInt(new URL(req.url).searchParams.get('imageId') ?? '', 10)
   const image = await db.gameImage.findFirst({ where: { id: imageId, gameId, removedAt: null } })
-  if (!image || !image.kind.startsWith('manual-')) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  if (!image) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   const game = await db.game.findUnique({
     where: { id: gameId },
