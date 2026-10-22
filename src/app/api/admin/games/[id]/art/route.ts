@@ -3,9 +3,10 @@ import sharp from 'sharp'
 import { NextResponse } from 'next/server'
 import { adminGuard } from '@/lib/admin-guard'
 import { db } from '@/lib/db'
-import { uploadToS3, deleteManyFromS3 } from '@/lib/s3'
+import { uploadToS3 } from '@/lib/s3'
 import { paletteOf } from '@/lib/palette'
 import { lockFields, parseLocks } from '@/lib/manual-fields'
+import { REMOVAL_WINDOW_MS } from '@/lib/art-manual'
 
 export const dynamic = 'force-dynamic'
 
@@ -41,13 +42,14 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   if (!webp) return NextResponse.json({ error: 'not a valid image' }, { status: 400 })
 
   const meta = await sharp(webp).metadata()
+  const palette = kind === 'logo' ? null : await paletteOf(webp)
   const hash = createHash('sha1').update(`${kind}:${file.name}:${webp.length}:${Date.now()}`).digest('hex').slice(0, 8)
   const s3Key = `repo/${game.platform.slug}/${game.id}/manual-${kind}-${hash}.webp`
   await uploadToS3(webp, s3Key)
   await db.gameImage.create({
     data: {
       gameId: game.id, kind: `manual-${kind}`, width: meta.width ?? null, height: meta.height ?? null,
-      s3Key, sourceUrl: `manual:${hash}`,
+      s3Key, sourceUrl: `manual:${hash}`, palette: palette ? JSON.stringify(palette) : null,
     },
   })
 
@@ -64,7 +66,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   } else {
     data.logoPath = path
   }
-  if (kind !== 'logo') data.themePalette = JSON.stringify(await paletteOf(webp))
+  if (palette) data.themePalette = JSON.stringify(palette)
   data.manualFields = lockFields(
     (await db.game.findUnique({ where: { id: game.id }, select: { manualFields: true } }))?.manualFields,
     Object.keys(data),
@@ -74,16 +76,16 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   return NextResponse.json({ ok: true, key: s3Key })
 }
 
-// DELETE ?imageId=… — takes a manual image back: its stored row, the game fields that
-// point at it (and their locks), and the object in the bucket. Only what points at
-// this image is cleared; an image the art job set is never touched here.
+// DELETE ?imageId=… — takes a manual image off the game. The fields that pointed at it
+// and their locks are cleared now; the image itself stays in the bucket for the removal
+// window, so POST …/restore can put it back. After the window it is deleted (art-manual.ts).
 export async function DELETE(req: Request, { params }: { params: { id: string } }) {
   const denied = await adminGuard()
   if (denied) return denied
 
   const gameId = parseInt(params.id, 10)
   const imageId = parseInt(new URL(req.url).searchParams.get('imageId') ?? '', 10)
-  const image = await db.gameImage.findFirst({ where: { id: imageId, gameId } })
+  const image = await db.gameImage.findFirst({ where: { id: imageId, gameId, removedAt: null } })
   if (!image || !image.kind.startsWith('manual-')) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   const game = await db.game.findUnique({
@@ -107,7 +109,6 @@ export async function DELETE(req: Request, { params }: { params: { id: string } 
     await db.game.update({ where: { id: gameId }, data })
   }
 
-  await db.gameImage.delete({ where: { id: image.id } })
-  await deleteManyFromS3([image.s3Key]).catch(() => 0)
-  return NextResponse.json({ ok: true, released })
+  await db.gameImage.update({ where: { id: image.id }, data: { removedAt: new Date() } })
+  return NextResponse.json({ ok: true, released, restorableMs: REMOVAL_WINDOW_MS })
 }

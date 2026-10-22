@@ -373,6 +373,11 @@ model GameImage {
   s3Key     String                // repo/<plataforma>/<juego>/<tipo>-<hash>.webp
   sourceUrl String
   createdAt DateTime @default(now())
+  // Set when the owner removes a manual image: it can be restored until the window
+  // closes, then it is deleted from the bucket (art-manual.ts).
+  removedAt DateTime?
+  // The palette computed at upload, so a restore does not read the bucket again.
+  palette   String?
 
   @@unique([gameId, sourceUrl])
   @@index([gameId, kind])

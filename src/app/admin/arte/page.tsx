@@ -4,6 +4,7 @@ import { ArtJobPanel } from '@/components/admin/ArtJobPanel'
 import { ArtManualUpload, type ArtUploadRow } from '@/components/admin/ArtManualUpload'
 import { ManualArtList, type ManualArtRow } from '@/components/admin/ManualArtList'
 import Link from 'next/link'
+import { purgeExpiredManualArt } from '@/lib/art-manual'
 import {
   DEFAULT_ART_FILTER, hasRichMetadata, isValuableForArt, selectArtGames,
   type ArtFilter, type ArtMissing, type ArtView,
@@ -34,6 +35,7 @@ function filterFrom(sp: Record<string, string | string[] | undefined>): ArtFilte
 // Arte (#142). Por defecto: juegos valiosos (metadatos completos y popular en RAWG o descargado).
 // Los demás están a un filtro de distancia: nada queda fuera sin poder verse.
 export default async function AdminArtPage({ searchParams }: { searchParams: Record<string, string | string[] | undefined> }) {
+  await purgeExpiredManualArt()
   const filter = filterFrom(searchParams)
   const shownRaw = typeof searchParams.n === 'string' ? parseInt(searchParams.n, 10) : NaN
   const shown = Number.isFinite(shownRaw) && shownRaw > PAGE ? shownRaw : PAGE
@@ -80,6 +82,7 @@ export default async function AdminArtPage({ searchParams }: { searchParams: Rec
     kind: (i.kind.replace('manual-', '') as ManualArtRow['kind']),
     imageUrl: resolveCoverPath(i.s3Key),
     createdAt: i.createdAt.toISOString(),
+    removedAt: i.removedAt ? i.removedAt.toISOString() : null,
   }))
 
   const viewLabel: Record<ArtView, string> = {
