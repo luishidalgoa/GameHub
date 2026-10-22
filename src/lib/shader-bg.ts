@@ -88,8 +88,8 @@ function compile(gl: WebGLRenderingContext, type: number, src: string): WebGLSha
   return sh
 }
 
-/** Resolution scale of the canvas: the field is soft, so a quarter of the pixels is plenty. */
-const SCALE = 0.5
+/** Resolution scale of the canvas: the field is soft, so a sixth of the pixels is plenty. */
+const SCALE = 0.4
 const FRAME_MS = 1000 / 30
 
 export function mountShaderBackground(canvas: HTMLCanvasElement, initial: RGB[]): ShaderBackground {
@@ -141,6 +141,10 @@ export function mountShaderBackground(canvas: HTMLCanvasElement, initial: RGB[])
     mouseTarget = [e.clientX / window.innerWidth, 1 - e.clientY / window.innerHeight]
   }
   window.addEventListener('pointermove', onMove, { passive: true })
+  // The field drifts slowly, so it can rest while the page scrolls and leave the GPU to the scroll.
+  let restUntil = 0
+  const onScroll = () => { restUntil = performance.now() + 140 }
+  window.addEventListener('scroll', onScroll, { passive: true, capture: true })
 
   const reduced = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches
   let raf = 0
@@ -165,6 +169,7 @@ export function mountShaderBackground(canvas: HTMLCanvasElement, initial: RGB[])
 
   const loop = (now: number) => {
     raf = requestAnimationFrame(loop)
+    if (now < restUntil) { last = now; return }
     if (now - lastDraw < FRAME_MS) return
     const dt = Math.min(0.1, (now - last) / 1000)
     last = now
@@ -191,6 +196,7 @@ export function mountShaderBackground(canvas: HTMLCanvasElement, initial: RGB[])
       cancelAnimationFrame(raf)
       ro.disconnect()
       window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('scroll', onScroll, true)
       document.removeEventListener('visibilitychange', onVisibility)
       gl.deleteBuffer(buf)
       gl.deleteProgram(prog)

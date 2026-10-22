@@ -62,7 +62,7 @@ function WallTile({ game, cta }: { game: TileGame; cta: string }) {
           // eslint-disable-next-line @next/next/no-img-element
           <img src={game.logo} alt={game.title} className="max-h-14 w-auto max-w-[75%] self-start object-contain drop-shadow-lg" />
         ) : (
-          <p className="text-xl font-bold leading-tight tracking-tight drop-shadow">{game.title}</p>
+          <p className="text-xl font-bold leading-tight tracking-tight [text-shadow:0_1px_3px_rgba(0,0,0,0.45)]">{game.title}</p>
         )}
         <p className="text-xs text-white/65">{[game.platformName, game.genre, game.year].filter(Boolean).join(' · ')}</p>
         {/* Grows into view with the tile: hidden until it is the wide one. */}

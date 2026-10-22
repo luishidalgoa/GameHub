@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import type { TileGame } from '@/lib/home-data'
 import { useStageHover } from './stage-hover'
+import { NearScreen } from './NearScreen'
 
 /**
  * One game as a 16:9 tile. Every tile has the same shape whatever art the game
@@ -38,9 +39,11 @@ export function GameTile({ game, className = '', priority = false }: {
           {/* No fanart or screenshot: the box art is blurred into a backdrop and shown whole in front
               of it, over a wash of the page theme and the platform's name as a faint watermark. */}
           <div className="absolute inset-0" style={{ background: 'linear-gradient(135deg, color-mix(in srgb, var(--art-a) 35%, #0a0a12), color-mix(in srgb, var(--art-b) 30%, #0a0a12))' }} />
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={game.cover} alt="" loading="lazy" decoding="async"
-               className="absolute inset-0 h-full w-full scale-150 object-cover opacity-40 blur-3xl saturate-150" />
+          <NearScreen className="absolute inset-0">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={game.cover} alt="" loading="lazy" decoding="async"
+                 className="absolute inset-0 h-full w-full scale-150 object-cover opacity-40 blur-3xl saturate-150" />
+          </NearScreen>
           <span aria-hidden className="absolute -left-2 -top-3 select-none text-[56px] font-black uppercase leading-none tracking-tighter text-white/[0.07]">
             {game.platformName}
           </span>
@@ -53,7 +56,7 @@ export function GameTile({ game, className = '', priority = false }: {
       <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/15 to-transparent opacity-90 transition-opacity duration-500 group-hover:opacity-100" />
 
       <div className="absolute inset-x-0 bottom-0 p-3.5">
-        <p className="line-clamp-2 text-[15px] font-semibold leading-tight text-white drop-shadow">{game.title}</p>
+        <p className="line-clamp-2 text-[15px] font-semibold leading-tight text-white [text-shadow:0_1px_3px_rgba(0,0,0,0.45)]">{game.title}</p>
         <p className="mt-1 text-xs text-white/65">
           {game.platformName}{game.year ? ` · ${game.year}` : ''}
         </p>
