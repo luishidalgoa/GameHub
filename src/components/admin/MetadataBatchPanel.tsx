@@ -140,18 +140,6 @@ export function MetadataBatchPanel({ platforms = [] }: { platforms?: PlatformOpt
             <option value="popularity">{t('modePopularity')}</option>
             <option value="autocomplete-scores">{t('modeAutocompleteScores')}</option>
           </select>
-          <div className="basis-full text-xs text-muted-foreground leading-relaxed">
-            <p>{MODE_TEXT[mode]}</p>
-            {preview && (
-              <p className="mt-1 text-foreground">
-                {preview.games === null
-                  ? 'Cuántos juegos toca: se sabrá al empezar, porque depende de la fuente de cada juego.'
-                  : <>Tocará <b>{preview.games.toLocaleString('es-ES')}</b> juegos{preview.fields !== undefined ? <> · <b>{preview.fields.toLocaleString('es-ES')}</b> campos vacíos</> : null}.</>}
-                {preview.skippedUnfindable > 0 && <span className="text-muted-foreground"> No se tocan {preview.skippedUnfindable} sin fuente.</span>}
-              </p>
-            )}
-          </div>
-
           {/* Platform selector */}
           <select
             value={platform}
@@ -223,6 +211,19 @@ export function MetadataBatchPanel({ platforms = [] }: { platforms?: PlatformOpt
             </button>
           )}
         </div>
+      </div>
+
+      {/* Mode hint and what the pass would touch: full width, under the controls */}
+      <div className="text-xs text-muted-foreground leading-relaxed">
+        <p>{MODE_TEXT[mode]}</p>
+        {preview && (
+          <p className="mt-1 text-foreground">
+            {preview.games === null
+              ? 'Cuántos juegos toca: se sabrá al empezar, porque depende de la fuente de cada juego.'
+              : <>Tocará <b>{preview.games.toLocaleString('es-ES')}</b> juegos{preview.fields !== undefined ? <> · <b>{preview.fields.toLocaleString('es-ES')}</b> campos vacíos</> : null}.</>}
+            {preview.skippedUnfindable > 0 && <span className="text-muted-foreground"> No se tocan {preview.skippedUnfindable} sin fuente.</span>}
+          </p>
+        )}
       </div>
 
       {/* Running progress (persisted — survives navigation / reload) */}
