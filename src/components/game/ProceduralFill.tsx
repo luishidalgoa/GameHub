@@ -34,5 +34,13 @@ export function ProceduralFill({ palette }: { palette: string[] }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key])
 
-  return <canvas ref={canvasRef} aria-hidden="true" className="absolute inset-0 h-full w-full" />
+  // The gradient shows without WebGL (and while the shader starts); the shader paints over it.
+  const [a, b] = (palette.length ? palette : DEFAULT_PALETTE)
+  const fallback = `radial-gradient(120% 90% at 30% 10%, ${a}66, transparent 70%), radial-gradient(90% 80% at 80% 90%, ${b ?? a}55, transparent 70%), #0a0a0c`
+
+  return (
+    <div className="absolute inset-0" style={{ background: fallback }}>
+      <canvas ref={canvasRef} aria-hidden="true" className="absolute inset-0 h-full w-full" />
+    </div>
+  )
 }
