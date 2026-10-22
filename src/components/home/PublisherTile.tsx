@@ -6,6 +6,13 @@ import { useStage } from './HomeStage'
 import { useRef } from 'react'
 import { BRAND_STYLE } from '@/lib/publisher-style'
 import { PublisherBackdrop } from './PublisherBackdrop'
+import type { Place } from '@/lib/publisher-art'
+
+/** An element the owner placed: its centre and width, in percent of the tile. */
+const placed = (p: Place): React.CSSProperties => ({
+  position: 'absolute', left: `${p.x}%`, top: `${p.y}%`, width: `${p.w}%`, height: 'auto',
+  maxWidth: 'none', transform: 'translate(-50%, -50%)',
+})
 
 /**
  * A publisher as one tall tile in the manner of the Xbox store: a custom
@@ -20,7 +27,7 @@ export function PublisherTile({ publisher, href, gamesLabel }: {
 }) {
   const stage = useStage()
   const timer = useRef<ReturnType<typeof setTimeout>>()
-  const { name, logo, plainLogo, character, colors } = publisher
+  const { name, logo, plainLogo, character, colors, layout } = publisher
   const [c1, c2] = [colors[0] ?? '#3a3a55', colors[1] ?? '#14141f']
 
   const enter = () => {
@@ -41,7 +48,12 @@ export function PublisherTile({ publisher, href, gamesLabel }: {
             focus-visible:ring-2 focus-visible:ring-white/70">
       <PublisherBackdrop style={BRAND_STYLE[publisher.key] ?? 'smoke'} c1={c1} c2={c2} id={`pt-${publisher.key.replace(/[^a-z0-9]/g, '')}`} />
 
-      {character && (
+      {character && layout?.character && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={character} alt="" loading="lazy" decoding="async" style={placed(layout.character)}
+             className="drop-shadow-[0_12px_24px_rgba(0,0,0,0.5)] transition-transform duration-[900ms] ease-out group-hover:scale-[1.04]" />
+      )}
+      {character && !layout?.character && (
         // Cut at the chest, the way the store does it: the top of the figure is
         // kept, the rest runs off the bottom of the tile behind the logo.
         // eslint-disable-next-line @next/next/no-img-element
@@ -55,7 +67,14 @@ export function PublisherTile({ publisher, href, gamesLabel }: {
         <div className="absolute inset-0" style={{ background: 'radial-gradient(60% 34% at 50% 50%, rgba(0,0,0,0.45), transparent)' }} />
       )}
 
-      {logo ? (
+      {logo && layout?.logo ? (
+        // The owner placed the logo: it keeps its place, and the name line goes under it.
+        <div style={placed(layout.logo)} className="text-center">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={logo} alt={name} loading="lazy" decoding="async"
+               className={`block h-auto w-full object-contain drop-shadow-[0_2px_10px_rgba(0,0,0,0.6)] ${plainLogo ? '' : 'brightness-0 invert'}`} />
+        </div>
+      ) : logo ? (
         <div className={`absolute inset-x-0 flex flex-col items-center px-5 text-center ${character ? 'bottom-4' : 'inset-y-0 justify-center'}`}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={logo} alt={name} loading="lazy" decoding="async"

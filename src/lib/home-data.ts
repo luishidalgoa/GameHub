@@ -5,7 +5,7 @@ import { resolveCoverPath } from '@/lib/s3'
 import { comparePopularity, weightedSample, MIN_ADDED } from '@/lib/metadata/popularity'
 import { rankPublishers, type RankedPublisher } from '@/lib/publishers'
 import { tileImageKey, backdropUrl } from '@/lib/tile-art'
-import { getPublisherArt, brandColorsFor } from '@/lib/publisher-art'
+import { getPublisherArt, brandColorsFor, type PublisherLayout } from '@/lib/publisher-art'
 
 /** A game as the home page draws it: one wide image, whatever the game has. */
 export interface TileGame {
@@ -105,6 +105,8 @@ export interface PublisherTileData {
   /** The logo keeps its own colors instead of being drawn in white. */
   plainLogo: boolean
   character: string | null
+  /** Where the owner put the character and the logo, when they arranged them. */
+  layout: PublisherLayout | null
   /** Two "#rrggbb" gradient colors. */
   colors: string[]
 }
@@ -125,6 +127,7 @@ async function publisherTiles(ranked: RankedPublisher[]): Promise<PublisherTileD
     logo: resolveCoverPath(art[p.key]?.logo ?? null),
     plainLogo: art[p.key]?.plain === true,
     character: resolveCoverPath(art[p.key]?.character ?? null),
+    layout: art[p.key]?.layout ?? null,
     colors: brandColorsFor(p.key, art[p.key]?.colors ?? []),
   }))
 }

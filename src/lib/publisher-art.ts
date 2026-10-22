@@ -12,7 +12,22 @@ import { paletteOf } from '@/lib/palette'
  * cut-out of one of its characters. Kept in one Setting row: a few dozen entries,
  * no table for them.
  */
+/** Where an element sits in the tile: the centre and the width, in percent of the tile's size. */
+export interface Place {
+  x: number
+  y: number
+  w: number
+}
+
+/** The owner's arrangement of the tile. An element without a place keeps the default arrangement. */
+export interface PublisherLayout {
+  character?: Place
+  logo?: Place
+}
+
 export interface PublisherArt {
+  /** Where the character and the logo sit, when the owner has arranged them. */
+  layout?: PublisherLayout
   /** S3 key (with ?v=) of the logo, or null when none was found. */
   logo: string | null
   /** S3 key of an uploaded character cut-out, if any. */
@@ -45,6 +60,25 @@ async function save(map: PublisherArtMap): Promise<void> {
   await db.setting.upsert({ where: { key: KEY }, update: { value }, create: { key: KEY, value } })
 }
 
+/** A layout as stored: known elements only, centres inside the tile, widths between 4% and 200%. */
+export function cleanLayout(input: unknown): PublisherLayout {
+  const out: PublisherLayout = {}
+  if (!input || typeof input !== 'object') return out
+  const src = input as Record<string, unknown>
+  const place = (v: unknown): Place | undefined => {
+    if (!v || typeof v !== 'object') return undefined
+    const p = v as Record<string, unknown>
+    const num = (n: unknown, lo: number, hi: number) => (typeof n === 'number' && Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : null)
+    const x = num(p.x, 0, 100), y = num(p.y, 0, 100), w = num(p.w, 4, 200)
+    return x === null || y === null || w === null ? undefined : { x, y, w }
+  }
+  const character = place(src.character)
+  const logo = place(src.logo)
+  if (character) out.character = character
+  if (logo) out.logo = logo
+  return out
+}
+
 /** Read-modify-write of one publisher, so a concurrent edit of another is not lost. */
 async function patch(key: string, change: Partial<PublisherArt>): Promise<PublisherArt> {
   const map = await getPublisherArt()
@@ -53,6 +87,11 @@ async function patch(key: string, change: Partial<PublisherArt>): Promise<Publis
   map[key] = next
   await save(map)
   return next
+}
+
+/** Saves where the owner has put the character and the logo. */
+export async function saveLayout(key: string, layout: unknown): Promise<PublisherArt> {
+  return patch(key, { layout: cleanLayout(layout) })
 }
 
 // ── Colors ────────────────────────────────────────────────────────────────────

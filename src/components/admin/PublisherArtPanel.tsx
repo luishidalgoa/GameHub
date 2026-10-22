@@ -3,12 +3,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { resolveCoverPath } from '@/lib/cover-url'
 import { publisherKey } from '@/lib/publishers'
+import { PublisherCanvas } from './PublisherCanvas'
 
 interface Row {
   key: string
   name: string
   games: number
-  art: { logo: string | null; plain?: boolean; character: string | null; colors: string[]; checkedAt: string | null } | null
+  art: { logo: string | null; plain?: boolean; character: string | null; colors: string[]; checkedAt: string | null; layout?: { character?: { x: number; y: number; w: number }; logo?: { x: number; y: number; w: number } } } | null
 }
 
 /**
@@ -20,6 +21,7 @@ export function PublisherArtPanel() {
   const [running, setRunning] = useState(false)
   const [busy, setBusy] = useState<string | null>(null)
   const [note, setNote] = useState('')
+  const [editing, setEditing] = useState<Row | null>(null)
   const many = useRef<HTMLInputElement>(null)
   const pick = useRef<HTMLInputElement>(null)
   const target = useRef<{ key: string; kind: 'character' | 'logo' }>({ key: '', kind: 'character' })
@@ -111,6 +113,10 @@ export function PublisherArtPanel() {
       <input ref={pick} type="file" accept="image/png,image/webp" className="hidden"
              onChange={e => { const f = e.target.files?.[0]; if (f) upload(f); e.target.value = '' }} />
 
+      {editing && (
+        <PublisherCanvas row={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); load() }} />
+      )}
+
       <ul className="divide-y divide-border rounded-xl border border-border">
         {rows.map(r => {
           const logo = resolveCoverPath(r.art?.logo ?? null)
@@ -131,6 +137,11 @@ export function PublisherArtPanel() {
               {/* eslint-disable-next-line @next/next/no-img-element */}
               {character && <img src={character} alt="" className="h-14 w-auto object-contain" />}
               <div className="flex gap-2">
+                {(r.art?.character || r.art?.logo) && (
+                  <button onClick={() => setEditing(r)} className="rounded-md border border-border px-2.5 py-1 text-xs hover:bg-secondary">
+                    Ajustar
+                  </button>
+                )}
                 <button disabled={busy === r.key} onClick={() => { target.current = { key: r.key, kind: 'logo' }; pick.current?.click() }}
                         className="rounded-md border border-border px-2.5 py-1 text-xs hover:bg-secondary">
                   Cambiar logo
