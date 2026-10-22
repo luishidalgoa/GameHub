@@ -2,6 +2,7 @@ import { db } from '@/lib/db'
 import { providerFetch } from './http'
 import { noMatchRetryAt } from './retry'
 import { parseMetadataSources } from './sources'
+import { applyMetadata } from './apply'
 
 /**
  * Wikidata as a free fallback for the facts a game is missing: developer, publisher,
@@ -137,7 +138,7 @@ export async function fillGameFacts(gameId: number): Promise<string[]> {
   for (const k of ['developer', 'publisher', 'releaseYear', 'genre'] as const) {
     if (k in data) origin[k] = 'wikidata'
   }
-  data.metadataSources = JSON.stringify({ ...sources, facts: origin })
-  await db.game.update({ where: { id: gameId }, data })
+  const { metadataStatus, ...columns } = data
+  await applyMetadata(gameId, { origin: 'auto', sources: { ...sources, facts: origin }, data: { ...columns, metadataStatus } })
   return Object.keys(data)
 }

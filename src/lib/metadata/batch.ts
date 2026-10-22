@@ -9,6 +9,7 @@ import { searchYouTubeTrailer, YouTubeApiError } from '@/lib/youtube'
 import { AUTO_THRESHOLD } from './scoring'
 import { getProviderMatrix, type ProviderMatrix } from './matrix'
 import { gatherMetadata } from './compose'
+import { applyMetadata } from './apply'
 import { parseMetadataSources, type MetadataSources } from './sources'
 import { WITHOUT_METADATA, hasMetadata } from '@/lib/library'
 
@@ -263,8 +264,8 @@ async function runMetadataBatchInner(opts: {
           { title: game.title, platformSlug: game.platform.slug, rawgId: game.rawgId },
           apiKey, rateMs, m,
         )
-        await db.game.update({
-          where: { id: game.id },
+        await applyMetadata(game.id, {
+          origin: 'auto',
           data: {
             rawgAdded:           m.added,
             rawgRating:          m.rating,
@@ -297,8 +298,8 @@ async function runMetadataBatchInner(opts: {
           emit({ type: 'skipped', gameId: game.id, title: game.title, reason: 'no_score_found', processed, total, applied, skipped, failed })
           continue
         }
-        await db.game.update({
-          where: { id: game.id },
+        await applyMetadata(game.id, {
+          origin: 'auto',
           data: {
             rawgScore:           r.rawgScore,
             scoreSource:         r.scoreSource,
@@ -334,7 +335,7 @@ async function runMetadataBatchInner(opts: {
         if (signal.aborted) break
         const url = await searchYouTubeTrailer(game.title)
         if (url) {
-          await db.game.update({ where: { id: game.id }, data: { trailerUrl: url } })
+          await applyMetadata(game.id, { origin: 'auto', data: { trailerUrl: url } })
           applied++
           emit({ type: 'applied', gameId: game.id, title: game.title, matchedTitle: game.title, trailerFound: true, processed, total, applied, skipped, failed })
         } else {
@@ -371,8 +372,8 @@ async function runMetadataBatchInner(opts: {
       })
 
       if (!meta) {
-        await db.game.update({
-          where: { id: game.id },
+        await applyMetadata(game.id, {
+          origin: 'auto',
           data: { metadataStatus: 'no_match', metadataAttempts: { increment: 1 }, metadataNextRetryAt: noMatchRetryAt() },
         }).catch(() => {})
         // The platform's own providers found nothing: Wikidata is the last word.
@@ -499,7 +500,6 @@ async function runMetadataBatchInner(opts: {
         else delete merged.cover
         merged.coverManual = true
       }
-      const metadataSources = JSON.stringify(merged)
 
       // In fill mode, if nothing was actually empty, don't write (and don't bump
       // metadataFetchedAt) — count it as skipped so we don't churn existing data.
@@ -509,12 +509,12 @@ async function runMetadataBatchInner(opts: {
         continue
       }
 
-      await db.game.update({
-        where: { id: game.id },
+      await applyMetadata(game.id, {
+        origin: 'auto',
+        sources: merged,
         data: {
           ...data,
           ...scoreData,
-          metadataSources,
           // Only stamp the marker when actual metadata arrived. A cover-only
           // result — the rescue for games no provider has heard of, which returns
           // a box and nothing else — would otherwise mark the game as "done" and
@@ -538,8 +538,8 @@ async function runMetadataBatchInner(opts: {
       // Provider error: wait 1, 2, 4... hours (at most a day) before the next try (#110).
       const attempts = game.metadataAttempts + 1
       const waitHours = Math.min(24, 2 ** (attempts - 1))
-      await db.game.update({
-        where: { id: game.id },
+      await applyMetadata(game.id, {
+        origin: 'auto',
         data: {
           metadataStatus: 'provider_error',
           metadataAttempts: { increment: 1 },

@@ -16,7 +16,7 @@ import { chooseCover } from '@/lib/metadata/compose'
 import { fetchLibretroCover } from '@/lib/metadata/libretro'
 import type { LaunchBoxGame } from '@/lib/metadata/launchbox'
 import { changedFields, lockFields, LOCKABLE_FIELDS } from '@/lib/manual-fields'
-import { runAutomatic } from '@/lib/automatic'
+import { applyMetadata } from '@/lib/metadata/apply'
 import { scoreForGame } from '@/lib/metadata/one-score'
 import { parseRomTags, languagesToCsv } from '@/lib/rom-tags'
 import { extractSwitchTitleId } from '@/lib/scanner/titleid'
@@ -144,9 +144,11 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     ? await scoreForGame({ title: game.title, platformSlug: game.platform.slug, rawgId: game.rawgId }, await rawgKey(), 350)
     : null
 
-  const updated = await runAutomatic(() => db.game.update({
-    where: { id: gameId },
-    data: {
+  const updated = await applyMetadata(gameId, { origin: 'auto', sources: {
+    ...meta.sources,
+    ...(meta.facts && Object.keys(meta.facts).length > 0 ? { facts: meta.facts } : {}),
+    ...(coverLocked ? { cover: prevSources.cover, coverManual: true } : {}),
+  }, data: {
       ...fromName,
       ...(scoreFill && {
         rawgScore:      scoreFill.rawgScore,
@@ -168,16 +170,10 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       ...(meta.launchboxId != null && { launchboxId: meta.launchboxId }),
       ...(coverPath  && { coverPath }),
       ...(trailerUrl && { trailerUrl }),
-      // Each fact carries the provider it came from, so the editor labels it (#133).
-      metadataSources: JSON.stringify({
-        ...meta.sources,
-        ...(meta.facts && Object.keys(meta.facts).length > 0 ? { facts: meta.facts } : {}),
-        ...(coverLocked ? { cover: prevSources.cover, coverManual: true } : {}),
-      }),
       // Same rule as the batch: a cover-only result is not "metadata fetched".
       ...(meta.sources.info ? { metadataFetchedAt: new Date() } : {}),
     },
-  }))
+  })
   return NextResponse.json({ ...serializeBigInt(updated), sources: { ...meta.sources, facts: meta.facts } })
 }
 
@@ -244,9 +240,7 @@ async function applyManualPick(
     ...(coverUrl ? { coverManual: true } : { coverManual: parseMetadataSources(prevRow?.metadataSources).coverManual }),
   }
 
-  const updated = await db.game.update({
-    where: { id: gameId },
-    data: {
+  const updated = await applyMetadata(gameId, { origin: 'pick', sources, data: {
       title:       meta.title,
       description: meta.description,
       releaseYear: meta.releaseYear,
@@ -260,9 +254,7 @@ async function applyManualPick(
       ...(source === 'launchbox' && { launchboxId: Number(id) }),
       ...(coverPath  && { coverPath }),
       ...(trailerUrl && { trailerUrl }),
-      metadataSources: JSON.stringify(sources),
       metadataFetchedAt: new Date(),
-    },
-  })
+  } })
   return { ...updated, sources }
 }

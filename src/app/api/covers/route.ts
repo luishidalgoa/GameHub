@@ -1,9 +1,9 @@
+import { applyMetadata } from '@/lib/metadata/apply'
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { downloadAndCacheCover, saveCoverFromBuffer } from '@/lib/covers'
 import { resolveCoverPath } from '@/lib/s3'
 import { isCoverSource, parseMetadataSources, type MetadataSources } from '@/lib/metadata/sources'
-import { changedFields, lockFields, LOCKABLE_FIELDS } from '@/lib/manual-fields'
 
 /**
  * Record where this cover came from.
@@ -45,11 +45,8 @@ export async function POST(req: Request) {
       if (!game) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
       const key = await downloadAndCacheCover(url, game.platform.slug, gameId)
-      const { metadataSources, sources } = coverProvenance(game.metadataSources, source)
-      await db.game.update({
-        where: { id: gameId },
-        data: { coverPath: key, ...(metadataSources && { metadataSources }), manualFields: lockFields(game.manualFields, ['coverPath', 'coverUrl']) },
-      })
+      const { sources } = coverProvenance(game.metadataSources, source)
+      await applyMetadata(gameId, { origin: 'owner', data: { coverPath: key }, sources })
 
       return NextResponse.json({ key, coverPath: resolveCoverPath(key) ?? key, sources })
     }
@@ -67,11 +64,8 @@ export async function POST(req: Request) {
 
       const buffer = Buffer.from(await file.arrayBuffer())
       const key    = await saveCoverFromBuffer(buffer, game.platform.slug, gameId, !adjusted)
-      const { metadataSources, sources } = coverProvenance(game.metadataSources, form.get('source'), adjusted)
-      await db.game.update({
-        where: { id: gameId },
-        data: { coverPath: key, ...(metadataSources && { metadataSources }), manualFields: lockFields(game.manualFields, ['coverPath', 'coverUrl']) },
-      })
+      const { sources } = coverProvenance(game.metadataSources, form.get('source'), adjusted)
+      await applyMetadata(gameId, { origin: 'owner', data: { coverPath: key }, sources })
 
       return NextResponse.json({ key, coverPath: resolveCoverPath(key) ?? key, sources })
     }
