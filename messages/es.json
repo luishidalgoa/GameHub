@@ -561,7 +561,7 @@
     "mergeAbsorb": "Absorber",
     "merging": "Fusionando…",
     "fieldCustomNotesHint": "Solo lo escribes tú: ningún proceso lo rellena ni lo sobrescribe.",
-    "fieldScoreHint": "La rellena el lote de puntuaciones de RAWG, no el botón «Rellenar metadatos»."
+    "fieldScoreHint": "Si está vacía, la rellena «Rellenar metadatos» con la misma escala que el lote de puntuaciones."
   },
   "MetadataFetch": {
     "button": "Rellenar metadatos",

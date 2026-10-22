@@ -561,7 +561,7 @@
     "mergeAbsorb": "Absorb",
     "merging": "Merging…",
     "fieldCustomNotesHint": "Only you write this: no process fills or overwrites it.",
-    "fieldScoreHint": "Filled by the RAWG scores batch, not by the “Fill metadata” button."
+    "fieldScoreHint": "If empty, “Fill metadata” fills it on the same scale as the scores batch."
   },
   "MetadataFetch": {
     "button": "Fill metadata",
