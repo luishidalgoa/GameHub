@@ -119,7 +119,7 @@ export default async function GamePage({ params, searchParams }: Props) {
             <div className="flex min-w-0 gap-5 sm:gap-7 xl:max-w-[640px]">
               {cover && (
                 <div
-                  className="relative flex-shrink-0 w-24 sm:w-32 lg:w-36 rounded-xl overflow-hidden bg-secondary shadow-2xl"
+                  className="relative flex-shrink-0 self-start w-24 sm:w-32 lg:w-36 rounded-xl overflow-hidden bg-secondary shadow-2xl"
                   style={{ aspectRatio: `${thumbW} / ${thumbH}`, viewTransitionName: `game-cover-${game.id}` }}
                 >
                   <Image src={cover} alt={game.title} fill className="object-cover" unoptimized />
