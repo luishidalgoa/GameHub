@@ -323,6 +323,18 @@ export async function runScan(triggeredBy = 'manual', platformSlug?: string) {
   emit({ type: 'scan_start' })
 
   let totalFound = 0, totalAdded = 0, totalUpdated = 0, totalStale = 0
+
+  // Files already known and unchanged (same path and size) only need their
+  // lastSeenAt bumped. Those ids are collected and written in batches, once per
+  // platform, before the stale check reads lastSeenAt. One write per file was the
+  // cost of an incremental scan of a large library.
+  const unchangedIds: number[] = []
+  const flushSeen = async () => {
+    for (let i = 0; i < unchangedIds.length; i += 500) {
+      await db.game.updateMany({ where: { id: { in: unchangedIds.slice(i, i + 500) } }, data: { lastSeenAt: scanStart } })
+    }
+    unchangedIds.length = 0
+  }
   const errors: string[] = []
   const breakdown: PlatformScanSummary[] = []
 
@@ -387,7 +399,7 @@ export async function runScan(triggeredBy = 'manual', platformSlug?: string) {
           found++
           const prevLoose = knownLoose.get(file.filePath)
           if (prevLoose && prevLoose.fileSize === file.fileSize) {
-            await db.game.update({ where: { id: prevLoose.id }, data: { lastSeenAt: scanStart } }).catch(() => {})
+            unchangedIds.push(prevLoose.id)
             continue
           }
           const title  = fileToTitle(path.basename(file.fileName, path.extname(file.fileName)))
@@ -439,7 +451,7 @@ export async function runScan(triggeredBy = 'manual', platformSlug?: string) {
             found++
             const prevBase = knownBase.get(file.filePath)
             if (prevBase && prevBase.fileSize === file.fileSize) {
-              await db.game.update({ where: { id: prevBase.id }, data: { lastSeenAt: scanStart } }).catch(() => {})
+              unchangedIds.push(prevBase.id)
               continue
             }
             const title  = fileToTitle(file.fileName)
@@ -603,6 +615,7 @@ export async function runScan(triggeredBy = 'manual', platformSlug?: string) {
     // behind) passes the existence check. Treat a rescan that finds nothing while
     // games were visible as a failed scan, not as a mass deletion.
     let stale = 0
+    await flushSeen()
     const visibleBefore = await db.game.count({ where: { platformId: platform.id, isHidden: false } })
     const emptyRescan = found === 0 && visibleBefore > 0
     // A pass that found under half of what was visible is a broken root (an unmounted

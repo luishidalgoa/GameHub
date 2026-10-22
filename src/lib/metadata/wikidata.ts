@@ -105,13 +105,21 @@ export async function fillGameFacts(gameId: number): Promise<string[]> {
   if (game.developer && game.publisher && game.releaseYear && game.genre) return []
 
   const facts = await wikidataFacts(game.title)
-  if (!facts) return []
+  if (!facts) {
+    // Nothing matched: one more attempt on the record. A game that has none of the
+    // sources is "unfindable" (see UNFINDABLE), not a pending job.
+    await db.game.update({
+      where: { id: gameId },
+      data: { metadataStatus: 'no_match', metadataAttempts: { increment: 1 }, metadataNextRetryAt: null },
+    })
+    return []
+  }
   const data: Record<string, string | number> = {}
   if (!game.developer && facts.developer) data.developer = facts.developer
   if (!game.publisher && facts.publisher) data.publisher = facts.publisher
   if (!game.releaseYear && facts.releaseYear) data.releaseYear = facts.releaseYear
   if (!game.genre && facts.genre) data.genre = facts.genre
-  if (Object.keys(data).length === 0) return []
+  data.metadataStatus = 'matched'
   await db.game.update({ where: { id: gameId }, data })
   return Object.keys(data)
 }

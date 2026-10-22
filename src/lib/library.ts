@@ -15,6 +15,19 @@ export function libraryGameWhere(platformSlug?: string): Prisma.GameWhereInput {
 }
 
 /**
+ * Games no source could identify: LaunchBox has no match for them (artStatus) and
+ * the fallback sources came back empty too (metadataStatus). They are kept out of the
+ * pending lists, so a title that cannot be found does not sit in them forever. They
+ * are listed apart, for hand entry or a later source.
+ */
+export const UNFINDABLE: Prisma.GameWhereInput = { artStatus: 'no-match', metadataStatus: 'no_match' }
+
+/** A pending list: games missing the given fields that some source can still fill. */
+export function pendingWhere(missing: Prisma.GameWhereInput): Prisma.GameWhereInput {
+  return { AND: [missing, { NOT: UNFINDABLE }] }
+}
+
+/**
  * Without metadata: never fetched AND no sheet data (description, genre). Data
  * that came from another source (embedded, imported, edited) counts as metadata.
  */
