@@ -87,6 +87,13 @@ export default async function GamePage({ params, searchParams }: Props) {
   const links   = parseExternalLinks(game.externalLinks)
   const hasContent = updates.length + dlcs.length + mods.length + links.length > 0
 
+  // The stored descriptions are hard-wrapped every ~70 characters: join the lines of each
+  // paragraph so the text can flow around the facts, and keep only the blank-line breaks.
+  const paragraphs = (game.description ?? '')
+    .split(/\n{2,}/)
+    .map((para) => para.replace(/\s*\n\s*/g, ' ').trim())
+    .filter(Boolean)
+
   const facts: [string, string][] = [
     game.releaseYear ? [t('year'), String(game.releaseYear)] : null,
     game.genre       ? [t('genre'), game.genre] : null,
@@ -217,10 +224,12 @@ export default async function GamePage({ params, searchParams }: Props) {
               )}
 
               <section className="min-w-0">
-                {game.description && (
+                {paragraphs.length > 0 && (
                   <>
                     <h2 className="mb-4 text-lg font-semibold">{t('about')}</h2>
-                    <p className="mb-6 text-[15px] leading-relaxed text-foreground/80 whitespace-pre-line">{game.description}</p>
+                    {paragraphs.map((para, i) => (
+                      <p key={i} className="mb-4 text-[15px] leading-relaxed text-foreground/80">{para}</p>
+                    ))}
                   </>
                 )}
                 {game.customNotes && (
