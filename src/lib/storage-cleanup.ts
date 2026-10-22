@@ -25,14 +25,18 @@ const bare = (k: string | null | undefined) => {
 }
 
 /** Every bucket key the database refers to. */
-export async function referencedKeys(): Promise<Set<string>> {
+export async function referencedKeys(opts: { ignoreLibretro?: boolean } = {}): Promise<Set<string>> {
   const refs = new Set<string>()
   const add = (k: string | null | undefined) => { const b = bare(k); if (b) refs.add(b) }
+  // A dry run counts the pointers a real run would clear as already gone.
+  const pointer = (k: string | null) => (opts.ignoreLibretro && isLibretroKey(k) ? null : k)
 
   const games = await db.game.findMany({
     select: { coverPath: true, backdropPath: true, tilePath: true, logoPath: true },
   })
-  for (const g of games) { add(g.coverPath); add(g.backdropPath); add(g.tilePath); add(g.logoPath) }
+  for (const g of games) {
+    add(g.coverPath); add(pointer(g.backdropPath)); add(pointer(g.tilePath)); add(g.logoPath)
+  }
   for (const k of [...refs]) {
     if (k.startsWith('covers/') && k.endsWith('.webp') && !k.endsWith('.original.webp')) {
       refs.add(k.slice(0, -5) + '.original.webp')
@@ -92,7 +96,7 @@ export interface CleanupReport {
 
 export async function cleanupStorage(opts: { dryRun: boolean; minAgeHours?: number }): Promise<CleanupReport> {
   const pointersCleared = opts.dryRun ? 0 : await clearLibretroPointers()
-  const refs = await referencedKeys()
+  const refs = await referencedKeys({ ignoreLibretro: opts.dryRun })
   const objects = await listObjects()
   const cutoff = Date.now() - (opts.minAgeHours ?? 6) * 3600_000
   const orphans = objects.filter(o => !refs.has(o.key) && o.modified < cutoff)
