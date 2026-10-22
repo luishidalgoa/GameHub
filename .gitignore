@@ -11,6 +11,8 @@ docker-compose.yml
 # (gamehub.db, prisma/*.db, gamehub_backup_*.db, dev.db, …).
 *.db
 *.db-journal
+*.db-wal
+*.db-shm
 *.db.bak
 .next
 data
