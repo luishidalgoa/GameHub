@@ -1,5 +1,6 @@
 import { db } from '@/lib/db'
 import { runAutomatic } from '@/lib/automatic'
+import { fillGameFacts } from './wikidata'
 import { downloadAndCacheCover } from '@/lib/covers'
 import { getRawgProvider } from './rawg'
 import { fetchGameScore } from './scoreChain'
@@ -386,6 +387,8 @@ async function runMetadataBatchInner(opts: {
           where: { id: game.id },
           data: { metadataStatus: 'no_match', metadataAttempts: { increment: 1 }, metadataNextRetryAt: null },
         }).catch(() => {})
+        // The platform's own providers found nothing: Wikidata is the last word.
+        await fillGameFacts(game.id).catch(() => [] as string[])
         skipped++
         emit({ type: 'skipped', gameId: game.id, title: game.title, reason: 'no_match', processed, total, applied, skipped, failed })
         continue
@@ -537,6 +540,8 @@ async function runMetadataBatchInner(opts: {
       })
 
       applied++
+      // Facts the preferred providers left empty: Wikidata fills them, never overwriting.
+      await fillGameFacts(game.id).catch(() => [] as string[])
       emit({ type: 'applied', gameId: game.id, title: game.title, matchedTitle: meta.title, confidence: meta.confidence, trailerFound, score: scoreData.rawgScore, processed, total, applied, skipped, failed })
 
     } catch (err) {

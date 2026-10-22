@@ -95,6 +95,15 @@ export async function wikidataFacts(title: string): Promise<WikidataFacts | null
   }
 }
 
+/**
+ * A game is ready for the Wikidata fallback once the metadata pass has run its
+ * platform's providers on it: fetched, or found nothing. Until then, Wikidata would
+ * fill a field the preferred provider was meant to fill first.
+ */
+export function readyForWikidata(game: { metadataFetchedAt: Date | string | null; metadataStatus: string | null }): boolean {
+  return game.metadataFetchedAt != null || game.metadataStatus === 'no_match'
+}
+
 /** Fills the empty facts of one game from Wikidata. Returns the fields it wrote. */
 export async function fillGameFacts(gameId: number): Promise<string[]> {
   const game = await db.game.findUnique({

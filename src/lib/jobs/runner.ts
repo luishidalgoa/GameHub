@@ -4,7 +4,7 @@ import { runScan } from '@/lib/scanner'
 import { fetchGameArt } from '@/lib/art'
 import { runAutomatic } from '@/lib/automatic'
 import { scanBus } from '@/lib/scanner/events'
-import { fillGameFacts } from '@/lib/metadata/wikidata'
+import { fillGameFacts, readyForWikidata } from '@/lib/metadata/wikidata'
 
 // Background job runner. Jobs run DETACHED from any HTTP request (so navigating
 // away never cancels them) and persist their progress to the Job table, so the
@@ -248,7 +248,7 @@ export async function startArtJob(params: ArtJobParams, resumeJobId?: number): P
       const cursor = fresh?.cursorId ?? 0
       const games = await db.game.findMany({
         where: { ...where, id: { gt: cursor } },
-        select: { id: true, title: true, fileName: true, launchboxId: true, platform: { select: { slug: true } } },
+        select: { id: true, title: true, fileName: true, launchboxId: true, metadataFetchedAt: true, metadataStatus: true, platform: { select: { slug: true } } },
         orderBy: { id: 'asc' },
       })
       const done = fresh?.processed ?? 0
@@ -274,7 +274,7 @@ export async function startArtJob(params: ArtJobParams, resumeJobId?: number): P
         pushLog(job.id, line)
         // Facts LaunchBox did not give (developer, publisher, year, genre) come from Wikidata.
         if (!controller.signal.aborted) {
-          const filled = await runAutomatic(() => fillGameFacts(g.id)).catch(() => [] as string[])
+          const filled = readyForWikidata(g) ? await runAutomatic(() => fillGameFacts(g.id)).catch(() => [] as string[]) : []
           if (filled.length) pushLog(job.id, `  + ${filled.join(', ')} (Wikidata)`)
           await new Promise(r => setTimeout(r, 1100))
         }
