@@ -1,6 +1,7 @@
 import { db } from '@/lib/db'
 import { providerFetch } from './http'
 import { noMatchRetryAt } from './retry'
+import { parseMetadataSources } from './sources'
 
 /**
  * Wikidata as a free fallback for the facts a game is missing: developer, publisher,
@@ -130,6 +131,13 @@ export async function fillGameFacts(gameId: number): Promise<string[]> {
   if (!game.releaseYear && facts.releaseYear) data.releaseYear = facts.releaseYear
   if (!game.genre && facts.genre) data.genre = facts.genre
   data.metadataStatus = 'matched'
+  const current = await db.game.findUnique({ where: { id: gameId }, select: { metadataSources: true } })
+  const sources = parseMetadataSources(current?.metadataSources)
+  const origin: NonNullable<typeof sources.facts> = { ...(sources.facts ?? {}) }
+  for (const k of ['developer', 'publisher', 'releaseYear', 'genre'] as const) {
+    if (k in data) origin[k] = 'wikidata'
+  }
+  data.metadataSources = JSON.stringify({ ...sources, facts: origin })
   await db.game.update({ where: { id: gameId }, data })
   return Object.keys(data)
 }

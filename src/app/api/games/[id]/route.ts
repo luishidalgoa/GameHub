@@ -5,7 +5,7 @@ import { resolveCoverPath } from '@/lib/s3'
 import { isAdminSession } from '@/lib/auth'
 import { adminGuard } from '@/lib/admin-guard'
 import { baseApplicationId } from '@/lib/scanner/titleid'
-import { changedFields, lockFields, LOCKABLE_FIELDS } from '@/lib/manual-fields'
+import { changedFields, lockFields, LOCKABLE_FIELDS, parseLocks } from '@/lib/manual-fields'
 
 export const dynamic = 'force-dynamic'
 
@@ -43,6 +43,9 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   // could rewrite filePath would point a game at any file on disk.
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { platform, dlcs, createdAt, id: _id, platformId, filePath, fileName, fileSize, groupKey, lastSeenAt, sha256, ...data } = body
+  // Fields the owner releases back to the automatic flows (one by one, from the editor).
+  const unlock: string[] = Array.isArray(body.unlock) ? body.unlock.filter((x: unknown): x is string => typeof x === 'string') : []
+  delete data.unlock
   if (typeof data.isHidden === 'boolean') data.userHidden = data.isHidden
 
   // Title ID: 16 hex o nada. Se normaliza aqui y no en el formulario porque
@@ -65,9 +68,10 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 
   const before = await db.game.findUnique({ where: { id }, select: Object.fromEntries(LOCKABLE_FIELDS.map(k => [k, true])) as never })
   const changed = before ? changedFields(before as Record<string, unknown>, data as Record<string, unknown>) : []
-  if (changed.length) {
+  if (changed.length || unlock.length) {
     const current = await db.game.findUnique({ where: { id }, select: { manualFields: true } })
-    data.manualFields = lockFields(current?.manualFields, changed)
+    const kept = parseLocks(current?.manualFields).filter(f => !unlock.includes(f))
+    data.manualFields = lockFields(JSON.stringify(kept), changed)
   }
   const game = await db.game.update({ where: { id }, data })
   return NextResponse.json(serializeBigInt(game))

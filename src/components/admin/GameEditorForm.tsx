@@ -13,6 +13,7 @@ import { YouTubeEmbed } from '@/components/shared/YouTubeEmbed'
 import { toast } from '@/components/shared/Toaster'
 import type { Game } from '@/types/game'
 import { PROVIDER_LABEL, parseMetadataSources, type FieldSource, type MetadataSources } from '@/lib/metadata/sources'
+import { parseLocks } from '@/lib/manual-fields'
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
@@ -121,6 +122,12 @@ export function GameEditorForm({ game, thumbnailWidth = 200, thumbnailHeight = 3
   // Stateful: applying a cover rewrites `cover`, and the badge has to follow the
   // picture immediately — the server prop only refreshes on a full reload.
   const [sources, setSources] = useState<MetadataSources>(() => parseMetadataSources(game.metadataSources))
+  // Fields the owner set by hand: automatic flows leave them alone until released here.
+  const [locks, setLocks] = useState<string[]>(() => parseLocks((game as { manualFields?: string | null }).manualFields))
+  const releaseField = async (field: string) => {
+    const res = await fetch(`/api/games/${game.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ unlock: [field] }) })
+    if (res.ok) setLocks((await res.json()).manualFields ? parseLocks((await res.clone().json()).manualFields) : [])
+  }
 
   // ── External links ─────────────────────────────────────────────────────────
   const [links, setLinks] = useState<ExternalLinkItem[]>(parseExternalLinks(game.externalLinks))
@@ -193,7 +200,7 @@ export function GameEditorForm({ game, thumbnailWidth = 200, thumbnailHeight = 3
     // If the value changed from what the chain returned, it's a manual edit.
     const effectiveSource = finalScore == null ? null : (scoreSource ?? 'manual')
     const isCritic = effectiveSource === 'rawg' || effectiveSource === 'metacritic' || effectiveSource === 'manual'
-    await fetch(`/api/games/${game.id}`, {
+    const res = await fetch(`/api/games/${game.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -207,6 +214,7 @@ export function GameEditorForm({ game, thumbnailWidth = 200, thumbnailHeight = 3
         popularityFetchedAt: new Date().toISOString(),
       }),
     })
+    if (res.ok) setLocks(parseLocks((await res.clone().json()).manualFields))
     setSaving(false)
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
@@ -282,7 +290,7 @@ export function GameEditorForm({ game, thumbnailWidth = 200, thumbnailHeight = 3
           </Field>
 
           <div className="grid grid-cols-2 gap-4">
-            <Field label={t('fieldGenre')} badge={<SourceBadge source={sources.info} />}>
+            <Field label={t('fieldGenre')} badge={<FieldBadge locked={locks.includes('genre')} source={sources.facts?.genre ?? sources.info} onRelease={() => releaseField('genre')} />}>
               <input value={form.genre} onChange={(e) => set('genre', e.target.value)} className={inputCls} placeholder={t('fieldGenrePlaceholder')} />
             </Field>
             <Field label={t('fieldRegion')}>
@@ -291,10 +299,10 @@ export function GameEditorForm({ game, thumbnailWidth = 200, thumbnailHeight = 3
             <Field label={t('fieldLanguages')}>
               <input value={form.languages} onChange={(e) => set('languages', e.target.value)} className={inputCls} placeholder={t('fieldLanguagesPlaceholder')} />
             </Field>
-            <Field label={t('fieldYear')} badge={<SourceBadge source={sources.info} />}>
+            <Field label={t('fieldYear')} badge={<FieldBadge locked={locks.includes('releaseYear')} source={sources.facts?.releaseYear ?? sources.info} onRelease={() => releaseField('releaseYear')} />}>
               <input value={form.releaseYear} onChange={(e) => set('releaseYear', e.target.value)} className={inputCls} type="number" min="1970" max="2030" />
             </Field>
-            <Field label={t('fieldDeveloper')} badge={<SourceBadge source={sources.info} />}>
+            <Field label={t('fieldDeveloper')} badge={<FieldBadge locked={locks.includes('developer')} source={sources.facts?.developer ?? sources.info} onRelease={() => releaseField('developer')} />}>
               <input value={form.developer} onChange={(e) => set('developer', e.target.value)} className={inputCls} />
             </Field>
             <Field label={t('fieldTitleId')} className="col-span-2">
@@ -308,7 +316,7 @@ export function GameEditorForm({ game, thumbnailWidth = 200, thumbnailHeight = 3
               />
               <p className="mt-1 text-xs text-muted-foreground">{t('fieldTitleIdHint')}</p>
             </Field>
-            <Field label={t('fieldPublisher')} className="col-span-2" badge={<SourceBadge source={sources.info} />}>
+            <Field label={t('fieldPublisher')} className="col-span-2" badge={<FieldBadge locked={locks.includes('publisher')} source={sources.facts?.publisher ?? sources.info} onRelease={() => releaseField('publisher')} />}>
               <input value={form.publisher} onChange={(e) => set('publisher', e.target.value)} className={inputCls} />
             </Field>
 
@@ -701,6 +709,23 @@ function Field({
 
 
 /** Small pill showing where a field came from (or nothing if unknown). */
+/** Badge of a fact field: "Tuyo" with a release button when the owner set it, otherwise where it came from. */
+function FieldBadge({ locked, source, onRelease }: { locked: boolean; source?: FieldSource; onRelease: () => void }) {
+  if (locked) {
+    return (
+      <button
+        type="button"
+        onClick={onRelease}
+        title="Lo fijaste tú: los procesos automáticos no lo cambian. Pulsa para soltarlo."
+        className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-300 leading-none hover:bg-amber-500/25"
+      >
+        Tuyo · soltar
+      </button>
+    )
+  }
+  return <SourceBadge source={source} />
+}
+
 function SourceBadge({ source }: { source?: FieldSource }) {
   if (!source) return null
   return (

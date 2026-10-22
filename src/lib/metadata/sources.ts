@@ -21,15 +21,19 @@ export const PROVIDER_LABEL: Record<string, string> = {
   upload:      'Manual',
   url:         'URL',
   screenshot:  'Screenshot',
+  wikidata:    'Wikidata',
 }
 
 export type FieldSource =
   | 'launchbox' | 'rawg' | 'steamgriddb' | 'libretro'
+  | 'wikidata'    // a fact (developer, publisher, year, genre) filled from Wikidata
   | 'upload'      // a file dropped, pasted or picked from disk
   | 'url'         // pasted image URL
   | 'screenshot'  // promoted from one of the game's screenshots
 
 export interface MetadataSources {
+  /** Origin of each fact field, for the ones filled outside the matrix (Wikidata). */
+  facts?:       Partial<Record<'developer' | 'publisher' | 'releaseYear' | 'genre', FieldSource>>
   cover?:       FieldSource
   info?:        FieldSource
   description?: FieldSource
