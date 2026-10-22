@@ -4,6 +4,7 @@ import { libraryGameWhere } from '@/lib/library'
 import { resolveCoverPath } from '@/lib/s3'
 import { comparePopularity, weightedSample, MIN_ADDED } from '@/lib/metadata/popularity'
 import { rankPublishers, type RankedPublisher } from '@/lib/publishers'
+import { tileImageKey } from '@/lib/tile-art'
 import { getPublisherArt, brandColorsFor } from '@/lib/publisher-art'
 
 /** A game as the home page draws it: one wide image, whatever the game has. */
@@ -35,7 +36,7 @@ export interface TileGame {
 
 const TILE_SELECT = {
   id: true, title: true, coverPath: true, coverUrl: true, screenshotPaths: true,
-  tilePath: true, backdropPath: true, logoPath: true, themePalette: true,
+  tilePath: true, backdropPath: true, backdropKind: true, logoPath: true, themePalette: true,
   releaseYear: true, genre: true, publisher: true, rawgScore: true, description: true,
   platform: { select: { slug: true, name: true, thumbnailWidth: true, thumbnailHeight: true } },
 } as const
@@ -47,6 +48,7 @@ interface TileRow {
   coverUrl: string | null
   screenshotPaths: string | null
   tilePath: string | null
+  backdropKind: string | null
   backdropPath: string | null
   logoPath: string | null
   themePalette: string | null
@@ -77,7 +79,7 @@ function parsePalette(raw: string | null): string[] | null {
 }
 
 export function toTile(g: TileRow): TileGame {
-  const image = resolveCoverPath(g.tilePath)
+  const image = resolveCoverPath(tileImageKey(g.tilePath, g.backdropPath, g.backdropKind))
   const shot = firstScreenshot(g.screenshotPaths)
   return {
     id: g.id,
