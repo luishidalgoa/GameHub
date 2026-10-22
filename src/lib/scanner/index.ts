@@ -102,7 +102,15 @@ function classifyFile(f: FileEntry, switchMode: boolean): FileKind {
 async function findExistingGame(platformId: number, filePath: string, groupKey: string) {
   const byPath = await db.game.findUnique({ where: { filePath } })
   if (byPath) return byPath
-  return db.game.findFirst({ where: { platformId, groupKey } })
+  const sibling = await db.game.findFirst({ where: { platformId, groupKey } })
+  // A sibling whose file is still on disk is another variant of the same game (a
+  // second region or revision). It keeps its row, and the variant gets its own; the
+  // consolidation step folds it in as a region edition. Only a sibling whose file has
+  // gone hands its row over: a conversion such as Juego.iso -> Juego.chd, or a rename.
+  // Taking the row of a variant that is still there made each scan move the row back
+  // and forth between the two files (#139 preview showed the other one as new).
+  if (sibling && fs.existsSync(sibling.filePath)) return null
+  return sibling
 }
 
 async function reparentAndDelete(srcId: number, dstId: number, switchMode: boolean) {
@@ -319,7 +327,7 @@ export interface PlatformScanSummary {
   modsFound:    number
 }
 
-export async function runScan(triggeredBy = 'manual', platformSlug?: string) {
+export async function runScan(triggeredBy = 'manual', platformSlug?: string, jobId?: number) {
   const scanStart = new Date()
   emit({ type: 'scan_start' })
 
@@ -340,7 +348,7 @@ export async function runScan(triggeredBy = 'manual', platformSlug?: string) {
   const breakdown: PlatformScanSummary[] = []
 
   const log = await db.scanLog.create({
-    data: { triggeredBy, startedAt: scanStart },
+    data: { triggeredBy, startedAt: scanStart, jobId: jobId ?? null },
   })
 
   const platforms = await db.platform.findMany({

@@ -327,7 +327,7 @@ export async function startScanJob(params: ScanJobParams): Promise<number> {
 
   ;(async () => {
     try {
-      await runScan('manual', params.platformSlug)
+      await runScan('manual', params.platformSlug, job.id)
       await db.job.update({
         where: { id: job.id },
         data: { status: 'done', phase: 'done', message: 'Scan complete', finishedAt: new Date() },

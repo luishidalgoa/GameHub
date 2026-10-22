@@ -24,7 +24,10 @@ interface ScanLog {
   triggeredBy:       string
   errors:            string | null
   platformBreakdown: string | null
+  jobId:             number | null
 }
+
+interface JobLogLine { id: number; at: string; text: string }
 
 interface Props {
   logId: number
@@ -34,6 +37,7 @@ interface Props {
 export function ScanLogModal({ logId, onClose }: Props) {
   const [log, setLog]       = useState<ScanLog | null>(null)
   const [loading, setLoading] = useState(true)
+  const [jobLines, setJobLines] = useState<JobLogLine[] | null>(null)
 
   useEffect(() => {
     fetch(`/api/admin/scan-logs/${logId}`)
@@ -41,6 +45,15 @@ export function ScanLogModal({ logId, onClose }: Props) {
       .then(data => { setLog(data); setLoading(false) })
       .catch(() => setLoading(false))
   }, [logId])
+
+  // The persistent log of the job that ran this scan: readable after a reload (#139).
+  useEffect(() => {
+    if (!log?.jobId) return
+    fetch(`/api/admin/jobs/${log.jobId}/logs?limit=500`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => setJobLines(data?.lines ?? []))
+      .catch(() => setJobLines([]))
+  }, [log?.jobId])
 
   const breakdown: PlatformScanSummary[] = log?.platformBreakdown
     ? JSON.parse(log.platformBreakdown)
@@ -155,6 +168,24 @@ export function ScanLogModal({ logId, onClose }: Props) {
                       <p key={i} className="text-xs text-red-300 font-mono">{e}</p>
                     ))}
                   </div>
+                </div>
+              )}
+
+              {/* Job log: what the scan did, line by line (#139) */}
+              {log.jobId && (
+                <div>
+                  <h3 className="text-sm font-medium text-muted-foreground mb-2">Log del escaneo</h3>
+                  {jobLines === null ? (
+                    <p className="text-xs text-muted-foreground">Cargando log…</p>
+                  ) : jobLines.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">Sin líneas de log para este escaneo.</p>
+                  ) : (
+                    <div className="bg-black/40 rounded-lg p-3 max-h-64 overflow-y-auto font-mono text-xs text-green-400 leading-relaxed space-y-0.5">
+                      {jobLines.map(l => (
+                        <div key={l.id} className="whitespace-pre-wrap break-all">{l.text}</div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
             </>

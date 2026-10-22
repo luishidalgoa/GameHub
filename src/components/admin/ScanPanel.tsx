@@ -6,8 +6,19 @@ import { Play, RefreshCw, ChevronDown, StopCircle, Eye } from 'lucide-react'
 import useSWR from 'swr'
 import type { Platform } from '@/types/platform'
 import type { ScanPreview } from '@/lib/scanner/preview'
+import { ScanLogsTable } from './ScanLogsTable'
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
+
+type ScanHistoryRow = {
+  id: number
+  startedAt: string
+  finishedAt: string | null
+  gamesFound: number
+  gamesAdded: number
+  gamesUpdated: number
+  gamesStale: number
+}
 
 export function ScanPanel() {
   const t = useTranslations('ScanPanel')
@@ -20,6 +31,9 @@ export function ScanPanel() {
   const [preview, setPreview]           = useState<ScanPreview | null>(null)
   const [previewing, setPreviewing]     = useState(false)
   const [previewError, setPreviewError] = useState(false)
+  const [history, setHistory]           = useState<ScanHistoryRow[] | null>(null)
+  const [showHistory, setShowHistory]   = useState(false)
+  const tAdmin = useTranslations('Admin')
   const logRef = useRef<HTMLDivElement>(null)
 
   const { data: platforms } = useSWR<Platform[]>('/api/platforms', fetcher)
@@ -178,6 +192,17 @@ export function ScanPanel() {
     }
   }
 
+  // The full scan history, reloaded when a scan ends so it shows the new one (#139).
+  useEffect(() => {
+    if (!showHistory || scanning) return
+    let cancelled = false
+    fetch('/api/admin/scan-logs?limit=30')
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (!cancelled) setHistory(data ?? []) })
+      .catch(() => { if (!cancelled) setHistory([]) })
+    return () => { cancelled = true }
+  }, [showHistory, scanning])
+
   // Reads only: what the next scan would add, change or hide (#137).
   async function runPreview() {
     setPreviewing(true)
@@ -291,6 +316,36 @@ export function ScanPanel() {
           {scanning && <span className="animate-pulse">█</span>}
         </div>
       )}
+
+      <div className="mt-4">
+        <button
+          onClick={() => setShowHistory(v => !v)}
+          className="text-xs text-muted-foreground hover:text-foreground"
+        >
+          {showHistory ? 'Ocultar historial de escaneos' : 'Ver historial de escaneos'}
+        </button>
+        {showHistory && (
+          <div className="mt-3">
+            {history === null ? (
+              <p className="text-xs text-muted-foreground">Cargando historial…</p>
+            ) : history.length === 0 ? (
+              <p className="text-xs text-muted-foreground">Todavía no hay escaneos.</p>
+            ) : (
+              <ScanLogsTable
+                logs={history}
+                labels={{
+                  date: tAdmin('date'),
+                  duration: tAdmin('duration'),
+                  found: tAdmin('found'),
+                  added: tAdmin('added'),
+                  updated: tAdmin('updated'),
+                  stale: tAdmin('stale'),
+                }}
+              />
+            )}
+          </div>
+        )}
+      </div>
 
       {(preview || previewError) && (
         <div className="mt-4 border border-border rounded-lg p-4 space-y-3">

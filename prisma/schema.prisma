@@ -215,6 +215,8 @@ model ScanLog {
   errors            String?
   triggeredBy       String    @default("manual")
   platformBreakdown String?   // JSON: PlatformScanSummary[]
+  // The job that ran this scan: its persistent log is JobLog rows with this jobId (#139).
+  jobId             Int?
 }
 
 model RequestLog {
