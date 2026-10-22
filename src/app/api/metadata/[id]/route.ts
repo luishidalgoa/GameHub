@@ -141,7 +141,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 
   // The score the scores batch would write, when the game has none yet (#80 scale).
   const scoreFill = game.rawgScore == null
-    ? await scoreForGame({ title: game.title, platformSlug: game.platform.slug, rawgId: game.rawgId }, await rawgKey())
+    ? await scoreForGame({ title: game.title, platformSlug: game.platform.slug, rawgId: game.rawgId }, await rawgKey(), 350)
     : null
 
   const updated = await runAutomatic(() => db.game.update({
@@ -228,7 +228,7 @@ async function applyManualPick(
   let trailerUrl: string | undefined
   if (!existingTrailer) trailerUrl = (await searchYouTubeTrailer(meta.title).catch(() => undefined)) ?? undefined
 
-  const prevRow = await db.game.findUnique({ where: { id: gameId }, select: { metadataSources: true, manualFields: true } })
+  const prevRow = await db.game.findUnique({ where: { id: gameId }, select: { metadataSources: true } })
   const facts: Record<string, typeof source> = {}
   if (meta.developer)   facts.developer = source
   if (meta.publisher)   facts.publisher = source
@@ -262,14 +262,6 @@ async function applyManualPick(
       ...(trailerUrl && { trailerUrl }),
       metadataSources: JSON.stringify(sources),
       metadataFetchedAt: new Date(),
-      // Chosen by hand: the owner's now, so automation leaves these fields alone.
-      manualFields: lockFields(prevRow?.manualFields, [
-        'title', 'description', 'releaseYear', 'genre', 'developer', 'publisher',
-        ...(coverUrl ? ['coverUrl'] : []),
-        ...(coverPath ? ['coverPath'] : []),
-        ...(screenshots.length > 0 ? ['screenshotPaths'] : []),
-        ...(trailerUrl ? ['trailerUrl'] : []),
-      ]),
     },
   })
   return { ...updated, sources }

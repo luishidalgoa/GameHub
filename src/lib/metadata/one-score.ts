@@ -1,6 +1,7 @@
 import { getRawgProvider } from './rawg'
 import { fetchGameScore } from './scoreChain'
 import { unifiedScore } from './popularity'
+import type { RawgPopularityMetrics } from './rawg'
 
 /**
  * The score the scores batch would write for one game, so the one-click fill
@@ -10,10 +11,15 @@ import { unifiedScore } from './popularity'
 export async function scoreForGame(
   game: { title: string; platformSlug: string; rawgId: number | null },
   apiKey: string | undefined,
+  rateMs = 350,
+  /** Metrics the caller already fetched for this game (the popularity pass): not fetched twice. */
+  preloaded?: RawgPopularityMetrics | null,
 ): Promise<{ rawgScore: number; scoreSource: string; rawgMetacritic: number | null; rawgRating: number | null; rawgAdded: number | null } | null> {
   try {
     const provider = getRawgProvider(apiKey)
-    const m = game.rawgId != null && provider ? await provider.fetchPopularity(game.rawgId) : null
+    const m = preloaded !== undefined
+      ? preloaded
+      : game.rawgId != null && provider ? await provider.fetchPopularity(game.rawgId) : null
 
     let metacritic = m?.metacritic ?? null
     let score = m ? unifiedScore({ rawgMetacritic: m.metacritic, rawgRating: m.rating }) : null
@@ -22,7 +28,7 @@ export async function scoreForGame(
     if (metacritic == null) {
       const r = await fetchGameScore({
         title: game.title, platformSlug: game.platformSlug,
-        rawgMetacritic: m?.metacritic ?? null, apiKey,
+        rawgMetacritic: m?.metacritic ?? null, rateMs, apiKey,
       })
       if (r) {
         score = r.score

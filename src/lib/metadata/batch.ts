@@ -4,8 +4,7 @@ import { fillGameFacts } from './wikidata'
 import { noMatchRetryAt } from './retry'
 import { downloadAndCacheCover } from '@/lib/covers'
 import { getRawgProvider } from './rawg'
-import { fetchGameScore } from './scoreChain'
-import { unifiedScore } from './popularity'
+import { scoreForGame } from './one-score'
 import { searchYouTubeTrailer, YouTubeApiError } from '@/lib/youtube'
 import { AUTO_THRESHOLD } from './scoring'
 import { getProviderMatrix, type ProviderMatrix } from './matrix'
@@ -259,29 +258,17 @@ async function runMetadataBatchInner(opts: {
         // re-fetch — otherwise this pass would replace a Metacritic with RAWG's
         // user rating, or wipe it when RAWG knows nothing.
         const keepScore = !popularityRedo && game.rawgScore != null && m.metacritic == null
-        let metacritic = m.metacritic            // critic score → rawgMetacritic
-        let score      = unifiedScore({ rawgMetacritic: m.metacritic, rawgRating: m.rating })
-        // Two different scales, two labels (#80): a critic score is 'metacritic', a
-        // player rating scaled x20 is 'rawg_rating'.
-        let source: string | null = m.metacritic != null ? 'metacritic' : (score != null ? 'rawg_rating' : null)
-        if (metacritic == null && !keepScore) {
-          if (signal.aborted) break
-          const r = await fetchGameScore({
-            title: game.title, platformSlug: game.platform.slug,
-            rawgMetacritic: m.metacritic, rateMs, apiKey,
-          })
-          if (r) {
-            score  = r.score
-            source = r.source
-            if (r.isCritic) metacritic = r.score   // only critic scores go to rawgMetacritic
-          }
-        }
+        // The same score rule as every other path (one-score.ts), on the metrics just fetched.
+        const scored = keepScore ? null : await scoreForGame(
+          { title: game.title, platformSlug: game.platform.slug, rawgId: game.rawgId },
+          apiKey, rateMs, m,
+        )
         await db.game.update({
           where: { id: game.id },
           data: {
             rawgAdded:           m.added,
             rawgRating:          m.rating,
-            ...(keepScore ? {} : { rawgMetacritic: metacritic, rawgScore: score, scoreSource: source }),
+            ...(scored ? { rawgMetacritic: scored.rawgMetacritic, rawgScore: scored.rawgScore, scoreSource: scored.scoreSource } : {}),
             popularityFetchedAt: new Date(),
           },
         })
@@ -301,10 +288,10 @@ async function runMetadataBatchInner(opts: {
       try {
         await delay(rateMs)
         if (signal.aborted) break
-        const r = await fetchGameScore({
-          title: game.title, platformSlug: game.platform.slug,
-          rawgId: game.rawgId, rateMs, apiKey,
-        })
+        const r = await scoreForGame(
+          { title: game.title, platformSlug: game.platform.slug, rawgId: game.rawgId },
+          apiKey, rateMs,
+        )
         if (!r) {
           skipped++
           emit({ type: 'skipped', gameId: game.id, title: game.title, reason: 'no_score_found', processed, total, applied, skipped, failed })
@@ -313,9 +300,9 @@ async function runMetadataBatchInner(opts: {
         await db.game.update({
           where: { id: game.id },
           data: {
-            rawgScore:           r.score,
-            scoreSource:         r.source,
-            ...(r.isCritic ? { rawgMetacritic: r.score } : {}),
+            rawgScore:           r.rawgScore,
+            scoreSource:         r.scoreSource,
+            ...(r.rawgMetacritic != null ? { rawgMetacritic: r.rawgMetacritic } : {}),
             popularityFetchedAt: new Date(),
           },
         })
@@ -436,20 +423,20 @@ async function runMetadataBatchInner(opts: {
       // Only for games that don't have one — 'redo' re-derives everything.
       let scoreData: { rawgScore?: number; scoreSource?: string; rawgMetacritic?: number } = {}
       if (withScores && (mode === 'redo' || game.rawgScore == null)) {
-        const r = await fetchGameScore({
-          title:        meta.title || game.title,
-          platformSlug: game.platform.slug,
-          rawgId:       meta.rawgId ?? game.rawgId,
-          rateMs,
+        // The same score rule as the fill button (one-score.ts): RAWG metacritic,
+        // else RAWG rating x20, else the Metacritic/LaunchBox chain.
+        await delay(rateMs)
+        const r = await scoreForGame(
+          { title: meta.title || game.title, platformSlug: game.platform.slug, rawgId: meta.rawgId ?? game.rawgId },
           apiKey,
-        }).catch(() => null)
+          rateMs,
+        )
         if (r) {
           scoreData = {
-            rawgScore:   r.score,
-            scoreSource: r.source,
-            // Only a critic metascore belongs in rawgMetacritic — a LaunchBox
-            // community rating is a user score and must not be mislabelled.
-            ...(r.isCritic ? { rawgMetacritic: r.score } : {}),
+            rawgScore:   r.rawgScore,
+            scoreSource: r.scoreSource,
+            // Only a critic metascore belongs in rawgMetacritic (one-score.ts keeps it apart).
+            ...(r.rawgMetacritic != null ? { rawgMetacritic: r.rawgMetacritic } : {}),
           }
         }
         if (signal.aborted) break

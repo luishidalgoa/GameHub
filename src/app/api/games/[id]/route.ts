@@ -68,10 +68,16 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 
   const before = await db.game.findUnique({ where: { id }, select: Object.fromEntries(LOCKABLE_FIELDS.map(k => [k, true])) as never })
   const changed = before ? changedFields(before as Record<string, unknown>, data as Record<string, unknown>) : []
+  // A lock protects a value the owner set. A field the owner cleared has nothing to
+  // protect: it is not locked, and an old lock on it is released, so the automatic
+  // fill can fill it again.
+  const isEmpty = (v: unknown) => v == null || (typeof v === 'string' && v.trim() === '')
+  const cleared = changed.filter(f => isEmpty(data[f]))
+  const setByOwner = changed.filter(f => !isEmpty(data[f]))
   if (changed.length || unlock.length) {
     const current = await db.game.findUnique({ where: { id }, select: { manualFields: true } })
-    const kept = parseLocks(current?.manualFields).filter(f => !unlock.includes(f))
-    data.manualFields = lockFields(JSON.stringify(kept), changed)
+    const kept = parseLocks(current?.manualFields).filter(f => !unlock.includes(f) && !cleared.includes(f))
+    data.manualFields = lockFields(JSON.stringify(kept), setByOwner)
   }
   const game = await db.game.update({ where: { id }, data })
   return NextResponse.json(serializeBigInt(game))
