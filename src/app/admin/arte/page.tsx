@@ -1,48 +1,50 @@
 import { db } from '@/lib/db'
+import { resolveCoverPath } from '@/lib/cover-url'
 import { ArtJobPanel } from '@/components/admin/ArtJobPanel'
 import { ArtManualUpload, type ArtUploadRow } from '@/components/admin/ArtManualUpload'
+import { ManualArtList, type ManualArtRow } from '@/components/admin/ManualArtList'
 
 export const dynamic = 'force-dynamic'
 
-const MISSING_SAMPLE = 40
+const SAMPLE = 60
 
-// Arte (#142): cobertura por tipo, subida manual de lo que falta, y el job de descarga.
+// Arte (#142). Solo cuentan los juegos valiosos: visibles y con descripción o año.
 export default async function AdminArtPage() {
-  const visible = { isHidden: false }
-  const [total, withFanart, withLogo, withTile, byKind, missingFanart, missingLogo] = await Promise.all([
-    db.game.count({ where: visible }),
-    db.game.count({ where: { ...visible, backdropPath: { not: null } } }),
-    db.game.count({ where: { ...visible, logoPath: { not: null } } }),
-    db.game.count({ where: { ...visible, tilePath: { not: null } } }),
-    db.gameImage.groupBy({ by: ['kind'], _count: { _all: true } }),
+  const valuable = {
+    isHidden: false,
+    OR: [{ description: { not: null } }, { releaseYear: { not: null } }],
+  }
+  const [missingFanart, missingLogo, manual] = await Promise.all([
     db.game.findMany({
-      where: { ...visible, backdropPath: null },
-      select: { id: true, title: true, platform: { select: { name: true } } },
-      orderBy: { title: 'asc' },
-      take: MISSING_SAMPLE,
+      where: { ...valuable, backdropPath: null },
+      select: { id: true, title: true, coverPath: true, platform: { select: { name: true } } },
+      orderBy: { title: 'asc' }, take: SAMPLE,
     }),
     db.game.findMany({
-      where: { ...visible, logoPath: null },
-      select: { id: true, title: true, platform: { select: { name: true } } },
-      orderBy: { title: 'asc' },
-      take: MISSING_SAMPLE,
+      where: { ...valuable, logoPath: null },
+      select: { id: true, title: true, coverPath: true, platform: { select: { name: true } } },
+      orderBy: { title: 'asc' }, take: SAMPLE,
+    }),
+    db.gameImage.findMany({
+      where: { kind: { startsWith: 'manual-' } },
+      orderBy: { createdAt: 'desc' }, take: 100,
+      include: { game: { select: { id: true, title: true, platform: { select: { name: true } } } } },
     }),
   ])
 
-  const rows: ArtUploadRow[] = [
-    ...missingFanart.map(g => ({ id: g.id, title: g.title, platform: g.platform.name, missing: 'fanart' as const })),
-    ...missingLogo.map(g => ({ id: g.id, title: g.title, platform: g.platform.name, missing: 'logo' as const })),
+  const uploadRows: ArtUploadRow[] = [
+    ...missingFanart.map(g => ({ id: g.id, title: g.title, platform: g.platform.name, coverUrl: resolveCoverPath(g.coverPath), missing: 'fanart' as const })),
+    ...missingLogo.map(g => ({ id: g.id, title: g.title, platform: g.platform.name, coverUrl: resolveCoverPath(g.coverPath), missing: 'logo' as const })),
   ]
-  const imagesOf = (kind: string) => byKind.find(k => k.kind === kind)?._count._all ?? 0
-  // Games with the art field set, and the repository's files for the kinds it keeps.
-  // A null means the count does not apply to that row.
-  const coverage: { label: string; games: number | null; images: number | null }[] = [
-    { label: 'Fondo (fanart)', games: withFanart, images: imagesOf('fanart') },
-    { label: 'Logo', games: withLogo, images: imagesOf('clear-logo') },
-    { label: 'Tile', games: withTile, images: null },
-    { label: 'Banner', games: null, images: imagesOf('banner') },
-    { label: 'Carátula frontal', games: null, images: imagesOf('box-front') },
-  ]
+  const manualRows: ManualArtRow[] = manual.map(i => ({
+    imageId: i.id,
+    gameId: i.game.id,
+    title: i.game.title,
+    platform: i.game.platform.name,
+    kind: (i.kind.replace('manual-', '') as ManualArtRow['kind']),
+    imageUrl: resolveCoverPath(i.s3Key),
+    createdAt: i.createdAt.toISOString(),
+  }))
 
   return (
     <div className="space-y-8">
@@ -50,31 +52,20 @@ export default async function AdminArtPage() {
 
       <div className="bg-card border border-border rounded-xl p-6 space-y-4">
         <div>
-          <h3 className="font-semibold">Cobertura por tipo</h3>
-          <p className="text-sm text-muted-foreground mt-0.5">De {total} juegos visibles. Las imágenes guardadas cuentan cada fichero del repositorio.</p>
+          <h3 className="font-semibold">Subidas a mano</h3>
+          <p className="text-sm text-muted-foreground mt-0.5">Lo que has subido, con su vista previa. «Quitar» devuelve el juego a como estaba.</p>
         </div>
-        <table className="w-full text-sm">
-          <thead className="text-left text-xs text-muted-foreground">
-            <tr><th className="py-2">Tipo</th><th className="py-2 text-right">Juegos con imagen</th><th className="py-2 text-right">Imágenes guardadas</th></tr>
-          </thead>
-          <tbody className="divide-y divide-border">
-            {coverage.map(c => (
-              <tr key={c.label}>
-                <td className="py-2">{c.label}</td>
-                <td className="py-2 text-right tabular-nums">{c.games ?? '—'}</td>
-                <td className="py-2 text-right tabular-nums">{c.images ?? '—'}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <ManualArtList rows={manualRows} />
       </div>
 
       <div className="bg-card border border-border rounded-xl p-6 space-y-4">
         <div>
-          <h3 className="font-semibold">Falta fondo o logo</h3>
-          <p className="text-sm text-muted-foreground mt-0.5">Hasta {MISSING_SAMPLE} de cada tipo, por orden alfabético. Lo que subas aquí se guarda igual que en la ficha del juego.</p>
+          <h3 className="font-semibold">Juegos valiosos sin fondo o sin logo</h3>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            Solo juegos visibles con descripción o año. Hasta {SAMPLE} de cada tipo, por orden alfabético. Eliges la imagen y la ves antes de subirla.
+          </p>
         </div>
-        <ArtManualUpload rows={rows} />
+        <ArtManualUpload rows={uploadRows} />
       </div>
     </div>
   )

@@ -3,9 +3,9 @@ import sharp from 'sharp'
 import { NextResponse } from 'next/server'
 import { adminGuard } from '@/lib/admin-guard'
 import { db } from '@/lib/db'
-import { uploadToS3 } from '@/lib/s3'
+import { uploadToS3, deleteManyFromS3 } from '@/lib/s3'
 import { paletteOf } from '@/lib/palette'
-import { changedFields, lockFields, LOCKABLE_FIELDS } from '@/lib/manual-fields'
+import { lockFields, parseLocks } from '@/lib/manual-fields'
 
 export const dynamic = 'force-dynamic'
 
@@ -72,4 +72,42 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   await db.game.update({ where: { id: game.id }, data })
 
   return NextResponse.json({ ok: true, key: s3Key })
+}
+
+// DELETE ?imageId=… — takes a manual image back: its stored row, the game fields that
+// point at it (and their locks), and the object in the bucket. Only what points at
+// this image is cleared; an image the art job set is never touched here.
+export async function DELETE(req: Request, { params }: { params: { id: string } }) {
+  const denied = await adminGuard()
+  if (denied) return denied
+
+  const gameId = parseInt(params.id, 10)
+  const imageId = parseInt(new URL(req.url).searchParams.get('imageId') ?? '', 10)
+  const image = await db.gameImage.findFirst({ where: { id: imageId, gameId } })
+  if (!image || !image.kind.startsWith('manual-')) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+  const game = await db.game.findUnique({
+    where: { id: gameId },
+    select: { backdropPath: true, logoPath: true, tilePath: true, manualFields: true },
+  })
+  if (!game) return NextResponse.json({ error: 'Game not found' }, { status: 404 })
+
+  const pointsHere = (path: string | null) => !!path && path.split('?')[0] === image.s3Key
+  const data: Record<string, unknown> = {}
+  const released: string[] = []
+  if (pointsHere(game.backdropPath)) {
+    data.backdropPath = null; data.backdropKind = null; data.themePalette = null
+    released.push('backdropPath', 'backdropKind', 'themePalette')
+  }
+  if (pointsHere(game.tilePath)) { data.tilePath = null; released.push('tilePath') }
+  if (pointsHere(game.logoPath)) { data.logoPath = null; released.push('logoPath') }
+  if (released.length) {
+    const kept = parseLocks(game.manualFields).filter(f => !released.includes(f))
+    data.manualFields = kept.length ? JSON.stringify(kept) : null
+    await db.game.update({ where: { id: gameId }, data })
+  }
+
+  await db.gameImage.delete({ where: { id: image.id } })
+  await deleteManyFromS3([image.s3Key]).catch(() => 0)
+  return NextResponse.json({ ok: true, released })
 }
