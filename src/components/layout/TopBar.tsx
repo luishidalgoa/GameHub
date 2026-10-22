@@ -61,6 +61,14 @@ export function TopBar({ onMenuClick }: Props) {
 
   return (
     <>
+      {/* Full-screen glass sweep while results are open: slides down from the top in 0.75s. */}
+      {open && query.length > 1 && (
+        <div
+          aria-hidden="true"
+          className="hidden sm:block fixed inset-0 z-[19] bg-background/50 backdrop-blur-xl animate-in fade-in-0 slide-in-from-top duration-[750ms]"
+        />
+      )}
+
       <header className="fixed top-0 left-0 right-0 md:left-14 h-14 bg-background/80 backdrop-blur-sm border-b border-border z-20 flex items-center px-3 sm:px-6 gap-3">
         {/* Hamburger — mobile only */}
         <button
@@ -95,9 +103,12 @@ export function TopBar({ onMenuClick }: Props) {
             </button>
           )}
           {open && query.length > 1 && data?.games && (
-            <div role="listbox" className="absolute top-full mt-2 left-0 right-0 origin-top rounded-2xl border border-white/10 bg-background/60 backdrop-blur-xl shadow-2xl shadow-black/50 overflow-hidden z-50 animate-in fade-in-0 slide-in-from-top-2 duration-200">
+            <div
+              role="listbox"
+              className="absolute top-full mt-4 left-0 right-0 origin-top flex flex-col gap-0.5 rounded-[14px] border border-white/10 bg-[#14141a] p-1.5 shadow-[0_24px_48px_rgba(0,0,0,0.45)] z-50 animate-in fade-in-0 slide-in-from-top-2 duration-200"
+            >
               {data.games.length === 0 ? (
-                <p className="px-4 py-3 text-sm text-muted-foreground">No results</p>
+                <p className="px-2.5 py-3 text-sm text-muted-foreground">No results</p>
               ) : (
                 data.games.map((g: Sugerencia) => (
                   <button
@@ -105,10 +116,15 @@ export function TopBar({ onMenuClick }: Props) {
                     role="option"
                     aria-selected={false}
                     onMouseDown={() => navigateTo(g.id)}
-                    className="w-full text-left px-4 py-2.5 text-sm hover:bg-white/[0.07] transition-colors"
+                    className="flex w-full items-center gap-3 rounded-[10px] px-2.5 py-2 text-left transition-colors hover:bg-white/[0.07]"
                   >
-                    <span className="block truncate">{g.title}</span>
-                    <Badge game={g} />
+                    <span className="h-10 w-10 flex-shrink-0 rounded-lg bg-[#22222b]" aria-hidden="true" />
+                    <span className="flex min-w-0 flex-col gap-0.5">
+                      <span className="truncate text-sm font-semibold">{g.title}</span>
+                      <span className="truncate text-xs text-muted-foreground">
+                        {g.platform.name}{g.releaseYear ? ` · ${g.releaseYear}` : ''}
+                      </span>
+                    </span>
                   </button>
                 ))
               )}
