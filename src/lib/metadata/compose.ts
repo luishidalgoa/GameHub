@@ -77,7 +77,7 @@ export interface CoverContext {
 export async function chooseCover(ctx: CoverContext): Promise<CoverChoice | null> {
   const { matrix, lb, rawg } = ctx
   if (matrix.cover === 'launchbox' && lb?.coverUrl) return { coverUrl: lb.coverUrl, source: 'launchbox' }
-  if (matrix.cover === 'rawg' && rawg?.coverUrl) return { coverUrl: rawg.coverUrl, source: 'rawg' }
+  // RAWG has no box art: its image field is a screenshot, so it is never a cover.
   if (matrix.cover === 'steamgriddb') {
     const url = await ctx.sgdbCover(ctx.sgdbTitle)
     if (url) return { coverUrl: url, source: 'steamgriddb' }
@@ -91,7 +91,6 @@ export async function chooseCover(ctx: CoverContext): Promise<CoverChoice | null
   if (box) return { coverUrl: box, source: 'libretro' }
   const url = await ctx.sgdbCover(ctx.sgdbTitle)
   if (url) return { coverUrl: url, source: 'steamgriddb' }
-  if (rawg?.coverUrl) return { coverUrl: rawg.coverUrl, source: 'rawg' }
   return null
 }
 

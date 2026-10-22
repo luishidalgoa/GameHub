@@ -180,7 +180,9 @@ async function applyManualPick(
 
   // The picked candidate's own art first; without it, the platform's cover chain.
   const row = await db.game.findUnique({ where: { id: gameId }, select: { fileName: true } })
-  const cover = meta.coverUrl
+  // Only LaunchBox's own box art is taken as the picked candidate's cover; a RAWG
+  // image is a screenshot (see chooseCover).
+  const cover = source === 'launchbox' && meta.coverUrl
     ? { coverUrl: meta.coverUrl, source }
     : await chooseCover({
         matrix:       await getProviderMatrix(platformSlug),
