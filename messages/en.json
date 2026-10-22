@@ -643,7 +643,12 @@
     "section_archivo": "File and status",
     "imgPasteHint": "You can paste an image or a link (Ctrl+V), or drag a file here, and it goes into \"{category}\".",
     "imgPasteNotHere": "Images cannot be added here: it is for reference only.",
-    "imgPasting": "Saving the pasted image…"
+    "imgPasting": "Saving the pasted image…",
+    "cat_box": "Box",
+    "cat_media": "Cartridge and disc",
+    "imgRefHint_box": "Packaging art LaunchBox publishes: back of the box, 3D, spine and the boxes with a background. For reference.",
+    "imgRefHint_media": "Cartridge, disc and their backgrounds. For reference.",
+    "imgRefHint_other": "Advertising, arcade cabinets, manuals, maps and icons LaunchBox has. For reference."
   },
   "MetadataFetch": {
     "button": "Fill metadata",

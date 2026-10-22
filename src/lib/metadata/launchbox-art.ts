@@ -31,9 +31,10 @@ function regionRank(region: string | undefined): number {
 /**
  * Minimum width/height ratio for a category to be used as a wide image. A banner
  * or fanart that is upright is not one: LaunchBox files some pages of text and
- * portrait box scans under "Banner". Unknown sizes are given the benefit of the doubt.
+ * portrait box scans under "Banner". A 16:9 banner (e.g. It Takes Two) is wide
+ * enough; a strip such as 760x140 is still wide and passes too. Unknown sizes are given the benefit of the doubt.
  */
-const MIN_WIDE_RATIO: Record<string, number> = { banner: 2, fanartbackground: 1.2, screenshotgametitle: 1.1 }
+const MIN_WIDE_RATIO: Record<string, number> = { banner: 1.2, fanartbackground: 1.2, screenshotgametitle: 1.1 }
 
 /**
  * Smallest width for a category stretched across a page. A DS banner is a few

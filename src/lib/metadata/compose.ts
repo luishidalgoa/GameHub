@@ -5,6 +5,7 @@ import { fetchLibretroCover } from './libretro'
 import { calcTitleConfidence, calcConfidence, AUTO_THRESHOLD } from './scoring'
 import { LAUNCHBOX_PLATFORM_NAMES } from './launchbox'
 import type { ProviderMatrix } from './matrix'
+import type { LaunchBoxImage } from './launchbox'
 import type { MetadataResult } from './provider'
 
 // Composes a single game's metadata from multiple providers according to the
@@ -25,6 +26,8 @@ export interface ComposedMetadata {
   launchboxId?: number
   /** Screenshot/extra image URLs. */
   screenshots: string[]
+  /** Every image LaunchBox publishes for the game, at its original size: stored by the art flow. */
+  images: LaunchBoxImage[]
   /** Provenance for each field (for logging / UI). */
   sources: Partial<Record<'cover' | 'info' | 'description' | 'screenshots', 'launchbox' | 'rawg' | 'steamgriddb' | 'libretro'>>
   /** Which provider gave each fact field, so the editor labels it (#133). */
@@ -213,6 +216,7 @@ export async function gatherMetadata(input: GatherInput): Promise<ComposedMetada
     return {
       title,
       screenshots: [],
+      images: [],
       coverUrl: box,
       sources: { cover: 'libretro' },
       confidence: 0,
@@ -284,6 +288,7 @@ export async function gatherMetadata(input: GatherInput): Promise<ComposedMetada
     esrb: info?.esrb,
     coverUrl,
     screenshots,
+    images: lb?.images ?? [],
     sources,
     confidence: Math.max(lbConfidence, rawgConfidence),
     rawgId: rawg?.id,

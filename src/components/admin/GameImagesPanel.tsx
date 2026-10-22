@@ -8,9 +8,13 @@ import { CoverUploader } from './CoverUploader'
 import { toast } from '@/components/shared/Toaster'
 import type { GameArt, ArtImage, ShotEntry } from '@/lib/game-art'
 import type { ArtCategory } from '@/lib/art-manual'
+import { artTitle } from '@/lib/art-catalog'
+import { slotOf } from '@/lib/art-manual'
 import type { MetadataSources } from '@/lib/metadata/sources'
 
-const TABS: ArtCategory[] = ['cover', 'banner', 'fanart', 'logo', 'screenshot', 'other']
+const TABS: ArtCategory[] = ['cover', 'banner', 'fanart', 'logo', 'screenshot', 'box', 'media', 'other']
+/** Categories the owner can only look at: LaunchBox's packaging and advertising art. */
+const REFERENCE: ArtCategory[] = ['box', 'media', 'other']
 type Slot = 'banner' | 'fanart' | 'logo'
 /** The game field that holds each slot, as the locks name it. */
 const SLOT_FIELD: Record<Slot, string> = { banner: 'backdropPath', fanart: 'backdropPath', logo: 'logoPath' }
@@ -75,7 +79,7 @@ export function GameImagesPanel({ gameId, gameTitle, platformSlug, coverPath, on
    * Every category takes one except "other", which is for reference only.
    */
   const bringIn = (files: File[], urls: string[]) => {
-    if (tab === 'other') { toast(t('imgPasteNotHere'), 'info'); return }
+    if (REFERENCE.includes(tab)) { toast(t('imgPasteNotHere'), 'info'); return }
     void run('paste', async () => {
       if (tab === 'screenshot') {
         const form = new FormData()
@@ -123,7 +127,7 @@ export function GameImagesPanel({ gameId, gameTitle, platformSlug, coverPath, on
     return <div className="flex items-center gap-2 text-sm text-muted-foreground py-8"><Loader2 className="w-4 h-4 animate-spin" />{t('imgLoading')}</div>
   }
 
-  const library = (cat: ArtCategory) => art.images.filter(i => i.category === cat)
+  const library = (cat: ArtCategory) => art.images.filter(i => i.category === cat && (cat !== 'banner' && cat !== 'fanart' && cat !== 'logo' || slotOf(i.kind)))
   const count = (cat: ArtCategory) =>
     cat === 'cover' ? (art.cover ? 1 : 0) + library('cover').length
     : cat === 'screenshot' ? art.screenshots.length
@@ -142,7 +146,7 @@ export function GameImagesPanel({ gameId, gameTitle, platformSlug, coverPath, on
       <div>
         <h2 className="text-lg font-semibold">{t('sectionImages')}</h2>
         <p className="text-sm text-muted-foreground max-w-prose mt-1">{t('imgIntro')}</p>
-        {tab !== 'other' && <p className="text-sm text-muted-foreground max-w-prose mt-1">{t('imgPasteHint', { category: label(tab) })}</p>}
+        {!REFERENCE.includes(tab) && <p className="text-sm text-muted-foreground max-w-prose mt-1">{t('imgPasteHint', { category: label(tab) })}</p>}
         {busy === 'paste' && <p className="flex items-center gap-2 text-sm mt-2"><Loader2 className="w-4 h-4 animate-spin" />{t('imgPasting')}</p>}
       </div>
 
@@ -204,8 +208,8 @@ export function GameImagesPanel({ gameId, gameTitle, platformSlug, coverPath, on
         <ScreenshotsPanel art={art} base={base} gameId={gameId} busy={busy} run={run} offerUndo={offerUndo} onCover={onCover} />
       )}
 
-      {tab === 'other' && (
-        <OtherPanel images={library('other')} />
+      {REFERENCE.includes(tab) && (
+        <ReferencePanel images={library(tab)} hint={t(`imgRefHint_${tab}`)} />
       )}
 
       {undo && (
@@ -552,25 +556,33 @@ function ScreenshotsPanel({ art, base, gameId, busy, run, offerUndo, onCover }: 
   )
 }
 
-// ── Everything else LaunchBox has: for reference ────────────────────────────────────────────
+// ── Reference categories: packaging, media and everything else LaunchBox has ────────────────
 
-function OtherPanel({ images }: { images: ArtImage[] }) {
+/** Read-only: the images grouped under the data model's name for each kind. */
+function ReferencePanel({ images, hint }: { images: ArtImage[]; hint: string }) {
   const t = useTranslations('GameEditor')
   if (images.length === 0) return <p className="text-sm text-muted-foreground">{t('imgLibraryEmpty')}</p>
+  const byKind = new Map<string, ArtImage[]>()
+  for (const img of images) byKind.set(img.kind, [...(byKind.get(img.kind) ?? []), img])
   return (
-    <div className="space-y-3">
-      <p className="text-sm text-muted-foreground max-w-prose">{t('imgOtherHint')}</p>
-      <ul className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {images.map(img => (
-          <li key={img.id} className="space-y-1.5">
-            <a href={img.url} target="_blank" rel="noopener noreferrer" className="block aspect-video rounded-lg overflow-hidden bg-secondary border border-border hover:border-muted-foreground transition-colors">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={img.url} alt="" loading="lazy" className="w-full h-full object-contain" />
-            </a>
-            <p className="text-xs text-muted-foreground truncate">{img.kind.replace('other:', '')}{img.width && img.height ? ` · ${img.width} × ${img.height}` : ''}</p>
-          </li>
-        ))}
-      </ul>
+    <div className="space-y-6">
+      <p className="text-sm text-muted-foreground max-w-prose">{hint}</p>
+      {[...byKind.entries()].map(([kind, list]) => (
+        <section key={kind} className="space-y-3" aria-label={artTitle(kind)}>
+          <h3 className="text-[15px] font-semibold">{artTitle(kind)} <span className="text-muted-foreground font-normal">{list.length}</span></h3>
+          <ul className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            {list.map(img => (
+              <li key={img.id} className="space-y-1.5">
+                <a href={img.url} target="_blank" rel="noopener noreferrer" className="block aspect-video rounded-lg overflow-hidden bg-secondary border border-border hover:border-muted-foreground transition-colors">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={img.url} alt={artTitle(kind)} loading="lazy" className="w-full h-full object-contain" />
+                </a>
+                <p className="text-xs text-muted-foreground truncate">{img.region ? `${img.region} · ` : ''}{img.width && img.height ? `${img.width} × ${img.height}` : ''}</p>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ))}
     </div>
   )
 }

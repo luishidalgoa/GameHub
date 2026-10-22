@@ -643,7 +643,12 @@
     "section_archivo": "Archivo y estado",
     "imgPasteHint": "Puedes pegar una imagen o un enlace (Ctrl+V), o arrastrar un archivo, y entra en «{category}».",
     "imgPasteNotHere": "Aquí no se pueden añadir imágenes: es solo de consulta.",
-    "imgPasting": "Guardando la imagen pegada…"
+    "imgPasting": "Guardando la imagen pegada…",
+    "cat_box": "Caja",
+    "cat_media": "Cartucho y disco",
+    "imgRefHint_box": "Arte de empaquetado que publica LaunchBox: caja trasera, 3D, lomo y las cajas con fondo. Es de consulta.",
+    "imgRefHint_media": "Cartucho, disco y sus fondos. Es de consulta.",
+    "imgRefHint_other": "Publicidad, máquinas recreativas, manuales, mapas e iconos que trae LaunchBox. Es de consulta."
   },
   "MetadataFetch": {
     "button": "Rellenar metadatos",

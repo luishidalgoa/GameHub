@@ -10,6 +10,7 @@ import { AUTO_THRESHOLD } from './scoring'
 import { getProviderMatrix, type ProviderMatrix } from './matrix'
 import { gatherMetadata } from './compose'
 import { applyMetadata, textPatch, type TextField } from './apply'
+import { storeLaunchBoxArt } from '@/lib/art'
 import type { FieldSource } from './sources'
 import { parseMetadataSources, type MetadataSources } from './sources'
 import { WITHOUT_METADATA, hasMetadata } from '@/lib/library'
@@ -508,6 +509,15 @@ async function runMetadataBatchInner(opts: {
         skipped++
         emit({ type: 'skipped', gameId: game.id, title: game.title, reason: 'nothing_to_fill', processed, total, applied, skipped, failed })
         continue
+      }
+
+      // Art from the same LaunchBox page: every image, and the banner, fanart and logo.
+      if (meta.images.length > 0) {
+        await storeLaunchBoxArt(
+          { id: game.id, platformSlug: game.platform.slug, fileName: game.fileName },
+          meta.images,
+          { found: true, launchboxId: meta.launchboxId, paceMs: 250 },
+        ).catch(() => 'no-art' as const)
       }
 
       // Text values carry the provider that gave them; the rest are plain columns.

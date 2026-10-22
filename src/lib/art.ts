@@ -1,5 +1,6 @@
 import sharp from 'sharp'
 import { db } from '@/lib/db'
+import { applyMetadata } from '@/lib/metadata/apply'
 import { uploadToS3 } from '@/lib/s3'
 import { storeGameImages } from '@/lib/game-images'
 import { providerFetch } from '@/lib/metadata/http'
@@ -25,8 +26,6 @@ export interface ArtGame {
   launchboxId: number | null
   platformSlug: string
 }
-
-export type ArtOutcome = 'applied' | 'no-art' | 'no-match'
 
 async function download(url: string): Promise<Buffer> {
   const res = await providerFetch(url)
@@ -69,18 +68,23 @@ async function pixelWebp(url: string): Promise<Buffer> {
     .toBuffer()
 }
 
+export type ArtOutcome = 'applied' | 'no-art' | 'no-match'
+
 /**
- * Fetch the art of one game. Every image LaunchBox publishes for it goes into the
- * repository (GameImage, categorized); the backdrop, the fanart tile and the logo
- * are then pointed at those stored copies, so nothing is downloaded twice. A game
- * with no LaunchBox art falls back to the libretro snapshot for its tile. The
- * status says why a game has no art (no match, or a match with no art), which is
- * the list of games still to complete by hand or from another source.
+ * The one place LaunchBox images become the game's art. Every image LaunchBox publishes
+ * goes into the repository (GameImage, categorized); the banner, the fanart and the logo
+ * are then pointed at the stored copies, so nothing is downloaded twice. Used by the
+ * metadata fill (Buscar metadatos and the batch) and by the art job. Locks are honoured:
+ * a field the owner set by hand is not replaced.
+ *
+ * A game with no LaunchBox fanart takes the libretro snapshot for its wide tile.
  */
-export async function fetchGameArt(game: ArtGame, paceMs = 600): Promise<ArtOutcome> {
-  const found = await resolveLaunchBoxGame(game, paceMs)
-  const images: LaunchBoxImage[] = found?.lb.images ?? []
-  const { byUrl } = await storeGameImages({ id: game.id, platformSlug: game.platformSlug }, images, paceMs)
+export async function storeLaunchBoxArt(
+  game: { id: number; platformSlug: string; fileName?: string },
+  images: LaunchBoxImage[],
+  opts: { found: boolean; launchboxId?: number | null; paceMs?: number },
+): Promise<ArtOutcome> {
+  const { byUrl } = await storeGameImages({ id: game.id, platformSlug: game.platformSlug }, images, opts.paceMs ?? 600)
   const stored = (img: LaunchBoxImage | null | undefined) => (img ? byUrl.get(img.url) ?? null : null)
 
   const backdrop = pickBackdrop(images)
@@ -89,7 +93,7 @@ export async function fetchGameArt(game: ArtGame, paceMs = 600): Promise<ArtOutc
   const lo = stored(pickLogo(images))
 
   const data: Record<string, unknown> = { artCheckedAt: new Date() }
-  if (found) data.launchboxId = found.id
+  if (opts.launchboxId) data.launchboxId = opts.launchboxId
   if (bd && backdrop) {
     data.backdropPath = bd.key
     data.backdropKind = backdrop.kind
@@ -101,7 +105,7 @@ export async function fetchGameArt(game: ArtGame, paceMs = 600): Promise<ArtOutc
   // No LaunchBox fanart: the libretro snapshot stands in for the wide tile.
   let retroStored = false
   if (!fa) {
-    const retro = await fetchLibretroScreens(game.fileName, game.platformSlug)
+    const retro = await fetchLibretroScreens(game.fileName ?? '', game.platformSlug)
     const retroUrl = retro.snap ?? retro.title ?? null
     if (retroUrl) {
       const webp = await pixelWebp(retroUrl)
@@ -118,8 +122,22 @@ export async function fetchGameArt(game: ArtGame, paceMs = 600): Promise<ArtOutc
   }
 
   const inRepo = await db.gameImage.count({ where: { gameId: game.id } })
-  data.artStatus = inRepo > 0 || retroStored ? 'ok' : found ? 'no-art' : 'no-match'
-  await db.game.update({ where: { id: game.id }, data })
-  if (data.artStatus === 'ok') return 'applied'
-  return found ? 'no-art' : 'no-match'
+  const artStatus = inRepo > 0 || retroStored ? 'ok' : opts.found ? 'no-art' : 'no-match'
+  data.artStatus = artStatus
+  // applyMetadata, not a raw update: the owner's locks on these fields are honoured.
+  await applyMetadata(game.id, { origin: 'auto', data })
+  if (artStatus === 'ok') return 'applied'
+  return opts.found ? 'no-art' : 'no-match'
+}
+
+/**
+ * Fetch the art of one game by its own search (the art job). The same store as the metadata fill.
+ */
+export async function fetchGameArt(game: ArtGame, paceMs = 600): Promise<ArtOutcome> {
+  const found = await resolveLaunchBoxGame(game, paceMs)
+  return storeLaunchBoxArt(
+    { id: game.id, platformSlug: game.platformSlug, fileName: game.fileName },
+    found?.lb.images ?? [],
+    { found: !!found, launchboxId: found?.id, paceMs },
+  )
 }

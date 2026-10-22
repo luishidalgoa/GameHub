@@ -14,10 +14,16 @@ describe('which category an image belongs to', () => {
     expect(categoryOf('manual-screenshot')).toBe('screenshot')
   })
 
-  it('everything else is "other", including unknown LaunchBox categories', () => {
-    for (const k of ['box-back', 'box-3d', 'cart-front', 'disc', 'square', 'other:icon']) {
-      expect(categoryOf(k)).toBe('other')
-    }
+  it('packaging, media and the rest have their own groups, and unknown LaunchBox categories are "other"', () => {
+    expect(categoryOf('box-back')).toBe('box')
+    expect(categoryOf('fanart-box-front')).toBe('box')
+    expect(categoryOf('box-3d')).toBe('box')
+    expect(categoryOf('cart-front')).toBe('media')
+    expect(categoryOf('disc')).toBe('media')
+    expect(categoryOf('square')).toBe('other')
+    expect(categoryOf('advertisement-flyer-back')).toBe('other')
+    expect(categoryOf('other:icon')).toBe('other')
+    expect(categoryOf('other:fanart-box-front')).toBe('box')
   })
 
   it('only banner, fanart and logo fill a game art slot', () => {

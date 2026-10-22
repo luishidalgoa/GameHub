@@ -17,6 +17,7 @@ import { fetchLibretroCover } from '@/lib/metadata/libretro'
 import type { LaunchBoxGame } from '@/lib/metadata/launchbox'
 import { changedFields, lockFields, LOCKABLE_FIELDS } from '@/lib/manual-fields'
 import { applyMetadata, textPatch, type TextField } from '@/lib/metadata/apply'
+import { storeLaunchBoxArt } from '@/lib/art'
 import type { FieldSource } from '@/lib/metadata/sources'
 import { scoreForGame } from '@/lib/metadata/one-score'
 import { parseRomTags, languagesToCsv } from '@/lib/rom-tags'
@@ -152,6 +153,14 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     title: meta.title, description: meta.description, releaseYear: meta.releaseYear,
     genre: meta.genre, developer: meta.developer, publisher: meta.publisher,
   }, f => f === 'description' ? meta.sources.description : (facts?.[f] ?? meta.sources.info))
+  // The art of the same LaunchBox page: every image is stored, and the banner, fanart and logo follow.
+  if (meta.images.length > 0) {
+    await storeLaunchBoxArt(
+      { id: gameId, platformSlug: game.platform.slug, fileName: game.fileName },
+      meta.images,
+      { found: true, launchboxId: meta.launchboxId, paceMs: 250 },
+    ).catch(() => 'no-art' as const)
+  }
   const updated = await applyMetadata(gameId, { origin: 'auto', patch, sources: {
     cover:       coverLocked ? prevSources.cover : meta.sources.cover,
     screenshots: meta.sources.screenshots,
@@ -247,6 +256,15 @@ async function applyManualPick(
     title: meta.title, description: meta.description, releaseYear: meta.releaseYear,
     genre: meta.genre, developer: meta.developer, publisher: meta.publisher,
   }, () => source)
+  // A picked LaunchBox game brings its whole art: every image, and the banner, fanart and logo.
+  const pickedImages = source === 'launchbox' ? ((meta as LaunchBoxGame).images ?? []) : []
+  if (pickedImages.length > 0) {
+    await storeLaunchBoxArt(
+      { id: gameId, platformSlug, fileName: row?.fileName ?? undefined },
+      pickedImages,
+      { found: true, launchboxId: Number(id), paceMs: 250 },
+    ).catch(() => 'no-art' as const)
+  }
   const updated = await applyMetadata(gameId, { origin: 'pick', patch, sources: {
     cover:       coverUrl ? coverSource : undefined,
     screenshots: screenshots.length ? source : undefined,

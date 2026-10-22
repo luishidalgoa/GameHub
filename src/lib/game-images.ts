@@ -4,34 +4,16 @@ import { db } from '@/lib/db'
 import { uploadToS3 } from '@/lib/s3'
 import { providerFetch } from '@/lib/metadata/http'
 import type { LaunchBoxImage } from '@/lib/metadata/launchbox'
+import { kindFromLaunchBox } from '@/lib/art-catalog'
 
 const MAX_DOWNLOAD_BYTES = 30 * 1024 * 1024
 
-/** LaunchBox's image categories, normalized to the kinds stored in GameImage.kind. */
-const KINDS: [RegExp, string][] = [
-  [/^banner$/, 'banner'],
-  [/^fanart\s*-?\s*background$/, 'fanart'],
-  [/^square$/, 'square'],
-  [/^clear\s*logo$/, 'clear-logo'],
-  [/^box\s*-\s*front\s*-\s*reconstructed$/, 'box-front-reconstructed'],
-  [/^box\s*-\s*front$/, 'box-front'],
-  [/^box\s*-\s*back$/, 'box-back'],
-  [/^box\s*-\s*3d$/, 'box-3d'],
-  [/^box\s*-\s*spine$/, 'box-spine'],
-  [/^cart\s*-\s*front$/, 'cart-front'],
-  [/^disc$/, 'disc'],
-  [/^screenshot\s*-\s*gameplay$/, 'screenshot-gameplay'],
-  [/^screenshot\s*-\s*game\s*title$/, 'screenshot-game-title'],
-]
-
 /**
- * The stored kind of a LaunchBox image type: a known category, or `other:<slug>`
- * keeping LaunchBox's own name, so an unfamiliar category can be told apart later.
+ * The stored kind of a LaunchBox image type: a known category of the catalogue (art-catalog.ts),
+ * or `other:<slug>` keeping LaunchBox's own name, so an unfamiliar category can be told apart later.
  */
 export function kindOf(type: string): string {
-  const t = type.trim().toLowerCase()
-  for (const [re, kind] of KINDS) if (re.test(t)) return kind
-  return `other:${t.replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'unknown'}`
+  return kindFromLaunchBox(type)
 }
 
 /**
@@ -40,11 +22,13 @@ export function kindOf(type: string): string {
  * changed. Logos stay transparent.
  */
 function fit(kind: string): { width?: number; height?: number; quality: number } {
-  switch (kind) {
+  const base = kind.replace(/^other:/, '')
+  switch (base) {
     case 'banner':
     case 'fanart':
     case 'screenshot-gameplay':
     case 'screenshot-game-title':
+    case 'screenshot-game-select':
       return { width: 1920, quality: 82 }
     case 'clear-logo':
       return { width: 1000, quality: 90 }

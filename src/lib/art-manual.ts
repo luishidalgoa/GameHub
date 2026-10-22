@@ -1,4 +1,5 @@
 import { db } from '@/lib/db'
+import { artKindOf, type ArtGroup } from '@/lib/art-catalog'
 import { deleteManyFromS3 } from '@/lib/s3'
 
 /**
@@ -32,37 +33,25 @@ export async function purgeExpiredManualArt(now = Date.now()): Promise<number> {
   return expired.length
 }
 
-/** The categories the editor sorts images into. */
-export type ArtCategory = 'cover' | 'banner' | 'fanart' | 'logo' | 'screenshot' | 'other'
+/** The tabs of the game editor's images: each group of the catalogue, plus the owner's cover. */
+export type ArtCategory = ArtGroup
 
-/** The category of a stored image (GameImage.kind), manual or from LaunchBox. */
-export function categoryOf(kind: string): ArtCategory {
-  switch (kind) {
-    case 'box-front':
-    case 'box-front-reconstructed':
-      return 'cover'
-    case 'banner':
-    case 'manual-banner':
-      return 'banner'
-    case 'fanart':
-    case 'manual-fanart':
-      return 'fanart'
-    case 'clear-logo':
-    case 'manual-logo':
-      return 'logo'
-    case 'screenshot-gameplay':
-    case 'screenshot-game-title':
-    case 'manual-screenshot':
-      return 'screenshot'
-    default:
-      return 'other'
-  }
+const MANUAL_GROUP: Record<string, ArtGroup> = {
+  banner: 'banner', fanart: 'fanart', logo: 'logo', screenshot: 'screenshot', cover: 'cover',
 }
 
-/** The game art slot an image of this kind can fill (the cover and the screenshots have their own). */
+/** The tab an image of this stored kind belongs to. */
+export function categoryOf(kind: string): ArtCategory {
+  if (isManualKind(kind)) return MANUAL_GROUP[kind.replace(/^manual-/, '')] ?? 'other'
+  return artKindOf(kind)?.group ?? 'other'
+}
+
+/** The game art slot an image of this kind fills: the banner, the background or the logo. */
 export function slotOf(kind: string): ManualKind | null {
-  const c = categoryOf(kind)
-  return c === 'banner' || c === 'fanart' || c === 'logo' ? c : null
+  const base = kind.replace(/^manual-/, '')
+  if (base === 'banner' || base === 'fanart' || base === 'logo') return base
+  if (base === 'clear-logo') return 'logo'
+  return null
 }
 
 /** True for the images the owner brought in: only those can be removed. */
