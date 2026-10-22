@@ -370,6 +370,18 @@ model GameImage {
   @@index([gameId, kind])
 }
 
+// Cada linea que imprime un job (escaneo, metadatos, imagenes), persistente: no se
+// pierde al recargar la pagina ni al reiniciar o desplegar.
+model JobLog {
+  id    Int      @id @default(autoincrement())
+  jobId Int
+  job   Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  at    DateTime @default(now())
+  text  String
+
+  @@index([jobId, id])
+}
+
 model Job {
   id        Int      @id @default(autoincrement())
   type      String                  // "scan" | "metadata"
@@ -401,4 +413,5 @@ model Job {
 
   @@index([type, status])
   @@index([status])
+  logs      JobLog[]
 }

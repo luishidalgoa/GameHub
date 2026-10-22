@@ -2,6 +2,7 @@ import { db } from '@/lib/db'
 import { runMetadataBatch, type BatchEvent } from '@/lib/metadata/batch'
 import { runScan } from '@/lib/scanner'
 import { fetchGameArt } from '@/lib/art'
+import { scanBus } from '@/lib/scanner/events'
 import { fillGameFacts } from '@/lib/metadata/wikidata'
 
 // Background job runner. Jobs run DETACHED from any HTTP request (so navigating
@@ -48,6 +49,22 @@ function pushLog(jobId: number, line: string) {
   buf.push(line)
   if (buf.length > LOG_MAX) buf.splice(0, buf.length - LOG_MAX)
   jobLogs.set(jobId, buf)
+  // Kept for good: the live buffer above only serves the last lines of this process.
+  void db.jobLog.create({ data: { jobId, text: line } }).catch(() => {})
+}
+
+/** The scan's own events, written to its job log while it runs. */
+function describeScanEvent(ev: { type: string; platform?: string; filePath?: string; isNew?: boolean; total?: number; added?: number; updated?: number; stale?: number; message?: string }): string | null {
+  const name = (p?: string) => (p ? p.split(/[\\/]/).pop() : '')
+  switch (ev.type) {
+    case 'scan_start':      return '→ Escaneo iniciado'
+    case 'platform_start':  return `→ Plataforma: ${ev.platform}`
+    case 'file_found':      return `${ev.isNew ? '+ Nuevo' : '· Encontrado'}: ${name(ev.filePath)}`
+    case 'platform_done':   return `✓ ${ev.platform} terminada`
+    case 'scan_complete':   return `✓ Terminado: ${ev.total ?? 0} encontrados · ${ev.added ?? 0} añadidos · ${ev.updated ?? 0} actualizados · ${ev.stale ?? 0} sin fichero`
+    case 'scan_error':      return `✗ Error: ${ev.message ?? 'desconocido'}`
+    default:                return null
+  }
 }
 
 /** Recent log lines for a job (newest last). Empty if none / process restarted. */
@@ -299,6 +316,14 @@ export async function startScanJob(params: ScanJobParams): Promise<number> {
     data: { type: 'scan', status: 'running', phase: 'scanning', params: JSON.stringify(params) },
   })
 
+  // The scan streams its events to the dashboard; the same events go to the job log,
+  // so the scan can be followed after a reload.
+  const onScanEvent = (ev: Parameters<typeof describeScanEvent>[0]) => {
+    const line = describeScanEvent(ev)
+    if (line) pushLog(job.id, line)
+  }
+  scanBus.on('scan', onScanEvent)
+
   ;(async () => {
     try {
       await runScan('manual', params.platformSlug)
@@ -311,6 +336,8 @@ export async function startScanJob(params: ScanJobParams): Promise<number> {
         where: { id: job.id },
         data: { status: 'failed', message: err instanceof Error ? err.message : 'scan error', finishedAt: new Date() },
       }).catch(() => {})
+    } finally {
+      scanBus.off('scan', onScanEvent)
     }
   })()
 
