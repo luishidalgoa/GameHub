@@ -120,7 +120,7 @@ export default async function GamePage({ params, searchParams }: Props) {
           </div>
 
           <div className="relative z-10 flex h-full flex-col justify-between gap-8 px-4 py-6 sm:px-6 sm:py-10 xl:flex-row xl:items-center">
-            <div className="flex min-w-0 items-center gap-5 sm:gap-7 xl:max-w-[640px]">
+            <div className="flex min-w-0 items-center gap-5 sm:gap-7 xl:flex-1">
               {cover && (
                 <div
                   className="relative flex-shrink-0 w-24 sm:w-32 lg:w-36 rounded-xl overflow-hidden bg-secondary shadow-2xl"
