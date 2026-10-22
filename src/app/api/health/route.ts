@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { HeadBucketCommand } from '@aws-sdk/client-s3'
 import { db } from '@/lib/db'
 import { getS3Config, makeS3Client } from '@/lib/s3'
+import { resumeInterruptedJobs } from '@/lib/jobs/runner'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -18,6 +19,9 @@ interface Check { name: string; ok: boolean; detail?: string }
  *   - rawg:  whether a RAWG key is configured (optional — info only, never fails)
  */
 export async function GET() {
+  // The container's healthcheck polls this every 30 s: a job left running by a restart
+  // resumes here, without waiting for someone to open the admin.
+  void resumeInterruptedJobs().catch(() => {})
   const checks: Check[] = []
 
   // ── DB (required) ──
