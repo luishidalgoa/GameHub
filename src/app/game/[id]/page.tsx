@@ -200,12 +200,12 @@ export default async function GamePage({ params, searchParams }: Props) {
               </section>
             )}
 
-            <div className="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] lg:gap-12">
+            <div className="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] lg:gap-10">
               <section className="flex flex-col gap-4 min-w-0">
                 {game.description && (
                   <>
                     <h2 className="text-lg font-semibold">{t('about')}</h2>
-                    <p className="max-w-[68ch] text-[15px] leading-relaxed text-foreground/80 whitespace-pre-line">{game.description}</p>
+                    <p className="text-[15px] leading-relaxed text-foreground/80 whitespace-pre-line">{game.description}</p>
                   </>
                 )}
                 {game.customNotes && (
