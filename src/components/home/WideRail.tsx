@@ -11,10 +11,11 @@ import { Reveal } from './Reveal'
  */
 export function WideRail({ kicker, title, href, moreLabel, moreHint, portrait = false, children }: {
   kicker?: string
-  title: string
+  /** Omit for a rail that sits under its own heading. */
+  title?: string
   /** Where "show all" goes; omit for a rail with no collection page. */
   href?: string
-  moreLabel: string
+  moreLabel?: string
   moreHint?: string
   /** Tall 3:4 tiles (publishers) instead of 16:9 ones. */
   portrait?: boolean
@@ -51,7 +52,7 @@ export function WideRail({ kicker, title, href, moreLabel, moreHint, portrait = 
       <div className="mb-4 flex items-end justify-between gap-4 px-4 sm:px-6">
         <div>
           {kicker && <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.22em] art-kicker">{kicker}</p>}
-          <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">{title}</h2>
+          {title && <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">{title}</h2>}
         </div>
         <div className="flex items-center gap-2">
           {href && (

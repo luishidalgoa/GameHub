@@ -16,7 +16,7 @@ import { DownloadButton }     from '@/components/shared/DownloadButton'
 import { BulkDownloadButton } from '@/components/shared/BulkDownloadButton'
 import { RatingPill } from '@/components/shared/RatingPill'
 import { RecordView } from '@/components/game/RecordView'
-import { ScreenshotCarousel } from '@/components/game/ScreenshotCarousel'
+import { ScreenshotGallery } from '@/components/game/ScreenshotGallery'
 import { ExternalLinkRows }   from '@/components/game/ExternalLinks'
 import { RegionPicker, type PickerEdition } from '@/components/game/RegionPicker'
 import { YouTubeEmbed }       from '@/components/shared/YouTubeEmbed'
@@ -58,10 +58,9 @@ export default async function GamePage({ params, searchParams }: Props) {
 
   // Background: the same rule as the home (banner first, box art last), see tile-art.ts.
   const backdrop = backdropUrl(game)
-  // Theme colors from the artwork: they tint the header's fallback and the whole page.
+  // Theme colors from the artwork: they colour the backdrop when there is no image.
   const palette = parsePalette(game.themePalette)
   const [c0, c1] = palette ?? []
-  const pageTint = c0 && c1 ? { background: `linear-gradient(180deg, ${c0}40 0%, ${c1}1f 35%, transparent 75%)` } : undefined
   const heroFallback = c0 && c1
     ? `radial-gradient(60% 80% at 30% 20%, ${c0} 0%, transparent 60%), radial-gradient(50% 70% at 80% 60%, ${c1} 0%, transparent 65%), #14101f`
     : 'radial-gradient(60% 80% at 30% 20%, #5b3aa8 0%, transparent 60%), radial-gradient(50% 70% at 80% 60%, #1f5f7a 0%, transparent 65%), #14101f'
@@ -99,21 +98,24 @@ export default async function GamePage({ params, searchParams }: Props) {
     <div>
       <RecordView gameId={game.id} />
 
-      {/* Página: el color de la ficha se extiende hacia abajo. Cabecera a sangre, sin tarjeta. */}
-      <div className="-mx-4 -mt-4 px-4 sm:-mx-6 sm:-mt-6 sm:px-6" style={pageTint}>
-        <section
-          className="relative -mx-4 sm:-mx-6 overflow-hidden lg:h-[470px]"
-          style={{ background: heroFallback }}
+      {/* Fondo a sangre: el banner difuminado ocupa toda la página y se desvanece al final. */}
+      <div className="relative -mx-4 -mt-4 sm:-mx-6 sm:-mt-6">
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 overflow-hidden"
+          style={{ maskImage: BACKDROP_FADE, WebkitMaskImage: BACKDROP_FADE }}
         >
-          {backdrop && (
-            <div aria-hidden="true" className="absolute -inset-10">
+          <div className="absolute -inset-10" style={{ background: heroFallback }}>
+            {backdrop && (
               <Image src={backdrop} alt="" fill className="object-cover opacity-90" style={{ filter: 'blur(18px)' }} unoptimized />
-            </div>
-          )}
-          <div aria-hidden="true" className="absolute inset-0 bg-gradient-to-r from-background via-background/80 to-background/30" />
-          <div aria-hidden="true" className="absolute inset-0 bg-gradient-to-t from-background via-transparent to-transparent" />
+            )}
+          </div>
+        </div>
 
-          <div className="relative z-10 flex h-full flex-col justify-between gap-8 p-6 sm:p-10 xl:flex-row xl:items-center">
+        <section className="relative lg:h-[470px]">
+          <div aria-hidden="true" className="absolute inset-0 bg-gradient-to-r from-background/90 via-background/60 to-transparent" />
+
+          <div className="relative z-10 flex h-full flex-col justify-between gap-8 px-4 py-6 sm:px-6 sm:py-10 xl:flex-row xl:items-center">
             <div className="flex min-w-0 gap-5 sm:gap-7 xl:max-w-[640px]">
               {cover && (
                 <div
@@ -186,12 +188,12 @@ export default async function GamePage({ params, searchParams }: Props) {
           </div>
         </section>
 
-        <div className="mt-8 flex flex-col gap-9">
+        <div className="relative mt-8 flex flex-col gap-9 px-4 sm:px-6">
           {/* Capturas: justo debajo de la cabecera. */}
           {screenshots.length > 0 && (
             <section aria-labelledby="capturas" className="flex flex-col gap-3">
               <h2 id="capturas" className="text-lg font-semibold">{t('screenshots')}</h2>
-              <ScreenshotCarousel screenshots={screenshots} />
+              <ScreenshotGallery screenshots={screenshots} />
             </section>
           )}
 
@@ -304,7 +306,10 @@ export default async function GamePage({ params, searchParams }: Props) {
     )
   }
 
-  function parsePalette(raw: string | null): string[] | null {
+  /** The banner fades out over the page, so the colour reaches the end of it. */
+const BACKDROP_FADE = 'linear-gradient(to bottom, #000 0%, #000 35%, transparent 100%)'
+
+function parsePalette(raw: string | null): string[] | null {
     if (!raw) return null
     try {
       const arr = JSON.parse(raw)
