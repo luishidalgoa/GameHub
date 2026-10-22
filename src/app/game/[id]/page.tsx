@@ -90,7 +90,7 @@ export default async function GamePage({ params, searchParams }: Props) {
   // The stored descriptions are hard-wrapped every ~70 characters: join the lines of each
   // paragraph so the text can flow around the facts, and keep only the blank-line breaks.
   const paragraphs = (game.description ?? '')
-    .split(/\n{2,}/)
+    .split(/\n[ \t\r]*\n/)
     .map((para) => para.replace(/\s*\n\s*/g, ' ').trim())
     .filter(Boolean)
 
