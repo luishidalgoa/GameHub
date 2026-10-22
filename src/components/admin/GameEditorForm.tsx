@@ -12,6 +12,7 @@ import { YouTubeEmbed } from '@/components/shared/YouTubeEmbed'
 import { toast } from '@/components/shared/Toaster'
 import type { Game } from '@/types/game'
 import type { GameArt } from '@/lib/game-art'
+import { ART_KINDS, artKindOf, artTitle } from '@/lib/art-catalog'
 import { PROVIDER_LABEL, parseMetadataSources, type FieldSource, type MetadataSources } from '@/lib/metadata/sources'
 import { parseLocks } from '@/lib/manual-fields'
 
@@ -732,23 +733,41 @@ function Toggle({
 }
 
 
-/** The images at a glance, in the Details section: what each category has, and the way into the section. */
+/**
+ * The images at a glance, in the Details section: the game's slots (cover, banner, background,
+ * logo, screenshots) under the data model's names, then every other category the game has.
+ */
 function ImageSummary({ gameId, onOpen }: { gameId: number; onOpen: () => void }) {
   const t = useTranslations('GameEditor')
   const { data: art } = useSWR<GameArt>(`/api/admin/games/${gameId}/images`, fetcher, { revalidateOnFocus: false })
   if (!art) return null
+
   const backdropIsBanner = art.backdrop?.kind === 'banner'
-  const rows: { key: string; label: string; url: string | null; note: string; missing: boolean }[] = [
-    { key: 'cover', label: t('cat_cover'), url: art.cover, note: art.cover ? '' : t('imgSummaryMissing'), missing: !art.cover },
-    { key: 'banner', label: t('cat_banner'), url: backdropIsBanner ? art.backdrop!.url : null, note: backdropIsBanner ? '' : t('imgSummaryMissing'), missing: !backdropIsBanner },
-    { key: 'fanart', label: t('cat_fanart'), url: art.backdrop && !backdropIsBanner ? art.backdrop.url : null, note: art.backdrop && !backdropIsBanner ? '' : t('imgSummaryMissing'), missing: !(art.backdrop && !backdropIsBanner) },
-    { key: 'logo', label: t('cat_logo'), url: art.logo?.url ?? null, note: art.logo ? '' : t('imgSummaryMissing'), missing: !art.logo },
+  const fanartUrl = art.backdrop && !backdropIsBanner ? art.backdrop.url : null
+  const slots = [
+    { key: 'cover', title: artTitle('box-front'), url: art.cover, note: '', missing: !art.cover },
+    { key: 'banner', title: artTitle('banner'), url: backdropIsBanner ? art.backdrop!.url : null, note: '', missing: !backdropIsBanner },
+    { key: 'fanart', title: artTitle('fanart'), url: fanartUrl, note: '', missing: !fanartUrl },
+    { key: 'logo', title: artTitle('clear-logo'), url: art.logo?.url ?? null, note: '', missing: !art.logo },
     {
-      key: 'shots', label: t('cat_screenshot'), url: art.screenshots[0]?.url ?? null,
-      note: art.screenshots.length ? t('imgSummaryShots', { count: art.screenshots.length, external: art.screenshots.filter(s => s.external).length }) : t('imgSummaryMissing'),
+      key: 'shots', title: artTitle('screenshot-gameplay'), url: art.screenshots[0]?.url ?? null,
+      note: art.screenshots.length ? t('imgSummaryShots', { count: art.screenshots.length, external: art.screenshots.filter(s => s.external).length }) : '',
       missing: art.screenshots.length === 0,
     },
   ]
+
+  // Every other category the game has, by its catalogue kind (the model's name), with how many.
+  const slotKinds = new Set(['box-front', 'banner', 'fanart', 'clear-logo', 'screenshot-gameplay'])
+  const others = ART_KINDS
+    .filter(k => !slotKinds.has(k.kind))
+    .map(k => ({ kind: k.kind, title: k.title, list: art.images.filter(i => artKindOf(i.kind)?.kind === k.kind) }))
+    .filter(r => r.list.length > 0)
+
+  const Thumb = ({ url }: { url: string | null }) => url
+    // eslint-disable-next-line @next/next/no-img-element
+    ? <img src={url} alt="" className="w-14 h-10 rounded-md object-cover bg-secondary flex-shrink-0" />
+    : <span className="w-14 h-10 rounded-md border border-dashed border-border flex-shrink-0" aria-hidden="true" />
+
   return (
     <section aria-labelledby="img-summary" className="border-t border-border pt-6 space-y-4">
       <div className="flex items-baseline justify-between gap-4">
@@ -756,15 +775,23 @@ function ImageSummary({ gameId, onOpen }: { gameId: number; onOpen: () => void }
         <button type="button" onClick={onOpen} className="text-sm text-primary hover:underline">{t('imgManage')}</button>
       </div>
       <ul className="grid grid-cols-2 sm:grid-cols-3 gap-x-5 gap-y-3 text-sm">
-        {rows.map(r => (
+        {slots.map(r => (
           <li key={r.key} className="flex items-center gap-3">
-            {r.url
-              // eslint-disable-next-line @next/next/no-img-element
-              ? <img src={r.url} alt="" className="w-14 h-10 rounded-md object-cover bg-secondary flex-shrink-0" />
-              : <span className="w-14 h-10 rounded-md border border-dashed border-border flex-shrink-0" aria-hidden="true" />}
+            <Thumb url={r.url} />
             <span className="flex flex-col min-w-0">
-              <span>{r.label}</span>
-              {r.note && <span className={`text-xs ${r.missing ? 'text-amber-300' : 'text-muted-foreground'}`}>{r.note}</span>}
+              <span>{r.title}</span>
+              {r.missing
+                ? <span className="text-xs text-amber-300">{t('imgSummaryMissing')}</span>
+                : r.note && <span className="text-xs text-muted-foreground">{r.note}</span>}
+            </span>
+          </li>
+        ))}
+        {others.map(r => (
+          <li key={r.kind} className="flex items-center gap-3">
+            <Thumb url={r.list[0].url} />
+            <span className="flex flex-col min-w-0">
+              <span>{r.title}</span>
+              <span className="text-xs text-muted-foreground">{r.list.length}</span>
             </span>
           </li>
         ))}
