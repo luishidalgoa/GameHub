@@ -115,10 +115,10 @@ export default async function GamePage({ params, searchParams }: Props) {
           <div aria-hidden="true" className="absolute inset-0 bg-gradient-to-r from-background/90 via-background/60 to-transparent" />
 
           <div className="relative z-10 flex h-full flex-col justify-between gap-8 px-4 py-6 sm:px-6 sm:py-10 xl:flex-row xl:items-center">
-            <div className="flex min-w-0 gap-5 sm:gap-7 xl:max-w-[640px]">
+            <div className="flex min-w-0 items-center gap-5 sm:gap-7 xl:max-w-[640px]">
               {cover && (
                 <div
-                  className="relative flex-shrink-0 self-start w-24 sm:w-32 lg:w-36 rounded-xl overflow-hidden bg-secondary shadow-2xl"
+                  className="relative flex-shrink-0 w-24 sm:w-32 lg:w-36 rounded-xl overflow-hidden bg-secondary shadow-2xl"
                   style={{ aspectRatio: `${thumbW} / ${thumbH}`, viewTransitionName: `game-cover-${game.id}` }}
                 >
                   <Image src={cover} alt={game.title} fill className="object-cover" unoptimized />
