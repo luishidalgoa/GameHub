@@ -64,16 +64,16 @@ export function TopBar({ onMenuClick }: Props) {
 
   return (
     <>
-      {/* Full-screen glass sweep: always mounted above the screen, it slides down over 0.75s while results are open. */}
+      {/* Full-screen tint sweep: always mounted above the screen, it slides down over 0.75s while results are open. No backdrop blur: it cost half the frame rate. */}
       <div
         aria-hidden="true"
         className={cn(
-          'pointer-events-none hidden sm:block fixed inset-0 z-[19] bg-background/60 backdrop-blur-md will-change-transform transition-transform duration-[750ms] ease-out',
+          'pointer-events-none hidden sm:block fixed inset-0 z-[19] bg-background/80 will-change-transform transition-transform duration-[750ms] ease-out',
           open && query.length > 1 ? 'translate-y-0' : '-translate-y-full',
         )}
       />
 
-      <header className="fixed top-0 left-0 right-0 md:left-14 h-14 bg-background/80 backdrop-blur-sm border-b border-border z-20 flex items-center px-3 sm:px-6 gap-3">
+      <header className="fixed top-0 left-0 right-0 md:left-14 h-14 bg-background/95 border-b border-border z-20 flex items-center px-3 sm:px-6 gap-3">
         {/* Hamburger — mobile only */}
         <button
           onClick={onMenuClick}
