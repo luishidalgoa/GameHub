@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { getTranslations } from 'next-intl/server'
-import { LayoutDashboard, Gamepad2, Settings, BarChart2, Heart, Ghost, ChevronRight, Tag, FileSignature, ScanSearch, Sparkles, Image as ImageIcon, Archive, ShieldCheck, Library, Wrench } from 'lucide-react'
+import { ChevronRight, Tag } from 'lucide-react'
+import { AdminNav } from '@/components/admin/AdminNav'
 import { LogoutButton } from '@/components/admin/LogoutButton'
 import { db } from '@/lib/db'
 import { getAppVersion, type AppVersionInfo } from '@/lib/version'
@@ -22,19 +23,19 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         <LogoutButton />
       </div>
 
-      <div className="flex flex-wrap gap-2 mb-8 border-b border-border pb-4">
-        <AdminTab href="/admin"            icon={<LayoutDashboard className="w-4 h-4" />} label={t('dashboard')} />
-        <AdminTab href="/admin/escaner"    icon={<ScanSearch className="w-4 h-4" />}      label={t('scanner')} />
-        <AdminTab href="/admin/metadatos"  icon={<Sparkles className="w-4 h-4" />}        label={t('metadata')} />
-        <AdminTab href="/admin/arte"       icon={<ImageIcon className="w-4 h-4" />}       label={t('art')} />
-        <AdminTab href="/admin/almacen"    icon={<Archive className="w-4 h-4" />}         label={t('storage')} />
-        <AdminTab href="/admin/catalogo"   icon={<Library className="w-4 h-4" />}          label={t('catalog')} />
-        <AdminTab href="/admin/games"      icon={<Gamepad2 className="w-4 h-4" />}        label={t('games')} />
-        <AdminTab href="/admin/mantenimiento" icon={<Wrench className="w-4 h-4" />}      label={t('maintenance')} badge={missingCount || undefined} />
-        <AdminTab href="/admin/traffic"    icon={<BarChart2 className="w-4 h-4" />}       label={t('traffic')} />
-        <AdminTab href="/admin/donations"  icon={<Heart className="w-4 h-4" />}           label={t('donations')} />
-        <AdminTab href="/admin/settings"   icon={<Settings className="w-4 h-4" />}        label={t('settings')} />
-      </div>
+      <AdminNav items={[
+        { href: '/admin', label: t('dashboard') },
+        { href: '/admin/escaner', label: t('scanner') },
+        { href: '/admin/metadatos', label: t('metadata') },
+        { href: '/admin/arte', label: t('art') },
+        { href: '/admin/almacen', label: t('storage') },
+        { href: '/admin/catalogo', label: t('catalog') },
+        { href: '/admin/games', label: t('games') },
+        { href: '/admin/mantenimiento', label: t('maintenance'), badge: missingCount || undefined },
+        { href: '/admin/traffic', label: t('traffic') },
+        { href: '/admin/donations', label: t('donations') },
+        { href: '/admin/settings', label: t('settings') },
+      ]} />
 
       {children}
 
@@ -84,19 +85,3 @@ function AdminVersionFooter({ info }: { info: AppVersionInfo }) {
   )
 }
 
-function AdminTab({ href, icon, label, badge }: { href: string; icon: React.ReactNode; label: string; badge?: number }) {
-  return (
-    <Link
-      href={href}
-      className="flex items-center gap-2 px-4 py-2 text-sm rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-    >
-      {icon}
-      {label}
-      {badge !== undefined && (
-        <span className="ml-0.5 text-[10px] px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-400 font-medium leading-none">
-          {badge}
-        </span>
-      )}
-    </Link>
-  )
-}
