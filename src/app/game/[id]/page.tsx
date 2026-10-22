@@ -106,10 +106,18 @@ export default async function GamePage({ params, searchParams }: Props) {
     <div>
       <RecordView gameId={game.id} />
 
-      {/* Cabecera: el banner difuminado ocupa su sección; debajo, un relleno procedural con el color de la ficha. */}
-      <div className="-mx-4 -mt-4 sm:-mx-6 sm:-mt-6">
-        <section className="relative overflow-hidden lg:h-[470px]">
-          <div aria-hidden="true" className="pointer-events-none absolute inset-0">
+      {/* Fondo: un degradado con el color del banner cubre toda la página, y el banner se disuelve sobre él por abajo, como en el Home. */}
+      <div className="relative -mx-4 -mt-4 sm:-mx-6 sm:-mt-6">
+        <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
+          <ProceduralFill src={backdrop} palette={palette ?? []} />
+        </div>
+
+        <section className="relative lg:h-[470px]">
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0 overflow-hidden"
+            style={{ maskImage: BANNER_FADE, WebkitMaskImage: BANNER_FADE }}
+          >
             <div className="absolute -inset-10" style={{ background: heroFallback }}>
               {backdrop && (
                 <Image src={backdrop} alt="" fill className="object-cover" style={{ filter: 'blur(18px)' }} unoptimized />
@@ -192,12 +200,7 @@ export default async function GamePage({ params, searchParams }: Props) {
           </div>
         </section>
 
-        {/* Lo que va debajo de la cabecera: el relleno procedural cubre toda esa parte. */}
         <div className="relative px-4 pb-12 pt-8 sm:px-6">
-          <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
-            <ProceduralFill src={backdrop} palette={palette ?? []} />
-          </div>
-
           <div className="relative flex flex-col gap-9">
             {/* Capturas: justo debajo de la cabecera. */}
             {screenshots.length > 0 && (
@@ -319,6 +322,9 @@ export default async function GamePage({ params, searchParams }: Props) {
     </div>
   )
 }
+
+/** The banner dissolves toward its bottom edge, over the page gradient, so there is no seam. */
+const BANNER_FADE = 'linear-gradient(to bottom, #000 0%, #000 38%, transparent 100%)'
 
 /** The palette stored on the game, or null when there is none. */
 function parsePalette(raw: string | null): string[] | null {
