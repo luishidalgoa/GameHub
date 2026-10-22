@@ -137,7 +137,8 @@
     "art": "Art",
     "storage": "Storage",
     "integrity": "Integrity",
-    "catalog": "Catalog"
+    "catalog": "Catalog",
+    "maintenance": "Maintenance"
   },
   "ScanPanel": {
     "title": "ROM Scanner",

@@ -137,7 +137,8 @@
     "art": "Arte",
     "storage": "Almacén",
     "integrity": "Integridad",
-    "catalog": "Catálogo"
+    "catalog": "Catálogo",
+    "maintenance": "Mantenimiento"
   },
   "ScanPanel": {
     "title": "Escáner de ROMs",

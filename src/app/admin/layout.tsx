@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { getTranslations } from 'next-intl/server'
-import { LayoutDashboard, Gamepad2, Settings, BarChart2, Heart, Ghost, ChevronRight, Tag, FileSignature, ScanSearch, Sparkles, Image as ImageIcon, Archive, ShieldCheck, Library } from 'lucide-react'
+import { LayoutDashboard, Gamepad2, Settings, BarChart2, Heart, Ghost, ChevronRight, Tag, FileSignature, ScanSearch, Sparkles, Image as ImageIcon, Archive, ShieldCheck, Library, Wrench } from 'lucide-react'
 import { LogoutButton } from '@/components/admin/LogoutButton'
 import { db } from '@/lib/db'
 import { getAppVersion, type AppVersionInfo } from '@/lib/version'
@@ -28,11 +28,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         <AdminTab href="/admin/metadatos"  icon={<Sparkles className="w-4 h-4" />}        label={t('metadata')} />
         <AdminTab href="/admin/arte"       icon={<ImageIcon className="w-4 h-4" />}       label={t('art')} />
         <AdminTab href="/admin/almacen"    icon={<Archive className="w-4 h-4" />}         label={t('storage')} />
-        <AdminTab href="/admin/integridad" icon={<ShieldCheck className="w-4 h-4" />}     label={t('integrity')} />
         <AdminTab href="/admin/catalogo"   icon={<Library className="w-4 h-4" />}          label={t('catalog')} />
         <AdminTab href="/admin/games"      icon={<Gamepad2 className="w-4 h-4" />}        label={t('games')} />
-        <AdminTab href="/admin/graveyard"  icon={<Ghost className="w-4 h-4" />}           label={t('graveyard')} badge={missingCount || undefined} />
-        <AdminTab href="/admin/curation"   icon={<FileSignature className="w-4 h-4" />}   label={t('curation')} />
+        <AdminTab href="/admin/mantenimiento" icon={<Wrench className="w-4 h-4" />}      label={t('maintenance')} badge={missingCount || undefined} />
         <AdminTab href="/admin/traffic"    icon={<BarChart2 className="w-4 h-4" />}       label={t('traffic')} />
         <AdminTab href="/admin/donations"  icon={<Heart className="w-4 h-4" />}           label={t('donations')} />
         <AdminTab href="/admin/settings"   icon={<Settings className="w-4 h-4" />}        label={t('settings')} />
