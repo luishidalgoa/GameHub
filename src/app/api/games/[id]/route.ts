@@ -5,6 +5,7 @@ import { resolveCoverPath } from '@/lib/s3'
 import { isAdminSession } from '@/lib/auth'
 import { adminGuard } from '@/lib/admin-guard'
 import { baseApplicationId } from '@/lib/scanner/titleid'
+import { changedFields, lockFields, LOCKABLE_FIELDS } from '@/lib/manual-fields'
 
 export const dynamic = 'force-dynamic'
 
@@ -62,6 +63,12 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     data.coverPath = null
   }
 
+  const before = await db.game.findUnique({ where: { id }, select: Object.fromEntries(LOCKABLE_FIELDS.map(k => [k, true])) as never })
+  const changed = before ? changedFields(before as Record<string, unknown>, data as Record<string, unknown>) : []
+  if (changed.length) {
+    const current = await db.game.findUnique({ where: { id }, select: { manualFields: true } })
+    data.manualFields = lockFields(current?.manualFields, changed)
+  }
   const game = await db.game.update({ where: { id }, data })
   return NextResponse.json(serializeBigInt(game))
 }

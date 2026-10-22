@@ -1,4 +1,5 @@
 import { db } from '@/lib/db'
+import { runAutomatic } from '@/lib/automatic'
 import { downloadAndCacheCover } from '@/lib/covers'
 import { getRawgProvider } from './rawg'
 import { fetchGameScore } from './scoreChain'
@@ -40,7 +41,7 @@ const delay = (ms: number) => new Promise(r => setTimeout(r, ms))
 
 // ── Main batch processor ──────────────────────────────────────────────────────
 
-export async function runMetadataBatch(opts: {
+async function runMetadataBatchInner(opts: {
   emit:             (event: BatchEvent) => void
   signal:           AbortSignal
   withCovers?:      boolean
@@ -557,4 +558,9 @@ export async function runMetadataBatch(opts: {
   }
 
   emit({ type: 'done', total, processed: Math.min(games.length, total), applied, skipped, failed })
+}
+
+/** The metadata batch is automatic work: it never overwrites what the owner set by hand. */
+export function runMetadataBatch(opts: Parameters<typeof runMetadataBatchInner>[0]) {
+  return runAutomatic(() => runMetadataBatchInner(opts))
 }

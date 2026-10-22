@@ -15,6 +15,7 @@ import type { MetadataResult } from '@/lib/metadata/provider'
 import { chooseCover } from '@/lib/metadata/compose'
 import { fetchLibretroCover } from '@/lib/metadata/libretro'
 import type { LaunchBoxGame } from '@/lib/metadata/launchbox'
+import { changedFields, lockFields, LOCKABLE_FIELDS } from '@/lib/manual-fields'
 
 export const dynamic = 'force-dynamic'
 
@@ -145,6 +146,8 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         : meta.sources),
       // Same rule as the batch: a cover-only result is not "metadata fetched".
       ...(meta.sources.info ? { metadataFetchedAt: new Date() } : {}),
+      // The owner applied this from the editor: those fields are now the owner's.
+      manualFields: lockFields(game.manualFields, ['title', 'description', 'releaseYear', 'genre', 'developer', 'publisher', ...(coverPath ? ['coverPath'] : []), ...(coverLocked ? [] : ['coverUrl']), ...(meta.screenshots.length > 0 ? ['screenshotPaths'] : []), ...(trailerUrl ? ['trailerUrl'] : [])]),
     },
   })
   return NextResponse.json({ ...serializeBigInt(updated), sources: meta.sources })

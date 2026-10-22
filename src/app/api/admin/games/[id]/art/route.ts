@@ -5,6 +5,7 @@ import { adminGuard } from '@/lib/admin-guard'
 import { db } from '@/lib/db'
 import { uploadToS3 } from '@/lib/s3'
 import { paletteOf } from '@/lib/palette'
+import { changedFields, lockFields, LOCKABLE_FIELDS } from '@/lib/manual-fields'
 
 export const dynamic = 'force-dynamic'
 
@@ -64,6 +65,10 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     data.logoPath = path
   }
   if (kind !== 'logo') data.themePalette = JSON.stringify(await paletteOf(webp))
+  data.manualFields = lockFields(
+    (await db.game.findUnique({ where: { id: game.id }, select: { manualFields: true } }))?.manualFields,
+    Object.keys(data),
+  )
   await db.game.update({ where: { id: game.id }, data })
 
   return NextResponse.json({ ok: true, key: s3Key })

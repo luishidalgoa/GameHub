@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { downloadAndCacheCover, saveCoverFromBuffer } from '@/lib/covers'
 import { resolveCoverPath } from '@/lib/s3'
 import { isCoverSource, parseMetadataSources, type MetadataSources } from '@/lib/metadata/sources'
+import { changedFields, lockFields, LOCKABLE_FIELDS } from '@/lib/manual-fields'
 
 /**
  * Record where this cover came from.
@@ -47,7 +48,7 @@ export async function POST(req: Request) {
       const { metadataSources, sources } = coverProvenance(game.metadataSources, source)
       await db.game.update({
         where: { id: gameId },
-        data: { coverPath: key, ...(metadataSources && { metadataSources }) },
+        data: { coverPath: key, ...(metadataSources && { metadataSources }), manualFields: lockFields(game.manualFields, ['coverPath', 'coverUrl']) },
       })
 
       return NextResponse.json({ key, coverPath: resolveCoverPath(key) ?? key, sources })
@@ -69,7 +70,7 @@ export async function POST(req: Request) {
       const { metadataSources, sources } = coverProvenance(game.metadataSources, form.get('source'), adjusted)
       await db.game.update({
         where: { id: gameId },
-        data: { coverPath: key, ...(metadataSources && { metadataSources }) },
+        data: { coverPath: key, ...(metadataSources && { metadataSources }), manualFields: lockFields(game.manualFields, ['coverPath', 'coverUrl']) },
       })
 
       return NextResponse.json({ key, coverPath: resolveCoverPath(key) ?? key, sources })

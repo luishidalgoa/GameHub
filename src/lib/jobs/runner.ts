@@ -2,6 +2,7 @@ import { db } from '@/lib/db'
 import { runMetadataBatch, type BatchEvent } from '@/lib/metadata/batch'
 import { runScan } from '@/lib/scanner'
 import { fetchGameArt } from '@/lib/art'
+import { runAutomatic } from '@/lib/automatic'
 import { scanBus } from '@/lib/scanner/events'
 import { fillGameFacts } from '@/lib/metadata/wikidata'
 
@@ -260,10 +261,10 @@ export async function startArtJob(params: ArtJobParams, resumeJobId?: number): P
         processed++
         let line: string
         try {
-          const outcome = await fetchGameArt({
+          const outcome = await runAutomatic(() => fetchGameArt({
             id: g.id, title: g.title, fileName: g.fileName,
             launchboxId: g.launchboxId, platformSlug: g.platform.slug,
-          })
+          }))
           if (outcome === 'applied') { applied++; line = `✓ [${processed}] ${g.title}` }
           else { skipped++; line = `– [${processed}] ${g.title} — ${outcome === 'no-match' ? 'no LaunchBox match' : 'no art'}` }
         } catch (err) {
@@ -273,7 +274,7 @@ export async function startArtJob(params: ArtJobParams, resumeJobId?: number): P
         pushLog(job.id, line)
         // Facts LaunchBox did not give (developer, publisher, year, genre) come from Wikidata.
         if (!controller.signal.aborted) {
-          const filled = await fillGameFacts(g.id).catch(() => [] as string[])
+          const filled = await runAutomatic(() => fillGameFacts(g.id)).catch(() => [] as string[])
           if (filled.length) pushLog(job.id, `  + ${filled.join(', ')} (Wikidata)`)
           await new Promise(r => setTimeout(r, 1100))
         }

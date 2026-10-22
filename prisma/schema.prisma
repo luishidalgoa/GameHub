@@ -62,6 +62,9 @@ model Game {
   genre       String?
   developer   String?
   publisher   String?
+  // JSON array of the fields the owner set by hand (editor, manual art, applied from a
+  // provider chosen in the editor). Automatic flows never overwrite them.
+  manualFields String?
   developerCompanyId Int?
   publisherCompanyId Int?
   developerCompany   Company? @relation("developerCompany", fields: [developerCompanyId], references: [id], onDelete: SetNull)

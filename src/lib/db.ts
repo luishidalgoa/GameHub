@@ -1,5 +1,7 @@
 import { PrismaClient } from '@prisma/client'
 import { linkGame } from './catalog'
+import { inAutomatic } from './automatic'
+import { parseLocks, stripLocked } from './manual-fields'
 
 const globalForPrisma = globalThis as unknown as { prisma: PrismaClient; sqliteTuned?: boolean }
 
@@ -34,6 +36,12 @@ function relink(gameId: number | undefined): Promise<void> {
   })
 }
 
+/** The data an automatic flow may still write: the owner's locked fields removed. */
+async function unlockedData(where: unknown, data: unknown): Promise<Record<string, unknown>> {
+  const row = await rawDb.game.findUnique({ where: where as never, select: { manualFields: true } })
+  return stripLocked((data ?? {}) as Record<string, unknown>, parseLocks(row?.manualFields))
+}
+
 export const db = rawDb.$extends({
   query: {
     game: {
@@ -43,6 +51,11 @@ export const db = rawDb.$extends({
         return game
       },
       async update({ args, query }) {
+        if (inAutomatic()) {
+          const data = await unlockedData(args.where, args.data)
+          if (Object.keys(data).length === 0) return rawDb.game.findUniqueOrThrow({ where: args.where })
+          args = { ...args, data: data as typeof args.data }
+        }
         const game = await query(args)
         if (touchesFacts(args.data)) await relink(game.id)
         return game
