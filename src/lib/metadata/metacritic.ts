@@ -58,8 +58,45 @@ const MC_FETCH: HtmlFetchPolicy = {
   label: 'Metacritic',
 }
 
-function mcFetch(url: string): Promise<string> {
-  return fetchHtmlWithRetry(url, MC_FETCH)
+/**
+ * A platform-specific URL may be redirected to the game's merged page, which
+ * lists every platform the game ran on (Inazuma Eleven: /game/3ds/... goes to
+ * /game/inazuma-eleven/, listing DS and 3DS). We follow that redirect, and
+ * accept the page only if its structured data lists the requested platform
+ * (see pageListsPlatform). A port on another platform therefore still fails.
+ */
+const MC_FETCH_FOLLOW: HtmlFetchPolicy = { ...MC_FETCH, redirect: 'follow' }
+
+function mcFetch(url: string, policy: HtmlFetchPolicy = MC_FETCH): Promise<string> {
+  return fetchHtmlWithRetry(url, policy)
+}
+
+/** Metacritic's name for each platform path segment we ask for. Unlisted → no match. */
+const MC_PLATFORM_LABEL: Record<string, string> = {
+  '3ds': '3DS', ds: 'DS', switch: 'Switch', wii: 'Wii', 'wii-u': 'Wii U', gamecube: 'GameCube',
+  'nintendo-64': 'Nintendo 64', 'super-nintendo': 'SNES', nes: 'NES',
+  'game-boy-advance': 'Game Boy Advance', 'game-boy-color': 'Game Boy Color', 'game-boy': 'Game Boy',
+  psp: 'PSP', 'playstation-vita': 'PlayStation Vita', playstation: 'PlayStation',
+  'playstation-2': 'PlayStation 2', 'playstation-3': 'PlayStation 3', pc: 'PC',
+}
+
+/** "Nintendo Switch" and "Switch" are the same platform: drop the maker and punctuation. */
+function platformKey(name: string): string {
+  return name.toLowerCase().replace(/nintendo/g, '').replace(/[^a-z0-9]+/g, '')
+}
+
+/** True when the page's structured data lists the platform (Metacritic's `gamePlatform`). */
+export function pageListsPlatform(html: string, label: string | undefined): boolean {
+  if (!label) return false
+  const want = platformKey(label)
+  for (const b of html.matchAll(/<script[^>]*type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/gi)) {
+    let json: { gamePlatform?: unknown } | null
+    try { json = JSON.parse(b[1]) } catch { continue }
+    const raw = json?.gamePlatform
+    const list = Array.isArray(raw) ? raw : typeof raw === 'string' ? [raw] : []
+    if (list.some((p) => typeof p === 'string' && platformKey(p) === want)) return true
+  }
+  return false
 }
 
 /** Build candidate Metacritic URL slugs from a (DB) game title. */
@@ -133,12 +170,16 @@ export async function fetchMetacriticScore(title: string, platformSlug?: string)
     else urls.push(`${MC_SITE}/game/${slug}/`)
   }
 
+  const wantLabel = mcPlatform ? MC_PLATFORM_LABEL[mcPlatform] : undefined
+  const policy = mcPlatform ? MC_FETCH_FOLLOW : MC_FETCH
   for (let i = 0; i < urls.length; i++) {
-    const html = await mcFetch(urls[i])
+    const html = await mcFetch(urls[i], policy)
     const score = parseMetacriticScore(html)
     // A score is only taken from a page whose own title is the same game (#115):
-    // the score alone does not say which game it belongs to.
-    if (score != null && pageIsSameGame(html, title)) return score
+    // the score alone does not say which game it belongs to. With a known
+    // platform the page must also list that platform, since a redirect can land
+    // on another version of the game.
+    if (score != null && pageIsSameGame(html, title) && (!mcPlatform || pageListsPlatform(html, wantLabel))) return score
     if (i < urls.length - 1) await new Promise(r => setTimeout(r, 300)) // be polite between tries
   }
   return null
