@@ -7,11 +7,12 @@ export const dynamic = 'force-dynamic'
 // Catálogo (#143): editoras, dueños de las sub-editoras y modelos 3D.
 export default async function AdminCatalogPage() {
   const companies = await db.company.findMany({
-    select: { id: true, name: true, parentId: true, _count: { select: { publishedGames: true } } },
+    select: { id: true, name: true, parentId: true, _count: { select: { publishedGames: true, subsidiaries: true } } },
   })
+  // An owner's games are its sub-editoras' games too (#143), so an owner with no games of its own still shows.
   const rows: CompanyRow[] = companies
     .map(c => ({ id: c.id, name: c.name, parentId: c.parentId, games: c._count.publishedGames }))
-    .filter(c => c.games > 0)
+    .filter(c => c.games > 0 || companies.some(o => o.parentId === c.id))
 
   return (
     <div className="space-y-4">
@@ -32,7 +33,7 @@ export default async function AdminCatalogPage() {
         <div>
           <h2 className="font-semibold">Editoras</h2>
           <p className="text-sm text-muted-foreground mt-0.5">
-            Las editoras tal como las trae LaunchBox. Pulsa una para fusionarla, ponerle dueño o traer otras a ella.
+            Editoras tal como las trae LaunchBox. Pulsa una para ver sus nombres, su dueño y las editoras que le pertenecen.
           </p>
         </div>
         <CompanyCatalog companies={rows} />

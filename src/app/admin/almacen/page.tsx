@@ -1,14 +1,6 @@
-import { OrphanCoversPanel } from '@/components/admin/OrphanCoversPanel'
-import { StorageCleanupPanel } from '@/components/admin/StorageCleanupPanel'
+import { redirect } from 'next/navigation'
 
-export const dynamic = 'force-dynamic'
-
-// Almacén: portadas y ficheros que ya nadie referencia (#141).
+// El almacén vive en Integridad de la biblioteca; esta ruta sigue funcionando.
 export default function AdminStoragePage() {
-  return (
-    <div className="space-y-8">
-      <StorageCleanupPanel />
-      <OrphanCoversPanel />
-    </div>
-  )
+  redirect('/admin/integridad')
 }

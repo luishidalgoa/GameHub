@@ -6,6 +6,8 @@ import { RefreshCw, X } from 'lucide-react'
 
 export interface CompanyRow { id: number; name: string; games: number; parentId: number | null }
 
+const juegos = (n: number) => `${n} ${n === 1 ? 'juego' : 'juegos'}`
+
 interface Detail {
   id: number
   name: string
@@ -140,7 +142,7 @@ export function CompanyCatalog({ companies }: { companies: CompanyRow[] }) {
                 {parent && <span className="shrink-0 truncate text-xs text-violet-300 max-w-[40%]" title={parent.name}>de {parent.name}</span>}
                 {subs > 0 && <span className="shrink-0 text-xs text-sky-300">{subs} sub.</span>}
                 {!parent && subs === 0 && <span className="shrink-0 text-xs text-muted-foreground/60">sin relacionar</span>}
-                <span className="shrink-0 w-20 text-right text-xs text-muted-foreground tabular-nums">{c.games} juegos</span>
+                <span className="shrink-0 w-20 text-right text-xs text-muted-foreground tabular-nums">{juegos(c.games)}</span>
               </button>
             </li>
           )
@@ -166,8 +168,6 @@ function CompanyPanel({ company, companies, onClose }: { company: CompanyRow; co
   const [reload, setReload] = useState(0)
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null)
-  const [targetQuery, setTargetQuery] = useState('')
-  const [target, setTarget] = useState<CompanyRow | null>(null)
   const [pickQuery, setPickQuery] = useState('')
   const [picked, setPicked] = useState<CompanyRow[]>([])
 
@@ -188,11 +188,10 @@ function CompanyPanel({ company, companies, onClose }: { company: CompanyRow; co
       .sort((a, b) => b.games - a.games)
       .slice(0, limit)
   }
-  const targetMatches = useMemo(() => search(targetQuery, 6), [targetQuery, companies]) // eslint-disable-line react-hooks/exhaustive-deps
   const pickMatches = useMemo(() => search(pickQuery, 30), [pickQuery, companies]) // eslint-disable-line react-hooks/exhaustive-deps
   const pickedIds = new Set(picked.map(c => c.id))
 
-  async function send(path: string, body: object, done: string, closesSelf: boolean) {
+  async function send(path: string, body: object, done: string) {
     setBusy(true)
     setMessage(null)
     try {
@@ -200,15 +199,10 @@ function CompanyPanel({ company, companies, onClose }: { company: CompanyRow; co
       const data = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(data.error ?? String(res.status))
       setPicked([])
-      setTarget(null)
-      setTargetQuery('')
       setPickQuery('')
       router.refresh()
-      if (closesSelf) onClose()
-      else {
-        setMessage({ ok: true, text: done })
-        setReload(r => r + 1)
-      }
+      setMessage({ ok: true, text: done })
+      setReload(r => r + 1)
     } catch (err) {
       setMessage({ ok: false, text: `No se pudo: ${err instanceof Error ? err.message : 'error'}` })
     } finally {
@@ -216,16 +210,16 @@ function CompanyPanel({ company, companies, onClose }: { company: CompanyRow; co
     }
   }
 
-  function merge(from: CompanyRow[], into: CompanyRow, closesSelf: boolean) {
+  function merge(from: CompanyRow[], into: CompanyRow) {
     const names = from.length === 1 ? `«${from[0].name}»` : `${from.length} editoras`
-    const ok = window.confirm(`¿Fusionar ${names} en «${into.name}»? Sus juegos y sus nombres pasan a «${into.name}» y dejan de estar como editoras aparte.`)
+    const ok = window.confirm(`¿Fusionar ${names} en «${into.name}»? Sus juegos pasan a «${into.name}» y dejan de aparecer como editoras aparte.`)
     if (!ok) return
     const games = from.reduce((n, c) => n + c.games, 0)
-    send('/api/admin/catalog/merge', { from: from.map(c => c.id), into: into.id }, `Fusionadas ${names} en «${into.name}»: ${games} juegos movidos.`, closesSelf)
+    send('/api/admin/catalog/merge', { from: from.map(c => c.id), into: into.id }, `Fusionadas ${names} en «${into.name}»: ${juegos(games)} movidos.`)
   }
 
   function owner(companyIds: number[], ownerId: number | null, done: string) {
-    send('/api/admin/catalog/owner', { companies: companyIds, owner: ownerId }, done, false)
+    send('/api/admin/catalog/owner', { companies: companyIds, owner: ownerId }, done)
   }
 
   const togglePick = (c: CompanyRow) =>
@@ -236,7 +230,7 @@ function CompanyPanel({ company, companies, onClose }: { company: CompanyRow; co
       <header className="flex items-start justify-between gap-3 border-b border-border px-5 py-4">
         <div className="min-w-0">
           <h2 id="company-panel-title" className="truncate text-lg font-semibold">{company.name}</h2>
-          <p className="text-xs text-muted-foreground tabular-nums">{company.games} juegos{detail ? ` · ${detail.subsidiaries.length} sub-editoras` : ''}</p>
+          <p className="text-xs text-muted-foreground tabular-nums">{juegos(company.games)}{detail ? ` · ${detail.subsidiaries.length} sub-editoras` : ''}</p>
         </div>
         <button type="button" onClick={onClose} aria-label="Cerrar" className="p-1.5 rounded-md bg-secondary hover:bg-secondary/80"><X className="w-4 h-4" /></button>
       </header>
@@ -263,7 +257,7 @@ function CompanyPanel({ company, companies, onClose }: { company: CompanyRow; co
             {detail?.subsidiaries.map(s => (
               <li key={s.id} className="flex items-center gap-3 py-1.5 text-sm">
                 <span className="min-w-0 flex-1 truncate">{s.name}</span>
-                <span className="text-xs text-muted-foreground tabular-nums">{s.games} juegos</span>
+                <span className="text-xs text-muted-foreground tabular-nums">{juegos(s.games)}</span>
                 <button type="button" disabled={busy} onClick={() => owner([s.id], null, `«${s.name}» ya no es sub-editora.`)} className="px-2 py-1 rounded-md text-xs bg-secondary hover:bg-secondary/80 disabled:opacity-60">Quitar</button>
               </li>
             ))}
@@ -284,46 +278,8 @@ function CompanyPanel({ company, companies, onClose }: { company: CompanyRow; co
         </section>
 
         <section className="space-y-3 border-t border-border pt-5">
-          <h3 className="text-sm font-medium">Esta editora es…</h3>
-          <p className="text-xs text-muted-foreground">
-            <strong className="font-medium text-foreground">Fusionar</strong>: es la misma editora. Sus juegos pasan a la elegida y esta desaparece de la lista. Los nombres siguen resolviéndose a la elegida en futuras importaciones.
-            {' '}<strong className="font-medium text-foreground">Pertenece a</strong>: sigue en la lista, agrupada bajo la elegida.
-          </p>
-          {target ? (
-            <div className="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-2 text-sm">
-              <span className="truncate">{target.name} <span className="text-xs text-muted-foreground">· {target.games} juegos</span></span>
-              <button type="button" onClick={() => setTarget(null)} className="text-xs text-muted-foreground hover:text-foreground">Cambiar</button>
-            </div>
-          ) : (
-            <>
-              <input value={targetQuery} onChange={e => setTargetQuery(e.target.value)} placeholder="Buscar la editora de destino…" className="w-full rounded-md border border-border bg-background px-3 py-1.5 text-sm text-foreground" />
-              <ul className="divide-y divide-border">
-                {targetMatches.map(c => (
-                  <li key={c.id}>
-                    <button type="button" onClick={() => setTarget(c)} className="flex w-full items-center justify-between gap-3 py-1.5 text-left text-sm hover:text-violet-300">
-                      <span className="truncate">{c.name}</span>
-                      <span className="text-xs text-muted-foreground tabular-nums">{c.games} juegos</span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </>
-          )}
-          {target && (
-            <div className="flex flex-wrap gap-2">
-              <button type="button" disabled={busy} onClick={() => merge([company], target, true)} className="flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium bg-violet-600 hover:bg-violet-500 text-white disabled:opacity-60">
-                {busy && <RefreshCw className="w-3.5 h-3.5 animate-spin" />} Fusionar en «{target.name}»
-              </button>
-              <button type="button" disabled={busy} onClick={() => owner([company.id], target.id, `«${company.name}» pertenece ahora a «${target.name}».`)} className="px-3 py-1.5 rounded-md text-xs bg-secondary hover:bg-secondary/80 disabled:opacity-60">
-                Pertenece a «{target.name}»
-              </button>
-            </div>
-          )}
-        </section>
-
-        <section className="space-y-3 border-t border-border pt-5">
-          <h3 className="text-sm font-medium">Otras editoras que son esta</h3>
-          <p className="text-xs text-muted-foreground">Busca y marca varias. Después eliges si se fusionan aquí o pasan a ser sus sub-editoras.</p>
+          <h3 className="text-sm font-medium">Traer editoras aquí</h3>
+          <p className="text-xs text-muted-foreground">Marca las que son esta. Fusionarlas las borra de la lista y sus juegos pasan aquí. Hacerlas sub-editoras las deja en la lista, agrupadas bajo esta.</p>
           <input value={pickQuery} onChange={e => setPickQuery(e.target.value)} placeholder="Buscar editoras…" className="w-full rounded-md border border-border bg-background px-3 py-1.5 text-sm text-foreground" />
           {picked.length > 0 && (
             <div className="flex flex-wrap gap-1.5">
@@ -347,14 +303,15 @@ function CompanyPanel({ company, companies, onClose }: { company: CompanyRow; co
           </ul>
           {picked.length > 0 && (
             <div className="flex flex-wrap gap-2">
-              <button type="button" disabled={busy} onClick={() => merge(picked, company, false)} className="px-3 py-1.5 rounded-md text-xs font-medium bg-violet-600 hover:bg-violet-500 text-white disabled:opacity-60">
+              <button type="button" disabled={busy} onClick={() => merge(picked, company)} className="px-3 py-1.5 rounded-md text-xs font-medium bg-violet-600 hover:bg-violet-500 text-white disabled:opacity-60">
                 Fusionar {picked.length} aquí
               </button>
               <button type="button" disabled={busy} onClick={() => owner(picked.map(c => c.id), company.id, `${picked.length} pasan a ser sub-editoras de «${company.name}».`)} className="px-3 py-1.5 rounded-md text-xs bg-secondary hover:bg-secondary/80 disabled:opacity-60">
-                Hacer {picked.length} sub-editoras de aquí
+                Hacer {picked.length} {picked.length === 1 ? 'sub-editora' : 'sub-editoras'} de aquí
               </button>
             </div>
           )}
+          <p className="text-xs text-muted-foreground">Para que esta sea sub-editora de otra, ábrela desde esa otra.</p>
         </section>
       </div>
     </aside>

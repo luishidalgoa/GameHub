@@ -1,14 +1,6 @@
-import { db } from '@/lib/db'
-import { MetadataBatchPanel } from '@/components/admin/MetadataBatchPanel'
+import { redirect } from 'next/navigation'
 
-export const dynamic = 'force-dynamic'
-
-// Metadatos: lotes automáticos por plataforma (#141).
-export default async function AdminMetadataPage() {
-  const platforms = await db.platform.findMany({
-    where: { enabled: true },
-    select: { slug: true, name: true },
-    orderBy: { sortOrder: 'asc' },
-  })
-  return <MetadataBatchPanel platforms={platforms} />
+// Los metadatos viven en Escáner y metadatos; esta ruta sigue funcionando.
+export default function AdminMetadataPage() {
+  redirect('/admin/escaner')
 }
