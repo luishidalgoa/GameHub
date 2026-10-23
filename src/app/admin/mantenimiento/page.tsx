@@ -9,6 +9,21 @@ export default async function AdminMaintenancePage() {
 
   const areas = [
     {
+      href: '/admin/escaner',
+      title: 'Escáner de ROMs',
+      text: 'Escanear la biblioteca, vista previa, historial y el log de cada escaneo.',
+    },
+    {
+      href: '/admin/metadatos',
+      title: 'Metadatos',
+      text: 'Lotes automáticos de metadatos por plataforma.',
+    },
+    {
+      href: '/admin/almacen',
+      title: 'Almacén',
+      text: 'Portadas y ficheros que ya nadie referencia.',
+    },
+    {
       href: '/admin/integridad',
       title: 'Integridad de la biblioteca',
       text: 'Ficheros que no se pueden leer, actualizaciones y DLC sueltos, y juegos sin su base.',

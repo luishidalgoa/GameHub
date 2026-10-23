@@ -7,6 +7,8 @@ export interface AdminNavItem {
   href: string
   label: string
   badge?: number
+  /** Other pages that live under this section, so the tab stays lit there. */
+  also?: string[]
 }
 
 /**
@@ -15,12 +17,13 @@ export interface AdminNavItem {
  */
 export function AdminNav({ items }: { items: AdminNavItem[] }) {
   const pathname = usePathname()
-  const isCurrent = (href: string) => (href === '/admin' ? pathname === '/admin' : pathname === href || pathname.startsWith(`${href}/`))
+  const at = (href: string) => (href === '/admin' ? pathname === '/admin' : pathname === href || pathname.startsWith(`${href}/`))
+  const isCurrent = (item: AdminNavItem) => at(item.href) || (item.also ?? []).some(at)
 
   return (
     <nav aria-label="Secciones del admin" className="flex flex-wrap gap-2 mb-8 border-b border-border pb-4">
       {items.map(item => {
-        const current = isCurrent(item.href)
+        const current = isCurrent(item)
         return (
           <Link
             key={item.href}

@@ -25,13 +25,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
       <AdminNav items={[
         { href: '/admin', label: t('dashboard') },
-        { href: '/admin/escaner', label: t('scanner') },
-        { href: '/admin/metadatos', label: t('metadata') },
-        { href: '/admin/arte', label: t('art') },
-        { href: '/admin/almacen', label: t('storage') },
-        { href: '/admin/catalogo', label: t('catalog') },
+        { href: '/admin/catalogo', label: t('catalog'), also: ['/admin/arte', '/admin/editoras', '/admin/modelos'] },
         { href: '/admin/games', label: t('games') },
-        { href: '/admin/mantenimiento', label: t('maintenance'), badge: missingCount || undefined },
+        { href: '/admin/mantenimiento', label: t('maintenance'), badge: missingCount || undefined, also: ['/admin/escaner', '/admin/metadatos', '/admin/almacen', '/admin/integridad', '/admin/graveyard', '/admin/curation'] },
         { href: '/admin/traffic', label: t('traffic') },
         { href: '/admin/donations', label: t('donations') },
         { href: '/admin/settings', label: t('settings') },
