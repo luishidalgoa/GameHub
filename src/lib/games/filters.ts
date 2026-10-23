@@ -52,6 +52,8 @@ export function gameFilterQuery(f: GameListFilters, extra: Record<string, string
   if (f.noScore) qs.set('score', 'no-score')
   if (f.noCover) qs.set('cover', 'no-cover')
   if (f.noMeta) qs.set('meta', 'no-metadata')
+  // Antes se perdia al cambiar de pagina o exportar: la lista volvia a salir completa.
+  if (f.unfindable) qs.set('meta', 'unfindable')
   for (const [k, v] of Object.entries(extra)) qs.set(k, v)
   return qs.toString()
 }
