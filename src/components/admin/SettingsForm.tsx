@@ -6,6 +6,7 @@ import { useTranslations } from 'next-intl'
 import { Save, Loader2, Plus, Trash2, ChevronDown, ChevronUp, FolderPlus, X, FolderOpen, Wifi, CheckCircle2, XCircle, AlertCircle, Pencil, Check } from 'lucide-react'
 import { FolderPickerModal } from './FolderPickerModal'
 import { DonationSettingsForm } from './DonationSettingsForm'
+import { HomebrewRepos } from './HomebrewRepos'
 import { PlatformIconUploader } from './PlatformIconUploader'
 import { parseEmulators, OS_ORDER, OS_LABEL, type EmulatorSet, type EmulatorOS } from '@/components/platform/EmulatorLinks'
 
@@ -1358,6 +1359,7 @@ export function SettingsForm({ platforms: initial, settings, donation }: Props) 
           <p className="font-medium text-foreground text-sm mb-2">{t('shopSetup')}</p>
           <p className="pt-1 text-foreground"><ShopUrl /></p>
         </div>
+        <HomebrewRepos />
       </div>
         </SectionFrame>
       )}
