@@ -71,7 +71,7 @@ interface LiveData {
 type View = 'resumen' | 'descargas' | 'seguridad'
 
 const VIEWS: Array<{ id: View; label: string }> = [
-  { id: 'resumen', label: 'Resumen y vivo' },
+  { id: 'resumen', label: 'Resumen' },
   { id: 'descargas', label: 'Descargas' },
   { id: 'seguridad', label: 'Seguridad' },
 ]
@@ -207,16 +207,16 @@ function ResumenView({ data, live }: { data: TrafficData; live: LiveData | undef
           </Panel>
         </div>
 
-        <Panel title="Búsquedas recientes" note="Lo que escriben en el buscador.">
+        <Panel title="Búsquedas recientes" note="Las 12 más recientes. Resultados y hace cuánto.">
           {searches.length === 0 ? (
             <Empty>Sin búsquedas recientes.</Empty>
           ) : (
-            <ul className="divide-y divide-border/40 text-sm max-h-72 overflow-y-auto">
-              {searches.map((s) => (
-                <li key={s.id} className="flex items-center gap-2 py-2">
-                  <span className="flex-1 font-medium truncate">{s.query}</span>
-                  <span className="text-xs text-muted-foreground tabular-nums">{s.results}</span>
-                  <span className="text-xs text-muted-foreground whitespace-nowrap">{rel(s.ts)}</span>
+            <ul className="divide-y divide-border/40 text-sm">
+              {searches.slice(0, 12).map((s) => (
+                <li key={s.id} className="flex items-center gap-3 py-2">
+                  <span className="flex-1 min-w-0 font-medium truncate">{s.query}</span>
+                  <span className="text-xs text-muted-foreground tabular-nums shrink-0">{s.results} res.</span>
+                  <span className="text-xs text-muted-foreground whitespace-nowrap shrink-0">{rel(s.ts)}</span>
                 </li>
               ))}
             </ul>
@@ -473,7 +473,7 @@ export default function TrafficPage() {
   }
 
   return (
-    <div className="max-w-7xl space-y-6">
+    <div className="w-full space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Tráfico</h1>
