@@ -3,7 +3,8 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
 import { getTranslations } from 'next-intl/server'
-import { ArrowLeft, ArrowUpCircle, Languages, Package, Pencil, Puzzle } from 'lucide-react'
+import { ArrowUpCircle, Languages, Package, Pencil, Puzzle } from 'lucide-react'
+import { BackLink } from '@/components/shared/BackLink'
 import { db } from '@/lib/db'
 import { backdropUrl } from '@/lib/tile-art'
 import { resolveCoverPath } from '@/lib/s3'
@@ -140,13 +141,10 @@ export default async function GamePage({ params, searchParams }: Props) {
               )}
               <div className="flex min-w-0 flex-1 flex-col gap-4 xl:max-w-[680px]">
                 <nav className="flex items-center justify-between gap-3 text-sm">
-                  <Link
-                    href={game.platform ? `/platform/${game.platform.slug}` : '/'}
-                    className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
-                  >
-                    <ArrowLeft className="w-4 h-4" />
-                    Back to {game.platform?.name ?? 'Library'}
-                  </Link>
+                  <BackLink
+                    fallback={game.platform ? `/platform/${game.platform.slug}` : '/'}
+                    label="Volver"
+                  />
                   {isAdmin && (
                     <Link
                       href={`/admin/games/${game.id}`}
