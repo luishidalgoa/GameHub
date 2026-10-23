@@ -276,6 +276,9 @@ function PublisherEditDialog({ row, busy, onClose, onTemplate, onBackdrop, onPla
   const [draft, setDraft] = useState<PublisherLayout>(() => arrangedFrom(row.tile.layout, !!character, !!logo))
   const draftRef = useRef(draft)
   const [selected, setSelected] = useState<TileElement | null>(null)
+  // Ejes del centro: se marcan cuando el elemento está centrado (y se ajusta a ellos al soltar).
+  const [snap, setSnap] = useState<{ x: boolean; y: boolean }>({ x: false, y: false })
+  const SNAP_RANGE = 1.5
   const drag = useRef<{ el: TileElement; mode: 'move' | 'resize'; start: Place; px: number; py: number } | null>(null)
 
   const update = (next: PublisherLayout) => { draftRef.current = next; setDraft(next) }
@@ -367,7 +370,15 @@ function PublisherEditDialog({ row, busy, onClose, onTemplate, onBackdrop, onPla
     const dx = ((e.clientX - d.px) / r.width) * 100
     const dy = ((e.clientY - d.py) / r.height) * 100
     if (d.mode === 'move') {
-      update({ ...draftRef.current, [d.el]: { ...d.start, x: clamp(d.start.x + dx, 0, 100), y: clamp(d.start.y + dy, 0, 100) } })
+      let x = clamp(d.start.x + dx, 0, 100)
+      let y = clamp(d.start.y + dy, 0, 100)
+      // Dentro del margen, el elemento se engancha al centro: queda exactamente centrado.
+      const onX = Math.abs(x - 50) < SNAP_RANGE
+      const onY = Math.abs(y - 50) < SNAP_RANGE
+      if (onX) x = 50
+      if (onY) y = 50
+      setSnap({ x: onX, y: onY })
+      update({ ...draftRef.current, [d.el]: { ...d.start, x, y } })
       return
     }
     // The corner keeps the element's proportions: both sides scale by the same factor.
@@ -382,6 +393,7 @@ function PublisherEditDialog({ row, busy, onClose, onTemplate, onBackdrop, onPla
   const endDrag = () => {
     if (!drag.current) return
     drag.current = null
+    setSnap({ x: false, y: false })
     onLayout(draftRef.current)
   }
 
@@ -427,8 +439,21 @@ function PublisherEditDialog({ row, busy, onClose, onTemplate, onBackdrop, onPla
                 selected,
               }}
             />
+            {/* Reglas: el eje central y los tercios, para situar los elementos a ojo. */}
+            <div aria-hidden="true" className="pointer-events-none absolute inset-0 z-30">
+              {[33.333, 50, 66.666].map(v => (
+                <div key={`v${v}`} className={`absolute inset-y-0 w-px ${v === 50 && snap.x ? 'bg-violet-400' : v === 50 ? 'bg-white/40' : 'bg-white/15'}`} style={{ left: `${v}%` }} />
+              ))}
+              {[33.333, 50, 66.666].map(v => (
+                <div key={`h${v}`} className={`absolute inset-x-0 h-px ${v === 50 && snap.y ? 'bg-violet-400' : v === 50 ? 'bg-white/40' : 'bg-white/15'}`} style={{ top: `${v}%` }} />
+              ))}
+            </div>
           </div>
-          <p className="text-xs text-muted-foreground">Arrastra el logo o el personaje. La esquina cambia el tamaño.</p>
+          <p className="text-xs text-muted-foreground" aria-live="off">
+            {selected && draft[selected]
+              ? `${selected === 'logo' ? 'Logo' : 'Personaje'}: x ${draft[selected]!.x.toFixed(1)} · y ${draft[selected]!.y.toFixed(1)}${draft[selected]!.w !== undefined ? ` · ancho ${draft[selected]!.w.toFixed(0)}` : ''}`
+              : 'Arrastra el logo o el personaje. La esquina cambia el tamaño.'}
+          </p>
         </div>
 
         <div className="flex min-w-0 flex-1 flex-col gap-5">
