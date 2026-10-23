@@ -3,7 +3,7 @@ import { cachedAggregate } from '@/lib/aggregate-cache'
 import { libraryGameWhere } from '@/lib/library'
 import { resolveCoverPath } from '@/lib/s3'
 import { comparePopularity, weightedSample, MIN_ADDED } from '@/lib/metadata/popularity'
-import { rankPublishers, type RankedPublisher } from '@/lib/publishers'
+import { rankGroups, type RankCompany, type RankedPublisher, type RankTotals } from '@/lib/publishers'
 import { tileImageKey, backdropUrl } from '@/lib/tile-art'
 import { getPublisherArt, brandColorsFor, type PublisherLayout } from '@/lib/publisher-art'
 
@@ -111,13 +111,30 @@ export interface PublisherTileData {
   colors: string[]
 }
 
-/** Publishers by the weight of their games' ratings. Recomputed at most every 30 minutes. */
+/** The companies and what each one's games add up to, read from the catalogue (#143). */
+async function publisherRankInput(): Promise<{ companies: RankCompany[]; totals: RankTotals[] }> {
+  const [companies, sums] = await Promise.all([
+    db.company.findMany({ select: { id: true, key: true, name: true, parentId: true } }),
+    db.game.groupBy({
+      by: ['publisherCompanyId'],
+      where: { ...libraryGameWhere(), publisherCompanyId: { not: null } },
+      _count: { _all: true, rawgScore: true },
+      _sum: { rawgScore: true },
+    }),
+  ])
+  const totals = sums.flatMap((s): RankTotals[] => s.publisherCompanyId === null ? [] : [{
+    companyId: s.publisherCompanyId,
+    games: s._count._all,
+    rated: s._count.rawgScore,
+    weight: Math.round(s._sum.rawgScore ?? 0),
+  }])
+  return { companies, totals }
+}
+
+/** Publishers by owner, by the weight of their games' ratings. Recomputed at most every 30 minutes. */
 export async function rankedPublishers(limit: number, minRated = 3): Promise<RankedPublisher[]> {
-  const rows = await cachedAggregate('home:publishers', 30 * 60_000, () => db.game.findMany({
-    where: { ...libraryGameWhere(), publisher: { not: null } },
-    select: { publisher: true, rawgScore: true },
-  }))
-  return rankPublishers(rows.map(r => ({ publisher: r.publisher, score: r.rawgScore })), minRated).slice(0, limit)
+  const input = await cachedAggregate('home:publishers', 30 * 60_000, publisherRankInput)
+  return rankGroups(input.companies, input.totals, minRated).slice(0, limit)
 }
 
 async function publisherTiles(ranked: RankedPublisher[]): Promise<PublisherTileData[]> {
@@ -251,17 +268,13 @@ export async function getPublisherIndex(limit = 60): Promise<PublisherTileData[]
   return publisherTiles(await rankedPublishers(limit))
 }
 
-/** The games of one publisher, by the key the rankings use, best rated first. */
+/** The games of one publisher group, by the key the rankings use, best rated first. */
 export async function getPublisherGames(key: string): Promise<{ name: string; games: TileGame[] } | null> {
-  const rows = await db.game.findMany({
-    where: { ...libraryGameWhere(), publisher: { not: null } },
-    select: { publisher: true, rawgScore: true },
-  })
-  const ranked = rankPublishers(rows.map(r => ({ publisher: r.publisher, score: r.rawgScore })), 0)
-  const found = ranked.find(p => p.key === key)
+  const input = await publisherRankInput()
+  const found = rankGroups(input.companies, input.totals, 0).find(p => p.key === key)
   if (!found) return null
   const games = await db.game.findMany({
-    where: { ...libraryGameWhere(), publisher: { in: found.spellings } },
+    where: { ...libraryGameWhere(), publisherCompanyId: { in: found.companyIds } },
     orderBy: [{ rawgScore: 'desc' }, { title: 'asc' }], take: 300, select: TILE_SELECT,
   })
   return { name: found.name, games: games.map(toTile) }

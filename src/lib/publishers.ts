@@ -34,45 +34,67 @@ export function publisherKey(name: string): string {
   return ALIASES[key] ?? key
 }
 
-export interface PublisherGame {
-  publisher: string | null
-  /** 0-100 unified score, when the game has one. */
-  score: number | null
+/** A company as the ranking reads it: its key, its name, and the company it belongs to. */
+export interface RankCompany {
+  id: number
+  key: string
+  name: string
+  parentId: number | null
 }
 
-export interface RankedPublisher {
-  key: string
-  /** The spelling most of its games use. */
-  name: string
-  /** Every spelling in the library, to find the group's games. */
-  spellings: string[]
+/** What one company's own games add up to. */
+export interface RankTotals {
+  companyId: number
   games: number
-  /** Sum of the scores of its rated games: more good games weigh more. */
+  /** How many of its games have a score. */
+  rated: number
+  /** Sum of the scores: more good games weigh more. */
   weight: number
 }
 
-/** Publishers ordered by the weight of their games' ratings. */
-export function rankPublishers(games: PublisherGame[], minRated = 3): RankedPublisher[] {
-  const groups = new Map<string, { spellings: Map<string, number>; games: number; rated: number; weight: number }>()
-  for (const g of games) {
-    const raw = g.publisher?.trim()
-    if (!raw) continue
-    const key = publisherKey(raw)
-    if (!key) continue
-    const e = groups.get(key) ?? { spellings: new Map(), games: 0, rated: 0, weight: 0 }
-    e.games++
-    e.spellings.set(raw, (e.spellings.get(raw) ?? 0) + 1)
-    if (g.score != null) { e.rated++; e.weight += g.score }
-    groups.set(key, e)
+/** A tile on the home page: one owning company and every company that belongs to it. */
+export interface RankedPublisher {
+  /** The key of the company at the top of the group. */
+  key: string
+  name: string
+  /** The owning company and every company below it. */
+  companyIds: number[]
+  games: number
+  weight: number
+}
+
+/**
+ * Groups by owner (#143): each company counts toward the company at the top of its owners.
+ * Ordered by the weight of the games' scores. A group needs `minRated` scored games to show.
+ */
+export function rankGroups(companies: RankCompany[], totals: RankTotals[], minRated = 3): RankedPublisher[] {
+  const byId = new Map(companies.map(c => [c.id, c]))
+  const topOf = (id: number): RankCompany | undefined => {
+    let current = byId.get(id)
+    const seen = new Set<number>()
+    while (current && current.parentId !== null && !seen.has(current.id)) {
+      seen.add(current.id)
+      const owner = byId.get(current.parentId)
+      if (!owner) break
+      current = owner
+    }
+    return current
   }
-  return [...groups.entries()]
-    .filter(([, e]) => e.rated >= minRated)
-    .map(([key, e]) => ({
-      key,
-      name: [...e.spellings.entries()].sort((a, b) => b[1] - a[1] || a[0].length - b[0].length)[0][0],
-      spellings: [...e.spellings.keys()],
-      games: e.games,
-      weight: Math.round(e.weight),
-    }))
+
+  const groups = new Map<number, { top: RankCompany; companyIds: number[]; games: number; rated: number; weight: number }>()
+  for (const t of totals) {
+    const top = topOf(t.companyId)
+    if (!top) continue
+    const g = groups.get(top.id) ?? { top, companyIds: [], games: 0, rated: 0, weight: 0 }
+    g.companyIds.push(t.companyId)
+    g.games += t.games
+    g.rated += t.rated
+    g.weight += t.weight
+    groups.set(top.id, g)
+  }
+
+  return [...groups.values()]
+    .filter(g => g.rated >= minRated)
+    .map(g => ({ key: g.top.key, name: g.top.name, companyIds: g.companyIds, games: g.games, weight: Math.round(g.weight) }))
     .sort((a, b) => b.weight - a.weight || a.name.localeCompare(b.name))
 }

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { publisherKey, rankPublishers } from '@/lib/publishers'
+import { publisherKey, rankGroups } from '@/lib/publishers'
 
 describe('publisherKey', () => {
   it('folds spellings of one company together', () => {
@@ -13,19 +13,26 @@ describe('publisherKey', () => {
   })
 })
 
-describe('rankPublishers', () => {
-  const g = (publisher: string | null, score: number | null) => ({ publisher, score })
-  it('ranks by the sum of scores and names a group by its commonest spelling', () => {
-    const ranked = rankPublishers([
-      g('Ubisoft', 60), g('Ubisoft', 60), g('Ubi Soft Entertainment Software', 60),
-      g('Capcom', 80), g('Capcom', 80), g('Capcom', 80),
+describe('rankGroups', () => {
+  const companies = [
+    { id: 1, key: 'embracer', name: 'Embracer Group', parentId: null },
+    { id: 2, key: 'thq', name: 'THQ', parentId: 1 },
+    { id: 3, key: 'eidos', name: 'Eidos Interactive', parentId: 1 },
+    { id: 4, key: 'nintendo', name: 'Nintendo', parentId: null },
+  ]
+  it('counts each company toward the owner at the top, and ranks by the sum of scores', () => {
+    const ranked = rankGroups(companies, [
+      { companyId: 2, games: 3, rated: 3, weight: 180 },
+      { companyId: 3, games: 2, rated: 0, weight: 0 },
+      { companyId: 4, games: 3, rated: 3, weight: 240 },
     ])
-    expect(ranked.map(r => r.name)).toEqual(['Capcom', 'Ubisoft'])
-    expect(ranked[0].weight).toBe(240)
-    expect(ranked[1].games).toBe(3)
+    expect(ranked.map(r => r.name)).toEqual(['Nintendo', 'Embracer Group'])
+    expect(ranked[1]).toMatchObject({ key: 'embracer', games: 5, weight: 180 })
+    expect(ranked[1].companyIds.sort()).toEqual([2, 3])
   })
-  it('drops publishers with too few rated games and games without a publisher', () => {
-    const ranked = rankPublishers([g('Tiny', 90), g('Tiny', null), g(null, 90), g('', 90)])
-    expect(ranked).toEqual([])
+  it('drops groups with too few scored games, and keeps them with minRated 0', () => {
+    const totals = [{ companyId: 2, games: 1, rated: 1, weight: 90 }]
+    expect(rankGroups(companies, totals)).toEqual([])
+    expect(rankGroups(companies, totals, 0).map(r => r.key)).toEqual(['embracer'])
   })
 })
