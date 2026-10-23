@@ -1,8 +1,27 @@
 import fs from 'fs'
 import path from 'path'
 import { db } from '@/lib/db'
+import { canonicalGroupKey } from '@/lib/group-key'
+import { gameGroupKey } from '@/lib/rom-tags'
 import { walkDirectory, scanSwitchFolders, scanPortsFolders, walkFlatWithDlcDetection, isUnchanged } from './walker'
 import type { FileEntry, SwitchGameFolder } from './walker'
+
+type ScanMode = 'flat' | 'folder' | 'ports'
+
+/**
+ * The key the scanner files a group under. A renamed file keeps it: a Switch
+ * folder keys on its Title IDs, and a loose file on its normalised name.
+ * Mirrors processFolderGroups and the flat path in scanner/index.ts.
+ */
+export function groupKeyOf(group: FileEntry[], mode: ScanMode): string {
+  const first = group[0]
+  if (mode === 'flat' || (mode === 'ports' && group.length === 1)) return gameGroupKey(first.fileName)
+  return canonicalGroupKey({
+    folderName: path.basename(first.parentDir),
+    fileNames: group.map((f) => f.fileName),
+    switchMode: true,
+  })
+}
 
 /**
  * What a scan would do to the library, counted without writing anything (#137).
@@ -87,53 +106,81 @@ export interface SummaryInput {
   folderPaths: string[]
   /** Scan roots that exist; rows outside them are not counted as gone. */
   reachable: string[]
-  /** Keyed by file path. */
-  knownGames: Map<string, Known & { isHidden?: boolean }>
+  /** Keyed by file path. `groupKey` lets a renamed file be recognised as the same game. */
+  knownGames: Map<string, Known & { isHidden?: boolean; groupKey?: string | null }>
   knownDlcs: Map<string, Known>
+  mode?: ScanMode
 }
 
 /**
  * Counts for one platform, from what is on disk and what the database holds.
  * Pure: it reads nothing, so it can be tested with plain values.
+ *
+ * A file whose path has no row is "new" only when no row of the same group key
+ * has gone missing. The scanner hands such a row over to the renamed file, so the
+ * preview shows it as "changed", not as one game disappearing and another appearing.
  */
-export function summarize({ groups, folderPaths, reachable, knownGames, knownDlcs }: SummaryInput) {
+export function summarize({ groups, folderPaths, reachable, knownGames, knownDlcs, mode = 'flat' }: SummaryInput) {
   const knownOf = (p: string) => knownGames.get(p) ?? knownDlcs.get(p)
   const files = { new: 0, changed: 0, unchanged: 0 }
   const sample = { new: [] as string[], changed: [] as string[], gone: [] as string[] }
   const seen = new Set<string>(folderPaths)
 
-  // A group is unchanged only when every file in it is, as the scanner decides.
-  // Otherwise each file counts on its own, so a new DLC in a known folder shows up.
-  for (const group of groups) {
-    const statuses = group.map(f => {
+  // First pass: what is on disk, and which paths the scan reaches.
+  const grouped = groups.map(group => {
+    const items = group.map(f => {
       seen.add(f.filePath)
       return { f, s: statusOf(knownOf(f.filePath), f) }
     })
-    const groupUnchanged = statuses.length > 0 && statuses.every(x => x.s === 'unchanged')
-    for (const { f, s } of statuses) {
-      if (groupUnchanged || s === 'unchanged') files.unchanged++
-      else {
-        files[s]++
-        if (sample[s].length < SAMPLE) sample[s].push(f.filePath)
+    const groupUnchanged = items.length > 0 && items.every(x => x.s === 'unchanged')
+    return { group, items, groupUnchanged }
+  })
+
+  // Rows under a reachable root that no file of this scan matches.
+  const underReachable = (p: string) => reachable.some(r => p === r || p.startsWith(r + path.sep))
+  const goneRows: Array<{ filePath: string; groupKey: string | null }> = []
+  for (const [filePath, g] of knownGames) {
+    if (g.isHidden || seen.has(filePath) || !underReachable(filePath)) continue
+    goneRows.push({ filePath, groupKey: g.groupKey ?? null })
+  }
+  const goneDlcPaths: string[] = []
+  for (const filePath of knownDlcs.keys()) {
+    if (seen.has(filePath) || !underReachable(filePath)) continue
+    goneDlcPaths.push(filePath)
+  }
+
+  // Missing rows by group key: the candidates a renamed file can take over.
+  const missingByKey = new Map<string, string[]>()
+  for (const row of goneRows) {
+    if (!row.groupKey) continue
+    const list = missingByKey.get(row.groupKey) ?? []
+    list.push(row.filePath)
+    missingByKey.set(row.groupKey, list)
+  }
+
+  // Second pass: count, pairing renamed files with the rows they take over.
+  const takenOver = new Set<string>()
+  for (const { group, items, groupUnchanged } of grouped) {
+    const key = groupKeyOf(group, mode)
+    for (const { f, s } of items) {
+      if (groupUnchanged || s === 'unchanged') { files.unchanged++; continue }
+      let status: 'new' | 'changed' = s
+      if (s === 'new') {
+        const candidates = missingByKey.get(key)
+        const old = candidates?.shift()
+        if (old) { takenOver.add(old); status = 'changed' }
       }
+      files[status]++
+      if (sample[status].length < SAMPLE) sample[status].push(f.filePath)
     }
   }
 
-  // Rows under a reachable root that no file of this scan matches. Hidden rows
-  // are already gone, so they are not counted again.
-  const underReachable = (p: string) => reachable.some(r => p === r || p.startsWith(r + path.sep))
-  let gone = 0
-  for (const [filePath, g] of knownGames) {
-    if (g.isHidden || seen.has(filePath) || !underReachable(filePath)) continue
-    gone++
-    if (sample.gone.length < SAMPLE) sample.gone.push(filePath)
-  }
-  for (const filePath of knownDlcs.keys()) {
-    if (seen.has(filePath) || !underReachable(filePath)) continue
-    gone++
-    if (sample.gone.length < SAMPLE) sample.gone.push(filePath)
-  }
-  return { files, gone, sample }
+  // Rows that stayed missing after the pairing are the ones really gone.
+  const gone = goneRows.filter(r => !takenOver.has(r.filePath))
+  let goneCount = gone.length + goneDlcPaths.length
+  for (const r of gone) if (sample.gone.length < SAMPLE) sample.gone.push(r.filePath)
+  for (const p of goneDlcPaths) if (sample.gone.length < SAMPLE) sample.gone.push(p)
+  return { files, gone: goneCount, sample }
 }
 
 export async function previewScan(platformSlug?: string): Promise<ScanPreview> {
@@ -154,13 +201,13 @@ export async function previewScan(platformSlug?: string): Promise<ScanPreview> {
 
     const knownGames = new Map((await db.game.findMany({
       where: { platformId: platform.id },
-      select: { filePath: true, fileSize: true, fileMtime: true, isHidden: true },
+      select: { filePath: true, fileSize: true, fileMtime: true, isHidden: true, groupKey: true },
     })).map(g => [g.filePath, g]))
     const knownDlcs = new Map((await db.gameDlc.findMany({
       where: { game: { platformId: platform.id } },
       select: { filePath: true, fileSize: true, fileMtime: true },
     })).map(d => [d.filePath, d]))
-    const { files, gone, sample } = summarize({ groups, folderPaths, reachable, knownGames, knownDlcs })
+    const { files, gone, sample } = summarize({ groups, folderPaths, reachable, knownGames, knownDlcs, mode })
 
     out.push({
       slug: platform.slug,
