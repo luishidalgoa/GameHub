@@ -1,22 +1,13 @@
 'use client'
 
+import { useState } from 'react'
 import useSWR from 'swr'
-import { useTranslations } from 'next-intl'
-import {
-  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, Legend, LabelList,
-} from 'recharts'
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LabelList } from 'recharts'
+import { AlertTriangle, Shield } from 'lucide-react'
 import { formatBytes } from '@/lib/utils'
-import {
-  Users, Eye, Zap, HardDrive, Clock, AlertTriangle,
-  Search, Monitor, Shield, TrendingUp, Activity,
-} from 'lucide-react'
 
-// El identificador que se guarda es estable; lo que se ensena al usuario no
-// tiene por que serlo.
-// Las etiquetas de Tinfoil y CyberFoil SE QUEDAN aunque ya no se admitan: hay
-// descargas historicas archivadas con ese cliente, y quitarlas no borraria esas
-// filas, solo las dejaria mostrando el identificador en crudo.
+// Los identificadores son estables; lo que se ensena no tiene por que serlo.
+// Tinfoil y CyberFoil se quedan: hay descargas archivadas con esos clientes.
 const CLIENT_LABELS: Record<string, string> = {
   gamehubnx: 'GameHubNX',
   cyberfoil: 'CyberFoil',
@@ -26,123 +17,454 @@ const CLIENT_LABELS: Record<string, string> = {
   unknown: 'Sin registrar',
 }
 
-const fetcher = (url: string) => fetch(url).then((r) => r.json())
-
-const PLATFORM_LABELS: Record<string, string> = {
-  switch: 'Switch', '3ds': '3DS', nds: 'NDS', wii: 'Wii', psp: 'PSP', psvita: 'PSVita',
+const RETENTION_LABELS: Record<string, string> = {
+  requestLog: 'Peticiones',
+  searchLog: 'Búsquedas',
+  downloadLog: 'Descargas',
+  ip: 'Direcciones IP',
+  ipCache: 'Geolocalización (caché)',
+  diagnostics: 'Diagnósticos de clientes',
 }
 
-const CHART_COLORS = ['#6366f1', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#f97316', '#ec4899']
+const ERROR_THRESHOLD_PERCENT = 1
+const MASS_DOWNLOAD_THRESHOLD = 5
+
+const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
 interface TrafficData {
-  summary: {
-    totalPageViews: number
-    uniqueVisitorsToday: number
-    pageViewsToday: number
-    pageViewsWeek: number
-    activeNow: number
-    bounceRate: number
-    totalDownloads: number
-    totalBytesTransferred: string
+  proxyTrusted: boolean
+  summary: { pageViewsToday: number; uniqueVisitorsToday: number }
+  pageViewsByDay: Array<{ day: string; count: number | null }>
+  oldestRequestAt: string | null
+  downloads: {
+    completed: number
+    abandoned: number
+    inProgress: number
+    successPercent: number | null
+    byClient: Array<{ client: string; completed: number; abandoned: number; inProgress: number; successPercent: number | null }>
+    topGames: Array<{ gameId: number; title: string; count: number; fileSize: string }>
+    clientVersions: Array<{ version: string; count: number }>
   }
-  sparklines: { pageViews: number[]; downloads: number[] }
-  deviceBreakdown: Array<{ device: string | null; _count: { id: number } }>
-  browserBreakdown: Array<{ browser: string | null; _count: { id: number } }>
-  topPlatforms: Array<{ slug: string; count: number }>
-  topDownloads: Array<{ gameId: number; title: string; count: number; bytes: string }>
-  downloadsByDevice: Array<{ title: string; desktop: number; mobile: number; tablet: number; console: number; unknown: number }>
-  downloadsByClient: Array<{ client: string; count: number; bytes: string }>
-  clientVersions: Array<{ version: string; count: number }>
-  recentDiagnostics: Array<{ createdAt: string; kind: string; message: string; clientVersion: string | null }>
-  completionByClient: Array<{ client: string; completed: number; incomplete: number }>
-  abandonedDownloads: number
-  recentIps: Array<{
-    ip: string; userAgent: string | null; device: string | null; browser: string | null
-    ts: string; country: string | null; city: string | null; flagEmoji: string | null; isp: string | null
-    os: string; osVersion: string; deviceModel: string
+  recentSearches: Array<{ id: number; query: string; results: number; ts: string }>
+  ipRegistry: Array<{
+    ip: string; ts: string; country: string | null; city: string | null; flagEmoji: string | null
+    isp: string | null; os: string; osVersion: string; deviceModel: string; device: string | null; browser: string | null
   }>
+  rateLimitAlerts: Array<{ ip: string; count: number; window: string }>
+  recentDiagnostics: Array<{ createdAt: string; kind: string; message: string; clientVersion: string | null }>
+  retention: Record<string, number>
 }
 
 interface LiveData {
   activeNow: number
+  requests1h: number
+  errors1h: number
+  errorPercent: number | null
   recentRequests: Array<{
-    id: number; ip: string; path: string; status: number; device: string | null
-    browser: string | null; durationMs: number | null; ts: string; bytes: number
-    os: string; osVersion: string; deviceModel: string
+    id: number; path: string; status: number; device: string | null; browser: string | null
+    durationMs: number | null; ts: string; os: string; deviceModel: string
   }>
-  recentSearches: Array<{ id: number; query: string; ip: string; results: number; ts: string }>
+  recentSearches: Array<{ id: number; query: string; results: number; ts: string }>
   rateLimitAlerts: Array<{ ip: string; count: number; window: string }>
 }
 
-function Sparkline({ data, color = '#6366f1' }: { data: number[]; color?: string }) {
-  if (!data || data.length < 2) return <div className="h-8 w-20" />
-  const max = Math.max(...data, 1)
-  const min = Math.min(...data)
-  const range = max - min || 1
-  const W = 80, H = 32, pad = 2
-  const pts = data
-    .map((v, i) => {
-      const x = pad + (i / (data.length - 1)) * (W - pad * 2)
-      const y = H - pad - ((v - min) / range) * (H - pad * 2)
-      return `${x},${y}`
-    })
-    .join(' ')
-  return (
-    <svg width={W} height={H} className="opacity-80">
-      <polyline fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" points={pts} />
-    </svg>
-  )
+type View = 'resumen' | 'descargas' | 'seguridad'
+
+const VIEWS: Array<{ id: View; label: string }> = [
+  { id: 'resumen', label: 'Resumen y vivo' },
+  { id: 'descargas', label: 'Descargas' },
+  { id: 'seguridad', label: 'Seguridad' },
+]
+
+/** "hace 3 s", "hace 5 min"... Relative to now; the page refreshes its own data. */
+function rel(ts: string): string {
+  const s = Math.max(0, Math.floor((Date.now() - new Date(ts).getTime()) / 1000))
+  if (s < 60) return `hace ${s} s`
+  const m = Math.floor(s / 60)
+  if (m < 60) return `hace ${m} min`
+  const h = Math.floor(m / 60)
+  if (h < 24) return `hace ${h} h`
+  return `hace ${Math.floor(h / 24)} d`
 }
 
-function StatCard({
-  icon, label, value, sub, sparkline, sparklineColor, alert,
-}: {
-  icon: React.ReactNode; label: string; value: string; sub?: string
-  sparkline?: number[]; sparklineColor?: string; alert?: boolean
-}) {
+function Card({ label, value, note, alert }: { label: string; value: string; note: string; alert?: boolean }) {
   return (
-    <div className={`bg-card border rounded-xl p-4 ${alert ? 'border-red-500/40' : 'border-border'}`}>
-      <div className="flex items-center justify-between mb-2">
-        <div className={`flex items-center gap-2 text-xs ${alert ? 'text-red-400' : 'text-muted-foreground'}`}>
-          {icon}<span>{label}</span>
-        </div>
-        {sparkline && <Sparkline data={sparkline} color={sparklineColor} />}
-      </div>
-      <p className={`text-2xl font-bold tabular-nums ${alert ? 'text-red-400' : ''}`}>{value}</p>
-      {sub && <p className="text-xs text-muted-foreground mt-0.5">{sub}</p>}
+    <div className={`bg-card border rounded-xl p-4 flex flex-col gap-1.5 ${alert ? 'border-red-500/40' : 'border-border'}`}>
+      <span className="text-xs text-muted-foreground">{label}</span>
+      <span className={`text-2xl font-bold tabular-nums ${alert ? 'text-red-400' : ''}`}>{value}</span>
+      <span className="text-xs text-muted-foreground">{note}</span>
     </div>
   )
 }
 
-function SectionTitle({ icon, title, sub }: { icon: React.ReactNode; title: string; sub?: string }) {
+function Panel({ title, note, children }: { title: string; note?: string; children: React.ReactNode }) {
   return (
-    <div className="flex items-center gap-2 mb-4">
-      <span className="text-primary">{icon}</span>
+    <section className="bg-card border border-border rounded-xl p-4 space-y-3">
       <div>
-        <h2 className="font-semibold text-base">{title}</h2>
-        {sub && <p className="text-xs text-muted-foreground">{sub}</p>}
+        <h2 className="font-semibold text-sm">{title}</h2>
+        {note && <p className="text-xs text-muted-foreground mt-0.5">{note}</p>}
       </div>
+      {children}
+    </section>
+  )
+}
+
+function Empty({ children }: { children: React.ReactNode }) {
+  return <p className="text-xs text-muted-foreground py-4 text-center">{children}</p>
+}
+
+/** Seven bars, one per day. A null day has no data and shows no bar, not a zero. */
+function DayBars({ days, label }: { days: Array<{ day: string; count: number | null }>; label: string }) {
+  const max = Math.max(1, ...days.map((d) => d.count ?? 0))
+  return (
+    <div role="img" aria-label={label} className="flex items-end gap-2 h-32">
+      {days.map((d) => {
+        const weekday = new Date(d.day).toLocaleDateString('es-ES', { weekday: 'short' })
+        return (
+          <div key={d.day} className="flex-1 flex flex-col items-center gap-1 h-full justify-end">
+            {d.count === null ? (
+              <span className="text-[10px] text-muted-foreground">sin datos</span>
+            ) : (
+              <span className="text-[10px] tabular-nums text-muted-foreground">{d.count}</span>
+            )}
+            {d.count !== null && (
+              <span
+                className="w-full bg-primary/70 rounded-t"
+                style={{ height: `${Math.max(2, (d.count / max) * 100)}%` }}
+              />
+            )}
+            <span className="text-[10px] text-muted-foreground capitalize">{weekday}</span>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function ResumenView({ data, live }: { data: TrafficData; live: LiveData | undefined }) {
+  const errorPercent = live?.errorPercent ?? null
+  const alertErrors = errorPercent !== null && errorPercent > ERROR_THRESHOLD_PERCENT
+  const requests = live?.recentRequests ?? []
+  const searches = live?.recentSearches ?? []
+
+  return (
+    <div className="space-y-6">
+      {!data.proxyTrusted && (
+        <div className="bg-amber-950/30 border border-amber-700/40 rounded-xl px-4 py-3 text-sm text-amber-300 flex gap-2">
+          <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+          <span>
+            TRUST_PROXY está apagado: todas las visitas aparecen como 127.0.0.1 y los visitantes únicos no son
+            fiables. Actívalo si GameHub está detrás de un proxy que reescriba X-Real-IP.
+          </span>
+        </div>
+      )}
+
+      <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
+        <Card label="Páginas vistas hoy" value={String(data.summary.pageViewsToday)}
+          note="Visitas registradas desde las 00:00. Cada recarga cuenta como otra." />
+        <Card label="Visitantes únicos hoy" value={String(data.summary.uniqueVisitorsToday)}
+          note="IP distintas desde las 00:00. Las IP se borran a los 7 días." />
+        <Card label="Activos ahora" value={String(live?.activeNow ?? 0)}
+          note="IP con alguna petición en los últimos 5 minutos. Se actualiza cada 3 s." />
+        <Card label="Errores 5xx (1 h)" value={errorPercent === null ? '—' : `${errorPercent} %`}
+          alert={alertErrors}
+          note={live && live.requests1h > 0
+            ? `${live.errors1h} de ${live.requests1h} peticiones. Umbral de alerta: ${ERROR_THRESHOLD_PERCENT} %.`
+            : `Sin peticiones en la última hora. Umbral de alerta: ${ERROR_THRESHOLD_PERCENT} %.`} />
+      </div>
+
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
+        <div className="xl:col-span-2">
+          <Panel title="Últimas peticiones" note="Las 50 más recientes, con su código de respuesta.">
+            {requests.length === 0 ? (
+              <Empty>Sin peticiones registradas.</Empty>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[480px] text-xs">
+                  <thead>
+                    <tr className="border-b border-border text-muted-foreground">
+                      <th className="text-left px-2 py-2 font-medium">Hora</th>
+                      <th className="text-left px-2 py-2 font-medium">Ruta</th>
+                      <th className="text-left px-2 py-2 font-medium">Estado</th>
+                      <th className="text-right px-2 py-2 font-medium">Duración</th>
+                      <th className="text-left px-2 py-2 font-medium">Dispositivo</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {requests.map((r) => (
+                      <tr key={r.id} className="border-b border-border/40">
+                        <td className="px-2 py-2 text-muted-foreground whitespace-nowrap">{rel(r.ts)}</td>
+                        <td className="px-2 py-2 font-mono truncate max-w-[220px]">{r.path}</td>
+                        <td className={`px-2 py-2 font-medium ${r.status >= 500 ? 'text-red-400' : r.status >= 400 ? 'text-amber-400' : 'text-green-400'}`}>{r.status}</td>
+                        <td className="px-2 py-2 text-right text-muted-foreground">{r.durationMs != null ? `${r.durationMs} ms` : '—'}</td>
+                        <td className="px-2 py-2">{r.deviceModel ? `${r.deviceModel} ${r.os}` : r.device ?? '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </Panel>
+        </div>
+
+        <Panel title="Búsquedas recientes" note="Lo que escriben en el buscador.">
+          {searches.length === 0 ? (
+            <Empty>Sin búsquedas recientes.</Empty>
+          ) : (
+            <ul className="divide-y divide-border/40 text-sm max-h-72 overflow-y-auto">
+              {searches.map((s) => (
+                <li key={s.id} className="flex items-center gap-2 py-2">
+                  <span className="flex-1 font-medium truncate">{s.query}</span>
+                  <span className="text-xs text-muted-foreground tabular-nums">{s.results}</span>
+                  <span className="text-xs text-muted-foreground whitespace-nowrap">{rel(s.ts)}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Panel>
+      </div>
+
+      <Panel title="Visitas por día (7 días)"
+        note={data.oldestRequestAt
+          ? `Desde ${new Date(data.oldestRequestAt).toLocaleDateString('es-ES')}, el registro más antiguo que se conserva. Un día sin barra no tiene datos.`
+          : 'Todavía no hay peticiones registradas.'}>
+        <DayBars days={data.pageViewsByDay} label="Gráfico de barras: páginas vistas por día, últimos 7 días" />
+      </Panel>
+    </div>
+  )
+}
+
+function DescargasView({ data }: { data: TrafficData }) {
+  const { downloads } = data
+  const hasGames = downloads.topGames.length > 0
+
+  return (
+    <div className="space-y-6">
+      <p className="text-xs text-muted-foreground">
+        Últimos 30 días. Cada fila de descarga es un tramo, una petición de un fragmento del archivo, no una sesión
+        completa. Hasta que exista el modelo de sesiones, las cifras cuentan tramos.
+      </p>
+
+      <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
+        <Card label="Tramos completados" value={String(downloads.completed)} note="Petición cerrada hasta el final." />
+        <Card label="En curso" value={String(downloads.inProgress)} note="Abiertos hace menos de 6 h. No cuentan como fallo." />
+        <Card label="Abandonados" value={String(downloads.abandoned)} note="Sin terminar pasadas 6 h desde su inicio." />
+        <Card label="Éxito" value={downloads.successPercent === null ? '—' : `${downloads.successPercent} %`}
+          note="Completados sobre cerrados (completados + abandonados)." />
+      </div>
+
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+        <Panel title="Por cliente" note="Quién descarga y cuánto se termina.">
+          {downloads.byClient.length === 0 ? (
+            <Empty>Sin descargas en los últimos 30 días.</Empty>
+          ) : (
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b border-border text-muted-foreground">
+                  <th className="text-left py-2 font-medium">Cliente</th>
+                  <th className="text-right py-2 font-medium">Completados</th>
+                  <th className="text-right py-2 font-medium">Abandonados</th>
+                  <th className="text-right py-2 font-medium">En curso</th>
+                  <th className="text-right py-2 font-medium">Éxito</th>
+                </tr>
+              </thead>
+              <tbody>
+                {downloads.byClient.map((c) => (
+                  <tr key={c.client} className="border-b border-border/40">
+                    <td className="py-2 font-medium">{CLIENT_LABELS[c.client] ?? c.client}</td>
+                    <td className="py-2 text-right tabular-nums">{c.completed}</td>
+                    <td className="py-2 text-right tabular-nums">{c.abandoned}</td>
+                    <td className="py-2 text-right tabular-nums text-muted-foreground">{c.inProgress}</td>
+                    <td className={`py-2 text-right tabular-nums ${c.successPercent !== null && c.successPercent < 80 ? 'text-amber-500' : ''}`}>
+                      {c.successPercent === null ? '—' : `${c.successPercent} %`}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </Panel>
+
+        <Panel title="Versiones de GameHubNX" note="Solo aparece la versión que el cliente declara de sí mismo.">
+          {downloads.clientVersions.length === 0 ? (
+            <Empty>Ninguna descarga declara versión.</Empty>
+          ) : (
+            <ul className="divide-y divide-border/40 text-sm">
+              {downloads.clientVersions.map((v) => (
+                <li key={v.version} className="flex justify-between py-2">
+                  <span className="font-mono">{v.version}</span>
+                  <span className="text-muted-foreground tabular-nums">{v.count} tramos</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Panel>
+      </div>
+
+      <Panel title="Juegos más descargados" note="Tramos completados. El tamaño es el del archivo del juego, no bytes transferidos.">
+        {!hasGames ? (
+          <Empty>Sin descargas en los últimos 30 días.</Empty>
+        ) : (
+          <ResponsiveContainer width="100%" height={Math.max(180, downloads.topGames.length * 34)}>
+            <BarChart
+              data={downloads.topGames.map((g) => ({
+                name: g.title.length > 24 ? g.title.slice(0, 22) + '…' : g.title,
+                tramos: g.count,
+                size: g.fileSize,
+              }))}
+              layout="vertical" barSize={16} margin={{ left: 8, right: 40 }}
+            >
+              <XAxis type="number" hide />
+              <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={170} />
+              <Tooltip
+                contentStyle={{ background: '#1c1c27', border: '1px solid #333', borderRadius: 6, fontSize: 12 }}
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                formatter={(val: any, _name: any, props: any) => [
+                  `${val} tramos · archivo ${formatBytes(BigInt(props.payload?.size ?? '0'))}`, 'Descargas',
+                ]}
+              />
+              <Bar dataKey="tramos" fill="#6366f1" radius={[0, 4, 4, 0]}>
+                <LabelList dataKey="tramos" position="right" style={{ fontSize: 11, fill: '#9ca3af' }} />
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        )}
+      </Panel>
+
+      <Panel title="Embudo de descarga" note="Pendiente.">
+        <p className="text-sm text-muted-foreground">
+          Token pedido, listo, primer byte y completada necesitan registrar cada paso como evento, y hoy solo se guardan
+          los tramos. Este bloque se activará con el modelo de eventos de la fase 4 del plan.
+        </p>
+      </Panel>
+    </div>
+  )
+}
+
+function SeguridadView({ data, live }: { data: TrafficData; live: LiveData | undefined }) {
+  const alerts = live?.rateLimitAlerts ?? data.rateLimitAlerts
+
+  return (
+    <div className="space-y-6">
+      {alerts.length > 0 ? (
+        <div className="bg-red-950/30 border border-red-700/40 rounded-xl p-4 space-y-3">
+          <div className="flex items-center gap-2 text-red-400 font-medium text-sm">
+            <AlertTriangle className="w-4 h-4" />
+            {alerts.length === 1 ? 'Una IP supera las descargas permitidas' : `${alerts.length} IP superan las descargas permitidas`}
+          </div>
+          <ul className="space-y-2">
+            {alerts.map((a) => (
+              <li key={a.ip} className="flex items-center gap-3 text-sm bg-red-950/40 rounded px-3 py-2">
+                <span className="font-mono text-xs text-red-300 flex-1">{a.ip}</span>
+                <span className="text-red-400 font-medium tabular-nums">{a.count} descargas en 1 h</span>
+              </li>
+            ))}
+          </ul>
+          <p className="text-xs text-red-300/80">
+            Regla: más de {MASS_DOWNLOAD_THRESHOLD} descargas por IP en una hora. Los 429 del límite de 60 peticiones
+            cada 10 minutos no se registran todavía, así que no aparecen aquí.
+          </p>
+        </div>
+      ) : (
+        <div className="bg-green-950/20 border border-green-700/30 rounded-xl px-4 py-3 flex items-center gap-2 text-sm text-green-400">
+          <Shield className="w-4 h-4" />
+          Ninguna IP supera {MASS_DOWNLOAD_THRESHOLD} descargas en la última hora.
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
+        <div className="xl:col-span-2">
+          <Panel title="Registro de IP" note="Últimos 7 días, una fila por dirección. Las IP se guardan sin pseudonimizar y se borran a los 7 días.">
+            {data.ipRegistry.length === 0 ? (
+              <Empty>Sin visitantes en los últimos 7 días.</Empty>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[560px] text-xs">
+                  <thead>
+                    <tr className="border-b border-border text-muted-foreground">
+                      <th className="text-left py-2 font-medium">IP</th>
+                      <th className="text-left py-2 font-medium">Ubicación</th>
+                      <th className="text-left py-2 font-medium">ISP</th>
+                      <th className="text-left py-2 font-medium">Sistema</th>
+                      <th className="text-left py-2 font-medium">Navegador</th>
+                      <th className="text-left py-2 font-medium">Última vez</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.ipRegistry.map((ip) => (
+                      <tr key={ip.ip} className="border-b border-border/40">
+                        <td className="py-2 font-mono">{ip.ip}</td>
+                        <td className="py-2">
+                          {ip.flagEmoji && <span className="mr-1">{ip.flagEmoji}</span>}
+                          {ip.city && ip.country ? `${ip.city}, ${ip.country}` : ip.country ?? '—'}
+                        </td>
+                        <td className="py-2 text-muted-foreground truncate max-w-[160px]">{ip.isp ?? '—'}</td>
+                        <td className="py-2">{ip.os}{ip.osVersion && <span className="text-muted-foreground ml-1">{ip.osVersion}</span>}</td>
+                        <td className="py-2">{ip.browser ?? '—'}</td>
+                        <td className="py-2 text-muted-foreground whitespace-nowrap">{rel(ip.ts)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </Panel>
+        </div>
+
+        <Panel title="Retención" note="Cuánto se guarda cada dato. Lo aplica un borrado diario.">
+          <ul className="divide-y divide-border/40 text-sm">
+            {Object.entries(data.retention).map(([key, days]) => (
+              <li key={key} className="flex justify-between py-2">
+                <span>{RETENTION_LABELS[key] ?? key}</span>
+                <span className="text-muted-foreground tabular-nums">{days} días</span>
+              </li>
+            ))}
+          </ul>
+        </Panel>
+      </div>
+
+      <Panel title="Diagnósticos de los clientes" note="Fallos que comunica GameHubNX, los 20 más recientes.">
+        {data.recentDiagnostics.length === 0 ? (
+          <Empty>Ningún cliente ha reportado fallos.</Empty>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[520px] text-xs">
+              <thead>
+                <tr className="border-b border-border text-muted-foreground">
+                  <th className="text-left py-2 font-medium">Fecha</th>
+                  <th className="text-left py-2 font-medium">Tipo</th>
+                  <th className="text-left py-2 font-medium">Versión</th>
+                  <th className="text-left py-2 font-medium">Mensaje</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.recentDiagnostics.map((d, i) => (
+                  <tr key={i} className="border-b border-border/40">
+                    <td className="py-2 text-muted-foreground whitespace-nowrap">{new Date(d.createdAt).toLocaleString('es-ES')}</td>
+                    <td className="py-2">{d.kind}</td>
+                    <td className="py-2 font-mono">{d.clientVersion ?? '—'}</td>
+                    <td className="py-2">{d.message}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Panel>
     </div>
   )
 }
 
 export default function TrafficPage() {
-  const t = useTranslations('Traffic')
-  const { data, isLoading } = useSWR<TrafficData>('/api/admin/traffic', fetcher, { refreshInterval: 30_000 })
+  const [view, setView] = useState<View>('resumen')
+  const { data, error } = useSWR<TrafficData>('/api/admin/traffic', fetcher, { refreshInterval: 30_000 })
   const { data: live } = useSWR<LiveData>('/api/admin/traffic/live', fetcher, { refreshInterval: 3_000 })
 
-  const rel = (ts: string) => {
-    const diff = Date.now() - new Date(ts).getTime()
-    const s = Math.floor(diff / 1000)
-    if (s < 60) return t('timeAgoS', { n: s })
-    const m = Math.floor(s / 60)
-    if (m < 60) return t('timeAgoM', { n: m })
-    const h = Math.floor(m / 60)
-    if (h < 24) return t('timeAgoH', { n: h })
-    return t('timeAgoD', { n: Math.floor(h / 24) })
+  if (error || (data && !data.summary)) {
+    return <p className="text-sm text-red-400">No se pudieron cargar las estadísticas de tráfico.</p>
   }
 
-  if (isLoading || !data) {
+  if (!data) {
     return (
       <div className="flex items-center justify-center min-h-[40vh]">
         <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
@@ -150,362 +472,32 @@ export default function TrafficPage() {
     )
   }
 
-  const { summary, sparklines, deviceBreakdown, browserBreakdown,
-    topPlatforms, recentIps, topDownloads, downloadsByDevice,
-    downloadsByClient, completionByClient, abandonedDownloads, clientVersions, recentDiagnostics } = data
-
-  const activeNow       = live?.activeNow      ?? summary.activeNow
-  const recentRequests  = live?.recentRequests  ?? []
-  const recentSearches  = live?.recentSearches  ?? []
-  const rateLimitAlerts = live?.rateLimitAlerts ?? []
-
-  const deviceData   = deviceBreakdown.map((d) => ({ name: d.device ?? 'unknown', value: d._count.id }))
-  const browserData  = browserBreakdown.map((b) => ({ name: b.browser ?? 'unknown', value: b._count.id }))
-  const platformData = topPlatforms.map((p) => ({ name: PLATFORM_LABELS[p.slug] ?? p.slug, visits: p.count }))
-
   return (
-    <div className="max-w-7xl space-y-10">
-      <div>
-        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">{t('title')}</h1>
-        <p className="text-muted-foreground mt-1 text-sm">
-          {activeNow === 1 ? t('subtitle', { n: activeNow }) : t('subtitlePlural', { n: activeNow })}
-        </p>
+    <div className="max-w-7xl space-y-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Tráfico</h1>
+          <p className="text-muted-foreground mt-1 text-sm">Lo que pasa ahora, las descargas y la seguridad del servidor.</p>
+        </div>
+        <div role="tablist" aria-label="Vista" className="inline-flex border border-border rounded-lg overflow-hidden self-start">
+          {VIEWS.map((v) => (
+            <button
+              key={v.id}
+              type="button"
+              role="tab"
+              aria-selected={view === v.id}
+              onClick={() => setView(v.id)}
+              className={`px-3.5 py-2 text-sm ${view === v.id ? 'bg-accent text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+            >
+              {v.label}
+            </button>
+          ))}
+        </div>
       </div>
 
-      {/* ── SECTION 1: General Traffic */}
-      <section>
-        <SectionTitle icon={<Activity className="w-4 h-4" />} title={t('generalTraffic')} sub={t('sparklinesSub')} />
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-          <StatCard icon={<Eye className="w-4 h-4" />} label={t('pageViewsToday')}
-            value={String(summary.pageViewsToday)} sub={t('pageViewsWeekSub', { n: summary.pageViewsWeek })}
-            sparkline={sparklines.pageViews} sparklineColor="#6366f1" />
-          <StatCard icon={<Users className="w-4 h-4" />} label={t('uniqueVisitors')}
-            value={String(summary.uniqueVisitorsToday)} sub={t('bounceRateSub', { n: summary.bounceRate })}
-            sparkline={sparklines.pageViews.map((v) => Math.round(v * 0.6))} sparklineColor="#22c55e" />
-          <StatCard icon={<Zap className="w-4 h-4" />} label={t('activeNow')}
-            value={String(activeNow)} sub={t('activeNowSub')} alert={activeNow > 20} />
-          <StatCard icon={<TrendingUp className="w-4 h-4" />} label={t('downloads')}
-            value={String(summary.totalDownloads)} sub={formatBytes(BigInt(summary.totalBytesTransferred))}
-            sparkline={sparklines.downloads} sparklineColor="#f59e0b" />
-        </div>
-      </section>
-
-      {/* ── SECTION 2: System & Performance */}
-      <section>
-        <SectionTitle icon={<Monitor className="w-4 h-4" />} title={t('systemPerf')} />
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 mb-6">
-          <StatCard icon={<HardDrive className="w-4 h-4" />} label={t('bandwidth')}
-            value={formatBytes(BigInt(summary.totalBytesTransferred))} sub={t('bandwidthSub')} />
-          <StatCard icon={<Eye className="w-4 h-4" />} label={t('totalPageViews')}
-            value={String(summary.totalPageViews)} sub={t('allTime')} />
-        </div>
-
-        <div className="bg-card border border-border rounded-xl overflow-hidden">
-          <div className="px-4 py-3 border-b border-border flex items-center justify-between">
-            <span className="font-medium text-sm flex items-center gap-2">
-              {t('requestLog')}
-              <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
-            </span>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[640px] text-xs">
-              <thead>
-                <tr className="border-b border-border text-muted-foreground uppercase tracking-wide">
-                  <th className="text-left px-3 py-2">{t('path')}</th>
-                  <th className="text-left px-3 py-2">{t('ip')}</th>
-                  <th className="text-left px-3 py-2">{t('status')}</th>
-                  <th className="text-left px-3 py-2">{t('device')}</th>
-                  <th className="text-left px-3 py-2">{t('latency')}</th>
-                  <th className="text-left px-3 py-2">{t('when')}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {recentRequests.map((r) => (
-                  <tr key={r.id} className="border-b border-border/40 hover:bg-accent/20">
-                    <td className="px-3 py-2 font-mono truncate max-w-[160px]">{r.path}</td>
-                    <td className="px-3 py-2 font-mono">{r.ip}</td>
-                    <td className={`px-3 py-2 font-medium ${r.status >= 500 ? 'text-red-400' : r.status >= 400 ? 'text-amber-400' : 'text-green-400'}`}>{r.status}</td>
-                    <td className="px-3 py-2">
-                      {r.deviceModel
-                        ? <span>{r.deviceModel}<span className="text-muted-foreground ml-1 text-xs">{r.os}</span></span>
-                        : <span className="capitalize">{r.device ?? '—'}</span>}
-                    </td>
-                    <td className="px-3 py-2 text-muted-foreground">{r.durationMs != null ? `${r.durationMs}ms` : '—'}</td>
-                    <td className="px-3 py-2 text-muted-foreground whitespace-nowrap">{rel(r.ts)}</td>
-                  </tr>
-                ))}
-                {recentRequests.length === 0 && (
-                  <tr><td colSpan={6} className="px-3 py-6 text-center text-muted-foreground">{t('noRequests')}</td></tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </section>
-
-      {/* ── SECTION 2.5: Download Charts */}
-      <section>
-        <SectionTitle icon={<HardDrive className="w-4 h-4" />} title={t('downloadAnalytics')} sub={t('downloadAnalyticsSub')} />
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-          <div className="bg-card border border-border rounded-xl p-4">
-            <h3 className="text-sm font-medium mb-4">{t('topDownloads')}</h3>
-            {topDownloads.length === 0 ? (
-              <p className="text-xs text-muted-foreground">{t('noDownloads')}</p>
-            ) : (
-              <ResponsiveContainer width="100%" height={Math.max(200, topDownloads.length * 36)}>
-                <BarChart
-                  data={topDownloads.map((d) => ({
-                    name: d.title.length > 22 ? d.title.slice(0, 20) + '…' : d.title,
-                    downloads: d.count, bytes: d.bytes,
-                  }))}
-                  layout="vertical" barSize={18} margin={{ left: 8, right: 48 }}
-                >
-                  <XAxis type="number" hide />
-                  <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={140} />
-                  <Tooltip
-                    contentStyle={{ background: '#1c1c27', border: '1px solid #333', borderRadius: 6, fontSize: 12 }}
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    formatter={(val: any, _name: any, props: any) => [
-                      `${val} downloads · ${formatBytes(BigInt(props.payload?.bytes ?? '0'))}`, 'Downloads',
-                    ]}
-                  />
-                  <Bar dataKey="downloads" fill="#6366f1" radius={[0, 6, 6, 0]}>
-                    <LabelList dataKey="downloads" position="right" style={{ fontSize: 11, fill: '#9ca3af' }} />
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            )}
-          </div>
-
-          <div className="bg-card border border-border rounded-xl p-4">
-            <h3 className="text-sm font-medium mb-1">{t('downloadsByClient')}</h3>
-            <p className="text-xs text-muted-foreground mb-4">{t('downloadsByClientSub')}</p>
-            {recentDiagnostics.length > 0 && (
-              <div className="mb-3 space-y-1">
-                <p className="text-xs font-medium">Fallos comunicados por GameHubNX</p>
-                {recentDiagnostics.slice(0, 8).map((d, i) => (
-                  <p key={i} className="text-xs text-muted-foreground">
-                    {new Date(d.createdAt).toLocaleString()} · {d.kind} · {d.clientVersion ?? '?'} · {d.message}
-                  </p>
-                ))}
-              </div>
-            )}
-            {clientVersions.length > 0 && (
-              <p className="text-xs text-muted-foreground mb-3">
-                GameHubNX: {clientVersions.map((v) => `${v.version} × ${v.count}`).join(' · ')}
-              </p>
-            )}
-            {downloadsByClient.length === 0 ? (
-              <p className="text-xs text-muted-foreground">{t('noDownloads')}</p>
-            ) : (
-              <div className="space-y-2">
-                {downloadsByClient
-                  .slice()
-                  .sort((a, b) => b.count - a.count)
-                  .map((c) => {
-                    const done = completionByClient.find((x) => x.client === c.client)
-                    const total = (done?.completed ?? 0) + (done?.incomplete ?? 0)
-                    // Sin descargas cerradas todavia no hay tasa que mostrar:
-                    // un 0 % ahi se leeria como fallo y solo significa "aun no".
-                    const rate = total > 0 ? Math.round(((done?.completed ?? 0) / total) * 100) : null
-                    return (
-                      <div key={c.client} className="flex items-center justify-between text-xs">
-                        <span className="font-medium">{CLIENT_LABELS[c.client] ?? c.client}</span>
-                        <span className="text-muted-foreground">
-                          {c.count} · {formatBytes(BigInt(c.bytes))}
-                          {rate !== null && (
-                            <span className={rate < 80 ? ' text-amber-500' : ' text-emerald-500'}>
-                              {' '}· {rate}%
-                            </span>
-                          )}
-                        </span>
-                      </div>
-                    )
-                  })}
-                {abandonedDownloads > 0 && (
-                  <p className="text-xs text-amber-500 pt-2 border-t border-border">
-                    {t('abandonedDownloads', { n: abandonedDownloads })}
-                  </p>
-                )}
-              </div>
-            )}
-          </div>
-
-          <div className="bg-card border border-border rounded-xl p-4">
-            <h3 className="text-sm font-medium mb-1">{t('downloadsByDevice')}</h3>
-            <p className="text-xs text-muted-foreground mb-4">{t('downloadsByDeviceSub')}</p>
-            {downloadsByDevice.length === 0 ? (
-              <p className="text-xs text-muted-foreground">{t('noDownloads')}</p>
-            ) : (
-              <ResponsiveContainer width="100%" height={Math.max(200, downloadsByDevice.length * 36)}>
-                <BarChart data={downloadsByDevice} layout="vertical" barSize={18} margin={{ left: 8, right: 16 }}>
-                  <XAxis type="number" hide />
-                  <YAxis type="category" dataKey="title" tick={{ fontSize: 11 }} width={140} />
-                  <Tooltip contentStyle={{ background: '#1c1c27', border: '1px solid #333', borderRadius: 6, fontSize: 12 }} />
-                  <Legend iconSize={10} wrapperStyle={{ fontSize: 11 }} />
-                  <Bar dataKey="desktop" name="Desktop" stackId="a" fill="#6366f1" />
-                  <Bar dataKey="mobile" name="Mobile" stackId="a" fill="#22c55e" />
-                  <Bar dataKey="tablet" name="Tablet" stackId="a" fill="#f59e0b" />
-                  <Bar dataKey="console" name="Console" stackId="a" fill="#ef4444" />
-                  <Bar dataKey="unknown" name="Unknown" stackId="a" fill="#6b7280" radius={[0, 6, 6, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            )}
-          </div>
-        </div>
-      </section>
-
-      {/* ── SECTION 3: User Behaviour */}
-      <section>
-        <SectionTitle icon={<Search className="w-4 h-4" />} title={t('userBehaviour')} />
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-          <div className="bg-card border border-border rounded-xl p-4">
-            <h3 className="text-sm font-medium mb-3">{t('topConsoles')}</h3>
-            {platformData.length === 0 ? (
-              <p className="text-xs text-muted-foreground">{t('noData')}</p>
-            ) : (
-              <ResponsiveContainer width="100%" height={180}>
-                <BarChart data={platformData} layout="vertical" barSize={14}>
-                  <XAxis type="number" hide />
-                  <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={50} />
-                  <Tooltip contentStyle={{ background: '#1c1c27', border: '1px solid #333', borderRadius: 6, fontSize: 12 }} />
-                  <Bar dataKey="visits" fill="#6366f1" radius={[0, 4, 4, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            )}
-          </div>
-
-          <div className="bg-card border border-border rounded-xl p-4">
-            <h3 className="text-sm font-medium mb-3">{t('devices')}</h3>
-            {deviceData.length === 0 ? (
-              <p className="text-xs text-muted-foreground">{t('noData')}</p>
-            ) : (
-              <ResponsiveContainer width="100%" height={180}>
-                <PieChart>
-                  <Pie data={deviceData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={65}
-                    label={({ name, percent }) => `${name} ${Math.round((percent ?? 0) * 100)}%`}
-                    labelLine={false} fontSize={11}>
-                    {deviceData.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
-                  </Pie>
-                  <Tooltip contentStyle={{ background: '#1c1c27', border: '1px solid #333', borderRadius: 6, fontSize: 12 }} />
-                </PieChart>
-              </ResponsiveContainer>
-            )}
-          </div>
-
-          <div className="bg-card border border-border rounded-xl p-4">
-            <h3 className="text-sm font-medium mb-3">{t('browsers')}</h3>
-            {browserData.length === 0 ? (
-              <p className="text-xs text-muted-foreground">{t('noData')}</p>
-            ) : (
-              <ResponsiveContainer width="100%" height={180}>
-                <BarChart data={browserData} layout="vertical" barSize={14}>
-                  <XAxis type="number" hide />
-                  <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={55} />
-                  <Tooltip contentStyle={{ background: '#1c1c27', border: '1px solid #333', borderRadius: 6, fontSize: 12 }} />
-                  <Bar dataKey="value" fill="#22c55e" radius={[0, 4, 4, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            )}
-          </div>
-        </div>
-
-        <div className="bg-card border border-border rounded-xl overflow-hidden">
-          <div className="px-4 py-3 border-b border-border">
-            <h3 className="font-medium text-sm flex items-center gap-2">
-              {t('liveSearches')}
-              <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
-            </h3>
-          </div>
-          <div className="divide-y divide-border/40 max-h-64 overflow-y-auto">
-            {recentSearches.length === 0 ? (
-              <p className="px-4 py-6 text-sm text-muted-foreground text-center">{t('noSearches')}</p>
-            ) : recentSearches.map((s) => (
-              <div key={s.id} className="flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-accent/20">
-                <Search className="w-3 h-3 text-muted-foreground flex-shrink-0" />
-                <span className="flex-1 font-medium">{s.query}</span>
-                <span className="text-xs font-mono text-muted-foreground">{s.ip}</span>
-                <span className="text-xs text-muted-foreground whitespace-nowrap">{rel(s.ts)}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ── SECTION 4: Security */}
-      <section>
-        <SectionTitle icon={<Shield className="w-4 h-4" />} title={t('security')} />
-
-        {rateLimitAlerts.length > 0 && (
-          <div className="bg-red-950/30 border border-red-700/40 rounded-xl p-4 mb-6">
-            <div className="flex items-center gap-2 text-red-400 font-medium mb-3">
-              <AlertTriangle className="w-4 h-4" />
-              {rateLimitAlerts.length === 1
-                ? t('rateLimitAlert', { n: rateLimitAlerts.length })
-                : t('rateLimitAlertPlural', { n: rateLimitAlerts.length })}
-            </div>
-            <div className="space-y-2">
-              {rateLimitAlerts.map((a) => (
-                <div key={a.ip} className="flex items-center gap-3 text-sm bg-red-950/40 rounded px-3 py-2">
-                  <span className="font-mono text-xs text-red-300 flex-1">{a.ip}</span>
-                  <span className="text-red-400 font-medium">{a.count} downloads / {a.window}</span>
-                  <span className="text-xs text-red-500">{t('massDownload')}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {rateLimitAlerts.length === 0 && (
-          <div className="bg-green-950/20 border border-green-700/30 rounded-xl px-4 py-3 mb-6 flex items-center gap-2 text-sm text-green-400">
-            <Shield className="w-4 h-4" />
-            {t('noSuspicious')}
-          </div>
-        )}
-
-        <div className="bg-card border border-border rounded-xl overflow-hidden">
-          <div className="px-4 py-3 border-b border-border">
-            <h3 className="font-medium text-sm">{t('ipRegistry')}</h3>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="border-b border-border text-muted-foreground uppercase tracking-wide">
-                  <th className="text-left px-3 py-2">{t('ip')}</th>
-                  <th className="text-left px-3 py-2 hidden sm:table-cell">{t('location')}</th>
-                  <th className="text-left px-3 py-2 hidden md:table-cell">{t('isp')}</th>
-                  <th className="text-left px-3 py-2">{t('os')}</th>
-                  <th className="text-left px-3 py-2 hidden sm:table-cell">{t('device')}</th>
-                  <th className="text-left px-3 py-2 hidden lg:table-cell">{t('browser')}</th>
-                  <th className="text-left px-3 py-2">{t('lastSeen')}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {recentIps.map((ip) => (
-                  <tr key={ip.ip} className="border-b border-border/40 hover:bg-accent/20">
-                    <td className="px-3 py-2.5 font-mono">{ip.ip}</td>
-                    <td className="px-3 py-2.5 hidden sm:table-cell">
-                      {ip.flagEmoji && <span className="mr-1">{ip.flagEmoji}</span>}
-                      {ip.city && ip.country ? `${ip.city}, ${ip.country}` : ip.country ?? '—'}
-                    </td>
-                    <td className="px-3 py-2.5 hidden md:table-cell text-muted-foreground truncate max-w-[160px]">{ip.isp ?? '—'}</td>
-                    <td className="px-3 py-2.5">
-                      <span className="font-medium">{ip.os}</span>
-                      {ip.osVersion && <span className="text-muted-foreground ml-1 text-xs">{ip.osVersion}</span>}
-                    </td>
-                    <td className="px-3 py-2.5 hidden sm:table-cell text-muted-foreground">{ip.deviceModel || ip.device || '—'}</td>
-                    <td className="px-3 py-2.5 hidden lg:table-cell">{ip.browser ?? '—'}</td>
-                    <td className="px-3 py-2.5 text-muted-foreground whitespace-nowrap">{rel(ip.ts)}</td>
-                  </tr>
-                ))}
-                {recentIps.length === 0 && (
-                  <tr><td colSpan={7} className="px-3 py-6 text-center text-muted-foreground">{t('noVisitors')}</td></tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </section>
+      {view === 'resumen' && <ResumenView data={data} live={live} />}
+      {view === 'descargas' && <DescargasView data={data} />}
+      {view === 'seguridad' && <SeguridadView data={data} live={live} />}
     </div>
   )
 }
