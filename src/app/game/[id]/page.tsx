@@ -186,8 +186,9 @@ export default async function GamePage({ params, searchParams }: Props) {
               </div>
             </div>
 
-            {/* Tráiler: solo si el juego tiene uno. */}
-            {game.trailerUrl && (
+            {/* Tráiler: solo si el juego tiene uno. Sin él, la columna queda reservada en blanco,
+                para que la cabecera no cambie de sitio de un juego a otro. */}
+            {game.trailerUrl ? (
               <div className="w-full xl:w-[560px] flex-shrink-0">
                 <YouTubeEmbed
                   url={game.trailerUrl}
@@ -195,6 +196,8 @@ export default async function GamePage({ params, searchParams }: Props) {
                   className="aspect-video w-full rounded-xl overflow-hidden border border-white/10 shadow-2xl"
                 />
               </div>
+            ) : (
+              <div aria-hidden="true" className="hidden xl:block xl:w-[560px] flex-shrink-0" />
             )}
           </div>
         </section>
