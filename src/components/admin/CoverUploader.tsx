@@ -322,7 +322,7 @@ export function CoverUploader({ gameId, gameTitle = '', platformSlug, currentCov
       )}
       <div
         style={{ aspectRatio: `${thumbnailWidth}/${thumbnailHeight}` }}
-        className="relative w-full rounded-lg overflow-hidden bg-secondary border-2 border-dashed border-border hover:border-primary/50 transition-colors cursor-pointer"
+        className="relative w-full max-w-[240px] rounded-lg overflow-hidden bg-secondary border-2 border-dashed border-border hover:border-primary/50 transition-colors cursor-pointer"
         onDrop={handleDrop}
         onDragOver={(e) => e.preventDefault()}
         onClick={() => fileRef.current?.click()}
