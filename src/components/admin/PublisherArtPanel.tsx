@@ -4,12 +4,16 @@ import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { resolveCoverPath } from '@/lib/cover-url'
 import { publisherKey } from '@/lib/publishers'
 import { BACKDROP_LABEL, BACKDROP_STYLES, DEFAULT_TEMPLATE, TEMPLATE_LABEL, TILE_TEMPLATES, type BackdropStyle, type TileTemplate } from '@/lib/publisher-style'
-import { PublisherCanvas } from './PublisherCanvas'
+import { PublisherTileFace, type TileElement } from '@/components/home/PublisherTileFace'
+import type { PublisherTileData } from '@/lib/home-data'
+import type { Place, PublisherLayout } from '@/lib/publisher-art'
 
 interface Row {
   key: string
   name: string
   games: number
+  /** The tile as the home draws it. */
+  tile: PublisherTileData
   art: { logo: string | null; plain?: boolean; character: string | null; colors: string[]; checkedAt: string | null; layout?: { character?: { x: number; y: number; w: number }; logo?: { x: number; y: number; w: number } }; style?: { template?: TileTemplate; backdrop?: BackdropStyle | 'auto' } } | null
 }
 
@@ -25,7 +29,6 @@ export function PublisherArtPanel() {
   const [busy, setBusy] = useState<string | null>(null)
   const [note, setNote] = useState('')
   const [editing, setEditing] = useState<Row | null>(null)
-  const [adjusting, setAdjusting] = useState<Row | null>(null)
   const many = useRef<HTMLInputElement>(null)
   const pick = useRef<HTMLInputElement>(null)
   const trigger = useRef<HTMLElement | null>(null)
@@ -59,6 +62,17 @@ export function PublisherArtPanel() {
     await fetch('/api/admin/publishers', {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ key, style: { ...current, ...change } }),
+    })
+    setBusy(null)
+    load()
+  }
+
+  // Where the logo and the character sit in the tile, as arranged in the preview.
+  const saveLayoutFor = async (key: string, layout: PublisherLayout) => {
+    setBusy(key)
+    await fetch('/api/admin/publishers', {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key, layout }),
     })
     setBusy(null)
     load()
@@ -181,7 +195,7 @@ export function PublisherArtPanel() {
         })}
       </ul>
 
-      {current && !adjusting && (
+      {current && (
         <PublisherEditDialog
           row={current}
           busy={busy === current.key}
@@ -189,47 +203,63 @@ export function PublisherArtPanel() {
           onTemplate={t => saveStyleFor(current.key, { template: t })}
           onBackdrop={b => saveStyleFor(current.key, { backdrop: b })}
           onPlain={plain => savePlainFor(current.key, plain)}
+          onLayout={layout => saveLayoutFor(current.key, layout)}
           onUploadLogo={() => chooseFile(current.key, 'logo')}
           onUploadCharacter={() => chooseFile(current.key, 'character')}
           onRemoveCharacter={() => remove(current.key)}
-          onAdjust={() => setAdjusting(current)}
-        />
-      )}
-
-      {adjusting && (
-        <PublisherCanvas
-          row={adjusting}
-          onClose={() => setAdjusting(null)}
-          onSaved={() => { setAdjusting(null); load() }}
         />
       )}
     </div>
   )
 }
 
+// Where the character and the logo sit when nobody has moved them: the same boxes the home
+// draws by default, so the preview and the home agree from the start.
+const DEFAULT_CHARACTER: Place = { x: 50, y: 42, w: 84, h: 66 }
+const DEFAULT_LOGO_WITH_CHARACTER: Place = { x: 50, y: 89, h: 11 }
+const DEFAULT_LOGO_ALONE: Place = { x: 50, y: 50, w: 82, h: 10 }
+
+function arrangedFrom(layout: PublisherLayout | null | undefined, hasCharacter: boolean, hasLogo: boolean): PublisherLayout {
+  const out: PublisherLayout = { ...(layout ?? {}) }
+  if (hasCharacter && !out.character) out.character = DEFAULT_CHARACTER
+  if (hasLogo && !out.logo) out.logo = hasCharacter ? DEFAULT_LOGO_WITH_CHARACTER : DEFAULT_LOGO_ALONE
+  return out
+}
+
+const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n))
+
 /**
- * Diálogo de edición de una tesela. Foco dentro mientras está abierto, Escape lo cierra,
- * y cada control tiene una etiqueta visible.
+ * Diálogo de edición de una tesela. La vista previa es la tesela real: se arrastran el logo
+ * y el personaje, y una esquina cambia su tamaño. Foco dentro mientras está abierto, Escape
+ * lo cierra, y las flechas mueven el elemento seleccionado.
  */
-function PublisherEditDialog({ row, busy, onClose, onTemplate, onBackdrop, onPlain, onUploadLogo, onUploadCharacter, onRemoveCharacter, onAdjust }: {
+function PublisherEditDialog({ row, busy, onClose, onTemplate, onBackdrop, onPlain, onLayout, onUploadLogo, onUploadCharacter, onRemoveCharacter }: {
   row: Row
   busy: boolean
   onClose: () => void
   onTemplate: (t: TileTemplate) => void
   onBackdrop: (b: BackdropStyle | 'auto') => void
   onPlain: (plain: boolean) => void
+  onLayout: (layout: PublisherLayout) => void
   onUploadLogo: () => void
   onUploadCharacter: () => void
   onRemoveCharacter: () => void
-  onAdjust: () => void
 }) {
   const dialog = useRef<HTMLDivElement>(null)
+  const box = useRef<HTMLDivElement>(null)
   const title = useId()
   const logo = resolveCoverPath(row.art?.logo ?? null)
   const character = resolveCoverPath(row.art?.character ?? null)
   const template = row.art?.style?.template ?? DEFAULT_TEMPLATE
   const backdrop = row.art?.style?.backdrop ?? 'auto'
   const color = row.art?.plain === true
+
+  const [draft, setDraft] = useState<PublisherLayout>(() => arrangedFrom(row.tile.layout, !!character, !!logo))
+  const draftRef = useRef(draft)
+  const [selected, setSelected] = useState<TileElement | null>(null)
+  const drag = useRef<{ el: TileElement; mode: 'move' | 'resize'; start: Place; px: number; py: number } | null>(null)
+
+  const update = (next: PublisherLayout) => { draftRef.current = next; setDraft(next) }
 
   useEffect(() => {
     dialog.current?.querySelector<HTMLElement>('h2')?.focus()
@@ -244,7 +274,7 @@ function PublisherEditDialog({ row, busy, onClose, onTemplate, onBackdrop, onPla
   // Tab no sale del diálogo mientras está abierto.
   const trap = (e: React.KeyboardEvent<HTMLDivElement>) => {
     if (e.key !== 'Tab' || !dialog.current) return
-    const items = Array.from(dialog.current.querySelectorAll<HTMLElement>('button:not([disabled]), input:not([disabled]), select:not([disabled])'))
+    const items = Array.from(dialog.current.querySelectorAll<HTMLElement>('button:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex="0"]'))
     if (items.length === 0) return
     const first = items[0]
     const last = items[items.length - 1]
@@ -252,16 +282,84 @@ function PublisherEditDialog({ row, busy, onClose, onTemplate, onBackdrop, onPla
     else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus() }
   }
 
+  const begin = (el: TileElement, mode: 'move' | 'resize', e: React.PointerEvent<HTMLElement>) => {
+    const start = draftRef.current[el]
+    if (!start) return
+    setSelected(el)
+    drag.current = { el, mode, start, px: e.clientX, py: e.clientY }
+    e.currentTarget.setPointerCapture(e.pointerId)
+    e.stopPropagation()
+  }
+
+  const onPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    const d = drag.current
+    const r = box.current?.getBoundingClientRect()
+    if (!d || !r) return
+    const dx = ((e.clientX - d.px) / r.width) * 100
+    const dy = ((e.clientY - d.py) / r.height) * 100
+    if (d.mode === 'move') {
+      update({ ...draftRef.current, [d.el]: { ...d.start, x: clamp(d.start.x + dx, 0, 100), y: clamp(d.start.y + dy, 0, 100) } })
+      return
+    }
+    // The corner keeps the element's proportions: both sides scale by the same factor.
+    const base = d.start.w ?? 50
+    const f = clamp((base + dx) / base, 0.2, 4)
+    update({
+      ...draftRef.current,
+      [d.el]: { ...d.start, w: clamp(base * f, 5, 200), h: d.start.h !== undefined ? clamp(d.start.h * f, 3, 200) : undefined },
+    })
+  }
+
+  const endDrag = () => {
+    if (!drag.current) return
+    drag.current = null
+    onLayout(draftRef.current)
+  }
+
+  // Las flechas mueven el elemento seleccionado (Mayús. para moverlo más deprisa).
+  const nudge = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (!selected) return
+    const step = e.shiftKey ? 5 : 1
+    const moves: Record<string, [number, number]> = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] }
+    const m = moves[e.key]
+    if (!m) return
+    e.preventDefault()
+    const cur = draftRef.current[selected]
+    if (!cur) return
+    const next = { ...draftRef.current, [selected]: { ...cur, x: clamp(cur.x + m[0], 0, 100), y: clamp(cur.y + m[1], 0, 100) } }
+    update(next)
+    onLayout(next)
+  }
+
+  const preview: PublisherTileData = { ...row.tile, layout: draft, template, backdrop: row.tile.backdrop }
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}>
-      <div ref={dialog} role="dialog" aria-modal="true" aria-labelledby={title} onKeyDown={trap}
+      <div ref={dialog} role="dialog" aria-modal="true" aria-labelledby={title} onKeyDown={e => { trap(e); nudge(e) }}
            className="flex max-h-full w-full max-w-3xl flex-col gap-5 overflow-y-auto rounded-xl border border-border bg-card p-6 shadow-2xl sm:flex-row">
 
-        {/* Vista previa: decorativa, la tesela real está en la portada. */}
-        <div aria-hidden="true" className="relative mx-auto aspect-[3/4] w-40 shrink-0 overflow-hidden rounded-lg sm:w-48"
-             style={{ background: `linear-gradient(160deg, ${row.art?.colors?.[0] ?? '#3a3a55'}, ${row.art?.colors?.[1] ?? '#14141f'})` }}>
-          {character && <img src={character} alt="" className="absolute inset-x-[8%] bottom-[25%] top-[9%] h-auto w-[84%] max-w-none object-cover object-top" />}
-          {logo && <img src={logo} alt="" className={`absolute left-1/2 top-1/2 w-[80%] -translate-x-1/2 -translate-y-1/2 object-contain ${color ? '' : 'brightness-0 invert'}`} />}
+        {/* La tesela tal como la pinta la portada; se ajusta arrastrando. */}
+        <div className="mx-auto flex shrink-0 flex-col items-center gap-2">
+          <div
+            ref={box}
+            onPointerMove={onPointerMove}
+            onPointerUp={endDrag}
+            onPointerCancel={endDrag}
+            className="relative aspect-[3/4] w-[240px] overflow-hidden rounded-lg"
+            style={{ '--c1': row.tile.colors[0] ?? '#3a3a55', '--c2': row.tile.colors[1] ?? '#14141f' } as React.CSSProperties}
+          >
+            <PublisherTileFace
+              publisher={preview}
+              gamesLabel=""
+              edit={{
+                onMove: (el, e) => begin(el, 'move', e),
+                onResize: (el, e) => begin(el, 'resize', e),
+                onSelect: el => setSelected(el),
+                selected,
+              }}
+            />
+          </div>
+          <p className="text-xs text-muted-foreground">Arrastra el logo o el personaje. La esquina cambia el tamaño.</p>
         </div>
 
         <div className="flex min-w-0 flex-1 flex-col gap-5">
@@ -326,10 +424,7 @@ function PublisherEditDialog({ row, busy, onClose, onTemplate, onBackdrop, onPla
                 {character ? 'Cambiar personaje' : 'Subir personaje'}
               </button>
               {character && (
-                <>
-                  <button type="button" disabled={busy} onClick={onAdjust} className={btn}>Colocar en el lienzo</button>
-                  <button type="button" disabled={busy} onClick={onRemoveCharacter} className={btn}>Quitar personaje</button>
-                </>
+                <button type="button" disabled={busy} onClick={onRemoveCharacter} className={btn}>Quitar personaje</button>
               )}
             </div>
           </fieldset>

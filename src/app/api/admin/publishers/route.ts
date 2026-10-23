@@ -1,6 +1,6 @@
 import { adminGuard } from '@/lib/admin-guard'
 import { NextResponse } from 'next/server'
-import { rankedPublishers } from '@/lib/home-data'
+import { publisherTiles, rankedPublishers } from '@/lib/home-data'
 import { artOf, clearCharacter, ensurePublisherLogos, getPublisherArt, savePlain, saveCharacter, saveLayout, saveLogo, saveStyle } from '@/lib/publisher-art'
 
 export const dynamic = 'force-dynamic'
@@ -14,9 +14,11 @@ export async function GET() {
   const denied = await adminGuard()
   if (denied) return denied
   const [ranked, art] = await Promise.all([rankedPublishers(LIST_SIZE), getPublisherArt()])
+  // The tile as the home draws it, so the editor's preview is the real thing.
+  const tiles = await publisherTiles(ranked)
   return NextResponse.json({
     running: g.__publisherLogosRunning === true,
-    publishers: ranked.map(p => ({ key: p.key, name: p.name, games: p.games, art: artOf(p.keys, art) })),
+    publishers: ranked.map((p, i) => ({ key: p.key, name: p.name, games: p.games, art: artOf(p.keys, art), tile: tiles[i] })),
   })
 }
 

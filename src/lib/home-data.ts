@@ -153,7 +153,8 @@ function brandKeyOf(p: RankedPublisher): string {
   return p.keys.find(k => BRAND_STYLE[k] || BRAND_COLORS[k]) ?? p.key
 }
 
-async function publisherTiles(ranked: RankedPublisher[]): Promise<PublisherTileData[]> {
+/** The tiles for these publishers, in the same order: the art, the brand colors and the template. */
+export async function publisherTiles(ranked: RankedPublisher[]): Promise<PublisherTileData[]> {
   const map = await getPublisherArt()
   return ranked.map(p => {
     const a = artOf(p.keys, map)
