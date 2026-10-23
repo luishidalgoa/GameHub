@@ -45,8 +45,8 @@ describe('company owners (#143)', () => {
   })
 })
 
-describe('a publisher that has an owner is written as the owner (#143)', () => {
-  it('a game whose publisher is a sub-company gets the owner as its publisher', async () => {
+describe('the game keeps the brand that publishes it; the owner only groups (#143)', () => {
+  it('a game whose publisher is a sub-company keeps the sub-company, and links to it', async () => {
     const platform = await db.platform.upsert({
       where: { slug: 'test-owner-pub' }, update: {},
       create: { slug: 'test-owner-pub', name: 'Test owner pub', sortOrder: 977, scanPath: '/test/owner-pub', extensions: '.nsp' },
@@ -60,8 +60,23 @@ describe('a publisher that has an owner is written as the owner (#143)', () => {
     })
 
     const row = await db.game.findUnique({ where: { id: game.id } })
-    expect(row?.publisher).toBe('Grupo Pub Owner')
-    expect(row?.publisherCompanyId).toBe(owner)
+    expect(row?.publisher).toBe('Sello Pub Owner')
+    expect(row?.publisherCompanyId).toBe(sub)
+  })
+
+  it('a merged name is written as the company it now belongs to', async () => {
+    const platform = await db.platform.findUniqueOrThrow({ where: { slug: 'test-owner-pub' } })
+    const dup = await companyId(rawDb, 'Dup Marca Pub Owner')
+    const kept = await companyId(rawDb, 'Marca Kept Pub Owner')
+    await mergeCompanies(rawDb, dup!, kept!)
+
+    const game = await db.game.create({
+      data: { filePath: '/test/owner-pub/c.nsp', fileName: 'c.nsp', fileSize: BigInt(1), platformId: platform.id, title: 'M', publisher: 'Dup Marca Pub Owner' },
+    })
+
+    const row = await db.game.findUnique({ where: { id: game.id } })
+    expect(row?.publisher).toBe('Marca Kept Pub Owner')
+    expect(row?.publisherCompanyId).toBe(kept)
   })
 
   it('a publisher the owner set by hand is kept as written', async () => {

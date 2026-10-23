@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { RefreshCw, X } from 'lucide-react'
 
-export interface CompanyRow { id: number; name: string; games: number; parentId: number | null }
+export interface CompanyRow { id: number; name: string; games: number; total: number; parentId: number | null }
 
 const juegos = (n: number) => `${n} ${n === 1 ? 'juego' : 'juegos'}`
 
@@ -45,7 +45,7 @@ export function CompanyCatalog({ companies }: { companies: CompanyRow[] }) {
   }, [companies])
   const ownerId = useMemo(() => companies.find(c => c.name === ownerText.trim())?.id ?? null, [companies, ownerText])
   const bySort = useMemo(
-    () => [...companies].sort((a, b) => (sort === 'games' ? b.games - a.games || a.name.localeCompare(b.name) : a.name.localeCompare(b.name))),
+    () => [...companies].sort((a, b) => (sort === 'games' ? b.total - a.total || a.name.localeCompare(b.name) : a.name.localeCompare(b.name))),
     [companies, sort],
   )
 
@@ -142,7 +142,7 @@ export function CompanyCatalog({ companies }: { companies: CompanyRow[] }) {
                 {parent && <span className="shrink-0 truncate text-xs text-violet-300 max-w-[40%]" title={parent.name}>de {parent.name}</span>}
                 {subs > 0 && <span className="shrink-0 text-xs text-sky-300">{subs} sub.</span>}
                 {!parent && subs === 0 && <span className="shrink-0 text-xs text-muted-foreground/60">sin relacionar</span>}
-                <span className="shrink-0 w-20 text-right text-xs text-muted-foreground tabular-nums">{juegos(c.games)}</span>
+                <span className="shrink-0 w-20 text-right text-xs text-muted-foreground tabular-nums">{juegos(c.total)}</span>
               </button>
             </li>
           )
@@ -185,7 +185,7 @@ function CompanyPanel({ company, companies, onClose }: { company: CompanyRow; co
     if (!n) return []
     return companies
       .filter(c => c.id !== company.id && norm(c.name).includes(n))
-      .sort((a, b) => b.games - a.games)
+      .sort((a, b) => b.total - a.total)
       .slice(0, limit)
   }
   const pickMatches = useMemo(() => search(pickQuery, 30), [pickQuery, companies]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -230,7 +230,7 @@ function CompanyPanel({ company, companies, onClose }: { company: CompanyRow; co
       <header className="flex items-start justify-between gap-3 border-b border-border px-5 py-4">
         <div className="min-w-0">
           <h2 id="company-panel-title" className="truncate text-lg font-semibold">{company.name}</h2>
-          <p className="text-xs text-muted-foreground tabular-nums">{juegos(company.games)}{detail ? ` · ${detail.subsidiaries.length} sub-editoras` : ''}</p>
+          <p className="text-xs text-muted-foreground tabular-nums">{juegos(company.total)}{detail ? ` · ${detail.subsidiaries.length} sub-editoras` : ''}</p>
         </div>
         <button type="button" onClick={onClose} aria-label="Cerrar" className="p-1.5 rounded-md bg-secondary hover:bg-secondary/80"><X className="w-4 h-4" /></button>
       </header>
@@ -296,7 +296,7 @@ function CompanyPanel({ company, companies, onClose }: { company: CompanyRow; co
                 <label className="flex cursor-pointer items-center gap-3 px-3 py-1.5 text-sm hover:bg-secondary/50">
                   <input type="checkbox" checked={pickedIds.has(c.id)} onChange={() => togglePick(c)} className="accent-violet-600" />
                   <span className="min-w-0 flex-1 truncate">{c.name}</span>
-                  <span className="text-xs text-muted-foreground tabular-nums">{c.games}</span>
+                  <span className="text-xs text-muted-foreground tabular-nums">{c.total}</span>
                 </label>
               </li>
             ))}

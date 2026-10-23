@@ -7,12 +7,20 @@ export const dynamic = 'force-dynamic'
 // Catálogo (#143): editoras, dueños de las sub-editoras y modelos 3D.
 export default async function AdminCatalogPage() {
   const companies = await db.company.findMany({
-    select: { id: true, name: true, parentId: true, _count: { select: { publishedGames: true, subsidiaries: true } } },
+    select: { id: true, name: true, parentId: true, _count: { select: { publishedGames: true } } },
   })
   // An owner's games are its sub-editoras' games too (#143), so an owner with no games of its own still shows.
+  // Games are counted where they are linked; an owner's total adds its sub-editoras' games (#143).
+  const subGames = new Map<number, number>()
+  for (const c of companies) {
+    if (c.parentId !== null) subGames.set(c.parentId, (subGames.get(c.parentId) ?? 0) + c._count.publishedGames)
+  }
   const rows: CompanyRow[] = companies
-    .map(c => ({ id: c.id, name: c.name, parentId: c.parentId, games: c._count.publishedGames }))
-    .filter(c => c.games > 0 || companies.some(o => o.parentId === c.id))
+    .map(c => {
+      const games = c._count.publishedGames
+      return { id: c.id, name: c.name, parentId: c.parentId, games, total: games + (subGames.get(c.id) ?? 0) }
+    })
+    .filter(c => c.total > 0)
 
   return (
     <div className="space-y-4">
