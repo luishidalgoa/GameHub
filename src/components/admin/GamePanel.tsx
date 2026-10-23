@@ -178,6 +178,7 @@ export function GamePanel({ game, percent, missing, closeHref, imagesHref, prevH
             Nota (0–100)
             <ScoreField
               gameId={game.id}
+              gameTitle={game.title}
               value={form.rawgScore}
               inputClassName={input}
               onChange={(value, source) => { set('rawgScore', value); setScoreSource(source) }}

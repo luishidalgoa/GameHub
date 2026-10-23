@@ -272,6 +272,7 @@ export function GameEditorForm({ game, thumbnailWidth = 200, thumbnailHeight = 3
             <Field label={t('fieldScore')} className="col-span-2">
               <ScoreField
                 gameId={game.id}
+                gameTitle={game.title}
                 value={form.score}
                 inputClassName={inputCls}
                 onChange={(value, source) => { set('score', value); setScoreSource(source) }}
