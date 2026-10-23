@@ -1,112 +1,65 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { serializeBigInt } from '@/lib/serialize'
 import { getRateLimitAlerts, parseUaDetail } from '@/lib/tracker'
 import { adminGuard } from '@/lib/admin-guard'
+import { RETENTION_DAYS } from '@/lib/retention'
+import { trustProxy } from '@/lib/net'
+import { ABANDON_AFTER_MS, countByDay, dayStarts, successPercent } from '@/lib/traffic-stats'
 
 export const dynamic = 'force-dynamic'
 
+const DAY_MS = 24 * 60 * 60 * 1000
+
+/**
+ * Datos de la pantalla de trafico que cambian poco. Lo que se mueve segundo a
+ * segundo (activos, errores, ultimas peticiones) va en /traffic/live.
+ *
+ * Las descargas se cuentan por tramo: cada fila de DownloadLog es una peticion
+ * de descarga, no una sesion completa. Hasta que exista el modelo de sesiones
+ * (fase 4 del plan) la pantalla lo dice en lugar de presentarlo como sesiones.
+ */
 export async function GET() {
   const denied = await adminGuard()
   if (denied) return denied
 
   const now = new Date()
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-  const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
-  const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
-  const tenMinAgo = new Date(now.getTime() - 10 * 60 * 1000)
-  const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000)
-
-  // Build last-7-days sparkline buckets
-  const sparklineDays = Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(todayStart)
-    d.setDate(d.getDate() - (6 - i))
-    return d
-  })
+  const weekAgo = new Date(now.getTime() - 7 * DAY_MS)
+  const monthAgo = new Date(now.getTime() - 30 * DAY_MS)
+  const abandonedBefore = new Date(now.getTime() - ABANDON_AFTER_MS)
+  const days = dayStarts(now, 7)
 
   const [
-    totalPageViews,
-    uniqueVisitorsToday,
     pageViewsToday,
-    pageViewsWeek,
-    activeNow,
-    recentRequests,
-    deviceBreakdown,
-    browserBreakdown,
-    recentSearches,
-    topPlatforms,
+    uniqueVisitorsToday,
+    oldestRequest,
+    recentWeekRequests,
     recentIps,
-    downloadSummary,
-    topDownloadedRaw,
-    downloadsByDeviceRaw,
+    recentSearches,
+    completedByClient,
+    abandonedByClient,
+    inProgressByClient,
+    topGamesRaw,
+    clientVersionsRaw,
+    recentDiagnostics,
     rateLimitAlerts,
-    sparklineRaw,
-    downloadSparklineRaw,
-    clientBreakdownRaw,
-    incompleteRaw,
-    staleIncomplete,
   ] = await Promise.all([
-    // Total all-time page views
-    db.requestLog.count(),
+    db.requestLog.count({ where: { ts: { gte: todayStart } } }),
 
-    // Unique IPs today
     db.requestLog.findMany({
       where: { ts: { gte: todayStart } },
       select: { ip: true },
       distinct: ['ip'],
     }),
 
-    // Page views today
-    db.requestLog.count({ where: { ts: { gte: todayStart } } }),
+    db.requestLog.aggregate({ _min: { ts: true } }),
 
-    // Page views this week
-    db.requestLog.count({ where: { ts: { gte: weekAgo } } }),
-
-    // Active now (last 10 min)
     db.requestLog.findMany({
-      where: { ts: { gte: tenMinAgo } },
-      select: { ip: true },
-      distinct: ['ip'],
+      where: { ts: { gte: days[0] } },
+      select: { ts: true },
     }),
 
-    // Recent 100 requests for display
-    db.requestLog.findMany({
-      orderBy: { ts: 'desc' },
-      take: 100,
-      select: { id: true, ip: true, path: true, status: true, device: true, browser: true, durationMs: true, ts: true, bytes: true },
-    }),
-
-    // Device breakdown (last 30 days)
-    db.requestLog.groupBy({
-      by: ['device'],
-      _count: { id: true },
-      where: { ts: { gte: monthAgo } },
-    }),
-
-    // Browser breakdown (last 30 days)
-    db.requestLog.groupBy({
-      by: ['browser'],
-      _count: { id: true },
-      where: { ts: { gte: monthAgo } },
-      orderBy: { _count: { id: 'desc' } },
-      take: 8,
-    }),
-
-    // Recent searches (still fetched for initial render fallback)
-    db.searchLog.findMany({
-      orderBy: { ts: 'desc' },
-      take: 30,
-      select: { id: true, query: true, ip: true, results: true, ts: true },
-    }),
-
-    // Top platforms visited (/platform/[slug])
-    db.requestLog.findMany({
-      where: { path: { startsWith: '/platform/' }, ts: { gte: monthAgo } },
-      select: { path: true },
-    }),
-
-
-    // Recent unique IPs with geo cache
+    // IP registry: last week, one row per address, same period as the IP retention.
     db.requestLog.findMany({
       where: { ts: { gte: weekAgo } },
       select: { ip: true, userAgent: true, device: true, browser: true, ts: true },
@@ -115,223 +68,149 @@ export async function GET() {
       take: 30,
     }),
 
-    // Download summary
-    db.downloadLog.aggregate({
-      _count: { id: true },
-      _sum: { fileSize: true },
-      where: { completed: true, dlcId: null },
+    db.searchLog.findMany({
+      orderBy: { ts: 'desc' },
+      take: 30,
+      select: { id: true, query: true, ip: true, results: true, ts: true },
     }),
 
-    // Top downloaded games (all time). DLC and updates are not counted for their game.
-    db.downloadLog.groupBy({
-      by: ['gameId'],
-      where: { dlcId: null },
-      _count: { id: true },
-      _sum: { fileSize: true },
-      orderBy: { _count: { id: 'desc' } },
-      take: 15,
-    }),
-
-    // Downloads by device (raw rows, we'll group in JS)
-    db.downloadLog.findMany({
-      select: { gameId: true, device: true },
-      where: { device: { not: null }, dlcId: null },
-    }),
-
-    // Rate limit alerts
-    getRateLimitAlerts(),
-
-    // Sparkline: page views per day for last 7 days
-    db.requestLog.findMany({
-      where: { ts: { gte: sparklineDays[0] } },
-      select: { ts: true },
-    }),
-
-    // Sparkline: downloads per day for last 7 days
-    db.downloadLog.findMany({
-      where: { startedAt: { gte: sparklineDays[0] }, dlcId: null },
-      select: { startedAt: true },
-    }),
-    // Descargas por cliente. Las filas anteriores a esta funcionalidad tienen
-    // client=NULL y se agrupan como "unknown" en vez de inventarles un origen.
+    // The three groupBy calls split the same 30 days by state, per client. A row
+    // is abandoned after ABANDON_AFTER_MS without finishing, not before.
     db.downloadLog.groupBy({
       by: ['client'],
-      where: { dlcId: null },
+      where: { dlcId: null, completed: true, startedAt: { gte: monthAgo } },
       _count: { _all: true },
-      _sum: { fileSize: true },
     }),
-
-    // Completadas vs no completadas, por cliente: el dato que dice si la Switch
-    // esta cortando descargas a medias.
     db.downloadLog.groupBy({
-      by: ['client', 'completed'],
-      where: { dlcId: null },
+      by: ['client'],
+      where: { dlcId: null, completed: false, startedAt: { gte: monthAgo, lt: abandonedBefore } },
+      _count: { _all: true },
+    }),
+    db.downloadLog.groupBy({
+      by: ['client'],
+      where: { dlcId: null, completed: false, startedAt: { gte: abandonedBefore } },
       _count: { _all: true },
     }),
 
-    // Empezadas hace mas de 6 h y nunca terminadas. No es lo mismo que
-    // "incompleta": una descarga EN CURSO tambien tiene completed=false, y
-    // contarla como fallida daria un panel alarmista y falso.
-    db.downloadLog.count({
-      where: { completed: false, dlcId: null, startedAt: { lt: new Date(Date.now() - 6 * 3600_000) } },
+    db.downloadLog.groupBy({
+      by: ['gameId'],
+      where: { dlcId: null, completed: true, startedAt: { gte: monthAgo } },
+      _count: { _all: true },
+      orderBy: { _count: { gameId: 'desc' } },
+      take: 10,
     }),
 
+    db.downloadLog.groupBy({
+      by: ['clientVersion'],
+      where: { clientVersion: { not: null }, dlcId: null, startedAt: { gte: monthAgo } },
+      _count: { _all: true },
+      orderBy: { _count: { clientVersion: 'desc' } },
+      take: 10,
+    }),
+
+    // Fallos que comunica GameHubNX, los ultimos 20.
+    db.clientDiagnostic.findMany({
+      orderBy: { createdAt: 'desc' },
+      take: 20,
+      select: { createdAt: true, kind: true, message: true, clientVersion: true },
+    }),
+
+    getRateLimitAlerts(),
   ])
 
-  // Build sparklines
-  const pvByDay = sparklineDays.map((day) => {
-    const nextDay = new Date(day.getTime() + 86400000)
-    return sparklineRaw.filter((r) => r.ts >= day && r.ts < nextDay).length
-  })
+  // ── Visitas por dia (7 dias). Un dia anterior al registro mas antiguo es null.
+  const since = oldestRequest._min.ts
+  const pageViewsByDay = countByDay(recentWeekRequests.map((r) => r.ts), days, since)
 
-  const dlByDay = sparklineDays.map((day) => {
-    const nextDay = new Date(day.getTime() + 86400000)
-    return downloadSparklineRaw.filter((r) => r.startedAt >= day && r.startedAt < nextDay).length
-  })
-
-  // Top platforms from URL breakdown
-  const platformCounts: Record<string, number> = {}
-  for (const r of topPlatforms) {
-    const slug = r.path.split('/')[2]
-    if (slug) platformCounts[slug] = (platformCounts[slug] ?? 0) + 1
-  }
-  const topPlatformsSorted = Object.entries(platformCounts)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 8)
-    .map(([slug, count]) => ({ slug, count }))
-
-  // ── Top downloaded games with titles ──────────────────────────────────────
-  const dlGameIds = [...new Set(topDownloadedRaw.map((g) => g.gameId))]
-  const dlGames = await db.game.findMany({
-    where: { id: { in: dlGameIds } },
-    select: { id: true, title: true },
-  })
-  const dlGameMap = Object.fromEntries(dlGames.map((g) => [g.id, g.title]))
-
-  const topDownloads = topDownloadedRaw.map((g) => ({
-    gameId: g.gameId,
-    title: dlGameMap[g.gameId] ?? 'Unknown',
-    count: g._count.id,
-    bytes: g._sum.fileSize ?? BigInt(0),
-  }))
-
-  // ── Downloads by device per game (top 8 games) ────────────────────────────
-  const top8ids = topDownloadedRaw.slice(0, 8).map((g) => g.gameId)
-  const DEVICES = ['desktop', 'mobile', 'tablet', 'console', 'unknown']
-
-  const deviceGameMatrix: Record<number, Record<string, number>> = {}
-  for (const row of downloadsByDeviceRaw) {
-    if (!top8ids.includes(row.gameId)) continue
-    if (!deviceGameMatrix[row.gameId]) deviceGameMatrix[row.gameId] = {}
-    const dev = row.device ?? 'unknown'
-    deviceGameMatrix[row.gameId][dev] = (deviceGameMatrix[row.gameId][dev] ?? 0) + 1
-  }
-
-  const downloadsByDevice = top8ids.map((id) => {
-    const title = dlGameMap[id] ?? 'Unknown'
-    const shortTitle = title.length > 20 ? title.slice(0, 18) + '…' : title
-    const counts = deviceGameMatrix[id] ?? {}
-    return { title: shortTitle, ...Object.fromEntries(DEVICES.map((d) => [d, counts[d] ?? 0])) }
-  })
-
-  // Fetch geo for recent IPs
-  const ipGeo = await db.ipCache.findMany({
-    where: { ip: { in: recentIps.map((r) => r.ip) } },
-  })
-  const geoMap = Object.fromEntries(ipGeo.map((g) => [g.ip, g]))
-
-  const recentIpsWithGeo = recentIps.map((r) => {
-    const geo    = geoMap[r.ip]
-    const uaDet  = parseUaDetail(r.userAgent ?? '')
+  // ── Descargas por cliente (30 dias)
+  const clientNames = new Set<string | null>([
+    ...completedByClient.map((r) => r.client),
+    ...abandonedByClient.map((r) => r.client),
+    ...inProgressByClient.map((r) => r.client),
+  ])
+  const byClient = [...clientNames].map((client) => {
+    const completed = completedByClient.find((r) => r.client === client)?._count._all ?? 0
+    const abandoned = abandonedByClient.find((r) => r.client === client)?._count._all ?? 0
+    const inProgress = inProgressByClient.find((r) => r.client === client)?._count._all ?? 0
     return {
-      ...r,
-      country:     geo?.country     ?? null,
-      city:        geo?.city        ?? null,
-      flagEmoji:   geo?.flagEmoji   ?? null,
-      isp:         geo?.isp         ?? null,
-      os:          uaDet.os,
-      osVersion:   uaDet.osVersion,
-      deviceModel: uaDet.deviceModel,
+      client: client ?? 'unknown',
+      completed,
+      abandoned,
+      inProgress,
+      successPercent: successPercent(completed, abandoned),
+    }
+  }).sort((a, b) => (b.completed + b.abandoned + b.inProgress) - (a.completed + a.abandoned + a.inProgress))
+
+  const totals = byClient.reduce(
+    (acc, c) => ({
+      completed: acc.completed + c.completed,
+      abandoned: acc.abandoned + c.abandoned,
+      inProgress: acc.inProgress + c.inProgress,
+    }),
+    { completed: 0, abandoned: 0, inProgress: 0 },
+  )
+
+  // ── Juegos mas descargados (tramos completados, 30 dias)
+  const gameIds = topGamesRaw.map((g) => g.gameId)
+  const games = await db.game.findMany({
+    where: { id: { in: gameIds } },
+    select: { id: true, title: true, fileSize: true },
+  })
+  const gameMap = new Map(games.map((g) => [g.id, g]))
+  const topGames = topGamesRaw.map((g) => {
+    const game = gameMap.get(g.gameId)
+    return {
+      gameId: g.gameId,
+      title: game?.title ?? 'Desconocido',
+      count: g._count._all,
+      // Tamano del archivo del juego, no bytes transferidos: DownloadLog guarda
+      // el tamano completo en cada tramo, asi que sumarlos inflaria el total.
+      fileSize: game?.fileSize?.toString() ?? '0',
     }
   })
 
-  // Bounce rate: sessions (IPs today) with only 1 page view
-  const sessionCounts = await db.requestLog.groupBy({
-    by: ['ip'],
-    _count: { id: true },
-    where: { ts: { gte: todayStart } },
+  // ── Alertas de descarga y registro de IP
+  const ipGeo = await db.ipCache.findMany({
+    where: { ip: { in: recentIps.map((r) => r.ip) } },
   })
-  const bounced = sessionCounts.filter((s) => s._count.id === 1).length
-  const bounceRate = sessionCounts.length > 0
-    ? Math.round((bounced / sessionCounts.length) * 100)
-    : 0
-
-  // BigInt no sobrevive a JSON.stringify: los bytes van como texto, igual que
-  // hace el resto de este endpoint.
-  // Versiones de GameHubNX que descargan (#90): clientVersion se guardaba pero
-  // nadie lo leia. Las filas sin version (navegador, otras apps) no entran aqui.
-  const versionRaw = await db.downloadLog.groupBy({
-    by: ['clientVersion'],
-    _count: { _all: true },
-    where: { clientVersion: { not: null }, dlcId: null },
-    orderBy: { _count: { id: 'desc' } },
-    take: 10,
-  })
-  const clientVersions = versionRaw.map((r) => ({ version: r.clientVersion ?? 'unknown', count: r._count._all }))
-
-  // Fallos que comunica GameHubNX (#91), los ultimos 20.
-  const recentDiagnostics = await db.clientDiagnostic.findMany({
-    orderBy: { createdAt: 'desc' },
-    take: 20,
-    select: { createdAt: true, kind: true, message: true, clientVersion: true },
+  const geoMap = new Map(ipGeo.map((g) => [g.ip, g]))
+  const ipRegistry = recentIps.map((r) => {
+    const geo = geoMap.get(r.ip)
+    const ua = parseUaDetail(r.userAgent ?? '')
+    return {
+      ip: r.ip,
+      ts: r.ts.toISOString(),
+      country: geo?.country ?? null,
+      city: geo?.city ?? null,
+      flagEmoji: geo?.flagEmoji ?? null,
+      isp: geo?.isp ?? null,
+      os: ua.os,
+      osVersion: ua.osVersion,
+      deviceModel: ua.deviceModel,
+      device: r.device,
+      browser: r.browser,
+    }
   })
 
-  const downloadsByClient = clientBreakdownRaw.map((r) => ({
-    client: r.client ?? 'unknown',
-    count: r._count._all,
-    bytes: (r._sum.fileSize ?? BigInt(0)).toString(),
-  }))
-
-  const completionByClient = Object.values(
-    incompleteRaw.reduce<Record<string, { client: string; completed: number; incomplete: number }>>(
-      (acc, row) => {
-        const key = row.client ?? 'unknown'
-        acc[key] ??= { client: key, completed: 0, incomplete: 0 }
-        if (row.completed) acc[key].completed += row._count._all
-        else acc[key].incomplete += row._count._all
-        return acc
-      },
-      {},
-    ),
-  )
-
-  return NextResponse.json(
-    serializeBigInt({
-      summary: {
-        totalPageViews,
-        uniqueVisitorsToday: uniqueVisitorsToday.length,
-        pageViewsToday,
-        pageViewsWeek,
-        activeNow: activeNow.length,
-        bounceRate,
-        totalDownloads: downloadSummary._count.id,
-        totalBytesTransferred: downloadSummary._sum.fileSize ?? BigInt(0),
-      },
-      sparklines: { pageViews: pvByDay, downloads: dlByDay },
-      deviceBreakdown,
-      browserBreakdown,
-      recentSearches,
-      topPlatforms: topPlatformsSorted,
-      topDownloads,
-      downloadsByDevice,
-      downloadsByClient,
-      clientVersions,
-      recentDiagnostics: recentDiagnostics.map((d) => ({ ...d, createdAt: d.createdAt.toISOString() })),
-      completionByClient,
-      abandonedDownloads: staleIncomplete,
-      recentIps: recentIpsWithGeo,
-      rateLimitAlerts,
-      recentRequests: recentRequests.slice(0, 50),
-    })
-  )
+  return NextResponse.json({
+    proxyTrusted: trustProxy(),
+    summary: {
+      pageViewsToday,
+      uniqueVisitorsToday: uniqueVisitorsToday.length,
+    },
+    pageViewsByDay: days.map((d, i) => ({ day: d.toISOString(), count: pageViewsByDay[i] })),
+    oldestRequestAt: since ? since.toISOString() : null,
+    downloads: {
+      ...totals,
+      successPercent: successPercent(totals.completed, totals.abandoned),
+      byClient,
+      topGames,
+      clientVersions: clientVersionsRaw.map((r) => ({ version: r.clientVersion ?? 'unknown', count: r._count._all })),
+    },
+    recentSearches,
+    ipRegistry,
+    rateLimitAlerts,
+    recentDiagnostics: recentDiagnostics.map((d) => ({ ...d, createdAt: d.createdAt.toISOString() })),
+    retention: RETENTION_DAYS,
+  })
 }
