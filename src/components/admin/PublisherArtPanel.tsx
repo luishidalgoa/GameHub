@@ -67,16 +67,13 @@ export function PublisherArtPanel() {
     load()
   }
 
-  // Where the logo and the character sit in the tile, as arranged in the preview.
-  const saveLayoutFor = async (key: string, layout: PublisherLayout) => {
-    setBusy(key)
-    await fetch('/api/admin/publishers', {
+  // Where the logo and the character sit in the tile, as arranged in the preview. Saved quietly:
+  // the dialog keeps its own copy while it is open, so nothing is reloaded or disabled.
+  const saveLayoutFor = (key: string, layout: PublisherLayout) =>
+    fetch('/api/admin/publishers', {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ key, layout }),
     })
-    setBusy(null)
-    load()
-  }
 
   const savePlainFor = async (key: string, plain: boolean) => {
     setBusy(key)
@@ -218,7 +215,8 @@ export function PublisherArtPanel() {
 
 // Where the character and the logo sit when nobody has moved them: the same boxes the home
 // draws by default, so the preview and the home agree from the start.
-const DEFAULT_CHARACTER: Place = { x: 50, y: 42, w: 84, h: 66 }
+// The character keeps its whole picture: only its width is set, the height follows the image.
+const DEFAULT_CHARACTER: Place = { x: 50, y: 40, w: 72 }
 const DEFAULT_LOGO_WITH_CHARACTER: Place = { x: 50, y: 89, h: 11 }
 const DEFAULT_LOGO_ALONE: Place = { x: 50, y: 50, w: 82, h: 10 }
 
