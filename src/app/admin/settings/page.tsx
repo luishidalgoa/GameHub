@@ -22,11 +22,11 @@ export default async function SettingsPage() {
 
       <DonationSettingsForm
         initial={{
-          donate_kofi:    settingsMap['donate_kofi']    ?? '',
-          donate_paypal:  settingsMap['donate_paypal']  ?? '',
-          donate_bmac:    settingsMap['donate_bmac']    ?? '',
-          donate_crypto:  settingsMap['donate_crypto']  ?? '',
-          donate_message: settingsMap['donate_message'] ?? '',
+          donate_kofi:            settingsMap['donate_kofi']            ?? '',
+          donate_bmac:            settingsMap['donate_bmac']            ?? '',
+          donate_crypto:          settingsMap['donate_crypto']          ?? '',
+          donate_message:         settingsMap['donate_message']         ?? '',
+          donate_quarter_goal_eur: settingsMap['donate_quarter_goal_eur'] ?? '',
         }}
       />
     </div>
