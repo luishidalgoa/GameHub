@@ -1,5 +1,6 @@
 import type { PrismaClient } from '@prisma/client'
 import { publisherKey } from '@/lib/publishers'
+import { parseLocks } from '@/lib/manual-fields'
 
 /**
  * The canonical catalog: one row per company and per genre, linked to the games.
@@ -44,19 +45,45 @@ export async function genreIds(client: Client, genre: string | null | undefined)
   return [...new Set(out)]
 }
 
-/** Links one game to its canonical company and genre rows from its text. */
+/** The company at the top of a company's owners: itself when it has no owner (#143). */
+export async function topCompany(client: Client, id: number): Promise<{ id: number; name: string }> {
+  const select = { id: true, name: true, parentId: true } as const
+  type Row = { id: number; name: string; parentId: number | null }
+  const start: Row | null = await client.company.findUnique({ where: { id }, select })
+  if (!start) throw new Error(`company ${id} not found`)
+  let current: Row = start
+  const seen = new Set<number>()
+  while (current.parentId !== null && !seen.has(current.id)) {
+    seen.add(current.id)
+    const owner: Row | null = await client.company.findUnique({ where: { id: current.parentId }, select })
+    if (!owner) break
+    current = owner
+  }
+  return { id: current.id, name: current.name }
+}
+
+/**
+ * Links one game to its canonical company and genre rows from its text. A publisher
+ * that belongs to an owner is written as the owner's name, so the game carries one
+ * spelling per editora. A publisher the owner set by hand is left as it is (#143).
+ */
 export async function linkGame(client: Client, gameId: number): Promise<void> {
   const game = await client.game.findUnique({
-    where: { id: gameId }, select: { publisher: true, developer: true, genre: true },
+    where: { id: gameId }, select: { publisher: true, developer: true, genre: true, manualFields: true },
   })
   if (!game) return
-  const publisherCompanyId = await companyId(client, game.publisher)
+  const ownPublisherId = await companyId(client, game.publisher)
+  const locked = parseLocks(game.manualFields).includes('publisher')
+  const top = ownPublisherId === null || locked ? null : await topCompany(client, ownPublisherId)
+  const owned = top !== null && top.id !== ownPublisherId ? top : null
   const developerCompanyId = await companyId(client, game.developer)
   const genres = await genreIds(client, game.genre)
   await client.game.update({
     where: { id: gameId },
     data: {
-      publisherCompanyId, developerCompanyId,
+      publisherCompanyId: owned ? owned.id : ownPublisherId,
+      ...(owned ? { publisher: owned.name } : {}),
+      developerCompanyId,
       genres: { deleteMany: {}, create: genres.map(genreId => ({ genreId })) },
     },
   })

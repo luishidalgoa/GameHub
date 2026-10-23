@@ -44,3 +44,41 @@ describe('company owners (#143)', () => {
     expect(await companyId(rawDb, 'Dup Dos Estudio Owner')).toBe(kept)
   })
 })
+
+describe('a publisher that has an owner is written as the owner (#143)', () => {
+  it('a game whose publisher is a sub-company gets the owner as its publisher', async () => {
+    const platform = await db.platform.upsert({
+      where: { slug: 'test-owner-pub' }, update: {},
+      create: { slug: 'test-owner-pub', name: 'Test owner pub', sortOrder: 977, scanPath: '/test/owner-pub', extensions: '.nsp' },
+    })
+    const owner = await companyId(rawDb, 'Grupo Pub Owner')
+    const sub = await companyId(rawDb, 'Sello Pub Owner')
+    await setOwner(rawDb, [sub!], owner)
+
+    const game = await db.game.create({
+      data: { filePath: '/test/owner-pub/a.nsp', fileName: 'a.nsp', fileSize: BigInt(1), platformId: platform.id, title: 'P', publisher: 'Sello Pub Owner' },
+    })
+
+    const row = await db.game.findUnique({ where: { id: game.id } })
+    expect(row?.publisher).toBe('Grupo Pub Owner')
+    expect(row?.publisherCompanyId).toBe(owner)
+  })
+
+  it('a publisher the owner set by hand is kept as written', async () => {
+    const platform = await db.platform.findUniqueOrThrow({ where: { slug: 'test-owner-pub' } })
+    const sub = await companyId(rawDb, 'Sello Locked Owner')
+    const owner = await companyId(rawDb, 'Grupo Locked Owner')
+    await setOwner(rawDb, [sub!], owner)
+
+    const game = await db.game.create({
+      data: {
+        filePath: '/test/owner-pub/b.nsp', fileName: 'b.nsp', fileSize: BigInt(1), platformId: platform.id, title: 'L',
+        publisher: 'Sello Locked Owner', manualFields: '["publisher"]',
+      },
+    })
+
+    const row = await db.game.findUnique({ where: { id: game.id } })
+    expect(row?.publisher).toBe('Sello Locked Owner')
+    expect(row?.publisherCompanyId).toBe(sub)
+  })
+})
