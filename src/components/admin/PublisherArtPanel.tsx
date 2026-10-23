@@ -41,6 +41,15 @@ export function PublisherArtPanel() {
     return () => clearInterval(timer)
   }, [load, running])
 
+  // Logo in its own colors, or as a white silhouette.
+  const savePlainFor = async (key: string, plain: boolean) => {
+    await fetch('/api/admin/publishers', {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key, plain }),
+    })
+    load()
+  }
+
   // Saves one of the tile's choices; the other one stays as it was.
   const saveStyleFor = async (key: string, change: { template?: TileTemplate; backdrop?: BackdropStyle | 'auto' }) => {
     const current = rows.find(r => r.key === key)?.art?.style ?? {}
@@ -164,6 +173,13 @@ export function PublisherArtPanel() {
                 {(r.art?.character || r.art?.logo) && (
                   <button onClick={() => setEditing(r)} className="rounded-md border border-border px-2.5 py-1 text-xs hover:bg-secondary">
                     Ajustar
+                  </button>
+                )}
+                {logo && (
+                  <button onClick={() => savePlainFor(r.key, r.art?.plain !== true)}
+                          aria-pressed={r.art?.plain === true}
+                          className="rounded-md border border-border px-2.5 py-1 text-xs hover:bg-secondary">
+                    {r.art?.plain === true ? 'Logo en color' : 'Logo en blanco'}
                   </button>
                 )}
                 <button disabled={busy === r.key} onClick={() => { target.current = { key: r.key, kind: 'logo' }; pick.current?.click() }}

@@ -1,7 +1,7 @@
 import { adminGuard } from '@/lib/admin-guard'
 import { NextResponse } from 'next/server'
 import { rankedPublishers } from '@/lib/home-data'
-import { artOf, clearCharacter, ensurePublisherLogos, getPublisherArt, saveCharacter, saveLayout, saveLogo, saveStyle } from '@/lib/publisher-art'
+import { artOf, clearCharacter, ensurePublisherLogos, getPublisherArt, savePlain, saveCharacter, saveLayout, saveLogo, saveStyle } from '@/lib/publisher-art'
 
 export const dynamic = 'force-dynamic'
 
@@ -58,14 +58,16 @@ export async function PUT(req: Request) {
 
 // PATCH { key, layout } — where the character and the logo sit in the tile (the owner's arrangement).
 // PATCH { key, style } — the tile's template and backdrop.
+// PATCH { key, plain } — the logo in its own colors (true) or as a white silhouette (false).
 export async function PATCH(req: Request) {
   const denied = await adminGuard()
   if (denied) return denied
-  const body = await req.json().catch(() => ({})) as { key?: unknown; layout?: unknown; style?: unknown }
+  const body = await req.json().catch(() => ({})) as { key?: unknown; layout?: unknown; style?: unknown; plain?: unknown }
   if (typeof body.key !== 'string') return NextResponse.json({ error: 'key is required' }, { status: 400 })
   const publisher = (await rankedPublishers(LIST_SIZE)).find(p => p.key === body.key)
   if (!publisher) return NextResponse.json({ error: 'unknown publisher' }, { status: 404 })
   if (body.style !== undefined) return NextResponse.json({ art: await saveStyle(body.key, body.style) })
+  if (typeof body.plain === 'boolean') return NextResponse.json({ art: await savePlain(body.key, body.plain) })
   return NextResponse.json({ art: await saveLayout(body.key, body.layout) })
 }
 

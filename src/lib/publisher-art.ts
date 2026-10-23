@@ -135,6 +135,11 @@ export function cleanStyle(input: unknown): NonNullable<PublisherArt['style']> {
   return out
 }
 
+/** Saves whether the logo keeps its own colors (true) or is shown as a white silhouette (false). */
+export async function savePlain(key: string, plain: boolean): Promise<PublisherArt> {
+  return patch(key, { plain })
+}
+
 /** Saves the tile's template and backdrop. */
 export async function saveStyle(key: string, style: unknown): Promise<PublisherArt> {
   return patch(key, { style: cleanStyle(style) })
