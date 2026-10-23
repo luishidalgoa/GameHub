@@ -1,4 +1,3 @@
-import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { db } from '@/lib/db'
 import { GameEditorForm } from '@/components/admin/GameEditorForm'
@@ -7,13 +6,9 @@ export const dynamic = 'force-dynamic'
 
 interface Props {
   params: { id: string }
-  /** The list the editor was opened from (the games list with its filters and panel). */
-  searchParams: { volver?: string }
 }
 
-export default async function AdminGameEditorPage({ params, searchParams }: Props) {
-  // Solo se vuelve a una pagina de administracion: el parametro viene de la URL.
-  const back = typeof searchParams?.volver === 'string' && searchParams.volver.startsWith('/admin/games') ? searchParams.volver : null
+export default async function AdminGameEditorPage({ params }: Props) {
   const id = parseInt(params.id, 10)
   const game = await db.game.findUnique({
     where: { id },
@@ -27,11 +22,6 @@ export default async function AdminGameEditorPage({ params, searchParams }: Prop
 
   return (
     <div>
-      {back && (
-        <Link href={back} className="mb-4 inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
-          ← Volver a la lista
-        </Link>
-      )}
       <GameEditorForm 
         game={gameData}
         thumbnailWidth={game.platform.thumbnailWidth}
