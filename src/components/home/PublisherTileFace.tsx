@@ -118,7 +118,7 @@ function Arranged({ el, place, edit, children }: { el: TileElement; place: Place
       onPointerDown={e => edit.onMove(el, e)}
       onFocus={() => edit.onSelect(el)}
       style={placed(place)}
-      className={`cursor-move touch-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white ${on ? 'outline outline-2 outline-violet-400' : 'outline outline-1 outline-dashed outline-white/40'}`}
+      className={`${el === 'logo' ? 'z-20' : 'z-10'} cursor-move touch-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white ${on ? 'outline outline-2 outline-violet-400' : 'outline outline-1 outline-dashed outline-white/40'}`}
     >
       {children}
       <span
