@@ -8,8 +8,6 @@ import { PublisherTileFace, type TileElement } from '@/components/home/Publisher
 import type { PublisherTileData } from '@/lib/home-data'
 import type { Place, PublisherLayout } from '@/lib/publisher-art'
 
-interface Hit { thumb: string; full: string; title: string; source: string }
-
 interface Row {
   key: string
   name: string
@@ -99,19 +97,6 @@ export function PublisherArtPanel() {
   }
 
   const upload = (file: File) => uploadTo(target.current.key, target.current.kind, file)
-
-  // Una imagen encontrada en la búsqueda: el servidor la descarga y la guarda.
-  const importImage = async (row: Row, url: string, kind: 'character' | 'logo'): Promise<string | null> => {
-    setBusy(row.key)
-    const res = await fetch('/api/admin/publishers/import', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ key: row.key, name: row.name, kind, url }),
-    })
-    const data = await res.json().catch(() => ({}))
-    setBusy(null)
-    load()
-    return res.ok ? null : (data.error ?? 'No se pudo importar la imagen')
-  }
 
   // Varios personajes a la vez: cada archivo se llama como su editora («nintendo.png»).
   const uploadMany = async (files: FileList) => {
@@ -222,7 +207,6 @@ export function PublisherArtPanel() {
           onUploadCharacter={() => chooseFile(current.key, 'character')}
           onRemoveCharacter={() => remove(current.key)}
           onFile={(file, kind) => uploadTo(current.key, kind, file)}
-          onImport={(url, kind) => importImage(current, url, kind)}
         />
       )}
     </div>
@@ -250,7 +234,7 @@ const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n
  * y el personaje, y una esquina cambia su tamaño. Foco dentro mientras está abierto, Escape
  * lo cierra, y las flechas mueven el elemento seleccionado.
  */
-function PublisherEditDialog({ row, busy, onClose, onTemplate, onBackdrop, onPlain, onLayout, onUploadLogo, onUploadCharacter, onRemoveCharacter, onFile, onImport }: {
+function PublisherEditDialog({ row, busy, onClose, onTemplate, onBackdrop, onPlain, onLayout, onUploadLogo, onUploadCharacter, onRemoveCharacter, onFile }: {
   row: Row
   busy: boolean
   onClose: () => void
@@ -262,7 +246,6 @@ function PublisherEditDialog({ row, busy, onClose, onTemplate, onBackdrop, onPla
   onUploadCharacter: () => void
   onRemoveCharacter: () => void
   onFile: (file: File, kind: 'character' | 'logo') => void
-  onImport: (url: string, kind: 'character' | 'logo') => Promise<string | null>
 }) {
   const dialog = useRef<HTMLDivElement>(null)
   const box = useRef<HTMLDivElement>(null)
@@ -286,32 +269,6 @@ function PublisherEditDialog({ row, busy, onClose, onTemplate, onBackdrop, onPla
   // Búsqueda de imágenes: se abre en otra pestaña con la consulta; la imagen que elijas se pega aquí.
   const [query, setQuery] = useState(`${row.name} mascota png`)
   const [target, setTarget] = useState<'character' | 'logo'>('character')
-  const [hits, setHits] = useState<Hit[] | null>(null)
-  const [searching, setSearching] = useState(false)
-  const [searchError, setSearchError] = useState('')
-  const [importError, setImportError] = useState('')
-
-  const runSearch = async () => {
-    setSearching(true)
-    setSearchError('')
-    setHits(null)
-    try {
-      const res = await fetch(`/api/admin/publishers/images?q=${encodeURIComponent(query)}`)
-      const data = await res.json().catch(() => ({}))
-      if (!res.ok) setSearchError(data.error ?? 'No se pudo buscar')
-      else setHits(data.results)
-    } catch {
-      setSearchError('No se pudo buscar ahora mismo.')
-    } finally {
-      setSearching(false)
-    }
-  }
-
-  const useHit = async (hit: Hit) => {
-    setImportError('')
-    const err = await onImport(hit.full, target)
-    if (err) setImportError(err)
-  }
   const searchUrl = `https://www.google.com/search?tbm=isch&q=${encodeURIComponent(query)}`
 
   const pickImage = (list: FileList | DataTransferItemList | null | undefined) => {
@@ -509,30 +466,8 @@ function PublisherEditDialog({ row, busy, onClose, onTemplate, onBackdrop, onPla
                 Buscar imagen (nueva pestaña)
               </a>
             </div>
-            <div className="flex flex-wrap gap-2">
-              <button type="button" disabled={busy || searching || query.trim().length < 2} onClick={runSearch} className={`${btn} bg-primary text-primary-foreground border-transparent hover:bg-primary/90`}>
-                {searching ? 'Buscando…' : 'Buscar en la web'}
-              </button>
-            </div>
-            {searchError && <p role="alert" className="text-sm text-amber-400">{searchError}</p>}
-            {importError && <p role="alert" className="text-sm text-amber-400">{importError}</p>}
-            {hits && hits.length === 0 && <p className="text-sm text-muted-foreground">Sin resultados para «{query}».</p>}
-            {hits && hits.length > 0 && (
-              <ul className="grid max-h-64 grid-cols-4 gap-2 overflow-y-auto rounded-md border border-border p-2 sm:grid-cols-5">
-                {hits.map((h, i) => (
-                  <li key={`${h.full}-${i}`}>
-                    <button type="button" disabled={busy} onClick={() => useHit(h)}
-                            aria-label={`Usar esta imagen como ${target === 'character' ? 'personaje' : 'logo'}: ${h.title || h.source || 'sin título'}`}
-                            className="block aspect-square w-full overflow-hidden rounded-md bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={h.thumb} alt="" loading="lazy" className="h-full w-full object-contain" />
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
             <p className="text-xs text-muted-foreground">
-              Elige un resultado, copia la imagen (clic derecho, copiar imagen) y pégala con Ctrl+V, o arrástrala a este bloque. Sustituye a {target === 'character' ? 'el personaje' : 'el logo'}.
+              Copia la imagen (clic derecho, copiar imagen) y pégala con Ctrl+V, o arrástrala a este bloque. Sustituye a {target === 'character' ? 'el personaje' : 'el logo'}.
             </p>
           </fieldset>
 
