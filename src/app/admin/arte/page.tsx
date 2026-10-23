@@ -93,6 +93,13 @@ export default async function AdminArtPage({ searchParams }: { searchParams: Rec
     pobres: `Metadatos pobres (${count('pobres')})`,
   }
   const select = 'bg-secondary border border-border rounded-md px-2.5 py-2 text-sm'
+  // The chips count what each «Falta» option would show, and link to it; the same view and platform stay.
+  const chips: { falta: ArtMissing; label: string; count: number }[] = [
+    { falta: 'ambos', label: 'Fondo o logo', count: selectArtGames(candidates, { ...filter, falta: 'ambos' }, downloaded).length },
+    { falta: 'fondo', label: 'Falta fondo', count: selectArtGames(candidates, { ...filter, falta: 'fondo' }, downloaded).length },
+    { falta: 'logo', label: 'Falta logo', count: selectArtGames(candidates, { ...filter, falta: 'logo' }, downloaded).length },
+  ]
+  const chipHref = (falta: ArtMissing) => `/admin/arte?${new URLSearchParams({ vista: filter.vista, falta, plataforma: filter.plataforma }).toString()}`
   const moreParams = new URLSearchParams({ vista: filter.vista, falta: filter.falta, plataforma: filter.plataforma, n: String(shown + PAGE) })
 
   return (
@@ -141,6 +148,19 @@ export default async function AdminArtPage({ searchParams }: { searchParams: Rec
           <p className="text-sm text-muted-foreground mt-0.5">
             {selected.length} resultados con estos filtros. Se muestran {Math.min(shown, selected.length)}. Pulsa «Editar arte» para ver y cambiar el arte de un juego en un panel.
           </p>
+        </div>
+
+        <div role="group" aria-label="Qué falta" className="flex flex-wrap gap-2">
+          {chips.map(c => (
+            <Link
+              key={c.falta}
+              href={chipHref(c.falta)}
+              aria-current={filter.falta === c.falta ? 'true' : undefined}
+              className={`px-3 py-1.5 rounded-full text-xs ${filter.falta === c.falta ? 'bg-violet-600 text-white' : 'bg-secondary hover:bg-secondary/80'}`}
+            >
+              {c.label} <span className="opacity-70 tabular-nums">{c.count}</span>
+            </Link>
+          ))}
         </div>
 
         <form method="get" className="flex flex-wrap items-end gap-3">

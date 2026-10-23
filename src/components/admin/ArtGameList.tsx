@@ -20,17 +20,19 @@ export function ArtGameList({ rows, emptyText }: { rows: ArtGameRow[]; emptyText
 
   return (
     <>
-      <ul className="divide-y divide-border">
+      <ul className="grid grid-cols-1 gap-x-7 gap-y-0.5 lg:grid-cols-2">
         {rows.map(r => (
-          <li key={r.id} className="flex items-center justify-between gap-4 py-2.5 text-sm">
-            <span className="min-w-0">
-              <span className="font-medium truncate block">{r.title}</span>
-              <span className="text-xs text-muted-foreground">{r.platform} · falta {r.missing === 'fanart' ? 'fondo' : r.missing === 'logo' ? 'logo' : 'fondo o logo'}</span>
+          <li key={r.id} className="flex items-center gap-3 rounded-md px-2.5 py-2 text-sm hover:bg-secondary/40">
+            <span className="min-w-0 flex-1 truncate font-medium">{r.title}</span>
+            <span className={`shrink-0 text-xs ${r.missing === 'fanart' ? 'text-red-300' : r.missing === 'logo' ? 'text-amber-300' : 'text-orange-300'}`}>
+              {r.missing === 'fanart' ? 'falta fondo' : r.missing === 'logo' ? 'falta logo' : 'fondo o logo'}
             </span>
+            <span className="w-28 shrink-0 text-right text-xs text-muted-foreground truncate">{r.platform}</span>
             <button
               type="button"
               onClick={() => setOpenId(r.id)}
-              className="px-3 py-1.5 rounded-md text-xs bg-secondary hover:bg-secondary/80 flex-shrink-0"
+              aria-label={`Editar arte de ${r.title}`}
+              className="px-2.5 py-1 rounded-md text-xs bg-secondary hover:bg-secondary/80 flex-shrink-0"
             >
               Editar arte
             </button>
