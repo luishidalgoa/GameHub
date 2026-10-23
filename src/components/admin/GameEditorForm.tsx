@@ -3,10 +3,13 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useTranslations } from 'next-intl'
-import { Save, Loader2, ArrowLeft, Heart, Star, EyeOff, Search, ChevronDown, ImageIcon, Link2, Github, Plus, Trash2, GitMerge } from 'lucide-react'
+import { Save, Loader2, ArrowLeft, Heart, Star, EyeOff, Search, ImageIcon, Link2, Github, Plus, Trash2, GitMerge } from 'lucide-react'
 import useSWR from 'swr'
 import { GameImagesPanel } from './GameImagesPanel'
 import { MetadataFetchButton } from './MetadataFetchButton'
+import { ScoreField } from './ScoreField'
+import { TrailerField } from './TrailerField'
+import { RegionSelect } from './RegionSelect'
 import { parseExternalLinks, type ExternalLinkItem } from '@/components/game/ExternalLinks'
 import { YouTubeEmbed } from '@/components/shared/YouTubeEmbed'
 import { toast } from '@/components/shared/Toaster'
@@ -43,11 +46,6 @@ export function GameEditorForm({ game, thumbnailWidth = 200, thumbnailHeight = 3
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [coverPath, setCoverPath] = useState(game.coverPath)
-  const [searchOpen, setSearchOpen] = useState(false)
-  const [trailerSearching, setTrailerSearching] = useState(false)
-  const [trailerSearchQuery, setTrailerSearchQuery] = useState(`${game.title} trailer`)
-  const [trailerResults, setTrailerResults] = useState<Array<{ videoId: string; title: string; channel: string; thumbnail: string }>>([])
-  const [trailerError, setTrailerError] = useState('')
 
   const [form, setForm] = useState({
     title: game.title ?? '',
@@ -67,31 +65,9 @@ export function GameEditorForm({ game, thumbnailWidth = 200, thumbnailHeight = 3
     isHidden: game.isHidden,
   })
 
-  // "Buscar nota": run the score chain for this game and fill the score field.
-  const [scoreSearching, setScoreSearching] = useState(false)
-  const [scoreMsg, setScoreMsg] = useState('')
   // Provenance of the score currently in the field: the source returned by the
   // chain, or 'manual' once the admin types/changes it by hand.
   const [scoreSource, setScoreSource] = useState<string | null>(game.scoreSource ?? null)
-  const searchScore = async () => {
-    setScoreSearching(true)
-    setScoreMsg('')
-    try {
-      const res = await fetch(`/api/metadata/${game.id}/score`, { method: 'POST' })
-      const data = await res.json()
-      if (res.ok && typeof data.score === 'number') {
-        set('score', String(data.score))
-        setScoreSource(data.source ?? null)
-        setScoreMsg(t('scoreFound', { score: data.score }))
-      } else {
-        setScoreMsg(t('scoreNotFound'))
-      }
-    } catch {
-      setScoreMsg(t('scoreNotFound'))
-    } finally {
-      setScoreSearching(false)
-    }
-  }
 
   const set = (key: keyof typeof form, value: string | boolean) =>
     setForm((prev) => ({ ...prev, [key]: value }))
@@ -143,27 +119,6 @@ export function GameEditorForm({ game, thumbnailWidth = 200, thumbnailHeight = 3
     }
   }
 
-  const searchTrailers = async (query: string = trailerSearchQuery) => {
-    if (!query.trim()) return
-    setTrailerSearching(true)
-    setTrailerError('')
-    setTrailerResults([])
-    const res  = await fetch(`/api/youtube/search?q=${encodeURIComponent(query)}`)
-    const data = await res.json()
-    setTrailerSearching(false)
-    if (!res.ok) {
-      setTrailerError(data.message ?? data.error ?? 'Search failed')
-    } else {
-      setTrailerResults(data.results ?? [])
-    }
-  }
-
-  const selectTrailer = (videoId: string) => {
-    set('trailerUrl', `https://www.youtube.com/watch?v=${videoId}`)
-    setSearchOpen(false)
-    setTrailerResults([])
-    setTrailerError('')
-  }
 
   const save = async () => {
     setSaving(true)
@@ -287,7 +242,7 @@ export function GameEditorForm({ game, thumbnailWidth = 200, thumbnailHeight = 3
               <input value={form.genre} onChange={(e) => set('genre', e.target.value)} className={inputCls} placeholder={t('fieldGenrePlaceholder')} />
             </Field>
             <Field label={t('fieldRegion')}>
-              <input value={form.region} onChange={(e) => set('region', e.target.value)} className={inputCls} placeholder={t('fieldRegionPlaceholder')} />
+              <RegionSelect value={form.region} onChange={(v) => set('region', v)} className={inputCls} />
             </Field>
             <Field label={t('fieldLanguages')}>
               <input value={form.languages} onChange={(e) => set('languages', e.target.value)} className={inputCls} placeholder={t('fieldLanguagesPlaceholder')} />
@@ -315,29 +270,13 @@ export function GameEditorForm({ game, thumbnailWidth = 200, thumbnailHeight = 3
 
             {/* Score (0–100) + "Buscar nota" (Metacritic) */}
             <Field label={t('fieldScore')} className="col-span-2">
-              <div className="flex items-center gap-2">
-                <input
-                  value={form.score}
-                  onChange={(e) => { set('score', e.target.value); setScoreSource('manual') }}
-                  className={`${inputCls} w-24`}
-                  type="number"
-                  min="0"
-                  max="100"
-                  placeholder="0–100"
-                />
-                <button
-                  type="button"
-                  onClick={searchScore}
-                  disabled={scoreSearching}
-                  className="flex items-center gap-1.5 px-3 py-2 bg-secondary border border-border rounded-md hover:bg-accent transition-colors text-muted-foreground hover:text-foreground disabled:opacity-50 whitespace-nowrap"
-                >
-                  {scoreSearching ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
-                  {t('searchScore')}
-                </button>
-                {scoreMsg && <span className="text-xs text-muted-foreground">{scoreMsg}</span>}
-              </div>
-                <p className="text-xs text-muted-foreground">{t('fieldScoreHint')}</p>
-              </Field>
+              <ScoreField
+                gameId={game.id}
+                value={form.score}
+                inputClassName={inputCls}
+                onChange={(value, source) => { set('score', value); setScoreSource(source) }}
+              />
+            </Field>
           </div>
 
           {/* Flags */}
@@ -395,102 +334,12 @@ export function GameEditorForm({ game, thumbnailWidth = 200, thumbnailHeight = 3
             <div className="space-y-5">
               <h2 className="text-lg font-semibold">{t('sectionTrailer')}</h2>
           <Field label={t('fieldTrailer')}>
-            <div className="relative">
-              <div className="flex gap-2">
-                <input
-                  value={form.trailerUrl}
-                  onChange={(e) => set('trailerUrl', e.target.value)}
-                  className={inputCls}
-                  placeholder="https://youtube.com/watch?v=…"
-                />
-                <button
-                  type="button"
-                  onClick={() => setSearchOpen(!searchOpen)}
-                  className="flex items-center gap-1 px-3 py-2 bg-secondary border border-border rounded-md hover:bg-accent transition-colors text-muted-foreground hover:text-foreground whitespace-nowrap"
-                >
-                  <Search className="w-4 h-4" />
-                  <ChevronDown className="w-3 h-3" />
-                </button>
-              </div>
-
-              {searchOpen && (
-                <div className="absolute top-full left-0 right-0 mt-1 bg-card border border-border rounded-xl shadow-2xl z-20 overflow-hidden">
-                  {/* Search bar */}
-                  <div className="flex gap-2 p-3 border-b border-border">
-                    <input
-                      value={trailerSearchQuery}
-                      onChange={(e) => setTrailerSearchQuery(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); searchTrailers(e.currentTarget.value) } }}
-                      placeholder={t('trailerSearchPlaceholder')}
-                      className="flex-1 bg-secondary border border-border rounded-md px-3 py-1.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-                      autoFocus
-                    />
-                    <button
-                      type="button"
-                      onClick={() => searchTrailers(trailerSearchQuery)}
-                      disabled={trailerSearching}
-                      className="px-3 py-1.5 bg-red-600 hover:bg-red-500 text-white rounded-md text-sm disabled:opacity-50 transition-colors"
-                    >
-                      {trailerSearching ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Search className="w-3.5 h-3.5" />}
-                    </button>
-                  </div>
-
-                  {/* Results */}
-                  <div className="max-h-80 overflow-y-auto p-2">
-                    {trailerSearching && (
-                      <div className="flex items-center justify-center py-8">
-                        <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
-                      </div>
-                    )}
-
-                    {trailerError && (
-                      <div className="text-xs text-destructive bg-destructive/10 border border-destructive/20 rounded-md px-3 py-2 m-1">
-                        {trailerError.includes('Configure') ? (
-                          <>{trailerError}</>
-                        ) : trailerError}
-                      </div>
-                    )}
-
-                    {!trailerSearching && !trailerError && trailerResults.length === 0 && trailerSearchQuery.trim() && (
-                      <p className="text-xs text-muted-foreground text-center py-6">{t('trailerNoResults')}</p>
-                    )}
-
-                    {!trailerSearching && !trailerError && trailerResults.length === 0 && !trailerSearchQuery.trim() && (
-                      <p className="text-xs text-muted-foreground text-center py-6">{t('trailerSearchHint')}</p>
-                    )}
-
-                    <div className="space-y-1">
-                      {trailerResults.map((r) => (
-                        <button
-                          key={r.videoId}
-                          type="button"
-                          onClick={() => selectTrailer(r.videoId)}
-                          className="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-accent transition-colors text-left group"
-                        >
-                          {/* Thumbnail */}
-                          <div className="relative flex-shrink-0 w-28 rounded overflow-hidden bg-secondary" style={{ aspectRatio: '16/9' }}>
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img src={r.thumbnail} alt={r.title} className="w-full h-full object-cover" />
-                            <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/40">
-                              <div className="w-7 h-7 rounded-full bg-red-600 flex items-center justify-center">
-                                <svg className="w-3 h-3 text-white ml-0.5" fill="currentColor" viewBox="0 0 24 24">
-                                  <path d="M8 5v14l11-7z" />
-                                </svg>
-                              </div>
-                            </div>
-                          </div>
-                          {/* Info */}
-                          <div className="flex-1 min-w-0">
-                            <p className="text-xs font-medium text-foreground leading-snug line-clamp-2">{r.title}</p>
-                            <p className="text-xs text-muted-foreground mt-0.5">{r.channel}</p>
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
+            <TrailerField
+              gameTitle={game.title}
+              value={form.trailerUrl}
+              inputClassName={inputCls}
+              onChange={(url) => set('trailerUrl', url)}
+            />
           </Field>
 
           {form.trailerUrl && (

@@ -117,6 +117,7 @@ export default async function AdminGamesPage({ searchParams }: { searchParams: R
     publisher: panelGame.publisher ?? '',
     titleId: panelGame.titleId ?? '',
     rawgScore: panelGame.rawgScore,
+    scoreSource: panelGame.scoreSource ?? null,
     trailerUrl: panelGame.trailerUrl ?? '',
     isFavorite: panelGame.isFavorite,
     isFeatured: panelGame.isFeatured,
