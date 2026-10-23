@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useTranslations } from 'next-intl'
 import { Save, Loader2, Plus, Trash2, ChevronDown, ChevronUp, FolderPlus, X, FolderOpen, Wifi, CheckCircle2, XCircle, AlertCircle, Pencil, Check } from 'lucide-react'
 import { FolderPickerModal } from './FolderPickerModal'
+import { DonationSettingsForm } from './DonationSettingsForm'
 import { PlatformIconUploader } from './PlatformIconUploader'
 import { parseEmulators, OS_ORDER, OS_LABEL, type EmulatorSet, type EmulatorOS } from '@/components/platform/EmulatorLinks'
 
@@ -173,6 +174,13 @@ interface Platform {
 interface Props {
   platforms: Platform[]
   settings: Record<string, string>
+  donation: {
+    donate_kofi: string
+    donate_bmac: string
+    donate_crypto: string
+    donate_message: string
+    donate_quarter_goal_eur: string
+  }
 }
 
 const SCAN_MODES = [
@@ -183,7 +191,81 @@ const SCAN_MODES = [
 
 const emptyNewPlatform = { slug: '', name: '', extensions: '', scanMode: 'flat', thumbnailWidth: 200, thumbnailHeight: 300, scanDlc: false }
 
-export function SettingsForm({ platforms: initial, settings }: Props) {
+type ScopeId = 'plataformas' | 'proveedores' | 'claves' | 's3' | 'cola' | 'tienda' | 'app' | 'donaciones'
+
+/** Ámbitos agrupados, como en el diseño aprobado. */
+const SCOPE_GROUPS: Array<{ label: string; items: Array<{ id: ScopeId; label: string }> }> = [
+  { label: 'Biblioteca', items: [{ id: 'plataformas', label: 'Plataformas' }, { id: 'proveedores', label: 'Proveedores de metadatos' }] },
+  { label: 'Conexiones', items: [{ id: 'claves', label: 'Claves API' }, { id: 's3', label: 'Almacenamiento S3' }] },
+  { label: 'Descargas', items: [{ id: 'cola', label: 'Cola de descargas' }, { id: 'tienda', label: 'Tienda' }] },
+  { label: 'Público', items: [{ id: 'donaciones', label: 'Donaciones' }, { id: 'app', label: 'URL de la app' }] },
+]
+
+/** Claves que guarda cada ámbito, con el valor que supone cuando no hay fila. */
+const SCOPE_KEYS: Partial<Record<ScopeId, Array<[string, string]>>> = {
+  claves: [['rawg_api_key', ''], ['google_search_api_key', ''], ['steamgriddb_key', ''], ['youtube_api_key', '']],
+  proveedores: [['provider_cover', 'launchbox'], ['provider_info', 'launchbox'], ['provider_description', 'rawg'], ['provider_screenshots', 'launchbox']],
+  s3: [['s3_endpoint_interno', ''], ['s3_endpoint_publico', ''], ['s3_access_key', ''], ['s3_secret_key', ''], ['s3_bucket_name', ''], ['s3_region', '']],
+  cola: [['max_concurrent_downloads', '1'], ['download_limit_kib_per_s', '0']],
+  tienda: [['shop_password', '']],
+  app: [['app_url', process.env.NEXT_PUBLIC_APP_URL ?? '']],
+}
+
+/** Plataformas en un solo texto: sirve para saber si hay cambios sin guardar. */
+const platformsSnapshot = (
+  ps: Platform[],
+  paths: Record<number, string[]>,
+  emus: Record<number, EmulatorSet>,
+) => JSON.stringify({ ps, paths, emus })
+
+/** Barra de cada ámbito: cambios pendientes, guardar y descartar, y el error de esa sección. */
+function SectionFrame({ dirty, saving, saved, error, onSave, onDiscard, children }: {
+  dirty: boolean
+  saving: boolean
+  saved: boolean
+  error?: string
+  onSave: () => void
+  onDiscard: () => void
+  children: React.ReactNode
+}) {
+  return (
+    <div className="space-y-4">
+      {children}
+      <div role="status" className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
+        <span className={`text-sm ${dirty ? 'text-amber-400' : 'text-muted-foreground'}`}>
+          {dirty ? 'Hay cambios sin guardar en esta sección.' : 'Sin cambios pendientes.'}
+        </span>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={onDiscard}
+            disabled={!dirty || saving}
+            className="rounded-md border border-border px-3.5 py-2 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-40"
+          >
+            Descartar
+          </button>
+          <button
+            type="button"
+            onClick={onSave}
+            disabled={!dirty || saving}
+            className="flex items-center gap-2 rounded-md bg-primary px-3.5 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-40"
+          >
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+            {saved ? 'Guardado' : saving ? 'Guardando…' : 'Guardar sección'}
+          </button>
+        </div>
+      </div>
+      {error && (
+        <div role="alert" className="rounded-md border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          {error}
+        </div>
+      )}
+    </div>
+  )
+}
+
+
+export function SettingsForm({ platforms: initial, settings, donation }: Props) {
   const t = useTranslations('SettingsForm')
   const router = useRouter()
 
@@ -252,8 +334,23 @@ export function SettingsForm({ platforms: initial, settings }: Props) {
   const [shopPassword,  setShopPassword]  = useState(settings['shop_password']  ?? '')
   const [appUrl,        setAppUrl]        = useState(settings['app_url']        ?? process.env.NEXT_PUBLIC_APP_URL ?? '')
 
-  const [saving,   setSaving]   = useState(false)
-  const [saved,    setSaved]    = useState(false)
+  const [scope, setScope] = useState<ScopeId>('plataformas')
+  const [sectionSaving, setSectionSaving] = useState<ScopeId | null>(null)
+  const [sectionSaved, setSectionSaved] = useState<ScopeId | null>(null)
+  const [sectionError, setSectionError] = useState<Partial<Record<ScopeId, string>>>({})
+
+  // Lo que muestra cada ámbito de claves: sus campos de arriba.
+  const live: Partial<Record<ScopeId, Record<string, string>>> = {
+    claves:      { rawg_api_key: rawgKey, google_search_api_key: googleApiKey, steamgriddb_key: sgdbKey, youtube_api_key: youtubeKey },
+    proveedores: { provider_cover: provCover, provider_info: provInfo, provider_description: provDescription, provider_screenshots: provScreenshots },
+    s3:          { s3_endpoint_interno: s3Internal, s3_endpoint_publico: s3Public, s3_access_key: s3AccessKey, s3_secret_key: s3SecretKey, s3_bucket_name: s3Bucket, s3_region: s3Region },
+    cola:        { max_concurrent_downloads: maxDownloads, download_limit_kib_per_s: downloadLimit },
+    tienda:      { shop_password: shopPassword },
+    app:         { app_url: appUrl },
+  }
+
+  // Línea base de las plataformas: cómo estaban al cargar o al último guardado.
+  const [platformsBaseline, setPlatformsBaseline] = useState(() => platformsSnapshot(platforms, pathsMap, emulatorsMap))
   const [deleting, setDeleting] = useState<number | null>(null)
   const [addOpen,  setAddOpen]  = useState(false)
   const [adding,   setAdding]   = useState(false)
@@ -326,85 +423,120 @@ export function SettingsForm({ platforms: initial, settings }: Props) {
     }
   }
 
-  const save = async () => {
-    setSaving(true)
+  // Un ámbito se guarda por su cuenta: solo manda sus claves, o sus plataformas.
+  const dirty = (id: ScopeId): boolean => {
+    if (id === 'plataformas') return platformsSnapshot(platforms, pathsMap, emulatorsMap) !== platformsBaseline
+    if (id === 'donaciones') return false
+    return (SCOPE_KEYS[id] ?? []).some(([k, d]) => (live[id]?.[k] ?? '') !== (settings[k] ?? d))
+  }
+
+  const saveScope = async (id: ScopeId) => {
+    setSectionSaving(id)
+    setSectionError((e) => ({ ...e, [id]: undefined }))
     try {
-      const responses = await Promise.all([
-        ...platforms.map((p) =>
-          fetch('/api/platforms', {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              id:              p.id,
-              name:            p.name,
-              scanPath:        joinPaths(getPaths(p.id)),
-              extensions:      p.extensions,
-              scanMode:        p.scanMode,
-              thumbnailWidth:  p.thumbnailWidth ?? 200,
-              thumbnailHeight: p.thumbnailHeight ?? 300,
-              scanDlc:         p.scanDlc,
-              // '' (la opción "heredar") se guarda como NULL, no como cadena
-              // vacía: NULL es lo que significa "usa el ajuste global".
-              providerCover:       p.providerCover       || null,
-              providerInfo:        p.providerInfo        || null,
-              providerDescription: p.providerDescription || null,
-              providerScreenshots: p.providerScreenshots || null,
-              emulators:       serializeEmulators(getEmu(p.id)),
-              // Clear the deprecated single fields once migrated into `emulators`
-              emulatorName:    null,
-              emulatorUrl:     null,
-            }),
-          })
-        ),
-        fetch('/api/settings', {
+      let failed: Response | null = null
+      if (id === 'plataformas') {
+        const responses = await Promise.all(
+          platforms.map((p) =>
+            fetch('/api/platforms', {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                id:              p.id,
+                name:            p.name,
+                scanPath:        joinPaths(getPaths(p.id)),
+                extensions:      p.extensions,
+                scanMode:        p.scanMode,
+                thumbnailWidth:  p.thumbnailWidth ?? 200,
+                thumbnailHeight: p.thumbnailHeight ?? 300,
+                scanDlc:         p.scanDlc,
+                // '' (la opción "heredar") se guarda como NULL, no como cadena
+                // vacía: NULL es lo que significa "usa el ajuste global".
+                providerCover:       p.providerCover       || null,
+                providerInfo:        p.providerInfo        || null,
+                providerDescription: p.providerDescription || null,
+                providerScreenshots: p.providerScreenshots || null,
+                emulators:       serializeEmulators(getEmu(p.id)),
+                // Clear the deprecated single fields once migrated into `emulators`
+                emulatorName:    null,
+                emulatorUrl:     null,
+              }),
+            })
+          )
+        )
+        failed = responses.find((r) => !r.ok) ?? null
+      } else {
+        const body = Object.fromEntries((SCOPE_KEYS[id] ?? []).map(([k]) => [k, live[id]?.[k] ?? '']))
+        const res = await fetch('/api/settings', {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            rawg_api_key:             rawgKey,
-            google_search_api_key:    googleApiKey,
-            steamgriddb_key:          sgdbKey,
-            youtube_api_key:          youtubeKey,
-            provider_cover:           provCover,
-            provider_info:            provInfo,
-            provider_description:     provDescription,
-            provider_screenshots:     provScreenshots,
-            app_url:                  appUrl,
-            max_concurrent_downloads: maxDownloads,
-            download_limit_kib_per_s: downloadLimit,
-            s3_endpoint_interno:      s3Internal,
-            s3_endpoint_publico:      s3Public,
-            s3_access_key:            s3AccessKey,
-            s3_secret_key:            s3SecretKey,
-            s3_bucket_name:           s3Bucket,
-            s3_region:                s3Region,
-            shop_password:            shopPassword,
-          }),
-        }),
-      ])
+          body: JSON.stringify(body),
+        })
+        failed = res.ok ? null : res
+      }
 
-      // fetch() does NOT reject on HTTP 500 — without this check the form showed
-      // "Guardado" even when the write failed (e.g. a read-only DB), and then
-      // router.refresh() silently reverted the fields. Surface the real error.
-      const failed = responses.find((r) => !r.ok)
+      // fetch() does NOT reject on HTTP 500: check the status and show the real error.
       if (failed) {
         let msg = t('saveError')
         try {
           const d = await failed.json()
           if (d?.error) msg = d.error
-        } catch { /* non-JSON body — keep the generic message */ }
-        alert(msg)
+        } catch { /* non-JSON body: keep the generic message */ }
+        setSectionError((e) => ({ ...e, [id]: msg }))
         return
       }
 
-      setSaved(true)
-      setTimeout(() => setSaved(false), 2000)
+      if (id === 'plataformas') setPlatformsBaseline(platformsSnapshot(platforms, pathsMap, emulatorsMap))
+      setSectionSaved(id)
+      setTimeout(() => setSectionSaved(null), 2000)
       router.refresh()
     } catch (err) {
       console.error('Settings save failed:', err)
-      alert(t('saveError'))
+      setSectionError((e) => ({ ...e, [id]: t('saveError') }))
     } finally {
-      setSaving(false)
+      setSectionSaving(null)
     }
+  }
+
+  const discardScope = (id: ScopeId) => {
+    switch (id) {
+      case 'plataformas':
+        setPlatforms(initial)
+        setPathsMap(Object.fromEntries(initial.map((p) => [p.id, splitPaths(p.scanPath)])))
+        setEmulatorsMap(Object.fromEntries(initial.map((p) => [p.id, parseEmulators(p.emulators)])))
+        break
+      case 'claves':
+        setRawgKey(settings['rawg_api_key'] ?? '')
+        setGoogleApiKey(settings['google_search_api_key'] ?? '')
+        setSgdbKey(settings['steamgriddb_key'] ?? '')
+        setYoutubeKey(settings['youtube_api_key'] ?? '')
+        break
+      case 'proveedores':
+        setProvCover(settings['provider_cover'] ?? 'launchbox')
+        setProvInfo(settings['provider_info'] ?? 'launchbox')
+        setProvDescription(settings['provider_description'] ?? 'rawg')
+        setProvScreenshots(settings['provider_screenshots'] ?? 'launchbox')
+        break
+      case 's3':
+        setS3Internal(settings['s3_endpoint_interno'] ?? '')
+        setS3Public(settings['s3_endpoint_publico'] ?? '')
+        setS3AccessKey(settings['s3_access_key'] ?? '')
+        setS3SecretKey(settings['s3_secret_key'] ?? '')
+        setS3Bucket(settings['s3_bucket_name'] ?? '')
+        setS3Region(settings['s3_region'] ?? '')
+        break
+      case 'cola':
+        setMaxDownloads(settings['max_concurrent_downloads'] ?? '1')
+        setDownloadLimit(settings['download_limit_kib_per_s'] ?? '0')
+        break
+      case 'tienda':
+        setShopPassword(settings['shop_password'] ?? '')
+        break
+      case 'app':
+        setAppUrl(settings['app_url'] ?? process.env.NEXT_PUBLIC_APP_URL ?? '')
+        break
+    }
+    setSectionError((e) => ({ ...e, [id]: undefined }))
   }
 
   const addPlatform = async () => {
@@ -454,19 +586,41 @@ export function SettingsForm({ platforms: initial, settings }: Props) {
   }
 
   return (
-    <div className="space-y-8">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-xl font-semibold">{t('title')}</h2>
-        <button
-          onClick={save}
-          disabled={saving}
-          className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:bg-primary/90 disabled:opacity-50 transition-colors"
-        >
-          {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-          {saved ? t('saved') : saving ? t('saving') : t('save')}
-        </button>
-      </div>
+    <div className="space-y-6">
+      <h2 className="text-xl font-semibold">{t('title')}</h2>
+      <div className="grid grid-cols-1 gap-8 lg:grid-cols-[220px_minmax(0,1fr)]">
+        <nav aria-label="Ámbitos de configuración" className="flex flex-col gap-5 lg:sticky lg:top-4 lg:self-start">
+          {SCOPE_GROUPS.map((g) => (
+            <div key={g.label} className="flex flex-col gap-0.5">
+              <p className="mb-1 text-[11px] uppercase tracking-wider text-muted-foreground">{g.label}</p>
+              {g.items.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  aria-current={scope === item.id ? 'true' : undefined}
+                  onClick={() => setScope(item.id)}
+                  className={`flex items-center justify-between gap-2 rounded-md px-3 py-2 text-left text-sm transition-colors ${
+                    scope === item.id ? 'bg-accent font-semibold text-foreground' : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'
+                  }`}
+                >
+                  <span>{item.label}</span>
+                  {dirty(item.id) && <span aria-label="Cambios sin guardar" className="h-1.5 w-1.5 flex-shrink-0 rounded-full bg-amber-400" />}
+                </button>
+              ))}
+            </div>
+          ))}
+        </nav>
+        <div className="min-w-0 space-y-8">
 
+      {scope === 'plataformas' && (
+        <SectionFrame
+          dirty={dirty('plataformas')}
+          saving={sectionSaving === 'plataformas'}
+          saved={sectionSaved === 'plataformas'}
+          error={sectionError.plataformas}
+          onSave={() => void saveScope('plataformas')}
+          onDiscard={() => discardScope('plataformas')}
+        >
       {/* Platform paths */}
       <div className="bg-card border border-border rounded-xl p-6">
         <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
@@ -835,7 +989,18 @@ export function SettingsForm({ platforms: initial, settings }: Props) {
           </div>
         )}
       </div>
+        </SectionFrame>
+      )}
 
+      {scope === 'claves' && (
+        <SectionFrame
+          dirty={dirty('claves')}
+          saving={sectionSaving === 'claves'}
+          saved={sectionSaved === 'claves'}
+          error={sectionError.claves}
+          onSave={() => void saveScope('claves')}
+          onDiscard={() => discardScope('claves')}
+        >
       {/* API Keys */}
       <div className="bg-card border border-border rounded-xl p-6 space-y-6">
         <h3 className="font-semibold">{t('apiKeys')}</h3>
@@ -890,22 +1055,19 @@ export function SettingsForm({ platforms: initial, settings }: Props) {
             className="w-full max-w-md bg-secondary border border-border rounded-md px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring font-mono"
           />
         </div>
-
-        <div className="border-t border-border pt-5">
-          <div className="flex items-center justify-between mb-1">
-            <p className="text-sm font-medium">{t('appUrlLabel')}</p>
-          </div>
-          <p className="text-xs text-muted-foreground mb-3">{t('appUrlDesc')}</p>
-          <input
-            type="text"
-            value={appUrl}
-            onChange={(e) => setAppUrl(e.target.value)}
-            placeholder="https://gamehub.example.com"
-            className="w-full max-w-md bg-secondary border border-border rounded-md px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-          />
-        </div>
       </div>
+        </SectionFrame>
+      )}
 
+      {scope === 'proveedores' && (
+        <SectionFrame
+          dirty={dirty('proveedores')}
+          saving={sectionSaving === 'proveedores'}
+          saved={sectionSaved === 'proveedores'}
+          error={sectionError.proveedores}
+          onSave={() => void saveScope('proveedores')}
+          onDiscard={() => discardScope('proveedores')}
+        >
       {/* Metadata provider matrix */}
       <div className="bg-card border border-border rounded-xl p-6 space-y-5">
         <div>
@@ -954,7 +1116,18 @@ export function SettingsForm({ platforms: initial, settings }: Props) {
           />
         </div>
       </div>
+        </SectionFrame>
+      )}
 
+      {scope === 's3' && (
+        <SectionFrame
+          dirty={dirty('s3')}
+          saving={sectionSaving === 's3'}
+          saved={sectionSaved === 's3'}
+          error={sectionError.s3}
+          onSave={() => void saveScope('s3')}
+          onDiscard={() => discardScope('s3')}
+        >
       {/* S3 / MinIO Storage */}
       <div className="bg-card border border-border rounded-xl p-6 space-y-5">
         <div>
@@ -1111,7 +1284,18 @@ export function SettingsForm({ platforms: initial, settings }: Props) {
           )}
         </div>
       </div>
+        </SectionFrame>
+      )}
 
+      {scope === 'cola' && (
+        <SectionFrame
+          dirty={dirty('cola')}
+          saving={sectionSaving === 'cola'}
+          saved={sectionSaved === 'cola'}
+          error={sectionError.cola}
+          onSave={() => void saveScope('cola')}
+          onDiscard={() => discardScope('cola')}
+        >
       {/* Download Queue */}
       <div className="bg-card border border-border rounded-xl p-6">
         <h3 className="font-semibold mb-1">{t('downloadQueue')}</h3>
@@ -1137,7 +1321,18 @@ export function SettingsForm({ platforms: initial, settings }: Props) {
           <p className="text-xs text-muted-foreground mt-1.5">{t('downloadSpeedLimitHint')}</p>
         </div>
       </div>
+        </SectionFrame>
+      )}
 
+      {scope === 'tienda' && (
+        <SectionFrame
+          dirty={dirty('tienda')}
+          saving={sectionSaving === 'tienda'}
+          saved={sectionSaved === 'tienda'}
+          error={sectionError.tienda}
+          onSave={() => void saveScope('tienda')}
+          onDiscard={() => discardScope('tienda')}
+        >
       {/* Tienda — la consume GameHubNX */}
       <div className="bg-card border border-border rounded-xl p-6 space-y-4">
         <div>
@@ -1164,6 +1359,35 @@ export function SettingsForm({ platforms: initial, settings }: Props) {
           <p className="pt-1 text-foreground"><ShopUrl /></p>
         </div>
       </div>
+        </SectionFrame>
+      )}
+      {scope === 'donaciones' && <DonationSettingsForm initial={donation} />}
+      {scope === 'app' && (
+        <SectionFrame
+          dirty={dirty('app')}
+          saving={sectionSaving === 'app'}
+          saved={sectionSaved === 'app'}
+          error={sectionError.app}
+          onSave={() => void saveScope('app')}
+          onDiscard={() => discardScope('app')}
+        >
+        <div className="bg-card border border-border rounded-xl p-6">
+        <div>
+          <div className="flex items-center justify-between mb-1">
+            <p className="text-sm font-medium">{t('appUrlLabel')}</p>
+          </div>
+          <p className="text-xs text-muted-foreground mb-3">{t('appUrlDesc')}</p>
+          <input
+            type="text"
+            value={appUrl}
+            onChange={(e) => setAppUrl(e.target.value)}
+            placeholder="https://gamehub.example.com"
+            className="w-full max-w-md bg-secondary border border-border rounded-md px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+          />
+        </div>
+        </div>
+        </SectionFrame>
+      )}
 
       {/* Folder picker modal */}
       {folderPicker && (
@@ -1183,6 +1407,8 @@ export function SettingsForm({ platforms: initial, settings }: Props) {
           onClose={() => setFolderPicker(null)}
         />
       )}
+        </div>
+      </div>
     </div>
   )
 }
