@@ -16,6 +16,7 @@ Aprobadas por el dueño el 21/10/2026, tal como se propusieron.
 | Issue | Decisión | Dónde queda |
 |---|---|---|
 | #84 Curator | Se retira el servicio `gamehub-curator` del compose de producción y su contenedor. El código de curación queda, pero nada aplica los planes de renombrado hasta que haya otro ejecutor. | `~/services/GameHub/docker-compose.yml` (copia en `.bak-sin-curator-*`) |
+| #84 revertida (23/10/2026) | El aplicador vuelve como servicio `gamehub-curator`: el mismo código de la app, `network_mode: none`, `/mnt` escribible, corre como `1000:1001` (dueño de la biblioteca y grupo de la base). Solo aplica planes de `/data/curation`; no expone nada. Se validó con un ensayo, una copia previa y un registro para deshacer (`undo/`). | `~/services/GameHub/docker-compose.yml` (copia en `.bak-2.28-pre-curator`) |
 | #112 Escaneo incremental | No se crea la tabla ScannedFile: no se quiere acumular datos residuales. Se mantiene la huella por tamaño. | Sin cambio de código |
 | #126 Clave RAWG | Se queda en la URL: RAWG no admite cabecera. | Sin cambio de código |
 | #114 Casos reales | Los casos de emparejamiento se sacan de la base de datos de producción. | `tests/` |
