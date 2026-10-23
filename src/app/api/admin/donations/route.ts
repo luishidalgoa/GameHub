@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { adminGuard } from '@/lib/admin-guard'
+import { goalProgress, parseGoal, quarterOf } from '@/lib/donations/goal'
 
 export const dynamic = 'force-dynamic'
 
@@ -64,7 +65,21 @@ export async function GET() {
     })
     .reduce((s, r) => s + r.amount, 0)
 
-  return NextResponse.json({ totals: all, recent, byPlatform, months, thisMonthTotal: Math.round(thisMonthTotal * 100) / 100 })
+  // Quarterly goal: the same rule as the public donate page (EUR, this quarter).
+  const quarter = quarterOf(now)
+  const goalSetting = await db.setting.findUnique({ where: { key: 'donate_quarter_goal_eur' } })
+  const goalValue = parseGoal(goalSetting?.value)
+  const quarterSum = goalValue
+    ? await db.donation.aggregate({
+        _sum: { amount: true },
+        where: { currency: 'EUR', receivedAt: { gte: quarter.start, lt: quarter.end } },
+      })
+    : null
+  const goal = goalValue
+    ? { label: quarter.label, ...goalProgress(quarterSum?._sum.amount ?? 0, goalValue) }
+    : null
+
+  return NextResponse.json({ totals: all, recent, byPlatform, months, thisMonthTotal: Math.round(thisMonthTotal * 100) / 100, goal })
 }
 
 export async function POST(req: Request) {
