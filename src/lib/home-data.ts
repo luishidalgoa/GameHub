@@ -289,6 +289,16 @@ export async function getPublisherIndex(limit = 60): Promise<PublisherTileData[]
   return publisherTiles(await rankedPublishers(limit))
 }
 
+/** The visible games with these ids, as the grids draw them. Unordered. */
+export async function getTilesByIds(ids: number[]): Promise<TileGame[]> {
+  if (ids.length === 0) return []
+  const rows = await db.game.findMany({
+    where: { ...libraryGameWhere(), id: { in: ids } },
+    select: TILE_SELECT,
+  })
+  return rows.map(toTile)
+}
+
 /** The games of one publisher group, by the key the rankings use, best rated first. */
 export async function getPublisherGames(key: string): Promise<{ name: string; games: TileGame[] } | null> {
   const input = await publisherRankInput()

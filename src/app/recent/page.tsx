@@ -1,34 +1,28 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import Link from 'next/link'
 import { useTranslations } from 'next-intl'
 import { History, Trash2 } from 'lucide-react'
 import { getRecentlyViewed, clearRecentlyViewed } from '@/lib/recently-viewed'
 import { EmptyState } from '@/components/shared/EmptyState'
-
-interface RecentGame {
-  id: number
-  title: string
-  coverPath: string | null
-  coverUrl: string | null
-  releaseYear: number | null
-  platform: { slug: string; name: string; thumbnailWidth: number | null; thumbnailHeight: number | null }
-}
+import { Masonry } from '@/components/home/Masonry'
+import { GridTile } from '@/components/home/GridTile'
+import { groupByTitle } from '@/lib/game-groups'
+import type { TileGame } from '@/lib/home-data'
 
 export default function RecentPage() {
   const t = useTranslations('Recent')
-  const [games, setGames] = useState<RecentGame[] | null>(null)
+  const [games, setGames] = useState<TileGame[] | null>(null)
 
   useEffect(() => {
     const ids = getRecentlyViewed()
     if (ids.length === 0) { setGames([]); return }
     fetch(`/api/games/by-ids?ids=${ids.join(',')}`)
       .then(r => r.json())
-      .then((data: { games: RecentGame[] }) => {
+      .then((data: { games: TileGame[] }) => {
         // Reorder to match the local most-recent-first list (the API is unordered).
         const byId = new Map(data.games.map(g => [g.id, g]))
-        setGames(ids.map(id => byId.get(id)).filter((g): g is RecentGame => !!g))
+        setGames(ids.map(id => byId.get(id)).filter((g): g is TileGame => !!g))
       })
       .catch(() => setGames([]))
   }, [])
@@ -59,14 +53,11 @@ export default function RecentPage() {
       </div>
 
       {games === null ? (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2 sm:gap-4">
+        <Masonry>
           {Array.from({ length: 12 }).map((_, i) => (
-            <div key={i} className="rounded-lg border border-border bg-card animate-pulse">
-              <div style={{ aspectRatio: '2/3' }} className="bg-muted" />
-              <div className="p-2 space-y-1.5"><div className="h-3 bg-muted rounded w-4/5" /></div>
-            </div>
+            <div key={i} className="mb-4 break-inside-avoid rounded-xl border border-white/10 bg-white/[0.06] animate-pulse" style={{ aspectRatio: '2/3' }} />
           ))}
-        </div>
+        </Masonry>
       ) : games.length === 0 ? (
         <EmptyState
           icon={History}
@@ -75,37 +66,10 @@ export default function RecentPage() {
           action={{ label: t('emptyCta'), href: '/' }}
         />
       ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2 sm:gap-4">
-          {games.map(game => {
-            const cover = game.coverPath ?? game.coverUrl
-            const w = game.platform.thumbnailWidth ?? 2
-            const h = game.platform.thumbnailHeight ?? 3
-            return (
-              <Link
-                key={game.id}
-                href={`/game/${game.id}`}
-                className="group rounded-lg overflow-hidden bg-card border border-border hover:border-primary/40 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-black/40"
-              >
-                <div style={{ aspectRatio: `${w}/${h}` }} className="relative bg-secondary overflow-hidden">
-                  {cover ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={cover} alt={game.title} className="w-full h-full object-cover" />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center">
-                      <span className="text-4xl font-bold text-muted-foreground/30 select-none">
-                        {game.title.charAt(0).toUpperCase()}
-                      </span>
-                    </div>
-                  )}
-                </div>
-                <div className="p-2">
-                  <p className="text-xs font-medium text-foreground leading-tight line-clamp-2">{game.title}</p>
-                  <p className="text-[10px] text-muted-foreground mt-0.5 truncate">{game.platform.name}</p>
-                </div>
-              </Link>
-            )
-          })}
-        </div>
+        // The same grid as /explorar/nuevos: the masonry of glass tiles.
+        <Masonry>
+          {groupByTitle(games).map(g => <GridTile key={g.game.id} group={g} />)}
+        </Masonry>
       )}
     </div>
   )

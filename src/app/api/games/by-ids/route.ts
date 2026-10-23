@@ -1,7 +1,5 @@
 import { NextResponse } from 'next/server'
-import { db } from '@/lib/db'
-import { resolveCoverPath } from '@/lib/s3'
-import { libraryGameWhere } from '@/lib/library'
+import { getTilesByIds } from '@/lib/home-data'
 
 export const dynamic = 'force-dynamic'
 
@@ -19,14 +17,6 @@ export async function GET(req: Request) {
 
   if (ids.length === 0) return NextResponse.json({ games: [] })
 
-  const games = await db.game.findMany({
-    where: { ...libraryGameWhere(), id: { in: ids } },
-    select: {
-      id: true, title: true, coverPath: true, coverUrl: true, releaseYear: true,
-      platform: { select: { slug: true, name: true, thumbnailWidth: true, thumbnailHeight: true } },
-    },
-  })
-
-  const resolved = games.map(g => ({ ...g, coverPath: resolveCoverPath(g.coverPath) }))
-  return NextResponse.json({ games: resolved })
+  // The same tiles the grids draw (cover, platform, ratio), so the recent page can use them as they are.
+  return NextResponse.json({ games: await getTilesByIds(ids) })
 }
