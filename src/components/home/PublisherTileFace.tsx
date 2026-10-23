@@ -39,7 +39,7 @@ export function PublisherTileFace({ publisher, gamesLabel, edit }: {
   const { key, name, logo, plainLogo, character, colors, layout, template, backdrop } = publisher
   const [c1, c2] = [colors[0] ?? '#3a3a55', colors[1] ?? '#14141f']
 
-  return (
+  const layers = (
     <>
       <PublisherBackdrop style={backdrop} c1={c1} c2={c2} id={`pt-${key.replace(/[^a-z0-9]/g, '')}`} />
 
@@ -103,6 +103,9 @@ export function PublisherTileFace({ publisher, gamesLabel, edit }: {
       )}
     </>
   )
+
+  // Al arreglar la tesela, las capas de fondo no reciben clics: solo el logo y el personaje.
+  return edit ? <div className="pointer-events-none absolute inset-0">{layers}</div> : layers
 }
 
 /** An arranged element in edit mode: it moves with a press, and a corner handle resizes it. */
@@ -118,7 +121,7 @@ function Arranged({ el, place, edit, children }: { el: TileElement; place: Place
       onPointerDown={e => edit.onMove(el, e)}
       onFocus={() => edit.onSelect(el)}
       style={placed(place)}
-      className={`${el === 'logo' ? 'z-20' : 'z-10'} cursor-move touch-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white ${on ? 'outline outline-2 outline-violet-400' : 'outline outline-1 outline-dashed outline-white/40'}`}
+      className={`pointer-events-auto ${el === 'logo' ? 'z-20' : 'z-10'} cursor-move touch-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white ${on ? 'outline outline-2 outline-violet-400' : 'outline outline-1 outline-dashed outline-white/40'}`}
     >
       {children}
       <span
