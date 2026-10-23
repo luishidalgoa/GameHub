@@ -85,8 +85,8 @@ export function CurationClient() {
       const data = await res.json()
       if (!res.ok) setError(data.error ?? t('applyError'))
       else {
+        // The plan is only saved here: the rows stay until a plan really renames the files.
         setResult(data as ApplyResult)
-        setRows(rs => (rs ?? []).filter(r => !r.accepted))
       }
     } catch {
       setError(t('applyError'))
