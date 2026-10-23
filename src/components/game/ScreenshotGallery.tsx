@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import Image from 'next/image'
 import { WideRail } from '@/components/home/WideRail'
 import { ScreenshotLightbox } from './ScreenshotLightbox'
 
@@ -24,15 +23,16 @@ export function ScreenshotGallery({ screenshots }: { screenshots: string[] }) {
               key={i}
               type="button"
               onClick={() => setOpen(i)}
-              className="group relative block aspect-video w-full overflow-hidden rounded-xl bg-secondary focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="group relative block w-full overflow-hidden rounded-xl bg-secondary focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
-              <Image
+              {/* The card takes the picture's own proportions: nothing is cropped. */}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
                 src={src}
                 alt={`Screenshot ${i + 1}`}
-                fill
-                sizes="(min-width: 1024px) 25vw, (min-width: 640px) 33vw, 50vw"
-                className="object-cover transition-[filter] duration-150 group-hover:brightness-110"
-                unoptimized
+                loading="lazy"
+                decoding="async"
+                className="block h-auto w-full transition-[filter] duration-150 group-hover:brightness-110"
               />
             </button>
           ))}
