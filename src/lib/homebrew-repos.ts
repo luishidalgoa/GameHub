@@ -10,6 +10,7 @@ export const HOMEBREW_REPOS: readonly string[] = [
   'NextendoNetwork/Prelude-Nextendo',
   'luishidalgoa/green-nx',
   'ticohq/tico',
+  'meganukebmp/Switch_90DNS_tester',
 ]
 
 // owner/name con los caracteres que GitHub admite; cualquier otra cosa se
