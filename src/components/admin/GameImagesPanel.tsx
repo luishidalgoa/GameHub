@@ -77,6 +77,12 @@ export function GameImagesPanel({ gameId, gameTitle, platformSlug, coverPath, on
     undoTimer.current = setTimeout(() => setUndo(null), 9 * 60 * 1000)
   }
 
+  /** Removes one image from any category (soft delete; undo restores it). Used by the cover and reference tabs. */
+  const removeImage = (img: ArtImage, category: string) => run(`remove-${img.id}`, async () => {
+    await call(`${base}/art?imageId=${img.id}`, { method: 'DELETE' })
+    offerUndo(t('imgRemoved', { category }), () => call(`${base}/art/restore?imageId=${img.id}`, { method: 'POST' }))
+  })
+
   /**
    * Brings images into the category that is open, from the clipboard or a drop: a file, or a link.
    * Every category takes one except "other", which is for reference only.
@@ -204,6 +210,7 @@ export function GameImagesPanel({ gameId, gameTitle, platformSlug, coverPath, on
             images={library('cover')}
             activeId={null}
             busy={busy}
+            onRemove={img => void removeImage(img, label('cover'))}
             onUse={img => run(`use-${img.id}`, async () => {
               const r = await call<{ coverPath?: string }>(`${base}/art/activate`, post({ imageId: img.id }))
               if (r.coverPath) onCover(r.coverPath)
@@ -233,7 +240,12 @@ export function GameImagesPanel({ gameId, gameTitle, platformSlug, coverPath, on
       )}
 
       {REFERENCE.includes(tab) && (
-        <ReferencePanel images={library(tab)} hint={t(`imgRefHint_${tab}`)} />
+        <ReferencePanel
+          images={library(tab)}
+          hint={t(`imgRefHint_${tab}`)}
+          busy={busy}
+          onRemove={(img, category) => void removeImage(img, category)}
+        />
       )}
 
       {undo && (
@@ -597,7 +609,12 @@ function ScreenshotsPanel({ art, base, gameId, busy, run, offerUndo, onCover, pa
 // ── Reference categories: packaging, media and everything else LaunchBox has ────────────────
 
 /** Read-only: the images grouped under the data model's name for each kind. */
-function ReferencePanel({ images, hint }: { images: ArtImage[]; hint: string }) {
+function ReferencePanel({ images, hint, busy, onRemove }: {
+  images: ArtImage[]
+  hint: string
+  busy: string | null
+  onRemove: (img: ArtImage, category: string) => void
+}) {
   const t = useTranslations('GameEditor')
   if (images.length === 0) return <p className="text-sm text-muted-foreground">{t('imgLibraryEmpty')}</p>
   const byKind = new Map<string, ArtImage[]>()
@@ -615,7 +632,17 @@ function ReferencePanel({ images, hint }: { images: ArtImage[]; hint: string }) 
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={img.url} alt={artTitle(kind)} loading="lazy" className="w-full h-full object-contain" />
                 </a>
-                <p className="text-xs text-muted-foreground truncate">{img.region ? `${img.region} · ` : ''}{img.width && img.height ? `${img.width} × ${img.height}` : ''}</p>
+                <div className="flex justify-between gap-2 text-xs text-muted-foreground">
+                  <span className="truncate">{img.region ? `${img.region} · ` : ''}{img.width && img.height ? `${img.width} × ${img.height}` : ''}</span>
+                  <button
+                    type="button"
+                    onClick={() => onRemove(img, artTitle(kind))}
+                    disabled={busy !== null}
+                    className="text-destructive hover:underline flex-shrink-0"
+                  >
+                    {t('imgRemove')}
+                  </button>
+                </div>
               </li>
             ))}
           </ul>

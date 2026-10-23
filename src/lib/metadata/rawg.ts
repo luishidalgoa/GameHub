@@ -60,6 +60,13 @@ interface RawgSearchResponse {
   results: RawgGame[]
 }
 
+export interface RawgScoreCandidate {
+  name: string
+  releaseYear: number | null
+  platforms: string[]
+  metacritic: number | null
+}
+
 /** Objective popularity/quality signals for a single RAWG game. */
 export interface RawgPopularityMetrics {
   added:        number | null   // # of users who own/added it — popularity
@@ -110,6 +117,29 @@ export class RawgProvider implements MetadataProvider {
     if (!res.ok) return []
     const data = await res.json()
     return (data.results ?? []).map((s: { image: string }) => s.image)
+  }
+
+  /**
+   * Candidates for the manual score box: the same search as `search`, but it
+   * keeps the critic score that `search` drops, and the platform names so the
+   * admin can tell two games with the same title apart.
+   */
+  async searchScores(query: string): Promise<RawgScoreCandidate[]> {
+    const params = new URLSearchParams({
+      key:            this.apiKey,
+      search:         query,
+      page_size:      '10',
+      search_precise: 'false',
+    })
+    const res = await providerFetch(`${RAWG_BASE}/games?${params}`)
+    if (!res.ok) throw new Error(`RAWG search failed: ${res.status}`)
+    const data: RawgSearchResponse = await res.json()
+    return data.results.map((g) => ({
+      name:        g.name,
+      releaseYear: g.released ? new Date(g.released).getFullYear() : null,
+      platforms:   g.platforms?.map((p) => p.platform.name) ?? [],
+      metacritic:  g.metacritic ?? null,
+    }))
   }
 
   /**

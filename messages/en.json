@@ -316,7 +316,6 @@
     "messagePlaceholder": "e.g. Thanks for supporting the server!",
     "notConfigured": "No donation methods configured — the /donate page will show a placeholder.",
     "kofiLabel": "Ko-fi URL",
-    "paypalLabel": "PayPal.me URL",
     "bmacLabel": "Buy Me a Coffee URL",
     "cryptoLabel": "Crypto address",
     "cryptoPlaceholder": "BTC / ETH / any wallet address"

@@ -2,25 +2,33 @@ import { getTranslations } from 'next-intl/server'
 import { db } from '@/lib/db'
 import { Heart, Coffee, Bitcoin, ExternalLink } from 'lucide-react'
 import { CopyButton } from '@/components/shared/CopyButton'
+import { goalProgress, parseGoal, quarterOf } from '@/lib/donations/goal'
 
 export const dynamic = 'force-dynamic'
 
-const KEYS = ['donate_kofi', 'donate_paypal', 'donate_bmac', 'donate_crypto', 'donate_message']
+const KEYS = ['donate_kofi', 'donate_bmac', 'donate_crypto', 'donate_message', 'donate_quarter_goal_eur']
 
 export default async function DonatePage() {
-  const [t, rows] = await Promise.all([
+  const now = new Date()
+  const quarter = quarterOf(now)
+
+  const [t, rows, raisedAgg] = await Promise.all([
     getTranslations('Donate'),
     db.setting.findMany({ where: { key: { in: KEYS } } }),
+    db.donation.aggregate({
+      _sum: { amount: true },
+      where: { currency: 'EUR', receivedAt: { gte: quarter.start, lt: quarter.end } },
+    }),
   ])
   const s = Object.fromEntries(rows.map((r) => [r.key, r.value]))
 
   const kofi    = s['donate_kofi']    ?? ''
-  const paypal  = s['donate_paypal']  ?? ''
   const bmac    = s['donate_bmac']    ?? ''
   const crypto  = s['donate_crypto']  ?? ''
   const message = s['donate_message'] ?? ''
+  const goal    = parseGoal(s['donate_quarter_goal_eur'])
 
-  const any = kofi || paypal || bmac || crypto
+  const any = kofi || bmac || crypto
 
   return (
     <div className="max-w-lg mx-auto py-16 px-4">
@@ -35,6 +43,10 @@ export default async function DonatePage() {
         </p>
       </div>
 
+      {goal !== null && (
+        <QuarterGoal label={quarter.label} goal={goal} raised={raisedAgg._sum.amount ?? 0} />
+      )}
+
       {any ? (
         <div className="space-y-3">
           {kofi && (
@@ -44,15 +56,6 @@ export default async function DonatePage() {
               label="Ko-fi"
               color="text-cyan-400"
               bg="hover:bg-cyan-500/10 border-cyan-500/20"
-            />
-          )}
-          {paypal && (
-            <DonateLink
-              href={paypal}
-              icon={<span className="text-sm font-bold text-blue-400">PP</span>}
-              label="PayPal"
-              color="text-blue-400"
-              bg="hover:bg-blue-500/10 border-blue-500/20"
             />
           )}
           {bmac && (
@@ -87,6 +90,50 @@ export default async function DonatePage() {
         {t('footer')}
       </p>
     </div>
+  )
+}
+
+/**
+ * Progress toward the quarter's goal. Below the goal, one green bar. Past it, the
+ * bar is full in green and a violet layer on top shows the excess, so an
+ * overshoot is visible at a glance.
+ */
+function QuarterGoal({ label, goal, raised }: { label: string; goal: number; raised: number }) {
+  const p = goalProgress(raised, goal)
+  const money = new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 })
+  const over = p.percent > 100
+
+  return (
+    <section aria-label={`Objetivo ${label}`} className="mb-10 rounded-xl border border-border bg-card p-4">
+      <div className="mb-2 flex items-baseline justify-between gap-3">
+        <h2 className="text-sm font-medium">Objetivo {label}</h2>
+        <span className="text-sm tabular-nums text-muted-foreground">
+          {money.format(p.raised)} de {money.format(p.goal)}
+        </span>
+      </div>
+
+      <div
+        role="progressbar"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={Math.min(p.percent, 100)}
+        className="relative h-3 w-full overflow-hidden rounded-full bg-secondary"
+      >
+        <div className="absolute inset-y-0 left-0 rounded-full bg-emerald-500" style={{ width: `${p.firstLayer}%` }} />
+        {p.secondLayer > 0 && (
+          <div className="absolute inset-y-0 left-0 rounded-full bg-violet-500" style={{ width: `${p.secondLayer}%` }} />
+        )}
+      </div>
+
+      <p className="mt-2 text-xs text-muted-foreground">
+        {over ? (
+          <>¡Objetivo superado! <span className="font-semibold text-violet-400">{p.percent} %</span></>
+        ) : (
+          <><span className="font-semibold text-emerald-400">{p.percent} %</span> conseguido</>
+        )}
+        <span className="opacity-70"> · solo donaciones en euros del trimestre en curso</span>
+      </p>
+    </section>
   )
 }
 

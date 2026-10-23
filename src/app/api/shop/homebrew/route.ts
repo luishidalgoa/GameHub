@@ -10,7 +10,8 @@
  */
 import { NextResponse } from 'next/server'
 import { guardShopRequest } from '@/lib/shop-auth'
-import { validHomebrewRepos } from '@/lib/homebrew-repos'
+import { db } from '@/lib/db'
+import { HOMEBREW_SETTING_KEY, parseStoredRepos } from '@/lib/homebrew-repos'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -19,7 +20,9 @@ export async function GET(req: Request) {
   const denied = await guardShopRequest(req)
   if (denied) return denied
 
-  const repos = validHomebrewRepos().map((repo) => ({
+  // La lista que gestiona el admin en Tienda; sin nada guardado, la fija de siempre.
+  const row = await db.setting.findUnique({ where: { key: HOMEBREW_SETTING_KEY } })
+  const repos = parseStoredRepos(row?.value).map((repo) => ({
     repo,
     url: `https://github.com/${repo}`,
   }))
