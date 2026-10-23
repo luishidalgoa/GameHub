@@ -206,7 +206,7 @@ export function PublisherArtPanel() {
           onUploadLogo={() => chooseFile(current.key, 'logo')}
           onUploadCharacter={() => chooseFile(current.key, 'character')}
           onRemoveCharacter={() => remove(current.key)}
-          onFile={file => uploadTo(current.key, 'character', file)}
+          onFile={(file, kind) => uploadTo(current.key, kind, file)}
         />
       )}
     </div>
@@ -245,7 +245,7 @@ function PublisherEditDialog({ row, busy, onClose, onTemplate, onBackdrop, onPla
   onUploadLogo: () => void
   onUploadCharacter: () => void
   onRemoveCharacter: () => void
-  onFile: (file: File) => void
+  onFile: (file: File, kind: 'character' | 'logo') => void
 }) {
   const dialog = useRef<HTMLDivElement>(null)
   const box = useRef<HTMLDivElement>(null)
@@ -265,6 +265,7 @@ function PublisherEditDialog({ row, busy, onClose, onTemplate, onBackdrop, onPla
 
   // Búsqueda de imágenes: se abre en otra pestaña con la consulta; la imagen que elijas se pega aquí.
   const [query, setQuery] = useState(`${row.name} mascota png`)
+  const [target, setTarget] = useState<'character' | 'logo'>('character')
   const searchUrl = `https://www.google.com/search?tbm=isch&q=${encodeURIComponent(query)}`
 
   const pickImage = (list: FileList | DataTransferItemList | null | undefined) => {
@@ -280,7 +281,7 @@ function PublisherEditDialog({ row, busy, onClose, onTemplate, onBackdrop, onPla
   useEffect(() => {
     const onPaste = (e: ClipboardEvent) => {
       const file = pickImage(e.clipboardData?.items)
-      if (file) { e.preventDefault(); onFile(file) }
+      if (file) { e.preventDefault(); onFile(file, target) }
     }
     window.addEventListener('paste', onPaste)
     return () => window.removeEventListener('paste', onPaste)
@@ -418,6 +419,33 @@ function PublisherEditDialog({ row, busy, onClose, onTemplate, onBackdrop, onPla
             </select>
           </label>
 
+          <fieldset className="flex flex-col gap-3"
+                    onDragOver={e => { if (!busy) e.preventDefault() }}
+                    onDrop={e => { const file = pickImage(e.dataTransfer.items); if (file) { e.preventDefault(); onFile(file, target) } }}>
+            <legend className="mb-1 text-sm font-medium">Buscar imagen</legend>
+            <div role="radiogroup" aria-label="Qué se reemplaza" className="flex flex-wrap gap-2">
+              {(['character', 'logo'] as const).map(k => (
+                <label key={k} className={`cursor-pointer rounded-md border px-3 py-1.5 text-sm has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring ${target === k ? 'border-violet-500 bg-violet-500/15' : 'border-border hover:bg-secondary'}`}>
+                  <input type="radio" name={`destino-${row.key}`} value={k} checked={target === k} onChange={() => setTarget(k)} className="sr-only" />
+                  {k === 'character' ? 'Personaje' : 'Logo'}
+                </label>
+              ))}
+            </div>
+            <div className="flex flex-wrap items-end gap-2">
+              <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+                Qué buscar
+                <input type="text" value={query} onChange={e => setQuery(e.target.value)}
+                       className="w-56 rounded-md border border-border bg-background px-3 py-1.5 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" />
+              </label>
+              <a href={searchUrl} target="_blank" rel="noopener noreferrer" className={btn}>
+                Buscar imagen (nueva pestaña)
+              </a>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Copia la imagen (clic derecho, copiar imagen) y pégala con Ctrl+V, o arrástrala a este bloque. Sustituye a {target === 'character' ? 'el personaje' : 'el logo'}.
+            </p>
+          </fieldset>
+
           <fieldset className="flex flex-col gap-2">
             <legend className="mb-1 text-sm font-medium">Logo</legend>
             {logo ? (
@@ -441,24 +469,9 @@ function PublisherEditDialog({ row, busy, onClose, onTemplate, onBackdrop, onPla
             </div>
           </fieldset>
 
-          <fieldset className="flex flex-col gap-2"
-                    onDragOver={e => { if (!busy) e.preventDefault() }}
-                    onDrop={e => { const file = pickImage(e.dataTransfer.items); if (file) { e.preventDefault(); onFile(file) } }}>
+          <fieldset className="flex flex-col gap-2">
             <legend className="mb-1 text-sm font-medium">Personaje</legend>
             <p className="text-sm text-muted-foreground">{character ? 'Tiene personaje.' : 'Sin personaje: el logo va grande en el centro.'}</p>
-            <div className="flex flex-wrap items-end gap-2">
-              <label className="flex flex-col gap-1 text-xs text-muted-foreground">
-                Qué buscar
-                <input type="text" value={query} onChange={e => setQuery(e.target.value)}
-                       className="w-56 rounded-md border border-border bg-background px-3 py-1.5 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" />
-              </label>
-              <a href={searchUrl} target="_blank" rel="noopener noreferrer" className={btn}>
-                Buscar imagen (nueva pestaña)
-              </a>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Copia la imagen que quieras (clic derecho, copiar imagen) y pégala aquí con Ctrl+V, o arrástrala a este recuadro.
-            </p>
             <div className="flex flex-wrap gap-2">
               <button type="button" disabled={busy} onClick={onUploadCharacter} className={btn}>
                 {character ? 'Cambiar personaje' : 'Subir personaje'}
