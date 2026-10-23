@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { uploadToS3 } from '@/lib/s3'
 import { providerFetch } from '@/lib/metadata/http'
 import { paletteOf } from '@/lib/palette'
+import { BACKDROP_STYLES, TILE_TEMPLATES, type BackdropStyle, type TileTemplate } from '@/lib/publisher-style'
 
 /**
  * Art for the publishers rail. Each tile is a custom gradient, an optional
@@ -41,6 +42,8 @@ export interface PublisherArt {
   colors: string[]
   /** The logo is a filled shape (a badge or a box), so it keeps its own colors instead of turning white. */
   plain?: boolean
+  /** How the tile is laid out and painted. Absent: the default template and the brand's own motif. */
+  style?: { template?: TileTemplate; backdrop?: BackdropStyle | 'auto' }
   /** When the logo was last looked for, so a miss is not searched again every run. */
   checkedAt: string | null
 }
@@ -100,6 +103,20 @@ async function patch(key: string, change: Partial<PublisherArt>): Promise<Publis
 /** Saves where the owner has put the character and the logo. */
 export async function saveLayout(key: string, layout: unknown): Promise<PublisherArt> {
   return patch(key, { layout: cleanLayout(layout) })
+}
+
+/** Keeps only the known template and backdrop; anything else is dropped. */
+export function cleanStyle(input: unknown): NonNullable<PublisherArt['style']> {
+  const src = (input && typeof input === 'object' ? input : {}) as Record<string, unknown>
+  const out: NonNullable<PublisherArt['style']> = {}
+  if (TILE_TEMPLATES.includes(src.template as TileTemplate)) out.template = src.template as TileTemplate
+  if (src.backdrop === 'auto' || BACKDROP_STYLES.includes(src.backdrop as BackdropStyle)) out.backdrop = src.backdrop as BackdropStyle | 'auto'
+  return out
+}
+
+/** Saves the tile's template and backdrop. */
+export async function saveStyle(key: string, style: unknown): Promise<PublisherArt> {
+  return patch(key, { style: cleanStyle(style) })
 }
 
 // ── Colors ────────────────────────────────────────────────────────────────────

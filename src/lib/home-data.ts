@@ -6,6 +6,7 @@ import { comparePopularity, weightedSample, MIN_ADDED } from '@/lib/metadata/pop
 import { rankGroups, type RankCompany, type RankedPublisher, type RankTotals } from '@/lib/publishers'
 import { tileImageKey, backdropUrl } from '@/lib/tile-art'
 import { getPublisherArt, brandColorsFor, type PublisherLayout } from '@/lib/publisher-art'
+import { BACKDROP_STYLES, BRAND_STYLE, DEFAULT_TEMPLATE, TILE_TEMPLATES, type BackdropStyle, type TileTemplate } from '@/lib/publisher-style'
 
 /** A game as the home page draws it: one wide image, whatever the game has. */
 export interface TileGame {
@@ -109,6 +110,8 @@ export interface PublisherTileData {
   layout: PublisherLayout | null
   /** Two "#rrggbb" gradient colors. */
   colors: string[]
+  template: TileTemplate
+  backdrop: BackdropStyle
 }
 
 /** The companies and what each one's games add up to, read from the catalogue (#143). */
@@ -137,6 +140,14 @@ export async function rankedPublishers(limit: number, minRated = 3): Promise<Ran
   return rankGroups(input.companies, input.totals, minRated).slice(0, limit)
 }
 
+/** The template and backdrop the owner chose; the default template and the brand's motif otherwise. */
+function tileStyle(key: string, style: { template?: TileTemplate; backdrop?: BackdropStyle | 'auto' } | undefined) {
+  const template = style?.template && TILE_TEMPLATES.includes(style.template) ? style.template : DEFAULT_TEMPLATE
+  const chosen = style?.backdrop
+  const backdrop = chosen && chosen !== 'auto' && BACKDROP_STYLES.includes(chosen) ? chosen : (BRAND_STYLE[key] ?? 'smoke')
+  return { template, backdrop }
+}
+
 async function publisherTiles(ranked: RankedPublisher[]): Promise<PublisherTileData[]> {
   const art = await getPublisherArt()
   return ranked.map(p => ({
@@ -146,6 +157,7 @@ async function publisherTiles(ranked: RankedPublisher[]): Promise<PublisherTileD
     character: resolveCoverPath(art[p.key]?.character ?? null),
     layout: art[p.key]?.layout ?? null,
     colors: brandColorsFor(p.key, art[p.key]?.colors ?? []),
+    ...tileStyle(p.key, art[p.key]?.style),
   }))
 }
 

@@ -4,7 +4,6 @@ import Link from 'next/link'
 import type { PublisherTileData } from '@/lib/home-data'
 import { useStage } from './HomeStage'
 import { useRef } from 'react'
-import { BRAND_STYLE } from '@/lib/publisher-style'
 import { PublisherBackdrop } from './PublisherBackdrop'
 import type { Place } from '@/lib/publisher-art'
 
@@ -29,7 +28,7 @@ export function PublisherTile({ publisher, href, gamesLabel }: {
 }) {
   const stage = useStage()
   const timer = useRef<ReturnType<typeof setTimeout>>()
-  const { name, logo, plainLogo, character, colors, layout } = publisher
+  const { name, logo, plainLogo, character, colors, layout, template, backdrop } = publisher
   const [c1, c2] = [colors[0] ?? '#3a3a55', colors[1] ?? '#14141f']
 
   const enter = () => {
@@ -48,7 +47,7 @@ export function PublisherTile({ publisher, href, gamesLabel }: {
             transition-[transform,box-shadow] duration-500 hover:-translate-y-1.5
             hover:shadow-[0_24px_50px_-20px_color-mix(in_srgb,var(--c1)_85%,transparent)]
             focus-visible:ring-2 focus-visible:ring-white/70">
-      <PublisherBackdrop style={BRAND_STYLE[publisher.key] ?? 'smoke'} c1={c1} c2={c2} id={`pt-${publisher.key.replace(/[^a-z0-9]/g, '')}`} />
+      <PublisherBackdrop style={backdrop} c1={c1} c2={c2} id={`pt-${publisher.key.replace(/[^a-z0-9]/g, '')}`} />
 
       {character && layout?.character && (
         // eslint-disable-next-line @next/next/no-img-element
@@ -64,6 +63,13 @@ export function PublisherTile({ publisher, href, gamesLabel }: {
       )}
 
       <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/25 to-black/10" />
+      {template === 'franja' && (
+        // A solid band in the brand's first color, behind the logo.
+        <div aria-hidden="true" className="absolute inset-x-0 bottom-0 h-[34%]" style={{ background: c1 }} />
+      )}
+      {template === 'marco' && (
+        <div aria-hidden="true" className="absolute inset-3 rounded-lg ring-1 ring-white/50" />
+      )}
       {/* Behind a centered logo: a soft dark pool, so a pale logo reads on any gradient. */}
       {logo && !character && (
         <div className="absolute inset-0" style={{ background: 'radial-gradient(60% 34% at 50% 50%, rgba(0,0,0,0.45), transparent)' }} />

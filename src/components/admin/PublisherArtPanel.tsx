@@ -3,13 +3,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { resolveCoverPath } from '@/lib/cover-url'
 import { publisherKey } from '@/lib/publishers'
+import { BACKDROP_LABEL, BACKDROP_STYLES, DEFAULT_TEMPLATE, TEMPLATE_LABEL, TILE_TEMPLATES, type BackdropStyle, type TileTemplate } from '@/lib/publisher-style'
 import { PublisherCanvas } from './PublisherCanvas'
 
 interface Row {
   key: string
   name: string
   games: number
-  art: { logo: string | null; plain?: boolean; character: string | null; colors: string[]; checkedAt: string | null; layout?: { character?: { x: number; y: number; w: number }; logo?: { x: number; y: number; w: number } } } | null
+  art: { logo: string | null; plain?: boolean; character: string | null; colors: string[]; checkedAt: string | null; layout?: { character?: { x: number; y: number; w: number }; logo?: { x: number; y: number; w: number } }; style?: { template?: TileTemplate; backdrop?: BackdropStyle | 'auto' } } | null
 }
 
 /**
@@ -39,6 +40,16 @@ export function PublisherArtPanel() {
     const timer = setInterval(load, running ? 3000 : 20000)
     return () => clearInterval(timer)
   }, [load, running])
+
+  // Saves one of the tile's choices; the other one stays as it was.
+  const saveStyleFor = async (key: string, change: { template?: TileTemplate; backdrop?: BackdropStyle | 'auto' }) => {
+    const current = rows.find(r => r.key === key)?.art?.style ?? {}
+    await fetch('/api/admin/publishers', {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key, style: { ...current, ...change } }),
+    })
+    load()
+  }
 
   const findLogos = async (force: boolean) => {
     await fetch('/api/admin/publishers', {
@@ -133,6 +144,19 @@ export function PublisherArtPanel() {
                 <p className="text-xs text-muted-foreground">
                   {r.games} juegos · {logo ? 'logo encontrado' : r.art?.checkedAt ? 'sin logo' : 'sin buscar'}
                 </p>
+                <div className="mt-1.5 flex flex-wrap gap-2">
+                  <select aria-label={`Plantilla de ${r.name}`} value={r.art?.style?.template ?? DEFAULT_TEMPLATE}
+                          onChange={e => saveStyleFor(r.key, { template: e.target.value as TileTemplate })}
+                          className="rounded-md border border-border bg-background px-2 py-1 text-xs">
+                    {TILE_TEMPLATES.map(t => <option key={t} value={t}>{TEMPLATE_LABEL[t]}</option>)}
+                  </select>
+                  <select aria-label={`Fondo de ${r.name}`} value={r.art?.style?.backdrop ?? 'auto'}
+                          onChange={e => saveStyleFor(r.key, { backdrop: e.target.value as BackdropStyle | 'auto' })}
+                          className="rounded-md border border-border bg-background px-2 py-1 text-xs">
+                    <option value="auto">Automático (el de la marca)</option>
+                    {BACKDROP_STYLES.map(b => <option key={b} value={b}>{BACKDROP_LABEL[b]}</option>)}
+                  </select>
+                </div>
               </div>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               {character && <img src={character} alt="" className="h-14 w-auto object-contain" />}
