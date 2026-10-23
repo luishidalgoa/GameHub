@@ -105,6 +105,27 @@ export async function saveLayout(key: string, layout: unknown): Promise<Publishe
   return patch(key, { layout: cleanLayout(layout) })
 }
 
+/**
+ * The art of a group: each field from the first of the group's keys that has it, so the
+ * art saved under a company's old name keeps working after the company joins a group.
+ */
+export function artOf(keys: string[], map: PublisherArtMap): PublisherArt | null {
+  const out: Record<string, unknown> = {}
+  let found = false
+  for (const k of keys) {
+    const a = map[k]
+    if (!a) continue
+    found = true
+    for (const [field, value] of Object.entries(a)) {
+      if (value === null || value === undefined) continue
+      if (Array.isArray(value) && value.length === 0) continue
+      if (out[field] === undefined) out[field] = value
+    }
+  }
+  if (!found) return null
+  return { logo: null, character: null, colors: [], checkedAt: null, ...out } as PublisherArt
+}
+
 /** Keeps only the known template and backdrop; anything else is dropped. */
 export function cleanStyle(input: unknown): NonNullable<PublisherArt['style']> {
   const src = (input && typeof input === 'object' ? input : {}) as Record<string, unknown>
@@ -288,14 +309,14 @@ async function normalizeLogo(raw: Buffer): Promise<{ png: Buffer; plain: boolean
  * checked yet. Paced for Wikimedia; one publisher failing does not stop the rest.
  */
 export async function ensurePublisherLogos(
-  publishers: { key: string; name: string }[],
+  publishers: { key: string; name: string; keys?: string[] }[],
   opts: { force?: boolean; signal?: AbortSignal } = {},
 ): Promise<{ found: number; missing: number }> {
   const map = await getPublisherArt()
   let found = 0, missing = 0
   for (const p of publishers) {
     if (opts.signal?.aborted) break
-    if (!opts.force && map[p.key]?.checkedAt) continue
+    if (!opts.force && artOf(p.keys ?? [p.key], map)?.checkedAt) continue
     try {
       const file = await findLogoFile(p.name)
       await sleep(400)

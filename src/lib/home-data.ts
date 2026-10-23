@@ -5,7 +5,7 @@ import { resolveCoverPath } from '@/lib/s3'
 import { comparePopularity, weightedSample, MIN_ADDED } from '@/lib/metadata/popularity'
 import { rankGroups, type RankCompany, type RankedPublisher, type RankTotals } from '@/lib/publishers'
 import { tileImageKey, backdropUrl } from '@/lib/tile-art'
-import { getPublisherArt, brandColorsFor, type PublisherLayout } from '@/lib/publisher-art'
+import { artOf, BRAND_COLORS, brandColorsFor, getPublisherArt, type PublisherLayout } from '@/lib/publisher-art'
 import { BACKDROP_STYLES, BRAND_STYLE, DEFAULT_TEMPLATE, TILE_TEMPLATES, type BackdropStyle, type TileTemplate } from '@/lib/publisher-style'
 
 /** A game as the home page draws it: one wide image, whatever the game has. */
@@ -148,17 +148,26 @@ function tileStyle(key: string, style: { template?: TileTemplate; backdrop?: Bac
   return { template, backdrop }
 }
 
+/** The key whose brand motif and colors the group uses: the first of its keys that has one. */
+function brandKeyOf(p: RankedPublisher): string {
+  return p.keys.find(k => BRAND_STYLE[k] || BRAND_COLORS[k]) ?? p.key
+}
+
 async function publisherTiles(ranked: RankedPublisher[]): Promise<PublisherTileData[]> {
-  const art = await getPublisherArt()
-  return ranked.map(p => ({
-    key: p.key, name: p.name, games: p.games,
-    logo: resolveCoverPath(art[p.key]?.logo ?? null),
-    plainLogo: art[p.key]?.plain === true,
-    character: resolveCoverPath(art[p.key]?.character ?? null),
-    layout: art[p.key]?.layout ?? null,
-    colors: brandColorsFor(p.key, art[p.key]?.colors ?? []),
-    ...tileStyle(p.key, art[p.key]?.style),
-  }))
+  const map = await getPublisherArt()
+  return ranked.map(p => {
+    const a = artOf(p.keys, map)
+    const brand = brandKeyOf(p)
+    return {
+      key: p.key, name: p.name, games: p.games,
+      logo: resolveCoverPath(a?.logo ?? null),
+      plainLogo: a?.plain === true,
+      character: resolveCoverPath(a?.character ?? null),
+      layout: a?.layout ?? null,
+      colors: brandColorsFor(brand, a?.colors ?? []),
+      ...tileStyle(brand, a?.style),
+    }
+  })
 }
 
 export interface HomeData {

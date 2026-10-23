@@ -1,7 +1,7 @@
 import { adminGuard } from '@/lib/admin-guard'
 import { NextResponse } from 'next/server'
 import { rankedPublishers } from '@/lib/home-data'
-import { clearCharacter, ensurePublisherLogos, getPublisherArt, saveCharacter, saveLayout, saveLogo, saveStyle } from '@/lib/publisher-art'
+import { artOf, clearCharacter, ensurePublisherLogos, getPublisherArt, saveCharacter, saveLayout, saveLogo, saveStyle } from '@/lib/publisher-art'
 
 export const dynamic = 'force-dynamic'
 
@@ -16,7 +16,7 @@ export async function GET() {
   const [ranked, art] = await Promise.all([rankedPublishers(LIST_SIZE), getPublisherArt()])
   return NextResponse.json({
     running: g.__publisherLogosRunning === true,
-    publishers: ranked.map(p => ({ key: p.key, name: p.name, games: p.games, art: art[p.key] ?? null })),
+    publishers: ranked.map(p => ({ key: p.key, name: p.name, games: p.games, art: artOf(p.keys, art) })),
   })
 }
 

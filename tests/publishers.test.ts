@@ -36,3 +36,18 @@ describe('rankGroups', () => {
     expect(rankGroups(companies, totals, 0).map(r => r.key)).toEqual(['embracer'])
   })
 })
+
+describe('rankGroups keys', () => {
+  it('lists the owner first, then the companies by games, so old art still finds the group', () => {
+    const companies = [
+      { id: 1, key: 'sony group', name: 'Sony Group', parentId: null },
+      { id: 2, key: 'sony', name: 'Sony Computer Entertainment America', parentId: 1 },
+      { id: 3, key: 'sony imagesoft', name: 'Sony Imagesoft', parentId: 1 },
+    ]
+    const [group] = rankGroups(companies, [
+      { companyId: 2, games: 10, rated: 3, weight: 200 },
+      { companyId: 3, games: 2, rated: 0, weight: 0 },
+    ])
+    expect(group.keys).toEqual(['sony group', 'sony', 'sony imagesoft'])
+  })
+})

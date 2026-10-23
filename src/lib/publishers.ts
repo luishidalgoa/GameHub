@@ -59,6 +59,8 @@ export interface RankedPublisher {
   name: string
   /** The owning company and every company below it. */
   companyIds: number[]
+  /** Their keys: the owner's first, then the rest by games. Art saved under an old key still counts. */
+  keys: string[]
   games: number
   weight: number
 }
@@ -81,12 +83,12 @@ export function rankGroups(companies: RankCompany[], totals: RankTotals[], minRa
     return current
   }
 
-  const groups = new Map<number, { top: RankCompany; companyIds: number[]; games: number; rated: number; weight: number }>()
+  const groups = new Map<number, { top: RankCompany; members: RankTotals[]; games: number; rated: number; weight: number }>()
   for (const t of totals) {
     const top = topOf(t.companyId)
     if (!top) continue
-    const g = groups.get(top.id) ?? { top, companyIds: [], games: 0, rated: 0, weight: 0 }
-    g.companyIds.push(t.companyId)
+    const g = groups.get(top.id) ?? { top, members: [], games: 0, rated: 0, weight: 0 }
+    g.members.push(t)
     g.games += t.games
     g.rated += t.rated
     g.weight += t.weight
@@ -95,6 +97,13 @@ export function rankGroups(companies: RankCompany[], totals: RankTotals[], minRa
 
   return [...groups.values()]
     .filter(g => g.rated >= minRated)
-    .map(g => ({ key: g.top.key, name: g.top.name, companyIds: g.companyIds, games: g.games, weight: Math.round(g.weight) }))
+    .map(g => {
+      const byGames = [...g.members].sort((a, b) => b.games - a.games)
+      const keys = [...new Set([g.top.key, ...byGames.map(m => byId.get(m.companyId)?.key).filter((k): k is string => !!k)])]
+      return {
+        key: g.top.key, name: g.top.name, companyIds: g.members.map(m => m.companyId), keys,
+        games: g.games, weight: Math.round(g.weight),
+      }
+    })
     .sort((a, b) => b.weight - a.weight || a.name.localeCompare(b.name))
 }
