@@ -88,16 +88,18 @@ export function PublisherArtPanel() {
     load()
   }
 
-  const upload = async (file: File) => {
-    setBusy(target.current.key)
+  const uploadTo = async (key: string, kind: 'character' | 'logo', file: File) => {
+    setBusy(key)
     const form = new FormData()
-    form.set('key', target.current.key)
-    form.set('kind', target.current.kind)
+    form.set('key', key)
+    form.set('kind', kind)
     form.set('file', file)
     await fetch('/api/admin/publishers', { method: 'PUT', body: form })
     setBusy(null)
     load()
   }
+
+  const upload = (file: File) => uploadTo(target.current.key, target.current.kind, file)
 
   // Varios personajes a la vez: cada archivo se llama como su editora («nintendo.png»).
   const uploadMany = async (files: FileList) => {
@@ -207,6 +209,7 @@ export function PublisherArtPanel() {
           onUploadLogo={() => chooseFile(current.key, 'logo')}
           onUploadCharacter={() => chooseFile(current.key, 'character')}
           onRemoveCharacter={() => remove(current.key)}
+          onFile={file => uploadTo(current.key, 'character', file)}
         />
       )}
     </div>
@@ -233,7 +236,7 @@ const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n
  * y el personaje, y una esquina cambia su tamaño. Foco dentro mientras está abierto, Escape
  * lo cierra, y las flechas mueven el elemento seleccionado.
  */
-function PublisherEditDialog({ row, busy, onClose, onTemplate, onBackdrop, onPlain, onLayout, onUploadLogo, onUploadCharacter, onRemoveCharacter }: {
+function PublisherEditDialog({ row, busy, onClose, onTemplate, onBackdrop, onPlain, onLayout, onUploadLogo, onUploadCharacter, onRemoveCharacter, onFile }: {
   row: Row
   busy: boolean
   onClose: () => void
@@ -244,6 +247,7 @@ function PublisherEditDialog({ row, busy, onClose, onTemplate, onBackdrop, onPla
   onUploadLogo: () => void
   onUploadCharacter: () => void
   onRemoveCharacter: () => void
+  onFile: (file: File) => void
 }) {
   const dialog = useRef<HTMLDivElement>(null)
   const box = useRef<HTMLDivElement>(null)
@@ -260,6 +264,29 @@ function PublisherEditDialog({ row, busy, onClose, onTemplate, onBackdrop, onPla
   const drag = useRef<{ el: TileElement; mode: 'move' | 'resize'; start: Place; px: number; py: number } | null>(null)
 
   const update = (next: PublisherLayout) => { draftRef.current = next; setDraft(next) }
+
+  // Búsqueda de imágenes: se abre en otra pestaña con la consulta; la imagen que elijas se pega aquí.
+  const [query, setQuery] = useState(`${row.name} mascota png`)
+  const searchUrl = `https://www.google.com/search?tbm=isch&q=${encodeURIComponent(query)}`
+
+  const pickImage = (list: FileList | DataTransferItemList | null | undefined) => {
+    if (!list || busy) return null
+    const files = Array.from(list as ArrayLike<DataTransferItem | File>)
+    for (const item of files) {
+      const file = item instanceof File ? item : item.kind === 'file' && item.type.startsWith('image/') ? item.getAsFile() : null
+      if (file && file.type.startsWith('image/')) return file
+    }
+    return null
+  }
+
+  useEffect(() => {
+    const onPaste = (e: ClipboardEvent) => {
+      const file = pickImage(e.clipboardData?.items)
+      if (file) { e.preventDefault(); onFile(file) }
+    }
+    window.addEventListener('paste', onPaste)
+    return () => window.removeEventListener('paste', onPaste)
+  })
 
   useEffect(() => {
     dialog.current?.querySelector<HTMLElement>('h2')?.focus()
@@ -416,9 +443,24 @@ function PublisherEditDialog({ row, busy, onClose, onTemplate, onBackdrop, onPla
             </div>
           </fieldset>
 
-          <fieldset className="flex flex-col gap-2">
+          <fieldset className="flex flex-col gap-2"
+                    onDragOver={e => { if (!busy) e.preventDefault() }}
+                    onDrop={e => { const file = pickImage(e.dataTransfer.items); if (file) { e.preventDefault(); onFile(file) } }}>
             <legend className="mb-1 text-sm font-medium">Personaje</legend>
             <p className="text-sm text-muted-foreground">{character ? 'Tiene personaje.' : 'Sin personaje: el logo va grande en el centro.'}</p>
+            <div className="flex flex-wrap items-end gap-2">
+              <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+                Qué buscar
+                <input type="text" value={query} onChange={e => setQuery(e.target.value)}
+                       className="w-56 rounded-md border border-border bg-background px-3 py-1.5 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" />
+              </label>
+              <a href={searchUrl} target="_blank" rel="noopener noreferrer" className={btn}>
+                Buscar imagen (nueva pestaña)
+              </a>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Copia la imagen que quieras (clic derecho, copiar imagen) y pégala aquí con Ctrl+V, o arrástrala a este recuadro.
+            </p>
             <div className="flex flex-wrap gap-2">
               <button type="button" disabled={busy} onClick={onUploadCharacter} className={btn}>
                 {character ? 'Cambiar personaje' : 'Subir personaje'}
