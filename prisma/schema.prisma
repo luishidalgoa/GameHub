@@ -342,6 +342,12 @@ model Company {
   publishedGames Game[]  @relation("publisherCompany")
   developedGames Game[]  @relation("developerCompany")
   aliases       CompanyAlias[]
+  // The company this one belongs to (a label, a studio of a group): "EA SPORTS" → Electronic Arts.
+  parentId      Int?
+  parent        Company?  @relation("companyOwner", fields: [parentId], references: [id], onDelete: SetNull)
+  subsidiaries  Company[] @relation("companyOwner")
+
+  @@index([parentId])
 }
 
 // A publisher key that now means another company: the merged duplicate's key, so a

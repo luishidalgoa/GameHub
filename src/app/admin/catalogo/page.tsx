@@ -1,21 +1,17 @@
 import Link from 'next/link'
 import { db } from '@/lib/db'
-import { CompanyMerge, type CompanyRow } from '@/components/admin/CompanyMerge'
+import { CompanyCatalog, type CompanyRow } from '@/components/admin/CompanyCatalog'
 
 export const dynamic = 'force-dynamic'
 
-const LIST = 200
-
-// Catálogo (#143): editoras y modelos 3D; fusión de editoras duplicadas.
+// Catálogo (#143): editoras, dueños de las sub-editoras y modelos 3D.
 export default async function AdminCatalogPage() {
   const companies = await db.company.findMany({
-    select: { id: true, name: true, _count: { select: { publishedGames: true } } },
+    select: { id: true, name: true, parentId: true, _count: { select: { publishedGames: true } } },
   })
   const rows: CompanyRow[] = companies
-    .map(c => ({ id: c.id, name: c.name, games: c._count.publishedGames }))
+    .map(c => ({ id: c.id, name: c.name, parentId: c.parentId, games: c._count.publishedGames }))
     .filter(c => c.games > 0)
-    .sort((a, b) => b.games - a.games || a.name.localeCompare(b.name))
-    .slice(0, LIST)
 
   return (
     <div className="space-y-4">
@@ -34,12 +30,12 @@ export default async function AdminCatalogPage() {
 
       <div className="bg-card border border-border rounded-xl p-6 space-y-4">
         <div>
-          <h2 className="font-semibold">Fusionar editoras duplicadas</h2>
+          <h2 className="font-semibold">Editoras</h2>
           <p className="text-sm text-muted-foreground mt-0.5">
-            Las {LIST} editoras con más juegos. Elige la que sobra y la que queda: los juegos y los nombres de la que sobra pasan a la que queda.
+            Las editoras tal como las trae LaunchBox. Pulsa una para fusionarla, ponerle dueño o traer otras a ella.
           </p>
         </div>
-        <CompanyMerge rows={rows} />
+        <CompanyCatalog companies={rows} />
       </div>
     </div>
   )
