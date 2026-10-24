@@ -7,6 +7,7 @@ import { ArrowUpCircle, Languages, Package, Pencil, Puzzle } from 'lucide-react'
 import { BackLink } from '@/components/shared/BackLink'
 import { db } from '@/lib/db'
 import { backdropUrl } from '@/lib/tile-art'
+import { BANNER_FADE, parsePalette } from '@/lib/theme-palette'
 import { resolveCoverPath } from '@/lib/s3'
 import { formatBytes } from '@/lib/utils'
 import { languagesFromCsv } from '@/lib/rom-tags'
@@ -323,19 +324,6 @@ export default async function GamePage({ params, searchParams }: Props) {
       </div>
     </div>
   )
-}
-
-/** The banner dissolves toward its bottom edge, over the page gradient, so there is no seam. */
-const BANNER_FADE = 'linear-gradient(to bottom, #000 0%, #000 38%, transparent 100%)'
-
-/** The palette stored on the game, or null when there is none. */
-function parsePalette(raw: string | null): string[] | null {
-  if (!raw) return null
-  try {
-    const arr = JSON.parse(raw)
-    if (Array.isArray(arr) && arr.every((x) => typeof x === 'string')) return arr.length ? arr : null
-  } catch { /* ignore malformed */ }
-  return null
 }
 
 function Group({ icon, title, action, children }: { icon: ReactNode; title: string; action?: ReactNode; children: ReactNode }) {

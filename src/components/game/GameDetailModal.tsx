@@ -16,6 +16,8 @@ import { ScreenshotCarousel } from '@/components/game/ScreenshotCarousel'
 import { ExternalLinks }      from '@/components/game/ExternalLinks'
 import { YouTubeEmbed }       from '@/components/shared/YouTubeEmbed'
 import { addRecentlyViewed }  from '@/lib/recently-viewed'
+import { backdropUrl } from '@/lib/tile-art'
+import { BANNER_FADE, parsePalette } from '@/lib/theme-palette'
 import { extractUpdateVersion, extractDlcName } from '@/lib/switch-labels'
 import type { Game } from '@/types/game'
 import { resolveCoverPath } from '@/lib/cover-url'
@@ -91,6 +93,14 @@ export function GameDetailModal({ gameId, onClose, region }: Props) {
     if (dragY > 110) onClose()
     else setDragY(0)
   }
+
+  // The banner behind the top section: the game's own art, tinted by its palette (as the full page).
+  const backdrop = game ? backdropUrl(game) : null
+  const palette = game ? parsePalette(game.themePalette) : null
+  const [c0, c1] = palette ?? []
+  const heroFallback = c0 && c1
+    ? `radial-gradient(60% 80% at 30% 20%, ${c0} 0%, transparent 60%), radial-gradient(50% 70% at 80% 60%, ${c1} 0%, transparent 65%), #14101f`
+    : 'radial-gradient(60% 80% at 30% 20%, #5b3aa8 0%, transparent 60%), radial-gradient(50% 70% at 80% 60%, #1f5f7a 0%, transparent 65%), #14101f'
 
   return (
     <div
@@ -172,8 +182,15 @@ export function GameDetailModal({ gameId, onClose, region }: Props) {
           </div>
         ) : game ? (
           <div className="flex-1 p-4 sm:p-6">
-            {/* Top section: cover + meta */}
-            <div className="flex gap-6 mb-6">
+            {/* Top section: cover + meta, over the blurred banner (as the full game page). */}
+            <div className="relative -mx-4 -mt-4 sm:-mx-6 sm:-mt-6 mb-6 px-4 pt-4 sm:px-6 sm:pt-6 overflow-hidden">
+              <div aria-hidden="true" className="pointer-events-none absolute inset-0" style={{ maskImage: BANNER_FADE, WebkitMaskImage: BANNER_FADE }}>
+                <div className="absolute -inset-10" style={{ background: heroFallback }}>
+                  {backdrop && <Image src={backdrop} alt="" fill className="object-cover" style={{ filter: 'blur(14px)' }} unoptimized />}
+                </div>
+                <div className="absolute inset-0 bg-card/75" />
+              </div>
+              <div className="relative flex gap-6">
               {/* Cover */}
               <div className="flex-shrink-0 w-36">
                 <div
@@ -193,8 +210,19 @@ export function GameDetailModal({ gameId, onClose, region }: Props) {
                   )}
                 </div>
 
+              </div>
+
+              {/* Metadata */}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-start justify-between gap-2">
+                  <h3 className="text-xl font-bold leading-tight">{game.title}</h3>
+                  {game.isFavorite && (
+                    <Heart className="w-5 h-5 text-red-500 flex-shrink-0" fill="currentColor" />
+                  )}
+                </div>
+
                 {/* Score + Platform + region badges */}
-                <div className="mt-3 flex flex-wrap items-center gap-1.5">
+                <div className="mt-2 flex flex-wrap items-center gap-1.5">
                   <RatingPill score={game.rawgScore} metacritic={game.rawgMetacritic} rating={game.rawgRating} size="md" />
                   {game.platform && (
                     <span className="inline-block text-xs px-2 py-0.5 rounded-full bg-secondary text-muted-foreground border border-border">
@@ -207,16 +235,6 @@ export function GameDetailModal({ gameId, onClose, region }: Props) {
                     </span>
                   )}
                   <LanguageBadges languages={game.languages} />
-                </div>
-              </div>
-
-              {/* Metadata */}
-              <div className="flex-1 min-w-0">
-                <div className="flex items-start justify-between gap-2">
-                  <h3 className="text-xl font-bold leading-tight">{game.title}</h3>
-                  {game.isFavorite && (
-                    <Heart className="w-5 h-5 text-red-500 flex-shrink-0" fill="currentColor" />
-                  )}
                 </div>
 
                 <div className="mt-4 space-y-2 text-sm">
@@ -239,6 +257,7 @@ export function GameDetailModal({ gameId, onClose, region }: Props) {
                   />
                 </div>
               </div>
+            </div>
             </div>
 
             {/* Regiones / versiones descargables */}
@@ -385,7 +404,7 @@ function MetaRow({ icon, label, value }: { icon: React.ReactNode; label: string;
   return (
     <div className="flex items-start gap-2">
       <span className="text-muted-foreground flex-shrink-0 mt-0.5">{icon}</span>
-      <span className="text-muted-foreground w-20 flex-shrink-0">{label}</span>
+      <span className="text-muted-foreground w-28 flex-shrink-0">{label}</span>
       <span className="text-foreground/90 flex-1">{value}</span>
     </div>
   )

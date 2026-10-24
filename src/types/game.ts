@@ -30,6 +30,11 @@ export interface Game {
   publisher: string | null
   coverPath: string | null
   coverUrl: string | null
+  /** Theme and backdrop fields the detail panel uses, as the full game page does. */
+  tilePath: string | null
+  backdropPath: string | null
+  backdropKind: string | null
+  themePalette: string | null
   trailerUrl: string | null
   screenshotPaths: string | null
   metadataSources: string | null
