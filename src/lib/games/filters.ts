@@ -17,6 +17,9 @@ export interface GameListFilters {
   /** '' and 'visible' list the visible games; 'hidden' the cementerio. */
   state: '' | 'visible' | 'hidden'
   region: string
+  /** Marcas: solo los favoritos, solo los destacados (cada una se combina con las demás). */
+  favorite: boolean
+  featured: boolean
 }
 
 type RawParams = Record<string, string | undefined>
@@ -42,6 +45,8 @@ export function parseGameFilters(p: RawParams): GameListFilters {
     minMeta: Number.isFinite(minRaw) ? Math.min(100, Math.max(0, minRaw)) : 0,
     state: p.estado === 'hidden' ? 'hidden' : p.estado === 'visible' ? 'visible' : '',
     region: p.region ?? '',
+    favorite: p.favorito === '1',
+    featured: p.destacado === '1',
   }
 }
 
@@ -58,6 +63,8 @@ export function gameListWhere(f: GameListFilters): Prisma.GameWhereInput {
     ...(f.noMeta && pendingWhere(WITHOUT_METADATA)),
     ...(f.unfindable && UNFINDABLE),
     ...(f.region && { region: f.region }),
+    ...(f.favorite && { isFavorite: true }),
+    ...(f.featured && { isFeatured: true }),
   }
 }
 
@@ -87,6 +94,8 @@ export function gameFilterQuery(f: GameListFilters, extra: Record<string, string
   if (f.minMeta > 0) qs.set('meta_min', String(f.minMeta))
   if (f.state) qs.set('estado', f.state)
   if (f.region) qs.set('region', f.region)
+  if (f.favorite) qs.set('favorito', '1')
+  if (f.featured) qs.set('destacado', '1')
   for (const [k, v] of Object.entries(extra)) qs.set(k, v)
   return qs.toString()
 }

@@ -199,7 +199,7 @@ export function GamePanel({ game, percent, missing, closeHref, imagesHref, prevH
           <fieldset className="space-y-2 pt-2">
             <legend className="text-sm font-medium">Indicadores</legend>
             <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.isFavorite} onChange={e => set('isFavorite', e.target.checked)} /> Favorito</label>
-            <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.isFeatured} onChange={e => set('isFeatured', e.target.checked)} /> Destacado</label>
+            <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.isFeatured} onChange={e => set('isFeatured', e.target.checked)} /> En portada</label>
             <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.isHidden} onChange={e => set('isHidden', e.target.checked)} /> Oculto (cementerio)</label>
           </fieldset>
 

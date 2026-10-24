@@ -36,6 +36,7 @@ function activeFilterCount(f: GameListFilters): number {
   return [
     f.search, f.platform, f.state, f.region, f.minMeta > 0 ? 'x' : '',
     f.noScore ? 'x' : '', f.noCover ? 'x' : '', f.noMeta ? 'x' : '', f.unfindable ? 'x' : '',
+    f.favorite ? 'x' : '', f.featured ? 'x' : '',
   ].filter(Boolean).length + f.missing.length
 }
 
@@ -93,6 +94,8 @@ export default async function AdminGamesPage({ searchParams }: { searchParams: R
   if (filters.noCover) chips.push({ label: 'Sin portada', href: without({ noCover: false }) })
   if (filters.noMeta) chips.push({ label: 'Sin metadatos', href: without({ noMeta: false }) })
   if (filters.unfindable) chips.push({ label: 'No encontrados', href: without({ unfindable: false }) })
+  if (filters.favorite) chips.push({ label: 'Favorito', href: without({ favorite: false }) })
+  if (filters.featured) chips.push({ label: 'En portada', href: without({ featured: false }) })
 
   // Panel: se carga aparte, así sigue abierto aunque el juego ya no esté en la lista filtrada.
   const panelGame = Number.isInteger(panelId)
@@ -169,13 +172,24 @@ export default async function AdminGamesPage({ searchParams }: { searchParams: R
                 </div>
               </fieldset>
               <MetaRange name="meta_min" defaultValue={filters.minMeta} />
+              <fieldset className="space-y-2">
+                <legend className="mb-2 text-sm text-muted-foreground">Marcas</legend>
+                <div className="grid grid-cols-3 gap-2">
+                  <label className="flex items-center gap-2 rounded-md border border-border px-2.5 py-1.5 text-sm">
+                    <input type="checkbox" name="favorito" value="1" defaultChecked={filters.favorite} className="accent-violet-500" />
+                    Favorito
+                  </label>
+                  <label className="flex items-center gap-2 rounded-md border border-border px-2.5 py-1.5 text-sm">
+                    <input type="checkbox" name="destacado" value="1" defaultChecked={filters.featured} className="accent-violet-500" />
+                    En portada
+                  </label>
+                  <label className="flex items-center gap-2 rounded-md border border-border px-2.5 py-1.5 text-sm">
+                    <input type="checkbox" name="estado" value="hidden" defaultChecked={filters.state === 'hidden'} className="accent-violet-500" />
+                    Oculto (cementerio)
+                  </label>
+                </div>
+              </fieldset>
               <div className="grid grid-cols-2 gap-3">
-                <label className="flex flex-col gap-1.5 text-sm text-muted-foreground">Estado
-                  <select name="estado" defaultValue={filters.state} className={input}>
-                    <option value="">Visibles</option>
-                    <option value="hidden">Ocultos (cementerio)</option>
-                  </select>
-                </label>
                 <label className="flex flex-col gap-1.5 text-sm text-muted-foreground">Región
                   <select name="region" defaultValue={filters.region} className={input}>
                     <option value="">Cualquiera</option>
