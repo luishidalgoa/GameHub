@@ -17,7 +17,10 @@ import { ExternalLinks }      from '@/components/game/ExternalLinks'
 import { YouTubeEmbed }       from '@/components/shared/YouTubeEmbed'
 import { addRecentlyViewed }  from '@/lib/recently-viewed'
 import { backdropUrl } from '@/lib/tile-art'
-import { BANNER_FADE, parsePalette } from '@/lib/theme-palette'
+import { parsePalette } from '@/lib/theme-palette'
+
+/** The banner stays solid over the top of the panel and fades out only past its own area. */
+const BANNER_TRANSITION = 'linear-gradient(to bottom, #000 0%, #000 70%, transparent 100%)'
 import { extractUpdateVersion, extractDlcName } from '@/lib/switch-labels'
 import type { Game } from '@/types/game'
 import { resolveCoverPath } from '@/lib/cover-url'
@@ -136,8 +139,17 @@ export function GameDetailModal({ gameId, onClose, region }: Props) {
         >
           <div className="w-10 h-1.5 rounded-full bg-border" />
         </div>
+        <div className="relative flex flex-1 flex-col bg-card">
+        {/* Banner: behind the header and the content, solid at the top and fading toward the bottom. */}
+        <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 h-[26rem] overflow-hidden" style={{ maskImage: BANNER_TRANSITION, WebkitMaskImage: BANNER_TRANSITION }}>
+          <div className="absolute -inset-10" style={{ background: heroFallback }}>
+            {backdrop && <Image src={backdrop} alt="" fill className="object-cover" style={{ filter: 'blur(14px)' }} unoptimized />}
+          </div>
+          <div className="absolute inset-0 bg-card/30" />
+        </div>
+
         {/* Header */}
-        <div className="flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 border-b border-border sticky top-0 bg-card z-10">
+        <div className="relative flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 border-b border-border/60 sticky top-0 z-10">
           <h2 className="font-semibold text-base sm:text-lg truncate pr-3">
             {loading ? t('loading') : game?.title}
           </h2>
@@ -182,15 +194,8 @@ export function GameDetailModal({ gameId, onClose, region }: Props) {
           </div>
         ) : game ? (
           <div className="flex-1 p-4 sm:p-6">
-            {/* Top section: cover + meta, over the blurred banner (as the full game page). */}
-            <div className="relative -mx-4 -mt-4 sm:-mx-6 sm:-mt-6 mb-6 px-4 pt-4 sm:px-6 sm:pt-6 overflow-hidden">
-              <div aria-hidden="true" className="pointer-events-none absolute inset-0" style={{ maskImage: BANNER_FADE, WebkitMaskImage: BANNER_FADE }}>
-                <div className="absolute -inset-10" style={{ background: heroFallback }}>
-                  {backdrop && <Image src={backdrop} alt="" fill className="object-cover" style={{ filter: 'blur(14px)' }} unoptimized />}
-                </div>
-                <div className="absolute inset-0 bg-card/75" />
-              </div>
-              <div className="relative flex gap-6">
+            {/* Top section: cover + meta, over the banner of the panel. */}
+            <div className="flex gap-6 mb-6">
               {/* Cover */}
               <div className="flex-shrink-0 w-36">
                 <div
@@ -257,7 +262,6 @@ export function GameDetailModal({ gameId, onClose, region }: Props) {
                   />
                 </div>
               </div>
-            </div>
             </div>
 
             {/* Regiones / versiones descargables */}
@@ -395,6 +399,7 @@ export function GameDetailModal({ gameId, onClose, region }: Props) {
             {t('notFound')}
           </div>
         )}
+        </div>
       </div>
     </div>
   )
