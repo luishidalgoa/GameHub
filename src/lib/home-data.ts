@@ -1,7 +1,7 @@
 import { db } from '@/lib/db'
 import { cachedAggregate } from '@/lib/aggregate-cache'
 import { libraryGameWhere } from '@/lib/library'
-import { orderFeatured } from '@/lib/featured-order'
+import { chooseHome } from '@/lib/featured-order'
 import { resolveCoverPath } from '@/lib/s3'
 import { comparePopularity, weightedSample, MIN_ADDED } from '@/lib/metadata/popularity'
 import { rankGroups, type RankCompany, type RankedPublisher, type RankTotals } from '@/lib/publishers'
@@ -208,24 +208,12 @@ export async function getHomeData(): Promise<HomeData> {
   ])
 
   const ranked = candidates.slice().sort(comparePopularity)
-  // Hero: the best-known games that have real art, in a stable order.
+  // The owner's picks come first, in their order, in the hero carousel and then
+  // in the featured wall; the best-known games with real art fill what is left.
   // Without popularity data yet (a fresh library), the newest games stand in.
-  const hero = (ranked.length ? ranked : recentRows).slice(0, 5).map(toTile)
-  const heroIds = new Set(hero.map(g => g.id))
-
-  // Featured: the owner's picks, in the order set by featuredOrder; when there
-  // are fewer than six, the best-rated games not already in the hero fill the
-  // wall so it never looks half empty.
-  let featured = orderFeatured(featuredRows).slice(0, 6).map(toTile)
-  if (featured.length < 6) {
-    const taken = new Set([...featured.map(g => g.id), ...heroIds])
-    const filler = ranked
-      .filter(g => !taken.has(g.id))
-      .sort((a, b) => (b.rawgScore ?? 0) - (a.rawgScore ?? 0))
-      .slice(0, 6 - featured.length)
-      .map(toTile)
-    featured = [...featured, ...filler]
-  }
+  const { hero: heroRows, wall } = chooseHome(featuredRows, ranked.length ? ranked : recentRows, { hero: 5, wall: 6 })
+  const hero = heroRows.map(toTile)
+  const featured = wall.map(toTile)
 
   const recommended = weightedSample(ranked.slice(0, 60), RAIL_SIZE).map(toTile)
 

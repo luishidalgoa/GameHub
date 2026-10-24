@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { orderFeatured, parseFeaturedOrder } from '@/lib/featured-order'
+import { chooseHome, orderFeatured, parseFeaturedOrder } from '@/lib/featured-order'
 
 function row(title: string, rawgScore: number | null, featuredOrder: number | null = null) {
   return { title, rawgScore, featuredOrder }
@@ -48,5 +48,37 @@ describe('orderFeatured', () => {
     const input = [row('A', 10), row('B', 90)]
     orderFeatured(input)
     expect(input.map(g => g.title)).toEqual(['A', 'B'])
+  })
+})
+
+describe('chooseHome', () => {
+  const game = (id: number, rawgScore: number | null, featuredOrder: number | null = null) =>
+    ({ id, rawgScore, featuredOrder })
+  const popular = [game(10, 90), game(11, 80), game(12, 70), game(13, 60), game(14, 50), game(15, 40), game(16, 30)]
+
+  it('starts the hero with the picks in their order, then the popular games', () => {
+    const picks = [game(1, 50, 2), game(2, 40, 1)]
+    const { hero } = chooseHome(picks, popular, { hero: 5, wall: 6 })
+    expect(hero.map(g => g.id)).toEqual([2, 1, 10, 11, 12])
+  })
+
+  it('shows the picks that do not fit the hero in the wall, ahead of the rest', () => {
+    const picks = [1, 2, 3, 4, 5, 6, 7].map(id => game(id, 50, id))
+    const { hero, wall } = chooseHome(picks, popular, { hero: 5, wall: 6 })
+    expect(hero.map(g => g.id)).toEqual([1, 2, 3, 4, 5])
+    expect(wall.map(g => g.id)).toEqual([6, 7, 10, 11, 12, 13])
+  })
+
+  it('fills both with the best-rated games when there are no picks', () => {
+    const { hero, wall } = chooseHome([], popular, { hero: 5, wall: 6 })
+    expect(hero.map(g => g.id)).toEqual([10, 11, 12, 13, 14])
+    expect(wall.map(g => g.id)).toEqual([15, 16])
+  })
+
+  it('never repeats a game between the hero and the wall', () => {
+    const picks = [game(1, 99, 1), game(2, 98, 2)]
+    const { hero, wall } = chooseHome(picks, popular, { hero: 5, wall: 6 })
+    const ids = [...hero, ...wall].map(g => g.id)
+    expect(new Set(ids).size).toBe(ids.length)
   })
 })
