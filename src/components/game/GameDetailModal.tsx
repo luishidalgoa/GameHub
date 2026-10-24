@@ -143,13 +143,13 @@ export function GameDetailModal({ gameId, onClose, region }: Props) {
         {/* Banner: behind the header and the content, solid at the top and fading toward the bottom. */}
         <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 h-[26rem] overflow-hidden" style={{ maskImage: BANNER_TRANSITION, WebkitMaskImage: BANNER_TRANSITION }}>
           <div className="absolute -inset-10" style={{ background: heroFallback }}>
-            {backdrop && <Image src={backdrop} alt="" fill className="object-cover" style={{ filter: 'blur(14px)' }} unoptimized />}
+            {backdrop && <Image src={backdrop} alt="" fill className="object-cover" style={{ filter: 'blur(8px)' }} unoptimized />}
           </div>
-          <div className="absolute inset-0 bg-card/30" />
+          <div className="absolute inset-0 bg-card/45" />
         </div>
 
         {/* Header */}
-        <div className="relative flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 border-b border-border/60 sticky top-0 z-10">
+        <div className="relative flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 sticky top-0 z-10">
           <h2 className="font-semibold text-base sm:text-lg truncate pr-3">
             {loading ? t('loading') : game?.title}
           </h2>
@@ -180,7 +180,7 @@ export function GameDetailModal({ gameId, onClose, region }: Props) {
             )}
             <button
               onClick={onClose}
-              className="p-2 rounded-md hover:bg-accent transition-colors text-muted-foreground hover:text-foreground touch-manipulation"
+              className="p-2 rounded-md bg-black/40 hover:bg-black/60 transition-colors text-white touch-manipulation"
               aria-label={t('close')}
             >
               <X className="w-5 h-5" />
