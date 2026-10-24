@@ -549,6 +549,8 @@
     "flags": "Flags",
     "favorite": "Favorite",
     "featured": "On the home page",
+    "featuredOrder": "Home position",
+    "featuredOrderAuto": "Automatic",
     "hidden": "Hidden",
     "on": "On",
     "off": "Off",

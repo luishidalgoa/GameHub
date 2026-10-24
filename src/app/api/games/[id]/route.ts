@@ -6,6 +6,7 @@ import { isAdminSession } from '@/lib/auth'
 import { adminGuard } from '@/lib/admin-guard'
 import { baseApplicationId } from '@/lib/scanner/titleid'
 import { applyMetadata } from '@/lib/metadata/apply'
+import { parseFeaturedOrder } from '@/lib/featured-order'
 
 export const dynamic = 'force-dynamic'
 
@@ -47,6 +48,8 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   const unlock: string[] = Array.isArray(body.unlock) ? body.unlock.filter((x: unknown): x is string => typeof x === 'string') : []
   delete data.unlock
   if (typeof data.isHidden === 'boolean') data.userHidden = data.isHidden
+  // Puesto en la portada: 1 a 99, o vacío para volver al orden por nota.
+  if ('featuredOrder' in data) data.featuredOrder = parseFeaturedOrder(data.featuredOrder)
 
   // Title ID: 16 hex o nada. Se normaliza aqui y no en el formulario porque
   // esto es lo que acaba en la base de datos y de aqui sale el nombre con el

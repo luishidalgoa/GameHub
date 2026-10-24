@@ -54,6 +54,7 @@ export interface Game {
   scoreSource: string | null
   isFavorite: boolean
   isFeatured?: boolean
+  featuredOrder?: number | null
   isHidden: boolean
   lastSeenAt: Date | string
   metadataFetchedAt: Date | string | null

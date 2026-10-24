@@ -8,6 +8,7 @@ import { MetadataFetchButton } from './MetadataFetchButton'
 import { ScoreField } from './ScoreField'
 import { TrailerField } from './TrailerField'
 import { RegionSelect } from './RegionSelect'
+import { parseFeaturedOrder } from '@/lib/featured-order'
 
 export interface PanelGame {
   id: number
@@ -29,6 +30,7 @@ export interface PanelGame {
   trailerUrl: string
   isFavorite: boolean
   isFeatured: boolean
+  featuredOrder: number | null
   isHidden: boolean
   metadataFetchedAt: string | null
 }
@@ -53,7 +55,8 @@ function formFrom(game: PanelGame) {
     publisher: game.publisher, titleId: game.titleId, trailerUrl: game.trailerUrl,
     releaseYear: game.releaseYear === null ? '' : String(game.releaseYear),
     rawgScore: game.rawgScore === null ? '' : String(game.rawgScore),
-    isFavorite: game.isFavorite, isFeatured: game.isFeatured, isHidden: game.isHidden,
+    isFavorite: game.isFavorite, isFeatured: game.isFeatured, featuredOrder: game.featuredOrder != null ? String(game.featuredOrder) : '',
+    isHidden: game.isHidden,
   }
 }
 
@@ -114,6 +117,7 @@ export function GamePanel({ game, percent, missing, closeHref, imagesHref, prevH
         scoreSource: score === null ? null : (scoreSource ?? 'manual'),
         isFavorite: form.isFavorite,
         isFeatured: form.isFeatured,
+        featuredOrder: parseFeaturedOrder(form.featuredOrder),
         isHidden: form.isHidden,
       }),
     })
@@ -200,6 +204,7 @@ export function GamePanel({ game, percent, missing, closeHref, imagesHref, prevH
             <legend className="text-sm font-medium">Indicadores</legend>
             <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.isFavorite} onChange={e => set('isFavorite', e.target.checked)} /> Favorito</label>
             <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.isFeatured} onChange={e => set('isFeatured', e.target.checked)} /> En portada</label>
+            <label className="flex items-center gap-2 text-sm">Puesto en portada <input type="number" min={1} max={99} className={`${input} w-20`} value={form.featuredOrder} onChange={e => set('featuredOrder', e.target.value)} placeholder="Auto" /></label>
             <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.isHidden} onChange={e => set('isHidden', e.target.checked)} /> Oculto (cementerio)</label>
           </fieldset>
 

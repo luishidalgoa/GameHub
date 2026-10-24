@@ -124,6 +124,7 @@ export default async function AdminGamesPage({ searchParams }: { searchParams: R
     trailerUrl: panelGame.trailerUrl ?? '',
     isFavorite: panelGame.isFavorite,
     isFeatured: panelGame.isFeatured,
+    featuredOrder: panelGame.featuredOrder,
     isHidden: panelGame.isHidden,
     metadataFetchedAt: panelGame.metadataFetchedAt ? panelGame.metadataFetchedAt.toISOString() : null,
   }

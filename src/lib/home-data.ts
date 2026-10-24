@@ -1,6 +1,7 @@
 import { db } from '@/lib/db'
 import { cachedAggregate } from '@/lib/aggregate-cache'
 import { libraryGameWhere } from '@/lib/library'
+import { orderFeatured } from '@/lib/featured-order'
 import { resolveCoverPath } from '@/lib/s3'
 import { comparePopularity, weightedSample, MIN_ADDED } from '@/lib/metadata/popularity'
 import { rankGroups, type RankCompany, type RankedPublisher, type RankTotals } from '@/lib/publishers'
@@ -198,7 +199,7 @@ export async function getHomeData(): Promise<HomeData> {
       orderBy: { rawgAdded: 'desc' },
       take: 120,
     }),
-    db.game.findMany({ where: { ...where, isFeatured: true }, orderBy: { rawgScore: 'desc' }, take: 6, select: TILE_SELECT }),
+    db.game.findMany({ where: { ...where, isFeatured: true }, select: { ...TILE_SELECT, featuredOrder: true } }),
     // Recomputed at most every 10 minutes: the top downloads change slowly (#92).
     cachedAggregate('home:top-downloads', 10 * 60_000, () => db.downloadLog.groupBy({
       by: ['gameId'], where: { dlcId: null }, _count: { id: true }, orderBy: { _count: { id: 'desc' } }, take: 40,
@@ -212,9 +213,10 @@ export async function getHomeData(): Promise<HomeData> {
   const hero = (ranked.length ? ranked : recentRows).slice(0, 5).map(toTile)
   const heroIds = new Set(hero.map(g => g.id))
 
-  // Featured: the owner's picks; when there are fewer than six, the best-rated
-  // games not already in the hero fill the wall so it never looks half empty.
-  let featured = featuredRows.map(toTile)
+  // Featured: the owner's picks, in the order set by featuredOrder; when there
+  // are fewer than six, the best-rated games not already in the hero fill the
+  // wall so it never looks half empty.
+  let featured = orderFeatured(featuredRows).slice(0, 6).map(toTile)
   if (featured.length < 6) {
     const taken = new Set([...featured.map(g => g.id), ...heroIds])
     const filler = ranked

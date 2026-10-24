@@ -127,6 +127,8 @@ model Game {
   isFavorite   Boolean   @default(false)
   // Chosen by the owner to be highlighted on the home page.
   isFeatured   Boolean   @default(false)
+  // Puesto fijado a mano en la portada (1 = primero). Null: sigue el orden por nota.
+  featuredOrder Int?
   isHidden     Boolean   @default(false)
   userHidden   Boolean   @default(false)
   missingSince DateTime?

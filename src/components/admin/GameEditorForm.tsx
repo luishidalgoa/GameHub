@@ -62,6 +62,7 @@ export function GameEditorForm({ game, thumbnailWidth = 200, thumbnailHeight = 3
     score: game.rawgScore != null ? String(game.rawgScore) : '',
     isFavorite: game.isFavorite,
     isFeatured: game.isFeatured ?? false,
+    featuredOrder: game.featuredOrder != null ? String(game.featuredOrder) : '',
     isHidden: game.isHidden,
   })
 
@@ -302,6 +303,17 @@ export function GameEditorForm({ game, thumbnailWidth = 200, thumbnailHeight = 3
               onChange={(v) => set('isFeatured', v)}
               activeClass="text-amber-400"
             />
+            <Field label={t('featuredOrder')}>
+              <input
+                type="number"
+                min={1}
+                max={99}
+                value={form.featuredOrder}
+                onChange={(e) => set('featuredOrder', e.target.value)}
+                placeholder={t('featuredOrderAuto')}
+                className={inputCls}
+              />
+            </Field>
             <Toggle
               icon={<EyeOff className="w-4 h-4" />}
               label={t('hidden')}

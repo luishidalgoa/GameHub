@@ -549,6 +549,8 @@
     "flags": "Etiquetas",
     "favorite": "Favorito",
     "featured": "En portada",
+    "featuredOrder": "Puesto en portada",
+    "featuredOrderAuto": "Automático",
     "hidden": "Oculto",
     "on": "Sí",
     "off": "No",
