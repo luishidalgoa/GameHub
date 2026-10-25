@@ -1,7 +1,8 @@
 import { db } from '@/lib/db'
 import { runMetadataBatch, type BatchEvent } from '@/lib/metadata/batch'
 import { runScan } from '@/lib/scanner'
-import { syncSwitchGames } from '@/lib/external/switch-games'
+import { syncTorrentSources } from '@/lib/external/torrents'
+import { torrentSourcesFor } from '@/lib/external/sources'
 import { triggerAutoMetadata } from '@/lib/metadata/auto'
 import { fetchGameArt } from '@/lib/art'
 import { runAutomatic } from '@/lib/automatic'
@@ -321,17 +322,22 @@ export async function startArtJob(params: ArtJobParams, resumeJobId?: number): P
  */
 async function runTorrentScan(platformSlug?: string) {
   const log = (message: string) => scanBus.emit('scan', { type: 'source_log', message })
-  if (platformSlug && platformSlug !== 'switch') {
-    log('Esta plataforma no tiene fuente de torrents')
+  if (platformSlug && torrentSourcesFor(platformSlug).length === 0) {
+    log('Esta plataforma no tiene fuentes de torrents')
     return
   }
-  log('Sincronizando torrents de Switch…')
+  log('Sincronizando fuentes de torrents…')
   try {
-    const r = await syncSwitchGames()
-    log(`Fuente: ${r.count} entradas (${r.sourceRows.created} nuevas, ${r.sourceRows.updated} cambiadas, ${r.sourceRows.removed} retiradas)`)
-    log(`Juegos torrent: ${r.games.created} nuevos, ${r.games.updated} actualizados, ${r.games.hidden} ocultos; ${r.linked} enlazados con la biblioteca`)
-    if (r.games.created > 0) {
-      triggerAutoMetadata(() => {}, 'switch').catch(err => console.error('[torrent] metadata:', err))
+    const r = await syncTorrentSources(platformSlug)
+    for (const [key, res] of Object.entries(r.sources)) {
+      if ('error' in res) log(`${key}: error — ${res.error}`)
+      else log(`${key}: ${res.count} entradas (${res.sourceRows.created} nuevas, ${res.sourceRows.updated} cambiadas, ${res.sourceRows.removed} retiradas), ${res.linked} enlazadas con la biblioteca`)
+    }
+    for (const [slug, g] of Object.entries(r.games)) {
+      log(`Juegos torrent (${slug}): ${g.created} nuevos, ${g.updated} actualizados, ${g.hidden} ocultos`)
+      if (g.created > 0) {
+        triggerAutoMetadata(() => {}, slug).catch(err => console.error('[torrent] metadata:', err))
+      }
     }
   } catch (err) {
     log(`Error al sincronizar torrents: ${err instanceof Error ? err.message : String(err)}`)
