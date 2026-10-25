@@ -11,7 +11,7 @@ import { BANNER_FADE, parsePalette } from '@/lib/theme-palette'
 import { resolveCoverPath } from '@/lib/s3'
 import { formatBytes } from '@/lib/utils'
 import { languagesFromCsv } from '@/lib/rom-tags'
-import { extractUpdateVersion, extractDlcName } from '@/lib/switch-labels'
+import { extractUpdateVersion, extractDlcName, latestVersion } from '@/lib/switch-labels'
 import { parseExternalLinks } from '@/lib/external-links'
 import { pickEditionKey, type Edition } from '@/lib/game-editions'
 import { DownloadButton }     from '@/components/shared/DownloadButton'
@@ -113,11 +113,13 @@ export default async function GamePage({ params, searchParams }: Props) {
     .map((para) => para.replace(/\s*\n\s*/g, ' ').trim())
     .filter(Boolean)
 
+  const version = latestVersion([game.fileName, ...game.dlcs.filter(d => d.type === 'update').map(d => d.fileName)])
   const facts: [string, string][] = [
     game.releaseYear ? [t('year'), String(game.releaseYear)] : null,
     game.genre       ? [t('genre'), game.genre] : null,
     game.developer   ? [t('developer'), game.developer] : null,
     game.publisher   ? [t('publisher'), game.publisher] : null,
+    version          ? [t('version'), version] : null,
   ].filter((f): f is [string, string] => f !== null)
   const meta = facts.map(([, v]) => v).join(' · ')
 
@@ -182,6 +184,11 @@ export default async function GamePage({ params, searchParams }: Props) {
                   {game.platform && (
                     <span className="text-xs px-2 py-0.5 rounded-full bg-secondary text-muted-foreground border border-border">
                       {game.platform.name}
+                    </span>
+                  )}
+                  {version && (
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-secondary text-muted-foreground border border-border">
+                      {version}
                     </span>
                   )}
                 </div>

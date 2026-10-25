@@ -91,3 +91,26 @@ export function extractDlcName(fileName: string): string | null {
   }
   return null
 }
+
+/**
+ * La versión más reciente entre el fichero del juego y sus parches. Los números de Switch y las
+ * versiones con puntos se comparan por sus cifras; null cuando no hay ninguna reconocible.
+ */
+export function latestVersion(fileNames: string[]): string | null {
+  let best: string | null = null
+  for (const name of fileNames) {
+    const v = extractUpdateVersion(name)
+    if (v && (best === null || compareVersions(v, best) > 0)) best = v
+  }
+  return best
+}
+
+function compareVersions(a: string, b: string): number {
+  const x = a.slice(1).split('.').map(Number)
+  const y = b.slice(1).split('.').map(Number)
+  for (let i = 0; i < Math.max(x.length, y.length); i++) {
+    const d = (x[i] ?? 0) - (y[i] ?? 0)
+    if (d !== 0) return d
+  }
+  return 0
+}

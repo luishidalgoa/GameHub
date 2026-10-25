@@ -5,7 +5,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import useSWR from 'swr'
 import { useTranslations } from 'next-intl'
-import { X, Heart, Pencil, HardDrive, Calendar, Tag, User, Building2 } from 'lucide-react'
+import { X, Heart, Pencil, HardDrive, Calendar, Tag, User, Building2, Hash } from 'lucide-react'
 import { formatBytes, cn } from '@/lib/utils'
 import { DownloadButton }     from '@/components/shared/DownloadButton'
 import { BulkDownloadButton } from '@/components/shared/BulkDownloadButton'
@@ -22,7 +22,7 @@ import { parsePalette } from '@/lib/theme-palette'
 
 /** The banner stays solid over the top of the panel and fades out only past its own area. */
 const BANNER_TRANSITION = 'linear-gradient(to bottom, #000 0%, #000 70%, transparent 100%)'
-import { extractUpdateVersion, extractDlcName } from '@/lib/switch-labels'
+import { extractUpdateVersion, extractDlcName, latestVersion } from '@/lib/switch-labels'
 import type { Game } from '@/types/game'
 import { resolveCoverPath } from '@/lib/cover-url'
 
@@ -240,6 +240,11 @@ export function GameDetailModal({ gameId, onClose, region }: Props) {
                       {game.platform.name}
                     </span>
                   )}
+                  {versionOf(game) && (
+                    <span className="inline-block text-xs px-2 py-0.5 rounded-full bg-secondary text-muted-foreground border border-border">
+                      {versionOf(game)}
+                    </span>
+                  )}
                   {game.region && (
                     <span className="inline-block text-xs px-2 py-0.5 rounded-full bg-secondary text-muted-foreground border border-border">
                       {game.region}
@@ -260,6 +265,9 @@ export function GameDetailModal({ gameId, onClose, region }: Props) {
                   )}
                   {game.publisher && (
                     <MetaRow icon={<Building2 className="w-3.5 h-3.5" />} label={t('publisher')} value={game.publisher} />
+                  )}
+                  {versionOf(game) && (
+                    <MetaRow icon={<Hash className="w-3.5 h-3.5" />} label={t('version')} value={versionOf(game) ?? ''} />
                   )}
                   <MetaRow
                     icon={<HardDrive className="w-3.5 h-3.5" />}
@@ -409,6 +417,11 @@ export function GameDetailModal({ gameId, onClose, region }: Props) {
       </div>
     </div>
   )
+}
+
+/** La versión más reciente registrada: la del fichero del juego o la de sus parches. */
+function versionOf(game: Game): string | null {
+  return latestVersion([game.fileName, ...(game.dlcs ?? []).filter(d => d.type === 'update').map(d => d.fileName)])
 }
 
 function MetaRow({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {

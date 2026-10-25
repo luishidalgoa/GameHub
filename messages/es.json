@@ -106,7 +106,8 @@
     "downloadRegion": "Descargar · {region}",
     "region": "Región de descarga",
     "editSheet": "Editar ficha",
-    "fullPage": "Ver ficha completa"
+    "fullPage": "Ver ficha completa",
+    "version": "Versión"
   },
   "CookieConsent": {
     "description": "Usamos una cookie de sesión para el acceso de administrador y, con tu consentimiento, cookies analíticas para entender cómo se usa la biblioteca.",
