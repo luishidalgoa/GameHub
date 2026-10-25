@@ -40,7 +40,9 @@
     "platformGames": "{count, plural, one {# juego} other {# juegos}}",
     "publishersKicker": "Por editora",
     "publishersTitle": "Las editoras que mandan",
-    "publisherGames": "{count, plural, one {# juego} other {# juegos}}"
+    "publisherGames": "{count, plural, one {# juego} other {# juegos}}",
+    "friendsTitle": "Juega con amigos",
+    "kickerFriends": "En línea"
   },
   "Platform": {
     "games": "{count, plural, one {# juego} other {# juegos}}",
@@ -63,7 +65,8 @@
     "minRating70": "Nota 70+",
     "minRating80": "Nota 80+",
     "minRating90": "Nota 90+",
-    "minRatingNone": "Sin nota"
+    "minRatingNone": "Sin nota",
+    "online": "● Online"
   },
   "EmptyState": {
     "title": "No se encontraron juegos",

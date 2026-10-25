@@ -2,7 +2,7 @@ import { db } from '@/lib/db'
 import { cachedAggregate } from '@/lib/aggregate-cache'
 import { libraryGameWhere } from '@/lib/library'
 import { chooseHome } from '@/lib/featured-order'
-import { onlineGameIds } from '@/lib/online/flags'
+import { onlineGameIds, onlineIdsIn } from '@/lib/online/flags'
 import { resolveCoverPath } from '@/lib/s3'
 import { comparePopularity, weightedSample, MIN_ADDED } from '@/lib/metadata/popularity'
 import { rankGroups, type RankCompany, type RankedPublisher, type RankTotals } from '@/lib/publishers'
@@ -192,9 +192,16 @@ export interface HomeData {
   recent: TileGame[]
   recommended: TileGame[]
   mostDownloaded: TileGame[]
+  /** Juega con amigos: juegos con juego en línea, los más populares primero. */
+  friends: TileGame[]
   publishers: PublisherTileData[]
   platforms: { slug: string; name: string; games: number }[]
   totalGames: number
+}
+
+/** Los juegos de plataformas con un proyecto en línea (el filtro antes de cruzar la compatibilidad). */
+function friendsWhere<T extends object>(where: T) {
+  return { ...where, platform: { onlineProviders: { not: null } } }
 }
 
 export async function getHomeData(): Promise<HomeData> {
@@ -238,8 +245,13 @@ export async function getHomeData(): Promise<HomeData> {
   const rank = new Map(dlIds.map((id, i) => [id, i]))
   const mostDownloaded = await toTiles(dlRows.sort((a, b) => rank.get(a.id)! - rank.get(b.id)!).slice(0, RAIL_SIZE))
 
+  const friends = await toTiles(await db.game.findMany({
+    where: { ...where, id: { in: await onlineIdsIn(friendsWhere(where)) } },
+    orderBy: [{ rawgAdded: 'desc' }, { id: 'asc' }], take: RAIL_SIZE, select: TILE_SELECT,
+  }))
+
   return {
-    hero, featured, recent: await toTiles(recentRows), recommended, mostDownloaded,
+    hero, featured, recent: await toTiles(recentRows), recommended, mostDownloaded, friends,
     publishers: await publisherTiles(topPublishers),
     platforms: platforms.map(p => ({ slug: p.slug, name: p.name, games: p._count.games })),
     totalGames: platforms.reduce((n, p) => n + p._count.games, 0),
@@ -249,8 +261,8 @@ export async function getHomeData(): Promise<HomeData> {
 // ── "Show all" collections ─────────────────────────────────────────────────
 
 export const COLLECTION_PAGE = 48
-export type CollectionKind = 'nuevos' | 'recomendados' | 'descargados'
-export const COLLECTION_KINDS: CollectionKind[] = ['nuevos', 'recomendados', 'descargados']
+export type CollectionKind = 'nuevos' | 'recomendados' | 'descargados' | 'amigos'
+export const COLLECTION_KINDS: CollectionKind[] = ['nuevos', 'recomendados', 'descargados', 'amigos']
 
 export interface Collection { games: TileGame[]; total: number }
 
@@ -275,6 +287,18 @@ export async function getCollection(kind: CollectionKind, page: number): Promise
         where: popular, orderBy: [{ rawgAdded: 'desc' }, { id: 'asc' }], skip, take: COLLECTION_PAGE, select: TILE_SELECT,
       }),
       db.game.count({ where: popular }),
+    ])
+    return { games: await toTiles(rows), total }
+  }
+
+  if (kind === 'amigos') {
+    const ids = await onlineIdsIn(friendsWhere(where))
+    const [rows, total] = await Promise.all([
+      db.game.findMany({
+        where: { ...where, id: { in: ids } }, orderBy: [{ rawgAdded: 'desc' }, { id: 'asc' }],
+        skip, take: COLLECTION_PAGE, select: TILE_SELECT,
+      }),
+      Promise.resolve(ids.length),
     ])
     return { games: await toTiles(rows), total }
   }

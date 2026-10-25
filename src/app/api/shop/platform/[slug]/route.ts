@@ -9,6 +9,7 @@
  * actualizaciones, ni DLC.
  */
 import { NextResponse } from 'next/server'
+import { onlineGameIds } from '@/lib/online/flags'
 import { db } from '@/lib/db'
 import { guardShopRequest, shopBaseUrl } from '@/lib/shop-auth'
 import { matchesExtensions, platformExtensions, statSize } from '@/lib/shop-files'
@@ -28,12 +29,12 @@ export async function GET(
   const platform = await db.platform.findUnique({
     where:  { slug: params.slug },
     select: {
-      slug: true, name: true, extensions: true, enabled: true,
+      id: true, slug: true, name: true, extensions: true, enabled: true,
       thumbnailWidth: true, thumbnailHeight: true,
       games: {
         where:  { isHidden: false },
         select: { id: true, title: true, fileName: true, filePath: true,
-                  coverPath: true, coverUrl: true },
+                  coverPath: true, coverUrl: true, titleId: true },
       },
     },
   })
@@ -46,6 +47,8 @@ export async function GET(
   const base = shopBaseUrl(req)
   const exts = platformExtensions(platform.extensions)
   const games = platform.games.filter((g) => matchesExtensions(g.fileName, exts))
+  // gh_online: el juego tiene juego en línea en algún proyecto de la plataforma.
+  const online = await onlineGameIds(games.map((g) => ({ ...g, platformId: platform.id })))
 
   // El tamano sale del fichero en disco, nunca de la base de datos, y lo que no
   // se puede medir no se publica: misma regla que el indice de Switch. Aqui el
@@ -65,6 +68,7 @@ export async function GET(
       size,
       gh_id:   game.id,
       gh_kind: 'rom',
+      gh_online: online.has(game.id),
       ...(game.title ? { gh_title: game.title } : {}),
       ...(game.coverPath || game.coverUrl
         ? { gh_cover: jpegImageUrl(base, game.coverPath, game.coverUrl) }

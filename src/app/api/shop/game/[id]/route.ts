@@ -15,6 +15,7 @@
  * descripcion, sin capturas y sin trailer aunque estuvieran en la base de datos.
  */
 import { NextResponse } from 'next/server'
+import { onlineGameIds } from '@/lib/online/flags'
 import { db } from '@/lib/db'
 import { guardShopRequest, shopBaseUrl } from '@/lib/shop-auth'
 import { parseScreenshots, shopFileName, statSize } from '@/lib/shop-files'
@@ -37,7 +38,7 @@ export async function GET(
   const game = await db.game.findUnique({
     where: { id },
     select: {
-      id: true, title: true, fileName: true, filePath: true, titleId: true,
+      id: true, title: true, fileName: true, filePath: true, titleId: true, platformId: true,
       description: true, releaseYear: true, genre: true, publisher: true,
       developer: true, region: true, languages: true,
       coverPath: true, coverUrl: true, trailerUrl: true,
@@ -68,17 +69,20 @@ export async function GET(
     row: {
       url: string
       gh_kind: string
+      gh_online?: boolean
       gh_title?: string
       gh_region?: string
       gh_languages?: string
     }
   }
+  const online = (await onlineGameIds([game])).has(game.id)
   const candidates: Candidate[] = [{
     path: game.filePath,
     row: {
       url: `${base}/api/shop/download/${game.id}/` +
            encodeURIComponent(shopFileName(game.fileName, game.titleId)),
       gh_kind: 'base',
+      gh_online: online,
       ...(game.title ? { gh_title: game.title } : {}),
       ...(game.region ? { gh_region: game.region } : {}),
       ...(game.languages ? { gh_languages: game.languages } : {}),

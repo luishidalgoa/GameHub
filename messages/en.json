@@ -40,7 +40,9 @@
     "platformGames": "{count, plural, one {# game} other {# games}}",
     "publishersKicker": "By publisher",
     "publishersTitle": "The publishers that lead",
-    "publisherGames": "{count, plural, one {# game} other {# games}}"
+    "publisherGames": "{count, plural, one {# game} other {# games}}",
+    "friendsTitle": "Play with friends",
+    "kickerFriends": "Online"
   },
   "Platform": {
     "games": "{count, plural, one {# game} other {# games}}",
@@ -63,7 +65,8 @@
     "minRating70": "Score 70+",
     "minRating80": "Score 80+",
     "minRating90": "Score 90+",
-    "minRatingNone": "No score"
+    "minRatingNone": "No score",
+    "online": "● Online"
   },
   "EmptyState": {
     "title": "No games found",

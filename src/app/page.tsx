@@ -65,6 +65,12 @@ export default async function HomePage() {
             {data.mostDownloaded.map(g => <GameTile key={g.id} game={g} />)}
           </WideRail>
         )}
+
+        {data.friends.length > 0 && (
+          <WideRail kicker={t('kickerFriends')} title={t('friendsTitle')} href="/explorar/amigos" {...rail}>
+            {data.friends.map(g => <GameTile key={g.id} game={g} />)}
+          </WideRail>
+        )}
       </div>
     </HomeStage>
   )

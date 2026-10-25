@@ -3,7 +3,7 @@ import { db } from '@/lib/db'
 import { serializeBigInt } from '@/lib/serialize'
 import { getClientIp } from '@/lib/tracker'
 import { resolveCoverPath } from '@/lib/s3'
-import { onlineGameIds } from '@/lib/online/flags'
+import { onlineGameIds, onlineIdsIn } from '@/lib/online/flags'
 import { libraryGameWhere, NO_SCORE } from '@/lib/library'
 
 export const dynamic = 'force-dynamic'
@@ -14,6 +14,7 @@ export async function GET(req: Request) {
   const search = searchParams.get('search') ?? ''
   const sort = searchParams.get('sort') ?? 'title'
   const favorites = searchParams.get('favorites') === 'true'
+  const onlineOnly = searchParams.get('online') === 'true'
   // NaN and out-of-range values fall back to the defaults or the limits: a bad
   // ?pageSize=1e9 must not load the whole library in one response.
   const page = Math.max(1, Number.parseInt(searchParams.get('page') ?? '1', 10) || 1)
@@ -29,6 +30,7 @@ export async function GET(req: Request) {
     ...libraryGameWhere(platformSlug),
     ...(search    && { title: { contains: search } }),
     ...(favorites && { isFavorite: true }),
+    ...(onlineOnly && { id: { in: await onlineIdsIn(libraryGameWhere(platformSlug)) } }),
     // Match the primary region OR any region-variant edition, so a card whose
     // primary is e.g. EUR still shows when filtering by a JPN variant it holds.
     ...(region    && { OR: [{ region }, { dlcs: { some: { type: 'region', region } } }] }),

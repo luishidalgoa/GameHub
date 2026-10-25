@@ -41,6 +41,7 @@ export default async function ExplorePage({ params, searchParams }: {
     nuevos:       { kicker: t('kickerNew'),    title: t('recentlyAdded') },
     recomendados: { kicker: t('kickerForYou'), title: t('recommended') },
     descargados:  { kicker: t('kickerTop'),    title: t('topDownloads') },
+    amigos:       { kicker: t('kickerFriends'), title: t('friendsTitle') },
   }[kind as CollectionKind]
 
   return (

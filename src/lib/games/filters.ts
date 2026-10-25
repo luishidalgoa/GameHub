@@ -20,6 +20,8 @@ export interface GameListFilters {
   /** Marcas: solo los favoritos, solo los destacados (cada una se combina con las demás). */
   favorite: boolean
   featured: boolean
+  /** Solo los juegos con juego en línea (se filtran tras cruzar con la compatibilidad). */
+  online: boolean
 }
 
 type RawParams = Record<string, string | undefined>
@@ -47,6 +49,7 @@ export function parseGameFilters(p: RawParams): GameListFilters {
     region: p.region ?? '',
     favorite: p.favorito === '1',
     featured: p.destacado === '1',
+    online: p.online === '1',
   }
 }
 
@@ -96,6 +99,7 @@ export function gameFilterQuery(f: GameListFilters, extra: Record<string, string
   if (f.region) qs.set('region', f.region)
   if (f.favorite) qs.set('favorito', '1')
   if (f.featured) qs.set('destacado', '1')
+  if (f.online) qs.set('online', '1')
   for (const [k, v] of Object.entries(extra)) qs.set(k, v)
   return qs.toString()
 }

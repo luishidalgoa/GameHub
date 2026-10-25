@@ -65,6 +65,7 @@ export function GameGrid({
   const [search,    setSearch]   = useState('')
   const [sort,      setSort]     = useState<SortKey>('title')
   const [favOnly,   setFavOnly]  = useState(false)
+  const [onlineOnly, setOnlineOnly] = useState(false)
   const [region,    setRegion]   = useState('')
   const [genre,     setGenre]    = useState('')
   const [minRating, setMinRating] = useState('')
@@ -92,12 +93,13 @@ export function GameGrid({
     })
     if (debouncedSearch) p.set('search',    debouncedSearch)
     if (favOnly)         p.set('favorites', 'true')
+    if (onlineOnly)      p.set('online', 'true')
     if (region)          p.set('region',    region)
     if (genre)           p.set('genre',     genre)
     if (minRating)       p.set('minRating', minRating)
 
     return `/api/games?${p}`
-  }, [platformSlug, sort, debouncedSearch, favOnly, region, genre, minRating])
+  }, [platformSlug, sort, debouncedSearch, favOnly, onlineOnly, region, genre, minRating])
 
   // Restore the saved page count on mount (only for the unfiltered default view —
   // a saved scroll position is meaningless against a different filter/search).
@@ -143,7 +145,7 @@ export function GameGrid({
   // ── Scroll restoration (return-from-editor) ────────────────────────────────────
   // Track whether filters are at their default — only then is a saved scroll
   // position meaningful (a search/region filter changes what's on screen).
-  const filtersActive = Boolean(debouncedSearch) || favOnly || Boolean(region) || Boolean(genre) || Boolean(minRating) || sort !== 'title'
+  const filtersActive = Boolean(debouncedSearch) || favOnly || onlineOnly || Boolean(region) || Boolean(genre) || Boolean(minRating) || sort !== 'title'
 
   // Once the saved number of pages has loaded, restore the scroll position (once).
   const didRestore = useRef(false)
@@ -274,6 +276,18 @@ export function GameGrid({
               {regions.map(r => <option key={r} value={r}>{r}</option>)}
             </select>
           )}
+
+          <button
+            onClick={() => setOnlineOnly(v => !v)}
+            aria-pressed={onlineOnly}
+            className={`w-full sm:w-auto min-w-0 sm:flex-none px-3 py-2.5 sm:py-1.5 text-sm rounded-md border transition-colors touch-manipulation whitespace-nowrap truncate ${
+              onlineOnly
+                ? 'bg-emerald-600/20 border-emerald-600/40 text-emerald-300'
+                : 'bg-secondary border-border text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            {t('online')}
+          </button>
 
           <button
             onClick={() => setFavOnly(v => !v)}

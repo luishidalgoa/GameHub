@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { onlineGameIds } from '@/lib/online/flags'
 import { db } from '@/lib/db'
 import { formatBytes } from '@/lib/utils'
 import { resolveCoverPath } from '@/lib/s3'
@@ -36,7 +37,7 @@ function activeFilterCount(f: GameListFilters): number {
   return [
     f.search, f.platform, f.state, f.region, f.minMeta > 0 ? 'x' : '',
     f.noScore ? 'x' : '', f.noCover ? 'x' : '', f.noMeta ? 'x' : '', f.unfindable ? 'x' : '',
-    f.favorite ? 'x' : '', f.featured ? 'x' : '',
+    f.favorite ? 'x' : '', f.featured ? 'x' : '', f.online ? 'x' : '',
   ].filter(Boolean).length + f.missing.length
 }
 
@@ -69,7 +70,9 @@ export default async function AdminGamesPage({ searchParams }: { searchParams: R
   ])
   const regions = regionRows.map(r => r.region).filter((r): r is string => !!r && r.trim() !== '').sort()
 
-  const rows = filterByCompleteness(games, filters)
+  // El juego en línea sale de la compatibilidad de cada proveedor, no de una columna: se cruza aquí.
+  const online = filters.online ? await onlineGameIds(games) : null
+  const rows = filterByCompleteness(online ? games.filter(g => online.has(g.id)) : games, filters)
   const total = rows.length
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
   const page = Math.min(requestedPage, totalPages)
@@ -96,6 +99,7 @@ export default async function AdminGamesPage({ searchParams }: { searchParams: R
   if (filters.unfindable) chips.push({ label: 'No encontrados', href: without({ unfindable: false }) })
   if (filters.favorite) chips.push({ label: 'Favorito', href: without({ favorite: false }) })
   if (filters.featured) chips.push({ label: 'En portada', href: without({ featured: false }) })
+  if (filters.online) chips.push({ label: 'Juego en línea', href: without({ online: false }) })
 
   // Panel: se carga aparte, así sigue abierto aunque el juego ya no esté en la lista filtrada.
   const panelGame = Number.isInteger(panelId)
@@ -183,6 +187,10 @@ export default async function AdminGamesPage({ searchParams }: { searchParams: R
                   <label className="flex items-center gap-2 rounded-md border border-border px-2.5 py-1.5 text-sm">
                     <input type="checkbox" name="destacado" value="1" defaultChecked={filters.featured} className="accent-violet-500" />
                     En portada
+                  </label>
+                  <label className="flex items-center gap-2 rounded-md border border-border px-2.5 py-1.5 text-sm">
+                    <input type="checkbox" name="online" value="1" defaultChecked={filters.online} className="accent-violet-500" />
+                    Juego en línea
                   </label>
                   <label className="flex items-center gap-2 rounded-md border border-border px-2.5 py-1.5 text-sm">
                     <input type="checkbox" name="estado" value="hidden" defaultChecked={filters.state === 'hidden'} className="accent-violet-500" />

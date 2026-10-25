@@ -1,3 +1,4 @@
+import type { Prisma } from '@prisma/client'
 import { db } from '@/lib/db'
 import { cachedAggregate } from '@/lib/aggregate-cache'
 import { comparableNames, normalizeGameTitle, parseOnlineProviders } from './providers'
@@ -27,4 +28,10 @@ export async function onlineGameIds(
     if (byId || byTitle) out.add(g.id)
   }
   return out
+}
+
+/** Ids de los juegos de una consulta que tienen juego en línea. */
+export async function onlineIdsIn(where: Prisma.GameWhereInput): Promise<number[]> {
+  const games = await db.game.findMany({ where, select: { id: true, title: true, titleId: true, platformId: true } })
+  return [...(await onlineGameIds(games))]
 }
