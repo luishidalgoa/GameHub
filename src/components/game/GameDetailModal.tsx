@@ -158,7 +158,7 @@ export function GameDetailModal({ gameId, onClose, region }: Props) {
             {game && (
               <>
                 {game.magnet ? (
-                  <DownloadButton magnet={game.magnet} label={t('downloadTorrent')} fileSize={game.fileSize} variant="primary" />
+                  <DownloadButton magnet={game.magnet} label={t('download')} fileSize={game.fileSize} variant="primary" />
                 ) : game.source !== 'torrent' && (
                   <DownloadButton
                     gameId={game.id}

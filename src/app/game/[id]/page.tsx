@@ -193,7 +193,7 @@ export default async function GamePage({ params, searchParams }: Props) {
                   groupLabel={t('region')}
                   downloadable={game.source !== 'torrent'}
                   magnet={magnet ?? undefined}
-                  magnetLabel={t('downloadTorrent')}
+                  magnetLabel={t('download')}
                   magnetSize={game.fileSize.toString()}
                 >
                   {hasContent && (
