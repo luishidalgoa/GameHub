@@ -50,11 +50,22 @@ export default async function GamePage({ params, searchParams }: Props) {
 
   // Screenshots: prefer the ones stored on the game (LaunchBox/RAWG saved by the
   // metadata job); fall back to a live RAWG fetch only when none are stored.
-  let screenshots: string[] = []
+  // The copies in the bucket come first, the largest first: the external links they came
+  // from are often small. Links the owner added that are not in the bucket follow.
+  const repoShots = await db.gameImage.findMany({
+    where: { gameId: game.id, kind: { startsWith: 'screenshot' } },
+    orderBy: { width: 'desc' },
+    select: { s3Key: true, sourceUrl: true },
+  })
+  const repoSources = new Set(repoShots.map((r) => r.sourceUrl))
+  let screenshots: string[] = repoShots.map((r) => resolveCoverPath(r.s3Key) ?? r.s3Key)
   try {
     const stored = game.screenshotPaths ? JSON.parse(game.screenshotPaths) : []
     // A screenshot is an external link or a bucket key the owner uploaded: both become a URL.
-    if (Array.isArray(stored)) screenshots = stored.filter((s: unknown): s is string => typeof s === 'string').map((s) => resolveCoverPath(s) ?? s)
+    if (Array.isArray(stored)) {
+      const extra = stored.filter((s: unknown): s is string => typeof s === 'string' && !repoSources.has(s))
+      screenshots = [...screenshots, ...extra.map((s) => resolveCoverPath(s) ?? s)]
+    }
   } catch { /* ignore malformed */ }
   if (screenshots.length === 0 && game.rawgSlug) {
     const provider = getRawgProvider(rawgSetting?.value)
