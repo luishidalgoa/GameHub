@@ -108,11 +108,13 @@ export default async function PlatformPage({ params }: Props) {
       <div className="mb-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">{platform.name}</h1>
-          <EmulatorLinks
-            raw={platform.emulators}
-            label={t('downloadEmulator')}
-          />
-          <OnlineProviderLinks raw={platform.onlineProviders} />
+          <div className="flex flex-col items-start gap-2 sm:items-end">
+            <EmulatorLinks
+              raw={platform.emulators}
+              label={t('downloadEmulator')}
+            />
+            <OnlineProviderLinks raw={platform.onlineProviders} />
+          </div>
         </div>
         <p className="text-muted-foreground mt-1">{t('games', { count: totalCount })}</p>
       </div>

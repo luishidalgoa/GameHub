@@ -49,19 +49,35 @@ export function normalizeGameTitle(title: string): string {
     .trim()
 }
 
-/** La lista JSON de proyectos de una plataforma; vacía o mal formada no enlaza nada. */
-export function parseOnlineProviders(raw: string | null | undefined): OnlineProviderLink[] {
+/** Configuración de un proveedor en una plataforma: si está activo y a qué proyecto enlaza. */
+export interface OnlineProviderConfig extends OnlineProviderLink {
+  enabled: boolean
+}
+
+/** Todas las entradas válidas de la plataforma, activas o no; mal formada, ninguna. */
+export function parseOnlineConfigs(raw: string | null | undefined): OnlineProviderConfig[] {
   if (!raw) return []
   try {
     const list: unknown = JSON.parse(raw)
     if (!Array.isArray(list)) return []
-    return list.flatMap((p): OnlineProviderLink[] => {
-      const e = p as Partial<OnlineProviderLink>
+    return list.flatMap((p): OnlineProviderConfig[] => {
+      const e = p as Partial<OnlineProviderConfig>
       return typeof e?.key === 'string' && typeof e.label === 'string' && typeof e.url === 'string'
-        ? [{ key: e.key, label: e.label, url: e.url }]
+        ? [{ key: e.key, label: e.label, url: e.url, enabled: e.enabled !== false }]
         : []
     })
   } catch {
     return []
   }
+}
+
+/** Los proyectos activos de una plataforma: los que enlaza y cuyo catálogo cuenta para el badge. */
+export function parseOnlineProviders(raw: string | null | undefined): OnlineProviderLink[] {
+  return parseOnlineConfigs(raw)
+    .filter(c => c.enabled)
+    .map(({ key, label, url }) => ({ key, label, url }))
+}
+
+export function serializeOnlineConfigs(configs: OnlineProviderConfig[]): string | null {
+  return configs.length ? JSON.stringify(configs) : null
 }

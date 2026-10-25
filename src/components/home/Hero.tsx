@@ -2,12 +2,14 @@ import { ViewTransitionLink } from '@/components/shared/ViewTransitionLink'
 import { getTranslations } from 'next-intl/server'
 import { ArrowRight } from 'lucide-react'
 import { RatingPill } from '@/components/shared/RatingPill'
+import { OnlineBadge } from '@/components/shared/OnlineBadge'
 import { HeroBackground } from './HeroBackground'
 
 export interface HeroGame {
   id: number
   title: string
   platformName: string
+  online?: boolean
   background: string | null    // screenshot/cover URL (resolved)
   cover: string | null         // resolved cover URL
   rawgScore: number | null
@@ -54,6 +56,7 @@ export async function Hero({ game }: { game: HeroGame | null }) {
             <span className="text-xs px-2 py-0.5 rounded-full bg-secondary/80 text-muted-foreground border border-border">
               {game.platformName}
             </span>
+            {game.online && <OnlineBadge />}
           </div>
           <ViewTransitionLink
             href={`/game/${game.id}`}

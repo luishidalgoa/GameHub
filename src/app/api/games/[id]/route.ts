@@ -8,6 +8,7 @@ import { baseApplicationId } from '@/lib/scanner/titleid'
 import { applyMetadata } from '@/lib/metadata/apply'
 import { parseFeaturedOrder } from '@/lib/featured-order'
 import { claimFeaturedSlot } from '@/lib/featured-slots'
+import { onlineGameIds } from '@/lib/online/flags'
 
 export const dynamic = 'force-dynamic'
 
@@ -30,7 +31,8 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
   if (!game || (game.isHidden && !admin)) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 })
   }
-  const resolved = { ...game, coverPath: resolveCoverPath(game.coverPath) }
+  const online = (await onlineGameIds([game])).has(game.id)
+  const resolved = { ...game, coverPath: resolveCoverPath(game.coverPath), online }
   return NextResponse.json(serializeBigInt(admin ? resolved : withoutFilePaths(resolved)))
 }
 

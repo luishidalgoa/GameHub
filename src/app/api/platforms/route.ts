@@ -46,7 +46,7 @@ export async function POST(req: Request) {
 // dropped: the id and the slug are handled separately below (#87).
 const PLATFORM_EDITABLE = [
   'name', 'scanPath', 'extensions', 'scanMode', 'thumbnailWidth', 'thumbnailHeight', 'sortOrder', 'scanDlc',
-  'enabled', 'iconPath', 'emulators', 'emulatorName', 'emulatorUrl',
+  'enabled', 'iconPath', 'emulators', 'onlineProviders', 'emulatorName', 'emulatorUrl',
   'providerCover', 'providerInfo', 'providerDescription', 'providerScreenshots',
 ] as const
 

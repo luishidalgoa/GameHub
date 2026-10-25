@@ -1,5 +1,6 @@
 'use client'
 
+import { OnlineBadge } from '@/components/shared/OnlineBadge'
 import Link from 'next/link'
 import type { TileGame } from '@/lib/home-data'
 import { useStageHover } from './stage-hover'
@@ -30,6 +31,7 @@ export function GameTile({ game, className = '', priority = false }: {
         hover:shadow-[0_22px_50px_-20px_color-mix(in_srgb,var(--glow)_75%,transparent)]
         focus-visible:ring-2 focus-visible:ring-white/70 ${className}`}
     >
+        {game.online && <OnlineBadge className="absolute right-2 top-2 z-10" />}
       {game.image ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img src={game.image} alt="" loading={priority ? 'eager' : 'lazy'} decoding="async"

@@ -5,6 +5,7 @@ import Image from 'next/image'
 import { Heart, Pencil, Info } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { RatingPill } from '@/components/shared/RatingPill'
+import { OnlineBadge } from '@/components/shared/OnlineBadge'
 import { getPlatformIdentity } from '@/lib/platform-identity'
 import type { GameListItem } from '@/types/game'
 
@@ -101,15 +102,7 @@ export function GameCard({
         <div className="absolute top-1.5 left-1.5 z-10 pointer-events-none">
           <RatingPill score={game.rawgScore} metacritic={game.rawgMetacritic} rating={game.rawgRating} />
         </div>
-        {game.online && (
-          <span
-            title="Juego en línea disponible (Nextendo Network)"
-            className="absolute top-1.5 right-1.5 z-10 pointer-events-none inline-flex items-center gap-1 rounded-full bg-emerald-500 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-black shadow"
-          >
-            <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-black" />
-            online
-          </span>
-        )}
+        {game.online && <OnlineBadge className="absolute top-1.5 right-1.5 z-10" />}
 
         {/* Desktop hover overlay */}
         <div className="absolute inset-0 bg-black/70 opacity-0 group-hover:opacity-100 transition-opacity hidden sm:flex items-end p-2">

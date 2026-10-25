@@ -12,6 +12,7 @@ import { BulkDownloadButton } from '@/components/shared/BulkDownloadButton'
 import { RegionVersions }     from '@/components/shared/RegionVersions'
 import { LanguageBadges }     from '@/components/shared/LanguageBadges'
 import { RatingPill }         from '@/components/shared/RatingPill'
+import { OnlineBadge } from '@/components/shared/OnlineBadge'
 import { ScreenshotCarousel } from '@/components/game/ScreenshotCarousel'
 import { ExternalLinks }      from '@/components/game/ExternalLinks'
 import { YouTubeEmbed }       from '@/components/shared/YouTubeEmbed'
@@ -229,6 +230,7 @@ export function GameDetailModal({ gameId, onClose, region }: Props) {
                 {/* Score + Platform + region badges */}
                 <div className="mt-2 flex flex-wrap items-center gap-1.5">
                   <RatingPill score={game.rawgScore} metacritic={game.rawgMetacritic} rating={game.rawgRating} size="md" />
+                  {game.online && <OnlineBadge />}
                   {game.platform && (
                     <span className="inline-block text-xs px-2 py-0.5 rounded-full bg-secondary text-muted-foreground border border-border">
                       {game.platform.name}

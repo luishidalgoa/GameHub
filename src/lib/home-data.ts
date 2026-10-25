@@ -2,6 +2,7 @@ import { db } from '@/lib/db'
 import { cachedAggregate } from '@/lib/aggregate-cache'
 import { libraryGameWhere } from '@/lib/library'
 import { chooseHome } from '@/lib/featured-order'
+import { onlineGameIds } from '@/lib/online/flags'
 import { resolveCoverPath } from '@/lib/s3'
 import { comparePopularity, weightedSample, MIN_ADDED } from '@/lib/metadata/popularity'
 import { rankGroups, type RankCompany, type RankedPublisher, type RankTotals } from '@/lib/publishers'
@@ -32,12 +33,15 @@ export interface TileGame {
   publisher: string | null
   score: number | null
   description: string | null
+  /** Tiene juego en línea en un proveedor de su plataforma (badge verde). */
+  online: boolean
 }
 
 const TILE_SELECT = {
   id: true, title: true, coverPath: true, coverUrl: true, screenshotPaths: true,
   tilePath: true, backdropPath: true, backdropKind: true, logoPath: true, themePalette: true,
   releaseYear: true, genre: true, publisher: true, rawgScore: true, description: true,
+  titleId: true, platformId: true,
   platform: { select: { slug: true, name: true, thumbnailWidth: true, thumbnailHeight: true } },
 } as const
 
@@ -57,6 +61,9 @@ interface TileRow {
   publisher: string | null
   rawgScore: number | null
   description: string | null
+  titleId: string | null
+  platformId: number
+  online?: boolean
   platform: { slug: string; name: string; thumbnailWidth: number | null; thumbnailHeight: number | null }
 }
 
@@ -90,7 +97,14 @@ export function toTile(g: TileRow): TileGame {
     publisher: g.publisher,
     score: g.rawgScore,
     description: g.description,
+    online: g.online === true,
   }
+}
+
+/** Las teselas de varias filas, con el badge de juego en línea de cada una. */
+async function toTiles(rows: TileRow[]): Promise<TileGame[]> {
+  const online = await onlineGameIds(rows)
+  return rows.map(r => toTile({ ...r, online: online.has(r.id) }))
 }
 
 /** A tile needs an image to be worth a place in a wide rail. */
@@ -212,20 +226,20 @@ export async function getHomeData(): Promise<HomeData> {
   // in the featured wall; the best-known games with real art fill what is left.
   // Without popularity data yet (a fresh library), the newest games stand in.
   const { hero: heroRows, wall } = chooseHome(featuredRows, ranked.length ? ranked : recentRows, { hero: 5, wall: 6 })
-  const hero = heroRows.map(toTile)
-  const featured = wall.map(toTile)
+  const hero = await toTiles(heroRows)
+  const featured = await toTiles(wall)
 
-  const recommended = weightedSample(ranked.slice(0, 60), RAIL_SIZE).map(toTile)
+  const recommended = await toTiles(weightedSample(ranked.slice(0, 60), RAIL_SIZE))
 
   const dlIds = downloadCounts.map(d => d.gameId)
   const dlRows = dlIds.length
     ? await db.game.findMany({ where: { id: { in: dlIds }, ...where }, select: TILE_SELECT })
     : []
   const rank = new Map(dlIds.map((id, i) => [id, i]))
-  const mostDownloaded = dlRows.sort((a, b) => rank.get(a.id)! - rank.get(b.id)!).slice(0, RAIL_SIZE).map(toTile)
+  const mostDownloaded = await toTiles(dlRows.sort((a, b) => rank.get(a.id)! - rank.get(b.id)!).slice(0, RAIL_SIZE))
 
   return {
-    hero, featured, recent: recentRows.map(toTile), recommended, mostDownloaded,
+    hero, featured, recent: await toTiles(recentRows), recommended, mostDownloaded,
     publishers: await publisherTiles(topPublishers),
     platforms: platforms.map(p => ({ slug: p.slug, name: p.name, games: p._count.games })),
     totalGames: platforms.reduce((n, p) => n + p._count.games, 0),
@@ -251,7 +265,7 @@ export async function getCollection(kind: CollectionKind, page: number): Promise
       db.game.findMany({ where, orderBy: { createdAt: 'desc' }, skip, take: COLLECTION_PAGE, select: TILE_SELECT }),
       db.game.count({ where }),
     ])
-    return { games: rows.map(toTile), total }
+    return { games: await toTiles(rows), total }
   }
 
   if (kind === 'recomendados') {
@@ -262,7 +276,7 @@ export async function getCollection(kind: CollectionKind, page: number): Promise
       }),
       db.game.count({ where: popular }),
     ])
-    return { games: rows.map(toTile), total }
+    return { games: await toTiles(rows), total }
   }
 
   const counts = await cachedAggregate('collection:downloads', 10 * 60_000, () => db.downloadLog.groupBy({
@@ -272,7 +286,7 @@ export async function getCollection(kind: CollectionKind, page: number): Promise
   const rows = await db.game.findMany({ where: { ...where, id: { in: ids } }, select: TILE_SELECT })
   const rank = new Map(ids.map((id, i) => [id, i]))
   const ordered = rows.sort((a, b) => rank.get(a.id)! - rank.get(b.id)!)
-  return { games: ordered.slice(skip, skip + COLLECTION_PAGE).map(toTile), total: ordered.length }
+  return { games: await toTiles(ordered.slice(skip, skip + COLLECTION_PAGE)), total: ordered.length }
 }
 
 /** Every publisher with enough rated games, with the art of its tile. */
@@ -287,7 +301,7 @@ export async function getTilesByIds(ids: number[]): Promise<TileGame[]> {
     where: { ...libraryGameWhere(), id: { in: ids } },
     select: TILE_SELECT,
   })
-  return rows.map(toTile)
+  return toTiles(rows)
 }
 
 /** The games of one publisher group, by the key the rankings use, best rated first. */
@@ -299,5 +313,5 @@ export async function getPublisherGames(key: string): Promise<{ name: string; ga
     where: { ...libraryGameWhere(), publisherCompanyId: { in: found.companyIds } },
     orderBy: [{ rawgScore: 'desc' }, { title: 'asc' }], take: 300, select: TILE_SELECT,
   })
-  return { name: found.name, games: games.map(toTile) }
+  return { name: found.name, games: await toTiles(games) }
 }

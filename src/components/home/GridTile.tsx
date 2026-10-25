@@ -1,5 +1,6 @@
 'use client'
 
+import { OnlineBadge } from '@/components/shared/OnlineBadge'
 import Link from 'next/link'
 import type { GameGroup } from '@/lib/game-groups'
 import { useStageHover } from './stage-hover'
@@ -21,6 +22,7 @@ export function GridTile({ group }: { group: GameGroup }) {
     <Link href={`/game/${game.id}`} {...hover}
           className="group mb-4 block break-inside-avoid overflow-hidden rounded-xl border border-white/10 bg-white/[0.06] shadow-[0_18px_36px_-18px_rgba(0,0,0,0.85)] backdrop-blur-xl outline-none transition-[transform,border-color] duration-500 hover:-translate-y-1 hover:border-white/25 focus-visible:ring-2 focus-visible:ring-white/70">
       <div className="relative w-full overflow-hidden bg-black/30" style={{ aspectRatio: String(game.coverRatio) }}>
+        {game.online && <OnlineBadge className="absolute right-1.5 top-1.5 z-10" />}
         {art ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={art} alt="" loading="lazy" decoding="async"

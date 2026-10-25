@@ -17,6 +17,8 @@ import { pickEditionKey, type Edition } from '@/lib/game-editions'
 import { DownloadButton }     from '@/components/shared/DownloadButton'
 import { BulkDownloadButton } from '@/components/shared/BulkDownloadButton'
 import { RatingPill } from '@/components/shared/RatingPill'
+import { OnlineBadge } from '@/components/shared/OnlineBadge'
+import { onlineGameIds } from '@/lib/online/flags'
 import { RecordView } from '@/components/game/RecordView'
 import { ScreenshotGallery } from '@/components/game/ScreenshotGallery'
 import { ProceduralFill } from '@/components/game/ProceduralFill'
@@ -44,6 +46,7 @@ export default async function GamePage({ params, searchParams }: Props) {
   ])
 
   if (!game || (game.isHidden && !isAdmin)) notFound()
+  const online = (await onlineGameIds([game])).has(game.id)
 
   // Screenshots: prefer the ones stored on the game (LaunchBox/RAWG saved by the
   // metadata job); fall back to a live RAWG fetch only when none are stored.
@@ -162,6 +165,7 @@ export default async function GamePage({ params, searchParams }: Props) {
 
                 <div className="flex flex-wrap items-center gap-2">
                   <RatingPill score={game.rawgScore} metacritic={game.rawgMetacritic} rating={game.rawgRating} size="md" />
+                  {online && <OnlineBadge />}
                   {game.platform && (
                     <span className="text-xs px-2 py-0.5 rounded-full bg-secondary text-muted-foreground border border-border">
                       {game.platform.name}

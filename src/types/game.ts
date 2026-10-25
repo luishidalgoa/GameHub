@@ -31,6 +31,8 @@ export interface Game {
   coverPath: string | null
   /** Encuadre del recorte de la portada (JSON), o null sin recorte. */
   coverFrame?: string | null
+  /** Juego en línea en algún proveedor de su plataforma (badge verde). */
+  online?: boolean
   coverUrl: string | null
   /** Theme and backdrop fields the detail panel uses, as the full game page does. */
   tilePath: string | null

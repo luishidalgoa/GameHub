@@ -9,6 +9,7 @@ import { DonationSettingsForm } from './DonationSettingsForm'
 import { HomebrewRepos } from './HomebrewRepos'
 import { PlatformIconUploader } from './PlatformIconUploader'
 import { parseEmulators, OS_ORDER, OS_LABEL, type EmulatorSet, type EmulatorOS } from '@/components/platform/EmulatorLinks'
+import { ONLINE_SOURCES, parseOnlineConfigs, serializeOnlineConfigs, type OnlineProviderConfig } from '@/lib/online/providers'
 
 const splitPaths = (s: string) => s.split('|').map(p => p.trim()).filter(Boolean)
 const joinPaths  = (arr: string[]) => arr.filter(Boolean).join('|')
@@ -206,12 +207,15 @@ interface Platform {
   emulatorName?: string | null
   emulatorUrl?: string | null
   emulators?: string | null
+  onlineProviders?: string | null
   iconPath?: string | null
   _count?: { games: number }
 }
 
 interface Props {
   platforms: Platform[]
+  /** Última sincronización de cada proveedor: cuántos juegos trae y cuándo. */
+  onlineStatus: Record<string, { count: number; syncedAt: string | null }>
   settings: Record<string, string>
   donation: {
     donate_kofi: string
@@ -255,7 +259,17 @@ const platformsSnapshot = (
   ps: Platform[],
   paths: Record<number, string[]>,
   emus: Record<number, EmulatorSet>,
-) => JSON.stringify({ ps, paths, emus })
+  online: Record<number, OnlineProviderConfig[]>,
+) => JSON.stringify({ ps, paths, emus, online })
+
+/** Un bloque por proveedor de juego en línea, activo o no en esta plataforma. */
+const onlineConfigsFor = (raw: string | null | undefined): OnlineProviderConfig[] => {
+  const saved = parseOnlineConfigs(raw)
+  return ONLINE_SOURCES.map((src) => {
+    const c = saved.find((x) => x.key === src.key)
+    return { key: src.key, label: src.label, url: c?.url ?? src.url, enabled: c?.enabled ?? false }
+  })
+}
 
 /** Barra de cada ámbito: cambios pendientes, guardar y descartar, y el error de esa sección. */
 function SectionFrame({ dirty, saving, saved, error, onSave, onDiscard, children }: {
@@ -304,7 +318,7 @@ function SectionFrame({ dirty, saving, saved, error, onSave, onDiscard, children
 }
 
 
-export function SettingsForm({ platforms: initial, settings, donation }: Props) {
+export function SettingsForm({ platforms: initial, settings, donation, onlineStatus }: Props) {
   const t = useTranslations('SettingsForm')
   const router = useRouter()
 
@@ -324,6 +338,28 @@ export function SettingsForm({ platforms: initial, settings, donation }: Props) 
     Object.fromEntries(initial.map((p) => [p.id, parseEmulators(p.emulators)]))
   )
   const getEmu = (id: number) => emulatorsMap[id] ?? {}
+
+  const [onlineMap, setOnlineMap] = useState<Record<number, OnlineProviderConfig[]>>(() =>
+    Object.fromEntries(initial.map((p) => [p.id, onlineConfigsFor(p.onlineProviders)])))
+  const getOnline = (id: number) => onlineMap[id] ?? onlineConfigsFor(null)
+  const setOnline = (id: number, key: string, patch: Partial<OnlineProviderConfig>) =>
+    setOnlineMap((prev) => ({
+      ...prev,
+      [id]: (prev[id] ?? onlineConfigsFor(null)).map((c) => (c.key === key ? { ...c, ...patch } : c)),
+    }))
+
+  const [syncingOnline, setSyncingOnline] = useState(false)
+  const [onlineNote, setOnlineNote] = useState<string | null>(null)
+  const syncOnline = async () => {
+    setSyncingOnline(true)
+    setOnlineNote(null)
+    const res = await fetch('/api/admin/online/sync', { method: 'POST' })
+    const data = await res.json().catch(() => ({}))
+    setSyncingOnline(false)
+    const errors = Object.entries(data.errors ?? {}).map(([k, v]) => `${k}: ${v}`)
+    setOnlineNote(res.ok && errors.length === 0 ? 'Sincronizado' : `No se pudo sincronizar. ${errors.join(' · ')}`)
+    router.refresh()
+  }
   const setEmu = (id: number, os: EmulatorOS, field: 'name' | 'url', value: string) =>
     setEmulatorsMap((prev) => {
       const cur   = prev[id] ?? {}
@@ -391,7 +427,7 @@ export function SettingsForm({ platforms: initial, settings, donation }: Props) 
   }
 
   // Línea base de las plataformas: cómo estaban al cargar o al último guardado.
-  const [platformsBaseline, setPlatformsBaseline] = useState(() => platformsSnapshot(platforms, pathsMap, emulatorsMap))
+  const [platformsBaseline, setPlatformsBaseline] = useState(() => platformsSnapshot(platforms, pathsMap, emulatorsMap, onlineMap))
   const [deleting, setDeleting] = useState<number | null>(null)
   const [addOpen,  setAddOpen]  = useState(false)
   const [adding,   setAdding]   = useState(false)
@@ -466,7 +502,7 @@ export function SettingsForm({ platforms: initial, settings, donation }: Props) 
 
   // Un ámbito se guarda por su cuenta: solo manda sus claves, o sus plataformas.
   const dirty = (id: ScopeId): boolean => {
-    if (id === 'plataformas') return platformsSnapshot(platforms, pathsMap, emulatorsMap) !== platformsBaseline
+    if (id === 'plataformas') return platformsSnapshot(platforms, pathsMap, emulatorsMap, onlineMap) !== platformsBaseline
     if (id === 'donaciones') return false
     return (SCOPE_KEYS[id] ?? []).some(([k, d]) => (live[id]?.[k] ?? '') !== (settings[k] ?? d))
   }
@@ -498,6 +534,7 @@ export function SettingsForm({ platforms: initial, settings, donation }: Props) 
                 providerDescription: p.providerDescription || null,
                 providerScreenshots: p.providerScreenshots || null,
                 emulators:       serializeEmulators(getEmu(p.id)),
+                onlineProviders: serializeOnlineConfigs(getOnline(p.id)),
                 // Clear the deprecated single fields once migrated into `emulators`
                 emulatorName:    null,
                 emulatorUrl:     null,
@@ -527,7 +564,7 @@ export function SettingsForm({ platforms: initial, settings, donation }: Props) 
         return
       }
 
-      if (id === 'plataformas') setPlatformsBaseline(platformsSnapshot(platforms, pathsMap, emulatorsMap))
+      if (id === 'plataformas') setPlatformsBaseline(platformsSnapshot(platforms, pathsMap, emulatorsMap, onlineMap))
       setSectionSaved(id)
       setTimeout(() => setSectionSaved(null), 2000)
       router.refresh()
@@ -545,6 +582,7 @@ export function SettingsForm({ platforms: initial, settings, donation }: Props) 
         setPlatforms(initial)
         setPathsMap(Object.fromEntries(initial.map((p) => [p.id, splitPaths(p.scanPath)])))
         setEmulatorsMap(Object.fromEntries(initial.map((p) => [p.id, parseEmulators(p.emulators)])))
+        setOnlineMap(Object.fromEntries(initial.map((p) => [p.id, onlineConfigsFor(p.onlineProviders)])))
         break
       case 'claves':
         setRawgKey(settings['rawg_api_key'] ?? '')
@@ -853,6 +891,50 @@ export function SettingsForm({ platforms: initial, settings, donation }: Props) 
                           />
                         </div>
                       </details>
+                    </div>
+
+                    {/* Juego en línea: cada proveedor se activa aquí y enlaza su proyecto. Su estado
+                        es la última sincronización de su fuente. */}
+                    <div className="space-y-2 lg:col-span-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <h4 className="text-xs font-medium text-muted-foreground">Juego en línea</h4>
+                        <button
+                          type="button"
+                          onClick={syncOnline}
+                          disabled={syncingOnline}
+                          className="rounded-md border border-border px-2.5 py-1 text-xs hover:bg-accent disabled:opacity-60"
+                        >
+                          {syncingOnline ? 'Sincronizando…' : 'Sincronizar ahora'}
+                        </button>
+                      </div>
+                      {onlineNote && <p className="text-xs text-muted-foreground">{onlineNote}</p>}
+                      {getOnline(p.id).map((c) => {
+                        const st = onlineStatus[c.key]
+                        return (
+                          <div key={c.key} className="grid gap-2 rounded-md border border-border p-3 lg:grid-cols-2">
+                            <ToggleSwitch
+                              label={c.label}
+                              checked={c.enabled}
+                              onChange={(v) => setOnline(p.id, c.key, { enabled: v })}
+                            />
+                            <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+                              Enlace del proyecto
+                              <input
+                                type="text"
+                                aria-label={`Enlace del proyecto ${c.label}`}
+                                value={c.url}
+                                onChange={(e) => setOnline(p.id, c.key, { url: e.target.value })}
+                                className="rounded-md border border-border bg-secondary px-2 py-1 text-sm text-foreground"
+                              />
+                            </label>
+                            <p className="text-xs text-muted-foreground lg:col-span-2">
+                              {st
+                                ? `${st.count} juegos en la fuente · última sincronización ${st.syncedAt ? new Date(st.syncedAt).toLocaleString() : 'nunca'}`
+                                : 'Sin datos todavía: sincroniza para traer la lista.'}
+                            </p>
+                          </div>
+                        )
+                      })}
                     </div>
 
                     {/* Emuladores por sistema: nombre, enlace y "Reutilizar" con etiqueta visible. */}
