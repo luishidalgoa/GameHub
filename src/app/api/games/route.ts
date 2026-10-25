@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { serializeBigInt } from '@/lib/serialize'
 import { getClientIp } from '@/lib/tracker'
 import { resolveCoverPath } from '@/lib/s3'
+import { onlineGameIds } from '@/lib/online/flags'
 import { libraryGameWhere, NO_SCORE } from '@/lib/library'
 
 export const dynamic = 'force-dynamic'
@@ -66,6 +67,7 @@ export async function GET(req: Request) {
         isFavorite: true,
         isHidden: true,
         platformId: true,
+        titleId: true,
         fileSize: true,
         metadataFetchedAt: true,
         fileName: true,
@@ -84,7 +86,13 @@ export async function GET(req: Request) {
       .catch(() => {})
   }
 
-  const resolvedGames = games.map(g => ({ ...g, coverPath: resolveCoverPath(g.coverPath) }))
+  // The title ID only finds the online badge; it is not sent to the page.
+  const online = await onlineGameIds(games)
+  const resolvedGames = games.map(({ titleId: _titleId, ...g }) => ({
+    ...g,
+    coverPath: resolveCoverPath(g.coverPath),
+    online: online.has(g.id),
+  }))
 
   return NextResponse.json(serializeBigInt({ games: resolvedGames, total, page, pageSize }))
 }

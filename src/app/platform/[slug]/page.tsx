@@ -5,6 +5,7 @@ import { resolveCoverPath } from '@/lib/s3'
 import { isAdminSession } from '@/lib/auth'
 import { GameGrid } from '@/components/platform/GameGrid'
 import { EmulatorLinks } from '@/components/platform/EmulatorLinks'
+import { OnlineProviderLinks } from '@/components/platform/OnlineProviderLinks'
 import { RecommendedStrip } from '@/components/platform/RecommendedStrip'
 import { HiddenGemsStrip } from '@/components/platform/HiddenGemsStrip'
 import { comparePopularity, weightedSample, MIN_ADDED, GEM_MAX_ADDED, GEM_MIN_RATING } from '@/lib/metadata/popularity'
@@ -111,6 +112,7 @@ export default async function PlatformPage({ params }: Props) {
             raw={platform.emulators}
             label={t('downloadEmulator')}
           />
+          <OnlineProviderLinks raw={platform.onlineProviders} />
         </div>
         <p className="text-muted-foreground mt-1">{t('games', { count: totalCount })}</p>
       </div>

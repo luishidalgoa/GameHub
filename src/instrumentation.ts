@@ -11,4 +11,10 @@ export async function register() {
   const run = () => pruneLogs().catch(err => console.error('[retention] prune failed:', err))
   run()
   setInterval(run, DAY_MS).unref()
+
+  // Compatibilidad de juego en línea (Nextendo...): al arrancar y cada día.
+  const { syncOnlineSupport } = await import('@/lib/online/sync')
+  const sync = () => syncOnlineSupport().catch(err => console.error('[online] sync failed:', err))
+  setTimeout(sync, 60_000).unref()
+  setInterval(sync, DAY_MS).unref()
 }

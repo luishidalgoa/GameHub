@@ -23,6 +23,8 @@ model Platform {
   emulatorName     String?  // deprecated — kept as fallback, superseded by `emulators`
   emulatorUrl      String?  // deprecated — kept as fallback, superseded by `emulators`
   emulators        String?  // JSON: { windows?: {name,url}, android?: {name,url}, ios?: {name,url} }
+  // JSON: [{ key, label, url }]: proyectos de juego en línea de la plataforma (p. ej. Nextendo en Switch).
+  onlineProviders  String?
 
   // Per-platform metadata provider overrides. NULL means "inherit the global
   // setting" — the point is that the best source depends on the console: the
@@ -448,4 +450,18 @@ model Job {
   @@index([type, status])
   @@index([status])
   logs      JobLog[]
+}
+
+/// Compatibilidad de juego en línea de un proveedor (Nextendo, Pretendo...), por Title ID.
+/// La rellena la sincronización diaria desde la fuente de cada proveedor; un juego
+/// lo tiene si su Title ID está aquí y su plataforma usa ese proveedor.
+model OnlineSupport {
+  provider        String
+  titleId         String
+  status          String
+  requiredVersion String?
+  name            String?
+  syncedAt        DateTime
+
+  @@id([provider, titleId])
 }
