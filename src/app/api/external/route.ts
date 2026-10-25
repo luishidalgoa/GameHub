@@ -19,7 +19,7 @@ export async function GET(req: NextRequest) {
   if (!platform) return NextResponse.json({ games: [], total: 0, page, pageSize: PAGE_SIZE })
 
   const library = await db.game.findMany({
-    where: libraryGameWhere(slug),
+    where: { ...libraryGameWhere(slug), source: 'local' },
     select: { title: true, fileName: true, titleId: true },
   })
   const owned = [...libraryTitleIds(library)]
