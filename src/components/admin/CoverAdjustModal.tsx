@@ -2,11 +2,15 @@
 
 import { useRef, useState, useEffect } from 'react'
 import { X, Check, RotateCcw } from 'lucide-react'
+import type { CoverFrame } from '@/lib/cover-frame'
 
 interface Props {
   src: string
-  onSave: (blob: Blob) => void
+  /** The picture to save and the frame it was cut with, so the next edit can start there. */
+  onSave: (blob: Blob, frame: Frame) => void
   onClose: () => void
+  /** Frame of the last crop; without one the whole picture is framed. */
+  initialFrame?: Frame | null
   thumbnailWidth?: number
   thumbnailHeight?: number
 }
@@ -14,12 +18,12 @@ interface Props {
 /** Crop frame stored as viewport fractions. `s` is the size fraction; because
  *  the viewport itself is the platform aspect, a square in fraction space maps
  *  to the platform's width:height on screen. */
-interface Frame { x: number; y: number; s: number }
+type Frame = CoverFrame
 type Mode = 'move' | 'nw' | 'ne' | 'sw' | 'se'
 
 const MIN_S = 0.1
 
-export function CoverAdjustModal({ src, onSave, onClose, thumbnailWidth = 200, thumbnailHeight = 300 }: Props) {
+export function CoverAdjustModal({ src, onSave, onClose, initialFrame, thumbnailWidth = 200, thumbnailHeight = 300 }: Props) {
   const aspect = thumbnailWidth / thumbnailHeight        // platform frame aspect (w/h)
   const OUT_W  = Math.min(1200, thumbnailWidth * 6)
   const OUT_H  = Math.round(OUT_W / aspect)
@@ -34,7 +38,7 @@ export function CoverAdjustModal({ src, onSave, onClose, thumbnailWidth = 200, t
   const [disp, setDisp]           = useState({ w: 0, h: 0 })   // viewport (platform aspect) on screen
   // Default frame = the whole platform frame → the full image is preserved
   // ("contain"); the user can shrink/move it to crop in.
-  const [frame, setFrame]         = useState<Frame>({ x: 0, y: 0, s: 1 })
+  const [frame, setFrame]         = useState<Frame>(() => initialFrame ?? { x: 0, y: 0, s: 1 })
 
   const drag = useRef<{ mode: Mode; sx: number; sy: number; start: Frame } | null>(null)
 
@@ -132,7 +136,7 @@ export function CoverAdjustModal({ src, onSave, onClose, thumbnailWidth = 200, t
       ctx.fillStyle = '#000'
       ctx.fillRect(0, 0, OUT_W, OUT_H)
       ctx.drawImage(img, 0, 0, nat.w, nat.h, dx, dy, dw, dh)
-      canvas.toBlob(b => { if (b) onSave(b) }, 'image/webp', 0.92)
+      canvas.toBlob(b => { if (b) onSave(b, frame) }, 'image/webp', 0.92)
     } catch { setCorsError(true) }
   }
 

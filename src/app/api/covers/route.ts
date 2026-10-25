@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { downloadAndCacheCover, saveCoverFromBuffer } from '@/lib/covers'
 import { resolveCoverPath } from '@/lib/s3'
+import { parseCoverFrame, serializeCoverFrame } from '@/lib/cover-frame'
 import { isCoverSource, parseMetadataSources, type MetadataSources } from '@/lib/metadata/sources'
 
 /**
@@ -46,9 +47,10 @@ export async function POST(req: Request) {
 
       const key = await downloadAndCacheCover(url, game.platform.slug, gameId)
       const { sources } = coverProvenance(game.metadataSources, source)
-      await applyMetadata(gameId, { origin: 'owner', data: { coverPath: key }, sources })
+      // A new picture is a new original: the crop frame of the old one no longer applies.
+      await applyMetadata(gameId, { origin: 'owner', data: { coverPath: key, coverFrame: null }, sources })
 
-      return NextResponse.json({ key, coverPath: resolveCoverPath(key) ?? key, sources })
+      return NextResponse.json({ key, coverPath: resolveCoverPath(key) ?? key, sources, coverFrame: null })
     }
 
     if (contentType.includes('multipart/form-data')) {
@@ -65,9 +67,11 @@ export async function POST(req: Request) {
       const buffer = Buffer.from(await file.arrayBuffer())
       const key    = await saveCoverFromBuffer(buffer, game.platform.slug, gameId, !adjusted)
       const { sources } = coverProvenance(game.metadataSources, form.get('source'), adjusted)
-      await applyMetadata(gameId, { origin: 'owner', data: { coverPath: key }, sources })
+      // Only a crop keeps its frame, so the editor can reopen it as it was left.
+      const coverFrame = adjusted ? parseCoverFrame(form.get('frame')) : null
+      await applyMetadata(gameId, { origin: 'owner', data: { coverPath: key, coverFrame: serializeCoverFrame(coverFrame) }, sources })
 
-      return NextResponse.json({ key, coverPath: resolveCoverPath(key) ?? key, sources })
+      return NextResponse.json({ key, coverPath: resolveCoverPath(key) ?? key, sources, coverFrame })
     }
 
     return NextResponse.json({ error: 'Invalid content type' }, { status: 400 })

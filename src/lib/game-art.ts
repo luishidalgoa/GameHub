@@ -135,7 +135,7 @@ export async function activateImage(gameId: number, imageId: number): Promise<{ 
   if (categoryOf(image.kind) === 'cover') {
     const key = await saveCoverFromBuffer(await getFromS3(image.s3Key), game.platform.slug, gameId)
     const sources = { ...parseMetadataSources(game.metadataSources), cover: 'launchbox' as const, coverManual: true }
-    await applyMetadata(gameId, { origin: 'owner', data: { coverPath: key }, sources })
+    await applyMetadata(gameId, { origin: 'owner', data: { coverPath: key, coverFrame: null }, sources })
     return { coverPath: key }
   }
 

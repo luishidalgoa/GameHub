@@ -74,6 +74,8 @@ model Game {
   genres      GameGenre[]
 
   coverPath       String?
+  // Encuadre del recorte de la portada (JSON {x,y,s}); null si la portada no está recortada.
+  coverFrame      String?
   coverUrl        String?
   trailerUrl      String?
   screenshotPaths String?

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
+import type { CoverFrame } from '@/lib/cover-frame'
 import Image from 'next/image'
 import { useTranslations } from 'next-intl'
 import { Upload, Link as LinkIcon, Loader2, Crop, Search, ChevronDown, ChevronUp, ArrowLeft } from 'lucide-react'
@@ -16,9 +17,11 @@ interface Props {
    *  all: that archive is indexed per system and simply has no Switch set. */
   platformSlug?: string
   currentCover: string | null
+  /** Frame of the last crop of the current cover, or null when it is not cropped. */
+  coverFrame?: CoverFrame | null
   /** `sources` is the updated provenance the server stored, so the editor's
    *  cover badge can follow the picture without a page reload. */
-  onUploaded: (path: string, sources?: MetadataSources) => void
+  onUploaded: (path: string, sources?: MetadataSources, frame?: CoverFrame | null) => void
   thumbnailWidth?: number
   thumbnailHeight?: number
 }
@@ -35,7 +38,7 @@ interface SgdbGame   { id: number; name: string }
 interface SgdbCover  { url: string; thumb: string; style: string }
 interface LibretroCover { url: string; thumb: string; name: string; score: number }
 
-export function CoverUploader({ gameId, gameTitle = '', platformSlug, currentCover, onUploaded, thumbnailWidth = 200, thumbnailHeight = 300 }: Props) {
+export function CoverUploader({ gameId, gameTitle = '', platformSlug, currentCover, coverFrame = null, onUploaded, thumbnailWidth = 200, thumbnailHeight = 300 }: Props) {
   const t = useTranslations('CoverUploader')
   const [urlInput, setUrlInput]   = useState('')
   const [loading, setLoading]     = useState(false)
@@ -46,6 +49,9 @@ export function CoverUploader({ gameId, gameTitle = '', platformSlug, currentCov
   // The parent can change the cover on its own (another save, a refresh of the
   // game): the preview follows the stored cover instead of keeping the old one.
   useEffect(() => { setPreview(resolveCoverPath(currentCover)) }, [currentCover])
+  // The frame of the last crop: the next crop starts from it.
+  const [frame, setFrame] = useState<CoverFrame | null>(coverFrame)
+  useEffect(() => { setFrame(coverFrame) }, [coverFrame])
   const [adjusting, setAdjusting] = useState(false)
   const [error, setError]         = useState<string | null>(null)
 
@@ -104,7 +110,7 @@ export function CoverUploader({ gameId, gameTitle = '', platformSlug, currentCov
 
   // `source` records where the image came from. A crop adjustment passes none:
   // it re-uploads the same artwork, so the stored provenance must survive.
-  const uploadFile = async (file: File, adjusted = false, source?: FieldSource) => {
+  const uploadFile = async (file: File, adjusted = false, source?: FieldSource, cropFrame?: CoverFrame) => {
     setLoading(true)
     setError(null)
     try {
@@ -113,6 +119,7 @@ export function CoverUploader({ gameId, gameTitle = '', platformSlug, currentCov
       form.append('file', file)
       if (adjusted) form.append('adjusted', 'true')
       if (source) form.append('source', source)
+      if (cropFrame) form.append('frame', JSON.stringify(cropFrame))
       const res  = await fetch('/api/covers', { method: 'POST', body: form })
       const data = await res.json()
       setLoading(false)
@@ -120,7 +127,10 @@ export function CoverUploader({ gameId, gameTitle = '', platformSlug, currentCov
         // Use resolved URL for the preview; pass S3 key to parent so the
         // game editor stores the stable key (not a full URL) in the DB.
         setPreview(data.coverPath + `?t=${Date.now()}`)
-        onUploaded(data.key ?? data.coverPath, data.sources)
+        // The server keeps the frame only for a crop; any other picture has none.
+        const saved: CoverFrame | null = adjusted ? (data.coverFrame ?? null) : null
+        setFrame(saved)
+        onUploaded(data.key ?? data.coverPath, data.sources, saved)
       } else setError(data.error || 'Upload failed')
     } catch (err) {
       setLoading(false)
@@ -143,7 +153,8 @@ export function CoverUploader({ gameId, gameTitle = '', platformSlug, currentCov
       setLoading(false)
       if (res.ok) {
         setPreview(data.coverPath + `?t=${Date.now()}`)
-        onUploaded(data.key ?? data.coverPath, data.sources)
+        setFrame(null)
+        onUploaded(data.key ?? data.coverPath, data.sources, null)
         setUrlInput('')
         setSearchOpen(false)
       }
@@ -193,11 +204,13 @@ export function CoverUploader({ gameId, gameTitle = '', platformSlug, currentCov
     return `${base}?t=${Date.now()}`
   }
 
-  const handleAdjustedSave = async (blob: Blob) => {
+  const handleAdjustedSave = async (blob: Blob, cropFrame: CoverFrame) => {
     setAdjusting(false)
     await uploadFile(
       new File([blob], `cover_${gameId}_adjusted.webp`, { type: 'image/webp' }),
       true, // adjusted = true → preserve original in MinIO
+      undefined,
+      cropFrame,
     )
   }
 
@@ -803,6 +816,7 @@ export function CoverUploader({ gameId, gameTitle = '', platformSlug, currentCov
           src={getOriginalCoverUrl(preview)}
           onSave={handleAdjustedSave}
           onClose={() => setAdjusting(false)}
+          initialFrame={frame}
           thumbnailWidth={thumbnailWidth}
           thumbnailHeight={thumbnailHeight}
         />

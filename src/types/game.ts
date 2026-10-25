@@ -29,6 +29,8 @@ export interface Game {
   developer: string | null
   publisher: string | null
   coverPath: string | null
+  /** Encuadre del recorte de la portada (JSON), o null sin recorte. */
+  coverFrame?: string | null
   coverUrl: string | null
   /** Theme and backdrop fields the detail panel uses, as the full game page does. */
   tilePath: string | null

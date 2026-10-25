@@ -19,6 +19,7 @@ import type { GameArt } from '@/lib/game-art'
 import { ART_KINDS, artKindOf, artTitle } from '@/lib/art-catalog'
 import { PROVIDER_LABEL, parseMetadataSources, type FieldSource, type MetadataSources } from '@/lib/metadata/sources'
 import { parseLocks } from '@/lib/manual-fields'
+import { parseCoverFrame, type CoverFrame } from '@/lib/cover-frame'
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
@@ -47,6 +48,7 @@ export function GameEditorForm({ game, thumbnailWidth = 200, thumbnailHeight = 3
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [coverPath, setCoverPath] = useState(game.coverPath)
+  const [coverFrame, setCoverFrame] = useState<CoverFrame | null>(() => parseCoverFrame(game.coverFrame))
 
   const [form, setForm] = useState({
     title: game.title ?? '',
@@ -340,7 +342,8 @@ export function GameEditorForm({ game, thumbnailWidth = 200, thumbnailHeight = 3
               gameTitle={game.title}
               platformSlug={game.platform?.slug}
               coverPath={coverPath}
-              onCover={(path, next) => { setCoverPath(path); if (next) setSources(next) }}
+              coverFrame={coverFrame}
+              onCover={(path, next, frame) => { setCoverPath(path); setCoverFrame(frame ?? null); if (next) setSources(next) }}
               thumbnailWidth={thumbnailWidth}
               thumbnailHeight={thumbnailHeight}
               onRelease={releaseField}

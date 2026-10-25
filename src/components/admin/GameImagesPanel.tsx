@@ -9,6 +9,7 @@ import { toast } from '@/components/shared/Toaster'
 import type { GameArt, ArtImage, ShotEntry } from '@/lib/game-art'
 import { artTitle, slotOf, type ArtCategory } from '@/lib/art-catalog'
 import type { MetadataSources } from '@/lib/metadata/sources'
+import type { CoverFrame } from '@/lib/cover-frame'
 
 const TABS: ArtCategory[] = ['cover', 'banner', 'fanart', 'logo', 'screenshot', 'box', 'media', 'other']
 /** Categories the owner can only look at: LaunchBox's packaging and advertising art. */
@@ -37,7 +38,9 @@ interface Props {
   gameTitle: string
   platformSlug?: string
   coverPath: string | null
-  onCover: (path: string, sources?: MetadataSources) => void
+  /** Frame of the last crop of the cover (see CoverUploader). */
+  coverFrame?: CoverFrame | null
+  onCover: (path: string, sources?: MetadataSources, frame?: CoverFrame | null) => void
   thumbnailWidth: number
   thumbnailHeight: number
   /** Lets the owner hand a field back to the automatic flows. */
@@ -49,7 +52,7 @@ interface Props {
   panel?: boolean
 }
 
-export function GameImagesPanel({ gameId, gameTitle, platformSlug, coverPath, onCover, thumbnailWidth, thumbnailHeight, onRelease, panel = false }: Props) {
+export function GameImagesPanel({ gameId, gameTitle, platformSlug, coverPath, coverFrame, onCover, thumbnailWidth, thumbnailHeight, onRelease, panel = false }: Props) {
   const t = useTranslations('GameEditor')
   const base = `/api/admin/games/${gameId}`
   const { data: art, mutate } = useSWR<GameArt>(`${base}/images`, fetcher, { revalidateOnFocus: false })
@@ -105,7 +108,7 @@ export function GameImagesPanel({ gameId, gameTitle, platformSlug, coverPath, on
           init = post({ gameId, url: urls[0], source: 'url' })
         }
         const r = await call<{ coverPath: string; sources?: MetadataSources }>('/api/covers', init)
-        onCover(r.coverPath, r.sources)
+        onCover(r.coverPath, r.sources, null)
       } else {
         const form = new FormData()
         form.append('kind', tab)
@@ -200,7 +203,8 @@ export function GameImagesPanel({ gameId, gameTitle, platformSlug, coverPath, on
               gameTitle={gameTitle}
               platformSlug={platformSlug}
               currentCover={coverPath}
-              onUploaded={(path, next) => { onCover(path, next); void mutate() }}
+              coverFrame={coverFrame}
+              onUploaded={(path, next, frame) => { onCover(path, next, frame); void mutate() }}
               thumbnailWidth={thumbnailWidth}
               thumbnailHeight={thumbnailHeight}
             />
