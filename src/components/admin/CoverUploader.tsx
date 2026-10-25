@@ -43,6 +43,9 @@ export function CoverUploader({ gameId, gameTitle = '', platformSlug, currentCov
   // Resolve it to the proxy URL for display — otherwise the browser treats it as
   // a relative path (e.g. /admin/games/123/covers/…) and 404s.
   const [preview, setPreview]     = useState<string | null>(() => resolveCoverPath(currentCover))
+  // The parent can change the cover on its own (another save, a refresh of the
+  // game): the preview follows the stored cover instead of keeping the old one.
+  useEffect(() => { setPreview(resolveCoverPath(currentCover)) }, [currentCover])
   const [adjusting, setAdjusting] = useState(false)
   const [error, setError]         = useState<string | null>(null)
 

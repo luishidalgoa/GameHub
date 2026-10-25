@@ -19,6 +19,10 @@ const nextConfig = {
     serverComponentsExternalPackages: ['better-sqlite3', 'sharp', 'archiver'],
     // Starts src/instrumentation.ts once when the server boots (daily log pruning, #61).
     instrumentationHook: true,
+    // Páginas dinámicas (portada, editoras, fichas) se piden al servidor en cada
+    // navegación: sin esto Next reutiliza la copia de hace 30 s y el cambio que
+    // acabas de guardar no aparece hasta refrescar.
+    staleTimes: { dynamic: 0 },
     // Ensure the sharp native binaries are included in the standalone output
     outputFileTracingIncludes: {
       '/api/covers': ['./node_modules/sharp/**/*'],
