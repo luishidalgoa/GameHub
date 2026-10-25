@@ -104,6 +104,7 @@ export class RawgProvider implements MetadataProvider {
       slug:        g.slug,
       title:       g.name,
       releaseYear: g.released ? new Date(g.released).getFullYear() : undefined,
+      releaseDate: g.released ? new Date(g.released) : undefined,
       coverUrl:    g.background_image ?? undefined,
       source:      'rawg' as const,
       // Include platform IDs + slugs so the confidence scorer can verify the match
@@ -137,6 +138,7 @@ export class RawgProvider implements MetadataProvider {
     return data.results.map((g) => ({
       name:        g.name,
       releaseYear: g.released ? new Date(g.released).getFullYear() : null,
+      releaseDate: g.released ? new Date(g.released) : null,
       platforms:   g.platforms?.map((p) => p.platform.name) ?? [],
       metacritic:  g.metacritic ?? null,
     }))
@@ -172,6 +174,7 @@ export class RawgProvider implements MetadataProvider {
       title:       g.name,
       description: g.description_raw,
       releaseYear: g.released ? new Date(g.released).getFullYear() : undefined,
+      releaseDate: g.released ? new Date(g.released) : undefined,
       genre:       g.genres?.map((x) => x.name).join(', '),
       developer:   g.developers?.map((x) => x.name).join(', '),
       publisher:   g.publishers?.map((x) => x.name).join(', '),

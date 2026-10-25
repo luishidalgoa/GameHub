@@ -140,6 +140,7 @@ async function runMetadataBatchInner(opts: {
     { developer: null },
     { publisher: null },
     { releaseYear: null },
+    { releaseDate: null },
     { coverPath: null },
     { screenshotPaths: null },
     ...(withTrailers ? [{ trailerUrl: null }] : []),
@@ -452,6 +453,7 @@ async function runMetadataBatchInner(opts: {
         ? {
             ...(isEmpty(game.description)     && meta.description         && { description: meta.description }),
             ...(isEmpty(game.releaseYear)     && meta.releaseYear != null && { releaseYear: meta.releaseYear }),
+            ...(isEmpty(game.releaseDate)     && meta.releaseDate         && { releaseDate: meta.releaseDate }),
             ...(isEmpty(game.genre)           && meta.genre               && { genre: meta.genre }),
             ...(isEmpty(game.developer)       && meta.developer           && { developer: meta.developer }),
             ...(isEmpty(game.publisher)       && meta.publisher           && { publisher: meta.publisher }),
@@ -466,6 +468,7 @@ async function runMetadataBatchInner(opts: {
             title:       meta.title,
             description: meta.description,
             releaseYear: meta.releaseYear,
+            releaseDate: meta.releaseDate,
             genre:       meta.genre,
             developer:   meta.developer,
             publisher:   meta.publisher,

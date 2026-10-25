@@ -1,11 +1,14 @@
 import Link from 'next/link'
 import { db } from '@/lib/db'
 import { CompanyCatalog, type CompanyRow } from '@/components/admin/CompanyCatalog'
+import { HomeOrderPanel } from '@/components/admin/HomeOrderPanel'
+import { getHomeOrder, HOME_SECTION_LABELS } from '@/lib/home-order'
 
 export const dynamic = 'force-dynamic'
 
 // Catálogo (#143): editoras, dueños de las sub-editoras y modelos 3D.
 export default async function AdminCatalogPage() {
+  const homeOrder = await getHomeOrder()
   const companies = await db.company.findMany({
     select: { id: true, name: true, parentId: true, _count: { select: { publishedGames: true } } },
   })
@@ -36,6 +39,8 @@ export default async function AdminCatalogPage() {
         <h2 className="font-semibold">Orientación de los modelos 3D</h2>
         <p className="mt-1 text-sm text-muted-foreground">Gira cada consola hasta que mire de frente; la portada usa lo que guardes.</p>
       </Link>
+
+      <HomeOrderPanel initial={homeOrder} labels={HOME_SECTION_LABELS} />
 
       <div className="bg-card border border-border rounded-xl p-6 space-y-4">
         <div>

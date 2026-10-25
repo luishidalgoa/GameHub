@@ -1,4 +1,6 @@
+import { Fragment, type ReactNode } from 'react'
 import { getTranslations } from 'next-intl/server'
+import { getHomeOrder, type HomeSection } from '@/lib/home-order'
 import { getHomeData } from '@/lib/home-data'
 import { getOrientations } from '@/lib/console-orientation'
 import { HomeStage } from '@/components/home/HomeStage'
@@ -12,7 +14,7 @@ import { PublisherTile } from '@/components/home/PublisherTile'
 export const dynamic = 'force-dynamic'
 
 export default async function HomePage() {
-  const [t, data, orientations] = await Promise.all([getTranslations('Home'), getHomeData(), getOrientations()])
+  const [t, data, orientations, order] = await Promise.all([getTranslations('Home'), getHomeData(), getOrientations(), getHomeOrder()])
 
   if (data.totalGames === 0) {
     return (
@@ -25,52 +27,57 @@ export default async function HomePage() {
 
   const rail = { moreLabel: t('showAll'), moreHint: t('showAllHint') }
 
+  const sections: Record<HomeSection, ReactNode> = {
+    recommended: data.recommended.length > 0 && (
+      <WideRail kicker={t('kickerForYou')} title={t('recommended')} href="/explorar/recomendados" {...rail}>
+        {data.recommended.map((g, i) => <GameTile key={g.id} game={g} priority={i < 3} />)}
+      </WideRail>
+    ),
+    featured: <FeaturedWall games={data.featured} kicker={t('featuredKicker')} title={t('featuredTitle')} cta={t('featuredView')} />,
+    recent: data.recent.length > 0 && (
+      <WideRail kicker={t('kickerNew')} title={t('recentlyAdded')} href="/explorar/nuevos" {...rail}>
+        {data.recent.map(g => <GameTile key={g.id} game={g} />)}
+      </WideRail>
+    ),
+    releases: data.releases.length > 0 && (
+      <WideRail kicker={t('kickerReleases')} title={t('releasesTitle')} href="/explorar/lanzamientos" {...rail}>
+        {data.releases.map(g => <GameTile key={g.id} game={g} />)}
+      </WideRail>
+    ),
+    consoles: (
+      <PlatformShowcase
+        platforms={data.platforms}
+        orientations={orientations}
+        kicker={t('consolesKicker')}
+        title={t('consolesTitle')}
+      />
+    ),
+    publishers: data.publishers.length > 0 && (
+      <WideRail kicker={t('publishersKicker')} title={t('publishersTitle')} href="/explorar/editoras" portrait {...rail}>
+        {data.publishers.map(p => (
+          <PublisherTile key={p.key} publisher={p} href={`/explorar/editora/${encodeURIComponent(p.key)}`}
+                         gamesLabel={t('publisherGames', { count: p.games })} />
+        ))}
+      </WideRail>
+    ),
+    topDownloads: data.mostDownloaded.length > 0 && (
+      <WideRail kicker={t('kickerTop')} title={t('topDownloads')} href="/explorar/descargados" {...rail}>
+        {data.mostDownloaded.map(g => <GameTile key={g.id} game={g} />)}
+      </WideRail>
+    ),
+    friends: data.friends.length > 0 && (
+      <WideRail kicker={t('kickerFriends')} title={t('friendsTitle')} href="/explorar/amigos" {...rail}>
+        {data.friends.map(g => <GameTile key={g.id} game={g} />)}
+      </WideRail>
+    ),
+  }
+
   return (
     <HomeStage>
       <HeroStage games={data.hero} orientations={orientations} labels={{ featured: t('featured'), view: t('featuredView') }} />
 
       <div className="-mx-4 space-y-16 pb-16 pt-10 sm:-mx-6 sm:space-y-24 sm:pt-14">
-        {data.recommended.length > 0 && (
-          <WideRail kicker={t('kickerForYou')} title={t('recommended')} href="/explorar/recomendados" {...rail}>
-            {data.recommended.map((g, i) => <GameTile key={g.id} game={g} priority={i < 3} />)}
-          </WideRail>
-        )}
-
-        <FeaturedWall games={data.featured} kicker={t('featuredKicker')} title={t('featuredTitle')} cta={t('featuredView')} />
-
-        {data.recent.length > 0 && (
-          <WideRail kicker={t('kickerNew')} title={t('recentlyAdded')} href="/explorar/nuevos" {...rail}>
-            {data.recent.map(g => <GameTile key={g.id} game={g} />)}
-          </WideRail>
-        )}
-
-        <PlatformShowcase
-          platforms={data.platforms}
-          orientations={orientations}
-          kicker={t('consolesKicker')}
-          title={t('consolesTitle')}
-        />
-
-        {data.publishers.length > 0 && (
-          <WideRail kicker={t('publishersKicker')} title={t('publishersTitle')} href="/explorar/editoras" portrait {...rail}>
-            {data.publishers.map(p => (
-              <PublisherTile key={p.key} publisher={p} href={`/explorar/editora/${encodeURIComponent(p.key)}`}
-                             gamesLabel={t('publisherGames', { count: p.games })} />
-            ))}
-          </WideRail>
-        )}
-
-        {data.mostDownloaded.length > 0 && (
-          <WideRail kicker={t('kickerTop')} title={t('topDownloads')} href="/explorar/descargados" {...rail}>
-            {data.mostDownloaded.map(g => <GameTile key={g.id} game={g} />)}
-          </WideRail>
-        )}
-
-        {data.friends.length > 0 && (
-          <WideRail kicker={t('kickerFriends')} title={t('friendsTitle')} href="/explorar/amigos" {...rail}>
-            {data.friends.map(g => <GameTile key={g.id} game={g} />)}
-          </WideRail>
-        )}
+        {order.map((key: HomeSection) => <Fragment key={key}>{sections[key]}</Fragment>)}
       </div>
     </HomeStage>
   )

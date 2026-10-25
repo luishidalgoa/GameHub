@@ -42,7 +42,9 @@
     "publishersTitle": "The publishers that lead",
     "publisherGames": "{count, plural, one {# game} other {# games}}",
     "friendsTitle": "Play with friends",
-    "kickerFriends": "Online"
+    "kickerFriends": "Online",
+    "kickerReleases": "Releases",
+    "releasesTitle": "Recent releases"
   },
   "Platform": {
     "games": "{count, plural, one {# game} other {# games}}",

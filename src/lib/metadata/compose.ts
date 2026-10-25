@@ -16,6 +16,7 @@ export interface ComposedMetadata {
   title: string
   description?: string
   releaseYear?: number
+  releaseDate?: Date
   genre?: string
   developer?: string
   publisher?: string
@@ -282,6 +283,7 @@ export async function gatherMetadata(input: GatherInput): Promise<ComposedMetada
     description,
     facts,
     releaseYear: info?.releaseYear,
+    releaseDate: info?.releaseDate,
     genre: info?.genre,
     developer: info?.developer,
     publisher: info?.publisher,

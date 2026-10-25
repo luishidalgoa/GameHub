@@ -430,6 +430,8 @@ export function parseLaunchBoxDetail(html: string, id: number, slug?: string): L
     firstMatch(flat, /Release Date\s+([A-Z][a-z]+ \d{1,2},? \d{4}|\d{4})/) ||
     firstMatch(flat, /Released\s+([A-Z][a-z]+ \d{1,2},? \d{4}|\d{4})/)
   const releaseYear = dateStr ? Number((dateStr.match(/\d{4}/) || [])[0]) || undefined : undefined
+  // Only a full date ("March 3, 2020"): a bare year would invent a day.
+  const releaseDate = dateStr && /[A-Za-z]+ \d{1,2},? \d{4}/.test(dateStr) ? new Date(dateStr) : undefined
   const platformName = firstMatch(
     flat,
     /Platform\s+([A-Za-z0-9][A-Za-z0-9 .'/()-]*?)(?:\s{2,}|Overview|Developer|Publisher|Genre|ESRB|Share|$)/,
@@ -461,6 +463,7 @@ export function parseLaunchBoxDetail(html: string, id: number, slug?: string): L
     title: decodeEntities(title),
     description: description || undefined,
     releaseYear,
+    releaseDate,
     genre,
     developer,
     publisher,

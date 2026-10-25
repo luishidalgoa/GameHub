@@ -42,7 +42,9 @@
     "publishersTitle": "Las editoras que mandan",
     "publisherGames": "{count, plural, one {# juego} other {# juegos}}",
     "friendsTitle": "Juega con amigos",
-    "kickerFriends": "En línea"
+    "kickerFriends": "En línea",
+    "kickerReleases": "Estrenos",
+    "releasesTitle": "Lanzamientos recientes"
   },
   "Platform": {
     "games": "{count, plural, one {# juego} other {# juegos}}",

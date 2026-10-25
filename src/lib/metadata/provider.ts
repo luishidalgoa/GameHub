@@ -7,6 +7,7 @@ export interface MetadataResult {
   title: string
   description?: string
   releaseYear?: number
+  releaseDate?: Date
   genre?: string
   developer?: string
   publisher?: string
