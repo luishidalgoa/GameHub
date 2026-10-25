@@ -33,6 +33,8 @@ export interface Game {
   coverFrame?: string | null
   /** Juego en línea en algún proveedor de su plataforma (badge verde). */
   online?: boolean
+  /** "local" con fichero en disco; "torrent" solo existe como torrent de una fuente externa. */
+  source?: string
   coverUrl: string | null
   /** Theme and backdrop fields the detail panel uses, as the full game page does. */
   tilePath: string | null

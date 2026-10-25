@@ -52,7 +52,7 @@ export default async function GamePage({ params, searchParams }: Props) {
   const torrent = game.source === 'torrent' && game.externalKey
     ? await db.externalGame.findFirst({
         where: { source: SWITCH_GAMES_SOURCE, sourceKey: game.externalKey.slice(SWITCH_GAMES_SOURCE.length + 1) },
-        select: { magnet: true, sourceUrl: true },
+        select: { magnet: true },
       })
     : null
 
@@ -192,13 +192,14 @@ export default async function GamePage({ params, searchParams }: Props) {
                   )}
                 </div>
 
-                {torrent && <TorrentPanel magnet={torrent.magnet} sourceUrl={torrent.sourceUrl} />}
+                {torrent && <TorrentPanel magnet={torrent.magnet} />}
 
                 <RegionPicker
                   gameId={game.id}
                   editions={pickerEditions}
                   initialKey={initialEdition}
                   groupLabel={t('region')}
+                  downloadable={game.source !== 'torrent'}
                 >
                   {hasContent && (
                     <a

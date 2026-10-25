@@ -157,11 +157,13 @@ export function GameDetailModal({ gameId, onClose, region }: Props) {
           <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
             {game && (
               <>
-                <DownloadButton
-                  gameId={game.id}
-                  fileSize={game.fileSize}
-                  variant="primary"
-                />
+                {game.source !== 'torrent' && (
+                  <DownloadButton
+                    gameId={game.id}
+                    fileSize={game.fileSize}
+                    variant="primary"
+                  />
+                )}
                 <Link
                   href={`/game/${game.id}${region ? `?region=${encodeURIComponent(region)}` : ''}`}
                   className="hidden sm:inline-flex items-center px-3 py-2 text-sm rounded-md bg-secondary hover:bg-accent transition-colors"

@@ -19,12 +19,15 @@ export function RegionPicker({
   editions,
   initialKey,
   groupLabel,
+  downloadable = true,
   children,
 }: {
   gameId: number
   editions: PickerEdition[]
   initialKey?: string
   groupLabel: string
+  /** False for games that exist only as a torrent: there is no file to download. */
+  downloadable?: boolean
   /** Extra actions shown after the download button. */
   children?: ReactNode
 }) {
@@ -65,7 +68,7 @@ export function RegionPicker({
       )}
 
       <div className="flex flex-wrap items-center gap-3">
-        {BigInt(selected.fileSize) > BigInt(0) && (
+        {downloadable && BigInt(selected.fileSize) > BigInt(0) && (
           <DownloadButton
             gameId={gameId}
             dlcId={selected.dlcId}

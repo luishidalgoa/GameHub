@@ -67,12 +67,10 @@
     "minRating90": "Nota 90+",
     "minRatingNone": "Sin nota",
     "online": "● Online",
-    "copyMagnet": "Copiar magnet",
-    "copied": "Copiado",
-    "source": "Fuente",
     "originAll": "Todos",
     "originDirect": "Descarga directa",
-    "originTorrent": "Torrent"
+    "originTorrent": "Torrent",
+    "downloadTorrent": "Descargar torrent"
   },
   "EmptyState": {
     "title": "No se encontraron juegos",
