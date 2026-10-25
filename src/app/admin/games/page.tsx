@@ -4,8 +4,10 @@ import { db } from '@/lib/db'
 import { formatBytes } from '@/lib/utils'
 import { resolveCoverPath } from '@/lib/s3'
 import { parseGameFilters, gameListWhere, gameFilterQuery, filterByCompleteness, type GameListFilters } from '@/lib/games/filters'
-import { completeness, type FieldKey } from '@/lib/games/completeness'
+import { completeness, type CompletenessInput, type FieldKey } from '@/lib/games/completeness'
 import { MetaRange } from '@/components/admin/MetaRange'
+import { SortHeader } from '@/components/admin/SortHeader'
+import { nextSort, parseSort, sortParams, sortRows } from '@/lib/admin-sort'
 import { GamePanel, type PanelGame } from '@/components/admin/GamePanel'
 import { ScrollRestorer } from '@/components/admin/ScrollRestorer'
 import { FileJson, FileSpreadsheet, Pencil } from 'lucide-react'
@@ -13,6 +15,9 @@ import { FileJson, FileSpreadsheet, Pencil } from 'lucide-react'
 export const dynamic = 'force-dynamic'
 
 const PAGE_SIZE = 50
+
+const SORT_KEYS = ['title', 'platform', 'year', 'featured', 'meta', 'missing', 'size'] as const
+type SortKey = (typeof SORT_KEYS)[number]
 
 const MISSING: { key: FieldKey; label: string }[] = [
   { key: 'cover', label: 'Sin portada' },
@@ -31,6 +36,18 @@ function flatten(sp: Record<string, string | string[] | undefined>): Record<stri
   const out: Record<string, string | undefined> = {}
   for (const [k, v] of Object.entries(sp)) out[k] = Array.isArray(v) ? v.join(',') : v
   return out
+}
+
+function sortValue(g: { title: string; sortTitle: string | null; releaseYear: number | null; isFeatured: boolean; fileSize: bigint; platform: { name: string } } & CompletenessInput, key: SortKey): string | number | null {
+  switch (key) {
+    case 'title': return g.sortTitle ?? g.title
+    case 'platform': return g.platform.name
+    case 'year': return g.releaseYear
+    case 'featured': return g.isFeatured ? 1 : 0
+    case 'meta': return completeness(g).percent
+    case 'missing': return completeness(g).missing.length
+    case 'size': return Number(g.fileSize)
+  }
 }
 
 function activeFilterCount(f: GameListFilters): number {
@@ -58,6 +75,9 @@ export default async function AdminGamesPage({ searchParams }: { searchParams: R
   const filters = parseGameFilters(flat)
   const requestedPage = Math.max(1, parseInt(flat.page ?? '1', 10) || 1)
   const panelId = parseInt(flat.panel ?? '', 10)
+  const sortDefault = { key: 'title' as SortKey, dir: 'asc' as const }
+  const sort = parseSort<SortKey>(flat, SORT_KEYS, sortDefault)
+  const sortExtra = sortParams(sort, sortDefault)
 
   const [games, platforms, regionRows] = await Promise.all([
     db.game.findMany({
@@ -72,21 +92,26 @@ export default async function AdminGamesPage({ searchParams }: { searchParams: R
 
   // El juego en línea sale de la compatibilidad de cada proveedor, no de una columna: se cruza aquí.
   const online = filters.online ? await onlineGameIds(games) : null
-  const rows = filterByCompleteness(online ? games.filter(g => online.has(g.id)) : games, filters)
+  const rows = sortRows(
+    filterByCompleteness(online ? games.filter(g => online.has(g.id)) : games, filters),
+    sort,
+    (g, key) => sortValue(g, key),
+  )
   const total = rows.length
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
   const page = Math.min(requestedPage, totalPages)
   const pageRows = rows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
-  const listUrl = `/admin/games?${gameFilterQuery(filters, { page: String(page) })}`
-  const pageHref = (p: number) => `/admin/games?${gameFilterQuery(filters, { page: String(p) })}`
-  const rowHref = (id: number) => `/admin/games?${gameFilterQuery(filters, { page: String(page), panel: String(id) })}`
+  const listUrl = `/admin/games?${gameFilterQuery(filters, { ...sortExtra, page: String(page) })}`
+  const pageHref = (p: number) => `/admin/games?${gameFilterQuery(filters, { ...sortExtra, page: String(p) })}`
+  const rowHref = (id: number) => `/admin/games?${gameFilterQuery(filters, { ...sortExtra, page: String(page), panel: String(id) })}`
+  const headerHref = (key: SortKey) => `/admin/games?${gameFilterQuery(filters, { ...sortParams(nextSort(sort, key), sortDefault), page: '1' })}`
   const exportHref = (format: 'json' | 'csv') => `/api/admin/games/export?format=${format}${gameFilterQuery(filters) ? `&${gameFilterQuery(filters)}` : ''}`
-  const hiddenInputs = [...new URLSearchParams(gameFilterQuery(filters)).entries()]
+  const hiddenInputs = [...new URLSearchParams(gameFilterQuery(filters, sortExtra)).entries()]
 
   // Chips: cada uno quita un filtro.
   const chips: { label: string; href: string }[] = []
-  const without = (patch: Partial<GameListFilters>) => `/admin/games?${gameFilterQuery({ ...filters, ...patch })}`
+  const without = (patch: Partial<GameListFilters>) => `/admin/games?${gameFilterQuery({ ...filters, ...patch }, sortExtra)}`
   if (filters.search) chips.push({ label: `Título: ${filters.search}`, href: without({ search: '' }) })
   if (filters.platform) chips.push({ label: `Plataforma: ${platforms.find(p => p.slug === filters.platform)?.name ?? filters.platform}`, href: without({ platform: '' }) })
   for (const k of filters.missing) chips.push({ label: MISSING_LABEL[k], href: without({ missing: filters.missing.filter(m => m !== k) }) })
@@ -133,13 +158,13 @@ export default async function AdminGamesPage({ searchParams }: { searchParams: R
     metadataFetchedAt: panelGame.metadataFetchedAt ? panelGame.metadataFetchedAt.toISOString() : null,
   }
   const panelCompleteness = panelGame ? completeness(panelGame) : null
-  const panelReturn = panelGame ? `/admin/games?${gameFilterQuery(filters, { page: String(page), panel: String(panelGame.id) })}` : ''
+  const panelReturn = panelGame ? `/admin/games?${gameFilterQuery(filters, { ...sortExtra, page: String(page), panel: String(panelGame.id) })}` : ''
 
   const input = 'bg-secondary border border-border rounded-md px-3 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
 
   return (
     <div>
-      <ScrollRestorer storageKey={`admin-games:${gameFilterQuery(filters, { page: String(page) })}`} />
+      <ScrollRestorer storageKey={`admin-games:${gameFilterQuery(filters, { ...sortExtra, page: String(page) })}`} />
 
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
         <div>
@@ -232,13 +257,13 @@ export default async function AdminGamesPage({ searchParams }: { searchParams: R
             <thead className="border-b border-border text-left text-muted-foreground">
               <tr>
                 <th scope="col" className="w-12 px-3 py-3 font-medium"><span className="sr-only">Portada</span></th>
-                <th scope="col" className="px-3 py-3 font-medium">Título</th>
-                <th scope="col" className="px-3 py-3 font-medium">Plataforma</th>
-                <th scope="col" className="px-3 py-3 font-medium">Año</th>
-                <th scope="col" className="px-3 py-3 font-medium">En portada</th>
-                <th scope="col" className="w-48 px-3 py-3 font-medium">Metadatos</th>
-                <th scope="col" className="px-3 py-3 font-medium">Faltan</th>
-                <th scope="col" className="px-3 py-3 text-right font-medium">Tamaño</th>
+                <SortHeader label="Título" href={headerHref('title')} active={sort.key === 'title'} dir={sort.dir} />
+                <SortHeader label="Plataforma" href={headerHref('platform')} active={sort.key === 'platform'} dir={sort.dir} />
+                <SortHeader label="Año" href={headerHref('year')} active={sort.key === 'year'} dir={sort.dir} />
+                <SortHeader label="En portada" href={headerHref('featured')} active={sort.key === 'featured'} dir={sort.dir} />
+                <SortHeader label="Metadatos" href={headerHref('meta')} active={sort.key === 'meta'} dir={sort.dir} />
+                <SortHeader label="Faltan" href={headerHref('missing')} active={sort.key === 'missing'} dir={sort.dir} />
+                <SortHeader label="Tamaño" href={headerHref('size')} active={sort.key === 'size'} dir={sort.dir} align="right" />
                 <th scope="col" className="px-3 py-3 font-medium"><span className="sr-only">Acciones</span></th>
               </tr>
             </thead>

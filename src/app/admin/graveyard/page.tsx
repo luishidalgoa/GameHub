@@ -6,11 +6,28 @@ import { DeleteGameButton, PurgeAllButton, RecoverMetadataButton } from '@/compo
 import { EmptyState } from '@/components/shared/EmptyState'
 import Image from 'next/image'
 import { Ghost } from 'lucide-react'
+import type { Prisma } from '@prisma/client'
+import { SortHeader } from '@/components/admin/SortHeader'
+import { nextSort, parseSort, sortParams, type SortState } from '@/lib/admin-sort'
 
 export const dynamic = 'force-dynamic'
 
 interface Props {
-  searchParams: { search?: string; platform?: string; page?: string }
+  searchParams: { search?: string; platform?: string; page?: string; sort?: string; dir?: string }
+}
+
+const SORT_KEYS = ['title', 'platform', 'region', 'size', 'lastSeen'] as const
+type SortKey = (typeof SORT_KEYS)[number]
+const SORT_DEFAULT: SortState<SortKey> = { key: 'lastSeen', dir: 'desc' }
+
+function orderFor(s: SortState<SortKey>): Prisma.GameOrderByWithRelationInput {
+  switch (s.key) {
+    case 'title': return { sortTitle: s.dir }
+    case 'platform': return { platform: { name: s.dir } }
+    case 'region': return { region: s.dir }
+    case 'size': return { fileSize: s.dir }
+    case 'lastSeen': return { lastSeenAt: s.dir }
+  }
 }
 
 export default async function GraveyardPage({ searchParams }: Props) {
@@ -19,6 +36,9 @@ export default async function GraveyardPage({ searchParams }: Props) {
   const platformSlug = searchParams.platform ?? ''
   const page         = Math.max(1, parseInt(searchParams.page ?? '1', 10))
   const pageSize     = 50
+  const sort         = parseSort<SortKey>(searchParams, SORT_KEYS, SORT_DEFAULT)
+  const sortExtra    = sortParams(sort, SORT_DEFAULT)
+  const listQuery = (extra: Record<string, string>) => new URLSearchParams({ search, platform: platformSlug, ...sortExtra, ...extra }).toString()
 
   const where = {
     isHidden: true,
@@ -29,7 +49,7 @@ export default async function GraveyardPage({ searchParams }: Props) {
   const [games, total, totalMissing, platforms] = await Promise.all([
     db.game.findMany({
       where,
-      orderBy: { lastSeenAt: 'desc' },
+      orderBy: orderFor(sort),
       skip:    (page - 1) * pageSize,
       take:    pageSize,
       include: { platform: { select: { name: true, slug: true } } },
@@ -101,11 +121,11 @@ export default async function GraveyardPage({ searchParams }: Props) {
               <thead>
                 <tr className="border-b border-border text-left text-muted-foreground">
                   <th className="px-4 py-3 font-medium w-10"></th>
-                  <th className="px-4 py-3 font-medium">{t('colTitle')}</th>
-                  <th className="px-4 py-3 font-medium">{t('colPlatform')}</th>
-                  <th className="px-4 py-3 font-medium">{t('colRegion')}</th>
-                  <th className="px-4 py-3 font-medium">{t('colSize')}</th>
-                  <th className="px-4 py-3 font-medium">{t('colLastSeen')}</th>
+                  <SortHeader label={t('colTitle')} href={`/admin/graveyard?${listQuery({ ...sortParams(nextSort(sort, 'title'), SORT_DEFAULT), page: '1' })}`} active={sort.key === 'title'} dir={sort.dir} />
+                  <SortHeader label={t('colPlatform')} href={`/admin/graveyard?${listQuery({ ...sortParams(nextSort(sort, 'platform'), SORT_DEFAULT), page: '1' })}`} active={sort.key === 'platform'} dir={sort.dir} />
+                  <SortHeader label={t('colRegion')} href={`/admin/graveyard?${listQuery({ ...sortParams(nextSort(sort, 'region'), SORT_DEFAULT), page: '1' })}`} active={sort.key === 'region'} dir={sort.dir} />
+                  <SortHeader label={t('colSize')} href={`/admin/graveyard?${listQuery({ ...sortParams(nextSort(sort, 'size'), SORT_DEFAULT), page: '1' })}`} active={sort.key === 'size'} dir={sort.dir} />
+                  <SortHeader label={t('colLastSeen')} href={`/admin/graveyard?${listQuery({ ...sortParams(nextSort(sort, 'lastSeen'), SORT_DEFAULT), page: '1' })}`} active={sort.key === 'lastSeen'} dir={sort.dir} />
                   <th className="px-4 py-3 font-medium max-w-xs">{t('colPath')}</th>
                   <th className="px-4 py-3 font-medium w-10"></th>
                 </tr>
@@ -189,7 +209,7 @@ export default async function GraveyardPage({ searchParams }: Props) {
               {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
                 <a
                   key={p}
-                  href={`/admin/graveyard?search=${search}&platform=${platformSlug}&page=${p}`}
+                  href={`/admin/graveyard?${listQuery({ page: String(p) })}`}
                   className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
                     p === page
                       ? 'bg-primary text-primary-foreground'
