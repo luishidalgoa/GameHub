@@ -625,7 +625,7 @@ export async function runScan(triggeredBy = 'manual', platformSlug?: string, job
     // games were visible as a failed scan, not as a mass deletion.
     let stale = 0
     await flushSeen()
-    const visibleBefore = await db.game.count({ where: { platformId: platform.id, isHidden: false } })
+    const visibleBefore = await db.game.count({ where: { platformId: platform.id, source: 'local', isHidden: false } })
     const emptyRescan = found === 0 && visibleBefore > 0
     // A pass that found under half of what was visible is a broken root (an unmounted
     // disk, a partial walk), not a library that shrank overnight: hide nothing (#107).
@@ -641,12 +641,13 @@ export async function runScan(triggeredBy = 'manual', platformSlug?: string, job
       // hand (userHidden). Missing: its file was not seen this pass. That is kept
       // apart from the owner's hide (#111): missingSince says when it went missing.
       await db.game.updateMany({
-        where: { platformId: platform.id, lastSeenAt: { gte: scanStart }, userHidden: false },
+        where: { platformId: platform.id, source: 'local', lastSeenAt: { gte: scanStart }, userHidden: false },
         data: { isHidden: false, missingSince: null },
       })
       const staleResult = await db.game.updateMany({
         where: {
           platformId: platform.id,
+          source: 'local',
           lastSeenAt: { lt: scanStart },
           missingSince: null,
         },

@@ -48,6 +48,10 @@ model Game {
 
   filePath   String   @unique
   fileName   String
+  // "local": fichero en disco. "torrent": juego de una fuente externa, sin fichero (filePath es un marcador único).
+  source     String   @default("local")
+  // Clave estable de una fila torrent ("switch-games:<topic>"); null en las locales.
+  externalKey String?  @unique
   fileSize   BigInt
   // Newest mtime of the file (or of the folder's files): with fileSize, the scanner's "unchanged" test (#136).
   fileMtime  DateTime?
@@ -62,6 +66,7 @@ model Game {
   // CSV of ISO-639-1 codes, e.g. "es,en,it". Null when none were detected.
   languages   String?
   releaseYear Int?
+  releaseDate DateTime?
   // Texto tal como lo publica la fuente (nombre visible). La entidad canonica es
   // la fila de Company / Genre a la que apunta; ver docs/reference/database.md.
   genre       String?
@@ -166,6 +171,7 @@ model Game {
   metadataNextRetryAt DateTime?
 
   dlcs         GameDlc[]
+  externalMatches ExternalGame[]
   downloadLogs DownloadLog[]
 
   createdAt DateTime @default(now())
@@ -478,6 +484,8 @@ model ExternalGame {
   title       String
   titleId     String?
   titleKey    String   @default("")
+  gameId      Int?
+  game        Game?    @relation(fields: [gameId], references: [id], onDelete: SetNull)
   magnet      String
   sourceUrl   String
   size        String?
