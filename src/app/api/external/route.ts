@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { libraryGameWhere } from '@/lib/library'
-import { libraryTitleIds } from '@/lib/external/match'
+import { libraryTitleIds, libraryTitleKeys } from '@/lib/external/match'
 import { SWITCH_GAMES_SOURCE } from '@/lib/external/switch-games'
 
 export const dynamic = 'force-dynamic'
@@ -18,15 +18,19 @@ export async function GET(req: NextRequest) {
   const platform = await db.platform.findUnique({ where: { slug }, select: { id: true } })
   if (!platform) return NextResponse.json({ games: [], total: 0, page, pageSize: PAGE_SIZE })
 
-  const owned = libraryTitleIds(
-    await db.game.findMany({ where: libraryGameWhere(slug), select: { fileName: true, titleId: true } }),
-  )
+  const library = await db.game.findMany({
+    where: libraryGameWhere(slug),
+    select: { title: true, fileName: true, titleId: true },
+  })
+  const owned = [...libraryTitleIds(library)]
+  const ownedKeys = [...libraryTitleKeys(library)]
   const where = {
     platformId: platform.id,
     source: SWITCH_GAMES_SOURCE,
     ...(search && { title: { contains: search } }),
-    // Un NOT IN con NULL no casa nada en SQL: los torrents sin Title ID se quedan siempre.
-    ...(owned.size > 0 && { OR: [{ titleId: null }, { titleId: { notIn: [...owned] } }] }),
+    // Un NOT IN con NULL no casa nada en SQL: los torrents sin Title ID o sin clave se quedan siempre.
+    ...(owned.length > 0 && { OR: [{ titleId: null }, { titleId: { notIn: owned } }] }),
+    ...(ownedKeys.length > 0 && { titleKey: { notIn: ownedKeys } }),
   }
 
   const [rows, total] = await Promise.all([

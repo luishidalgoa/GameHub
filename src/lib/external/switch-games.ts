@@ -1,4 +1,5 @@
 import { db } from '@/lib/db'
+import { titleKey } from './match'
 
 export const SWITCH_GAMES_SOURCE = 'switch-games'
 const SOURCE_URL = 'https://raw.githubusercontent.com/Langegen/switch-games/main/switch_games.json'
@@ -27,6 +28,7 @@ export interface ExternalGameRow {
   platformId: number
   title: string
   titleId: string | null
+  titleKey: string
   magnet: string
   sourceUrl: string
   size: string | null
@@ -55,6 +57,7 @@ export function toExternalRow(e: RawEntry, platformId: number, syncedAt: Date): 
     platformId,
     title: e.title.trim(),
     titleId: titleId && TITLE_ID.test(titleId) ? titleId.toUpperCase() : null,
+    titleKey: titleKey(e.title),
     magnet: e.magnet,
     sourceUrl: e.url,
     size: text(e.size),

@@ -477,6 +477,7 @@ model ExternalGame {
   platform    Platform @relation(fields: [platformId], references: [id], onDelete: Cascade)
   title       String
   titleId     String?
+  titleKey    String   @default("")
   magnet      String
   sourceUrl   String
   size        String?
@@ -492,4 +493,5 @@ model ExternalGame {
 
   @@unique([source, sourceKey])
   @@index([platformId, titleId])
+  @@index([platformId, titleKey])
 }
