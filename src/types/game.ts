@@ -35,6 +35,8 @@ export interface Game {
   online?: boolean
   /** "local" con fichero en disco; "torrent" solo existe como torrent de una fuente externa. */
   source?: string
+  /** Magnet de la fuente, solo en juegos torrent. */
+  magnet?: string | null
   coverUrl: string | null
   /** Theme and backdrop fields the detail panel uses, as the full game page does. */
   tilePath: string | null

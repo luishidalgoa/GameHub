@@ -19,8 +19,7 @@ import { BulkDownloadButton } from '@/components/shared/BulkDownloadButton'
 import { RatingPill } from '@/components/shared/RatingPill'
 import { OnlineBadge } from '@/components/shared/OnlineBadge'
 import { onlineGameIds } from '@/lib/online/flags'
-import { SWITCH_GAMES_SOURCE } from '@/lib/external/switch-games'
-import { TorrentPanel } from '@/components/game/TorrentPanel'
+import { torrentMagnet } from '@/lib/external/magnet'
 import { RecordView } from '@/components/game/RecordView'
 import { ScreenshotGallery } from '@/components/game/ScreenshotGallery'
 import { ProceduralFill } from '@/components/game/ProceduralFill'
@@ -49,12 +48,7 @@ export default async function GamePage({ params, searchParams }: Props) {
 
   if (!game || (game.isHidden && !isAdmin)) notFound()
   const online = (await onlineGameIds([game])).has(game.id)
-  const torrent = game.source === 'torrent' && game.externalKey
-    ? await db.externalGame.findFirst({
-        where: { source: SWITCH_GAMES_SOURCE, sourceKey: game.externalKey.slice(SWITCH_GAMES_SOURCE.length + 1) },
-        select: { magnet: true },
-      })
-    : null
+  const magnet = game.source === 'torrent' ? await torrentMagnet(game.externalKey) : null
 
   // Screenshots: prefer the ones stored on the game (LaunchBox/RAWG saved by the
   // metadata job); fall back to a live RAWG fetch only when none are stored.
@@ -192,14 +186,15 @@ export default async function GamePage({ params, searchParams }: Props) {
                   )}
                 </div>
 
-                {torrent && <TorrentPanel magnet={torrent.magnet} />}
-
                 <RegionPicker
                   gameId={game.id}
                   editions={pickerEditions}
                   initialKey={initialEdition}
                   groupLabel={t('region')}
                   downloadable={game.source !== 'torrent'}
+                  magnet={magnet ?? undefined}
+                  magnetLabel={t('downloadTorrent')}
+                  magnetSize={game.fileSize.toString()}
                 >
                   {hasContent && (
                     <a

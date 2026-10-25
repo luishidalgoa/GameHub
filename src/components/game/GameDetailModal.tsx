@@ -157,7 +157,9 @@ export function GameDetailModal({ gameId, onClose, region }: Props) {
           <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
             {game && (
               <>
-                {game.source !== 'torrent' && (
+                {game.magnet ? (
+                  <DownloadButton magnet={game.magnet} label={t('downloadTorrent')} fileSize={game.fileSize} variant="primary" />
+                ) : game.source !== 'torrent' && (
                   <DownloadButton
                     gameId={game.id}
                     fileSize={game.fileSize}

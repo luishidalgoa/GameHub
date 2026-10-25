@@ -2,18 +2,20 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Download, Loader2 } from 'lucide-react'
+import { Download, Loader2, Magnet } from 'lucide-react'
 import { formatBytes } from '@/lib/utils'
 
 interface Props {
-  gameId: number
+  gameId?: number
   dlcId?: number
   label?: string
   fileSize?: string
   variant?: 'primary' | 'secondary'
+  /** Juego solo torrent: el botón abre el magnet en el cliente del usuario. */
+  magnet?: string
 }
 
-export function DownloadButton({ gameId, dlcId, label, fileSize, variant = 'primary' }: Props) {
+export function DownloadButton({ gameId, dlcId, label, fileSize, variant = 'primary', magnet }: Props) {
   const [loading, setLoading] = useState(false)
   const router = useRouter()
 
@@ -58,6 +60,16 @@ export function DownloadButton({ gameId, dlcId, label, fileSize, variant = 'prim
     variant === 'primary'
       ? 'flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:bg-primary/90 disabled:opacity-50 transition-colors'
       : 'flex items-center gap-2 px-3 py-1.5 bg-secondary border border-border rounded-md text-sm text-muted-foreground hover:text-foreground hover:bg-accent disabled:opacity-50 transition-colors'
+
+  if (magnet) {
+    return (
+      <a href={magnet} className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-md text-sm font-medium transition-colors">
+        <Magnet className="w-4 h-4" />
+        <span>{label ?? 'Torrent'}</span>
+        {fileSize && <span className="text-xs opacity-80">({formatBytes(BigInt(fileSize))})</span>}
+      </a>
+    )
+  }
 
   return (
     <button onClick={handleDownload} disabled={loading} className={cls}>

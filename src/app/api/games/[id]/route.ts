@@ -9,6 +9,7 @@ import { applyMetadata } from '@/lib/metadata/apply'
 import { parseFeaturedOrder } from '@/lib/featured-order'
 import { claimFeaturedSlot } from '@/lib/featured-slots'
 import { onlineGameIds } from '@/lib/online/flags'
+import { torrentMagnet } from '@/lib/external/magnet'
 
 export const dynamic = 'force-dynamic'
 
@@ -32,7 +33,8 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     return NextResponse.json({ error: 'Not found' }, { status: 404 })
   }
   const online = (await onlineGameIds([game])).has(game.id)
-  const resolved = { ...game, coverPath: resolveCoverPath(game.coverPath), online }
+  const magnet = game.source === 'torrent' ? await torrentMagnet(game.externalKey) : null
+  const resolved = { ...game, coverPath: resolveCoverPath(game.coverPath), online, magnet }
   return NextResponse.json(serializeBigInt(admin ? resolved : withoutFilePaths(resolved)))
 }
 

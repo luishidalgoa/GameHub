@@ -69,8 +69,7 @@
     "online": "● Online",
     "originAll": "Todos",
     "originDirect": "Descarga directa",
-    "originTorrent": "Torrent",
-    "downloadTorrent": "Descargar torrent"
+    "originTorrent": "Torrent"
   },
   "EmptyState": {
     "title": "No se encontraron juegos",
@@ -105,7 +104,8 @@
     "downloadRegion": "Descargar · {region}",
     "region": "Región de descarga",
     "editSheet": "Editar ficha",
-    "fullPage": "Ver ficha completa"
+    "fullPage": "Ver ficha completa",
+    "downloadTorrent": "Descargar torrent"
   },
   "CookieConsent": {
     "description": "Usamos una cookie de sesión para el acceso de administrador y, con tu consentimiento, cookies analíticas para entender cómo se usa la biblioteca.",

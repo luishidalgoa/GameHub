@@ -20,6 +20,9 @@ export function RegionPicker({
   initialKey,
   groupLabel,
   downloadable = true,
+  magnet,
+  magnetLabel,
+  magnetSize,
   children,
 }: {
   gameId: number
@@ -28,6 +31,10 @@ export function RegionPicker({
   groupLabel: string
   /** False for games that exist only as a torrent: there is no file to download. */
   downloadable?: boolean
+  /** Juego solo torrent: se muestra el botón del magnet en lugar de la descarga. */
+  magnet?: string
+  magnetLabel?: string
+  magnetSize?: string
   /** Extra actions shown after the download button. */
   children?: ReactNode
 }) {
@@ -68,7 +75,8 @@ export function RegionPicker({
       )}
 
       <div className="flex flex-wrap items-center gap-3">
-        {downloadable && BigInt(selected.fileSize) > BigInt(0) && (
+        {magnet && <DownloadButton gameId={gameId} magnet={magnet} label={magnetLabel} fileSize={magnetSize} />}
+        {!magnet && downloadable && BigInt(selected.fileSize) > BigInt(0) && (
           <DownloadButton
             gameId={gameId}
             dlcId={selected.dlcId}
