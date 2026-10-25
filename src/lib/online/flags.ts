@@ -1,6 +1,6 @@
 import { db } from '@/lib/db'
 import { cachedAggregate } from '@/lib/aggregate-cache'
-import { normalizeGameTitle, parseOnlineProviders } from './providers'
+import { comparableNames, normalizeGameTitle, parseOnlineProviders } from './providers'
 
 /**
  * Ids de los juegos con juego en línea. Un juego cuenta si su Title ID, o su nombre,
@@ -17,7 +17,7 @@ export async function onlineGameIds(
   ])
   const providersOf = new Map(platforms.map(p => [p.id, parseOnlineProviders(p.onlineProviders).map(x => x.key)]))
   const supported = new Set(support.map(s => `${s.provider}|${s.titleId}`))
-  const byName = new Set(support.filter(s => s.name).map(s => `${s.provider}|${normalizeGameTitle(s.name!)}`))
+  const byName = new Set(support.flatMap(s => (s.name ? comparableNames(s.name).map(n => `${s.provider}|${n}`) : [])))
   const out = new Set<number>()
   for (const g of games) {
     const keys = providersOf.get(g.platformId) ?? []

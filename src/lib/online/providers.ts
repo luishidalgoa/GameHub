@@ -64,6 +64,18 @@ export function normalizeGameTitle(title: string): string {
     .trim()
 }
 
+/**
+ * Los nombres comparables de una entrada de la fuente. Un nombre con barra ("Pokémon X/Y",
+ * "Pokémon Omega Ruby/Alpha Sapphire") son dos juegos: cada parte se completa con la
+ * primera palabra del nombre cuando no la trae.
+ */
+export function comparableNames(name: string): string[] {
+  const parts = name.split('/').map(p => p.trim()).filter(Boolean)
+  const first = parts[0]?.split(' ')[0] ?? ''
+  const full = parts.map((p, i) => (i === 0 || p.startsWith(first) ? p : `${first} ${p}`))
+  return [...new Set(full.map(normalizeGameTitle))].filter(Boolean)
+}
+
 /** Configuración de un proveedor en una plataforma: si está activo y a qué proyecto enlaza. */
 export interface OnlineProviderConfig extends OnlineProviderLink {
   enabled: boolean

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { parseNextendoTitles } from '@/lib/online/nextendo'
-import { normalizeGameTitle, parseOnlineProviders } from '@/lib/online/providers'
+import { comparableNames, normalizeGameTitle, parseOnlineProviders } from '@/lib/online/providers'
 import { parsePretendoTitle, toBase3dsTitleId } from '@/lib/online/pretendo'
 
 describe('parseNextendoTitles', () => {
@@ -79,5 +79,19 @@ export default class MarioKart7 extends Title {
   it('recognises only 3DS base IDs as 3DS', () => {
     expect(toBase3dsTitleId('0004008C00030600')).toBe('00040000' + '00030600')
     expect(toBase3dsTitleId('0005000010112300')).toBeNull()
+  })
+})
+
+describe('comparableNames', () => {
+  it('splits a name with a slash into the two games it covers', () => {
+    expect(comparableNames('Pokémon X/Y')).toEqual([normalizeGameTitle('Pokémon X'), normalizeGameTitle('Pokémon Y')])
+    expect(comparableNames('Pokémon Omega Ruby/Alpha Sapphire')).toEqual([
+      normalizeGameTitle('Pokémon Omega Ruby'),
+      normalizeGameTitle('Pokémon Alpha Sapphire'),
+    ])
+  })
+
+  it('keeps a plain name as it is', () => {
+    expect(comparableNames('Mario Kart 7')).toEqual(['mario kart 7'])
   })
 })
