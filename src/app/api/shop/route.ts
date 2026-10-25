@@ -27,6 +27,7 @@ import { libraryGameWhere } from '@/lib/library'
 import { guardShopRequest, shopBaseUrl } from '@/lib/shop-auth'
 import { extractSwitchTitleId, classifySwitchTitleId } from '@/lib/scanner/titleid'
 import { jpegImageUrl, resolveCoverPath } from '@/lib/cover-url'
+import { onlineGameIds } from '@/lib/online/flags'
 
 import { isSwitchFile, parseScreenshots, shopFileName, statSize } from '@/lib/shop-files'
 import { servedTitleId } from '@/lib/scanner/titleid'
@@ -46,6 +47,7 @@ export async function GET(req: Request) {
       filePath:    true,
       fileName:    true,
       titleId:     true,
+      platformId:  true,
       title:       true,
       description: true,
       releaseYear: true,
@@ -144,10 +146,13 @@ export async function GET(req: Request) {
   //
   // Tinfoil y CyberFoil ignoran las claves que no conocen, asi que esto no les
   // afecta; el titledb se sigue publicando igual para ellos.
+  // gh_online: el juego tiene juego en línea en algún proyecto de su plataforma.
+  const online = await onlineGameIds(games)
   const files = available.map((c) => ({
     url:  c.url,
     size: c.size,
     gh_id: c.gameId,
+    gh_online: online.has(c.gameId),
     ...(c.game.coverPath || c.game.coverUrl
       ? { gh_cover: jpegImageUrl(base, c.game.coverPath, c.game.coverUrl) }
       : {}),
