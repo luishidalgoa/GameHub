@@ -112,6 +112,13 @@ const WITH_ART = { OR: [{ tilePath: { not: null } }, { screenshotPaths: { not: n
 
 export const RAIL_SIZE = 18
 
+/** Lo publicado en el último año: «recientes» no son los clásicos que tienen fecha. */
+const RELEASE_WINDOW_MS = 365 * 24 * 60 * 60 * 1000
+function releasedWithin() {
+  const now = new Date()
+  return { not: null, gte: new Date(now.getTime() - RELEASE_WINDOW_MS), lte: now }
+}
+
 /** A publisher as its tile draws it. */
 export interface PublisherTileData {
   key: string
@@ -248,7 +255,7 @@ export async function getHomeData(): Promise<HomeData> {
   const mostDownloaded = await toTiles(dlRows.sort((a, b) => rank.get(a.id)! - rank.get(b.id)!).slice(0, RAIL_SIZE))
 
   const releases = await toTiles(await db.game.findMany({
-    where: { ...where, releaseDate: { not: null, lte: new Date() } },
+    where: { ...where, releaseDate: releasedWithin() },
     orderBy: [{ releaseDate: 'desc' }, { id: 'asc' }], take: RAIL_SIZE, select: TILE_SELECT,
   }))
 
@@ -299,7 +306,7 @@ export async function getCollection(kind: CollectionKind, page: number): Promise
   }
 
   if (kind === 'lanzamientos') {
-    const dated = { ...where, releaseDate: { not: null, lte: new Date() } }
+    const dated = { ...where, releaseDate: releasedWithin() }
     const [rows, total] = await Promise.all([
       db.game.findMany({
         where: dated, orderBy: [{ releaseDate: 'desc' }, { id: 'asc' }], skip, take: COLLECTION_PAGE, select: TILE_SELECT,
