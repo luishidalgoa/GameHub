@@ -326,11 +326,16 @@ async function runTorrentScan(platformSlug?: string) {
     return
   }
   log('Sincronizando torrents de Switch…')
-  const r = await syncSwitchGames()
-  log(`Fuente: ${r.count} entradas (${r.sourceRows.created} nuevas, ${r.sourceRows.updated} cambiadas, ${r.sourceRows.removed} retiradas)`)
-  log(`Juegos torrent: ${r.games.created} nuevos, ${r.games.updated} actualizados, ${r.games.hidden} ocultos; ${r.linked} enlazados con la biblioteca`)
-  if (r.games.created > 0) {
-    triggerAutoMetadata(() => {}, 'switch').catch(err => console.error('[torrent] metadata:', err))
+  try {
+    const r = await syncSwitchGames()
+    log(`Fuente: ${r.count} entradas (${r.sourceRows.created} nuevas, ${r.sourceRows.updated} cambiadas, ${r.sourceRows.removed} retiradas)`)
+    log(`Juegos torrent: ${r.games.created} nuevos, ${r.games.updated} actualizados, ${r.games.hidden} ocultos; ${r.linked} enlazados con la biblioteca`)
+    if (r.games.created > 0) {
+      triggerAutoMetadata(() => {}, 'switch').catch(err => console.error('[torrent] metadata:', err))
+    }
+  } catch (err) {
+    log(`Error al sincronizar torrents: ${err instanceof Error ? err.message : String(err)}`)
+    throw err
   }
 }
 
@@ -341,6 +346,7 @@ export async function startScanJob(params: ScanJobParams): Promise<number> {
   const job = await db.job.create({
     data: { type: 'scan', status: 'running', phase: 'scanning', params: JSON.stringify(params) },
   })
+  const mode = params.mode ?? 'local'
 
   // The scan streams its events to the dashboard; the same events go to the job log,
   // so the scan can be followed after a reload.
@@ -352,7 +358,6 @@ export async function startScanJob(params: ScanJobParams): Promise<number> {
 
   ;(async () => {
     try {
-      const mode = params.mode ?? 'local'
       if (mode !== 'torrent') await runScan('manual', params.platformSlug, job.id)
       if (mode !== 'local') await runTorrentScan(params.platformSlug)
       await db.job.update({
@@ -366,6 +371,8 @@ export async function startScanJob(params: ScanJobParams): Promise<number> {
       }).catch(() => {})
     } finally {
       scanBus.off('scan', onScanEvent)
+      // Un escaneo solo de torrents no pasa por runScan, que es quien cierra la vista.
+      if (mode === 'torrent') scanBus.emit('scan', { type: 'pipeline_done' })
     }
   })()
 

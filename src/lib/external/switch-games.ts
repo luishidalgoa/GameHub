@@ -193,12 +193,13 @@ async function reconcileTorrentGames(platformId: number, syncedAt: Date) {
   const games = await db.game.findMany({
     where: { platformId, source: 'torrent' },
     select: {
-      id: true, externalKey: true, title: true, fileName: true, fileSize: true, titleId: true,
+      id: true, externalKey: true, filePath: true, title: true, fileName: true, fileSize: true, titleId: true,
       manualFields: true, userHidden: true, isHidden: true,
     },
   })
   const ownerByIdentity = new Map<string, (typeof games)[number]>()
   const ownerSource = new Map<number, string>()
+  const claimed = new Set<number>()
   for (const g of games) {
     const parsed = g.externalKey ? parseTorrentKey(g.externalKey) : null
     if (!parsed) continue
@@ -206,11 +207,22 @@ async function reconcileTorrentGames(platformId: number, syncedAt: Date) {
     if (!identity || !byIdentity.has(identity) || ownerByIdentity.has(identity)) continue
     ownerByIdentity.set(identity, g)
     ownerSource.set(g.id, parsed.source)
+    claimed.add(g.id)
+  }
+  // Un juego que vuelve reutiliza su fila oculta: la ruta es única por identidad.
+  const byFilePath = new Map(games.map(g => [g.filePath, g]))
+  for (const identity of byIdentity.keys()) {
+    if (ownerByIdentity.has(identity)) continue
+    const g = byFilePath.get(`torrent://${identity}`)
+    if (g && !claimed.has(g.id)) {
+      ownerByIdentity.set(identity, g)
+      claimed.add(g.id)
+    }
   }
 
   const kept = new Set<number>()
   const creates: Prisma.GameCreateManyInput[] = []
-  const writes: Prisma.PrismaPromise<unknown>[] = []
+  const updates: Prisma.PrismaPromise<unknown>[] = []
   let updated = 0
   for (const [identity, entries] of byIdentity) {
     const current = ownerByIdentity.get(identity)
@@ -242,21 +254,28 @@ async function reconcileTorrentGames(platformId: number, syncedAt: Date) {
       || current.titleId !== (patch.titleId ?? current.titleId)
       || current.isHidden !== (patch.isHidden ?? current.isHidden)
     if (changed) {
-      writes.push(db.game.update({ where: { id: current.id }, data: patch as Prisma.GameUpdateInput }))
+      updates.push(db.game.update({ where: { id: current.id }, data: patch as Prisma.GameUpdateInput }))
       updated++
     }
   }
 
-  const toHide = games.filter(g => !kept.has(g.id) && !g.isHidden).map(g => g.id)
+  // Antes de asignar claves se sueltan las de las filas que ya no son el juego de ninguna fuente:
+  // la clave es única y un duplicado oculto podría tenerla.
+  const released = games.filter(g => !kept.has(g.id) && (g.externalKey !== null || !g.isHidden))
+  const writes: Prisma.PrismaPromise<unknown>[] = []
+  for (let i = 0; i < released.length; i += CHUNK) {
+    writes.push(db.game.updateMany({
+      where: { id: { in: released.slice(i, i + CHUNK).map(g => g.id) } },
+      data: { externalKey: null, isHidden: true },
+    }))
+  }
   for (let i = 0; i < creates.length; i += CHUNK) {
     writes.push(db.game.createMany({ data: creates.slice(i, i + CHUNK) }))
   }
-  for (let i = 0; i < toHide.length; i += CHUNK) {
-    writes.push(db.game.updateMany({ where: { id: { in: toHide.slice(i, i + CHUNK) } }, data: { isHidden: true } }))
-  }
+  writes.push(...updates)
   for (let i = 0; i < writes.length; i += CHUNK) await db.$transaction(writes.slice(i, i + CHUNK))
 
-  return { created: creates.length, updated, hidden: toHide.length, unchanged: kept.size - updated }
+  return { created: creates.length, updated, hidden: released.filter(g => !g.isHidden).length, unchanged: kept.size - updated }
 }
 
 /**
