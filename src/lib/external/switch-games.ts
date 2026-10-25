@@ -95,12 +95,6 @@ function torrentGameData(row: ExternalGameRow, syncedAt: Date) {
     sortTitle: toSortTitle(title),
     fileName: row.title,
     fileSize: sizeBytes(row.size),
-    releaseYear: row.year,
-    genre: row.genre,
-    developer: row.developer,
-    publisher: row.publisher,
-    description: row.description,
-    coverUrl: row.cover,
     titleId: row.titleId,
     lastSeenAt: syncedAt,
   }

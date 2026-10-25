@@ -15,6 +15,8 @@ export async function GET(req: Request) {
   const sort = searchParams.get('sort') ?? 'title'
   const favorites = searchParams.get('favorites') === 'true'
   const onlineOnly = searchParams.get('online') === 'true'
+  const sourceParam = searchParams.get('source')
+  const source = sourceParam === 'local' || sourceParam === 'torrent' ? sourceParam : null
   // NaN and out-of-range values fall back to the defaults or the limits: a bad
   // ?pageSize=1e9 must not load the whole library in one response.
   const page = Math.max(1, Number.parseInt(searchParams.get('page') ?? '1', 10) || 1)
@@ -31,6 +33,7 @@ export async function GET(req: Request) {
     ...(search    && { title: { contains: search } }),
     ...(favorites && { isFavorite: true }),
     ...(onlineOnly && { id: { in: await onlineIdsIn(libraryGameWhere(platformSlug)) } }),
+    ...(source && { source }),
     // Match the primary region OR any region-variant edition, so a card whose
     // primary is e.g. EUR still shows when filtering by a JPN variant it holds.
     ...(region    && { OR: [{ region }, { dlcs: { some: { type: 'region', region } } }] }),
@@ -70,6 +73,7 @@ export async function GET(req: Request) {
         isHidden: true,
         platformId: true,
         titleId: true,
+        source: true,
         fileSize: true,
         metadataFetchedAt: true,
         fileName: true,

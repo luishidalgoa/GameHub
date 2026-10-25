@@ -4,7 +4,6 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import useSWRInfinite from 'swr/infinite'
 import { useTranslations } from 'next-intl'
 import { GameCard, SkeletonCard } from './GameCard'
-import { TorrentGrid } from './TorrentGrid'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { GameDetailModal } from '@/components/game/GameDetailModal'
 import type { GameListItem } from '@/types/game'
@@ -67,7 +66,7 @@ export function GameGrid({
   const [sort,      setSort]     = useState<SortKey>('title')
   const [favOnly,   setFavOnly]  = useState(false)
   const [onlineOnly, setOnlineOnly] = useState(false)
-  const [torrentOnly, setTorrentOnly] = useState(false)
+  const [origin, setOrigin] = useState<'' | 'local' | 'torrent'>('')
   const [region,    setRegion]   = useState('')
   const [genre,     setGenre]    = useState('')
   const [minRating, setMinRating] = useState('')
@@ -84,8 +83,6 @@ export function GameGrid({
 
   // ── SWR Infinite ─────────────────────────────────────────────────────────────
   const getKey = useCallback((pageIndex: number, prev: ApiPage | null) => {
-    // Torrent mode lists its own games (TorrentGrid), so the local list stays idle.
-    if (torrentOnly) return null
     // Stop when we've consumed all results
     if (prev && pageIndex * PAGE_SIZE >= prev.total) return null
 
@@ -98,12 +95,13 @@ export function GameGrid({
     if (debouncedSearch) p.set('search',    debouncedSearch)
     if (favOnly)         p.set('favorites', 'true')
     if (onlineOnly)      p.set('online', 'true')
+    if (origin)          p.set('source', origin)
     if (region)          p.set('region',    region)
     if (genre)           p.set('genre',     genre)
     if (minRating)       p.set('minRating', minRating)
 
     return `/api/games?${p}`
-  }, [platformSlug, sort, debouncedSearch, favOnly, onlineOnly, torrentOnly, region, genre, minRating])
+  }, [platformSlug, sort, debouncedSearch, favOnly, onlineOnly, origin, region, genre, minRating])
 
   // Restore the saved page count on mount (only for the unfiltered default view —
   // a saved scroll position is meaningless against a different filter/search).
@@ -149,7 +147,7 @@ export function GameGrid({
   // ── Scroll restoration (return-from-editor) ────────────────────────────────────
   // Track whether filters are at their default — only then is a saved scroll
   // position meaningful (a search/region filter changes what's on screen).
-  const filtersActive = Boolean(debouncedSearch) || favOnly || onlineOnly || Boolean(region) || Boolean(genre) || Boolean(minRating) || sort !== 'title'
+  const filtersActive = Boolean(debouncedSearch) || favOnly || onlineOnly || Boolean(origin) || Boolean(region) || Boolean(genre) || Boolean(minRating) || sort !== 'title'
 
   // Once the saved number of pages has loaded, restore the scroll position (once).
   const didRestore = useRef(false)
@@ -228,7 +226,6 @@ export function GameGrid({
 
         {/* Controls row — 2-col grid on mobile (no X-overflow), inline on desktop */}
         <div className="grid grid-cols-2 gap-2 sm:contents">
-          {!torrentOnly && <>
           <select
             value={sort}
             onChange={e => setSort(e.target.value as SortKey)}
@@ -304,19 +301,18 @@ export function GameGrid({
           >
             {t('favorites')}
           </button>
-          </>}
 
-          <button
-            onClick={() => setTorrentOnly(v => !v)}
-            aria-pressed={torrentOnly}
-            className={`w-full sm:w-auto min-w-0 sm:flex-none px-3 py-2.5 sm:py-1.5 text-sm rounded-md border transition-colors touch-manipulation whitespace-nowrap truncate ${
-              torrentOnly
-                ? 'bg-sky-600/20 border-sky-600/40 text-sky-300'
-                : 'bg-secondary border-border text-muted-foreground hover:text-foreground'
+          <select
+            value={origin}
+            onChange={e => setOrigin(e.target.value as '' | 'local' | 'torrent')}
+            className={`w-full sm:w-auto min-w-0 sm:flex-none bg-secondary border rounded-md px-3 py-2.5 sm:py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring touch-manipulation transition-colors ${
+              origin ? 'border-primary/60 text-foreground' : 'border-border text-muted-foreground'
             }`}
           >
-            {t('torrent')}
-          </button>
+            <option value="">{t('originAll')}</option>
+            <option value="local">{t('originDirect')}</option>
+            <option value="torrent">{t('originTorrent')}</option>
+          </select>
 
           {/* Loaded / total counter */}
           <span className="col-span-2 sm:col-span-1 self-center text-sm text-muted-foreground whitespace-nowrap text-center sm:text-left sm:ml-auto">
@@ -324,8 +320,6 @@ export function GameGrid({
           </span>
         </div>
       </div>
-
-      {torrentOnly ? <TorrentGrid platformSlug={platformSlug} search={debouncedSearch} /> : <>
 
       {/* Empty state — only when not loading */}
       {!isLoadingInitial && games.length === 0 && skeletonCount === 0 && (
@@ -370,7 +364,6 @@ export function GameGrid({
         </p>
       )}
 
-      </>}
 
       {selectedId !== null && (
         <GameDetailModal

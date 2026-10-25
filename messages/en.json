@@ -67,13 +67,12 @@
     "minRating90": "Score 90+",
     "minRatingNone": "No score",
     "online": "● Online",
-    "torrent": "Torrent",
-    "torrentNote": "Torrents from an external source. We don't host these games: we only link the magnet. Games you already have in the library are not listed here.",
-    "torrentEmpty": "No torrents match the search.",
-    "torrentMore": "Load more",
     "copyMagnet": "Copy magnet",
     "copied": "Copied",
-    "source": "Source"
+    "source": "Source",
+    "originAll": "All",
+    "originDirect": "Direct download",
+    "originTorrent": "Torrent"
   },
   "EmptyState": {
     "title": "No games found",
