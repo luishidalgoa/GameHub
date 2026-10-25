@@ -214,9 +214,9 @@ export function PublisherArtPanel() {
 }
 
 // Where the character and the logo sit when nobody has moved them: the same boxes the home
-// draws by default, so the preview and the home agree from the start.
-// The character keeps its whole picture: only its width is set, the height follows the image.
-const DEFAULT_CHARACTER: Place = { x: 50, y: 40, w: 72 }
+// draws by default, so the preview and the home agree from the start. The character's box is
+// the one the home cuts without a layout: 84 % wide, 66 % tall, the picture covers it from the top.
+const DEFAULT_CHARACTER: Place = { x: 50, y: 42, w: 84, h: 66 }
 const DEFAULT_LOGO_WITH_CHARACTER: Place = { x: 50, y: 89, h: 11 }
 const DEFAULT_LOGO_ALONE: Place = { x: 50, y: 50, w: 82, h: 10 }
 
@@ -408,7 +408,7 @@ function PublisherEditDialog({ row, busy, onClose, onTemplate, onBackdrop, onPla
           </div>
           <p className="text-xs text-muted-foreground" aria-live="off">
             {selected && draft[selected]
-              ? `${selected === 'logo' ? 'Logo' : 'Personaje'}: x ${draft[selected]!.x.toFixed(1)} · y ${draft[selected]!.y.toFixed(1)}${draft[selected]!.w !== undefined ? ` · ancho ${draft[selected]!.w.toFixed(0)}` : ''}`
+              ? `${selected === 'logo' ? 'Logo' : 'Personaje'}: x ${draft[selected]!.x.toFixed(1)} · y ${draft[selected]!.y.toFixed(1)}${draft[selected]!.w !== undefined ? ` · ancho ${draft[selected]!.w.toFixed(0)}` : ''}${draft[selected]!.h !== undefined ? ` · alto ${draft[selected]!.h.toFixed(0)}` : ''}`
               : 'Arrastra el logo o el personaje. La esquina cambia el tamaño.'}
           </p>
         </div>

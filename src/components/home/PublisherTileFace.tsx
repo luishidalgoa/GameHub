@@ -47,7 +47,8 @@ export function PublisherTileFace({ publisher, gamesLabel, edit }: {
         edit ? (
           <Arranged el="character" place={layout.character} edit={edit}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={character} alt="" draggable={false} className="block h-auto w-full select-none" />
+            <img src={character} alt="" draggable={false}
+                 className={`block select-none ${layout.character.h !== undefined ? 'h-full w-full object-cover object-top' : 'h-auto w-full'}`} />
           </Arranged>
         ) : (
           // eslint-disable-next-line @next/next/no-img-element
