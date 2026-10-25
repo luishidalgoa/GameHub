@@ -6,7 +6,6 @@ import { extractSwitchTitleId } from '@/lib/scanner/titleid'
 import { titleKey } from './match'
 import { type RawEntry, sourcePriority, torrentSourcesFor, type TorrentSource } from './sources'
 
-const TIMEOUT_MS = 180_000
 const CHUNK = 500
 
 export interface ExternalGameRow {
@@ -288,9 +287,7 @@ async function linkToLocal(platformId: number, platformSlug: string, rows: Exter
 
 /** Una fuente: la descarga, la convierte y escribe sus filas. Si falla, no toca nada de esa fuente. */
 async function syncOneSource(source: TorrentSource, platformId: number, platformSlug: string): Promise<SourceResult> {
-  const res = await fetch(source.url, { cache: 'no-store', signal: AbortSignal.timeout(TIMEOUT_MS) })
-  if (!res.ok) throw new Error(`HTTP ${res.status} en ${source.url}`)
-  const entries = source.parse(await res.json())
+  const entries = await source.provider.fetchEntries()
 
   const syncedAt = new Date()
   const rows = entries.flatMap(e => {

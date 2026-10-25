@@ -1,45 +1,71 @@
 /**
- * Fuentes de torrents. Cada una pertenece a una plataforma y convierte su formato en entradas
- * con esta forma. Una plataforma sin fuentes no tiene torrents; añadir una fuente nueva es
- * añadir una entrada aquí. La clave de la fuente no puede contener «:».
+ * Registro de fuentes externas de torrents. Cada fuente pertenece a una plataforma y sabe
+ * cómo obtener sus entradas (JSON, HTML, etc.). Una plataforma sin fuentes no tiene torrents;
+ * añadir una fuente nueva es añadir una entrada a TORRENT_SOURCES. La clave no puede contener «:».
  */
+import { JsonSourceProvider } from './providers/json-provider'
+import { MinervaDirectoryProvider } from './providers/minerva-provider'
+import type { ExternalSourceProvider, RawEntry } from './providers/types'
 
-/** Una entrada de una fuente, ya en el formato común. */
-export interface RawEntry {
-  title?: string
-  magnet?: string
-  topic_id?: string
-  url?: string
-  size?: string
-  title_id?: string
-  image_format?: string
-  year?: string
-  genre?: string
-  developer?: string
-  publisher?: string
-  cover?: string
-  description?: string
-}
+export type { RawEntry } from './providers/types'
+export type { ExternalSourceProvider }
 
 export interface TorrentSource {
   key: string
   platformSlug: string
   label: string
-  url: string
-  /** Convierte la respuesta de la fuente en entradas; lanza si el formato no es el esperado. */
-  parse: (raw: unknown) => RawEntry[]
+  provider: ExternalSourceProvider
 }
 
 export const TORRENT_SOURCES: TorrentSource[] = [
+  // Nintendo Switch — lista JSON mantenida en GitHub
   {
     key: 'switch-games',
     platformSlug: 'switch',
     label: 'Langegen/switch-games (RuTracker)',
-    url: 'https://raw.githubusercontent.com/Langegen/switch-games/main/switch_games.json',
-    parse: raw => {
-      if (!Array.isArray(raw)) throw new Error('la fuente no es una lista')
-      return raw as RawEntry[]
-    },
+    provider: new JsonSourceProvider(
+      'https://raw.githubusercontent.com/Langegen/switch-games/main/switch_games.json',
+      raw => {
+        if (!Array.isArray(raw)) throw new Error('la fuente no es una lista')
+        return raw as RawEntry[]
+      },
+    ),
+  },
+  // Sony PSP — PSN digital (decrypted), No-Intro
+  {
+    key: 'minerva-psp',
+    platformSlug: 'psp',
+    label: 'Minerva Archive · PSP (No-Intro PSN Decrypted)',
+    provider: new MinervaDirectoryProvider(
+      'https://minerva-archive.org/browse/No-Intro/Sony%20-%20PlayStation%20Portable%20(PSN)%20(Decrypted)/',
+    ),
+  },
+  // PS Vita — PSN content (NoIntro)
+  {
+    key: 'minerva-psvita',
+    platformSlug: 'psvita',
+    label: 'Minerva Archive · PS Vita (No-Intro PSN Content)',
+    provider: new MinervaDirectoryProvider(
+      'https://minerva-archive.org/browse/No-Intro/Sony%20-%20PlayStation%20Vita%20(PSN)%20(Content)/',
+    ),
+  },
+  // PS1 — Redump (se omite si la plataforma «ps1» no existe en la base de datos)
+  {
+    key: 'minerva-ps1',
+    platformSlug: 'ps1',
+    label: 'Minerva Archive · PS1 (Redump)',
+    provider: new MinervaDirectoryProvider(
+      'https://minerva-archive.org/browse/Redump/Sony%20-%20PlayStation/',
+    ),
+  },
+  // PS2 — Redump (se omite si la plataforma «ps2» no existe en la base de datos)
+  {
+    key: 'minerva-ps2',
+    platformSlug: 'ps2',
+    label: 'Minerva Archive · PS2 (Redump)',
+    provider: new MinervaDirectoryProvider(
+      'https://minerva-archive.org/browse/Redump/Sony%20-%20PlayStation%202/',
+    ),
   },
 ]
 
