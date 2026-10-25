@@ -39,7 +39,7 @@ export async function GET(req: Request) {
     select: {
       slug: true, name: true, extensions: true, emulators: true,
       emulatorName: true, iconPath: true,
-      games: { where: { isHidden: false }, select: { fileName: true } },
+      games: { where: { isHidden: false, source: 'local' }, select: { fileName: true } },
     },
   })
 

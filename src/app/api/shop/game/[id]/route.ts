@@ -42,7 +42,7 @@ export async function GET(
       description: true, releaseYear: true, genre: true, publisher: true,
       developer: true, region: true, languages: true,
       coverPath: true, coverUrl: true, trailerUrl: true,
-      screenshotPaths: true, isHidden: true,
+      screenshotPaths: true, isHidden: true, source: true,
       platform: { select: { slug: true, name: true } },
       dlcs: {
         select: { id: true, fileName: true, filePath: true, title: true,
@@ -53,7 +53,7 @@ export async function GET(
 
   // Un juego escondido se responde como inexistente, igual que una plataforma
   // apagada: que este en la base de datos es asunto del administrador.
-  if (!game || game.isHidden)
+  if (!game || game.isHidden || game.source !== 'local')
     return NextResponse.json({ error: 'Unknown game' }, { status: 404 })
 
   const base = shopBaseUrl(req)

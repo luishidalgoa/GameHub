@@ -32,7 +32,7 @@ export async function GET(
       id: true, slug: true, name: true, extensions: true, enabled: true,
       thumbnailWidth: true, thumbnailHeight: true,
       games: {
-        where:  { isHidden: false },
+        where:  { isHidden: false, source: 'local' },
         select: { id: true, title: true, fileName: true, filePath: true,
                   coverPath: true, coverUrl: true, titleId: true },
       },

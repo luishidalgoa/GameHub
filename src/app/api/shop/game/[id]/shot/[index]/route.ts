@@ -40,9 +40,9 @@ export async function GET(
 
   const game = await db.game.findUnique({
     where: { id },
-    select: { screenshotPaths: true, isHidden: true },
+    select: { screenshotPaths: true, isHidden: true, source: true },
   })
-  if (!game || game.isHidden)
+  if (!game || game.isHidden || game.source !== 'local')
     return NextResponse.json({ error: 'Unknown game' }, { status: 404 })
 
   const shots = parseScreenshots(game.screenshotPaths)

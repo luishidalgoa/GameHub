@@ -41,7 +41,7 @@ export async function GET(req: Request) {
   if (denied) return denied
 
   const games = await db.game.findMany({
-    where: libraryGameWhere(),
+    where: { ...libraryGameWhere(), source: 'local' },
     select: {
       id:          true,
       filePath:    true,
