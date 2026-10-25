@@ -4,7 +4,6 @@ import { serializeBigInt } from '@/lib/serialize'
 import { getClientIp } from '@/lib/tracker'
 import { resolveCoverPath } from '@/lib/s3'
 import { onlineGameIds, onlineIdsIn } from '@/lib/online/flags'
-import { torrentGameIds } from '@/lib/external/flags'
 import { libraryGameWhere, NO_SCORE } from '@/lib/library'
 
 export const dynamic = 'force-dynamic'
@@ -90,12 +89,11 @@ export async function GET(req: Request) {
   }
 
   // The title ID only finds the online badge; it is not sent to the page.
-  const [online, torrent] = await Promise.all([onlineGameIds(games), torrentGameIds(games)])
+  const online = await onlineGameIds(games)
   const resolvedGames = games.map(({ titleId: _titleId, ...g }) => ({
     ...g,
     coverPath: resolveCoverPath(g.coverPath),
     online: online.has(g.id),
-    torrent: torrent.has(g.id),
   }))
 
   return NextResponse.json(serializeBigInt({ games: resolvedGames, total, page, pageSize }))
