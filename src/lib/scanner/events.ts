@@ -11,6 +11,7 @@ export type ScanEventType =
   | 'auto_meta_progress'
   | 'auto_meta_done'
   | 'pipeline_done'
+  | 'source_log'
 
 export interface ScanEvent {
   type:          ScanEventType

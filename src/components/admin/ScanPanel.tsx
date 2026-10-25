@@ -26,6 +26,7 @@ export function ScanPanel() {
   const [stopping, setStopping]         = useState(false)
   const [logs, setLogs]                 = useState<string[]>([])
   const [selectedSlug, setSelectedSlug] = useState<string>('all')
+  const [scanMode, setScanMode]         = useState<'local' | 'torrent' | 'both'>('local')
   const [phase, setPhase]               = useState<'idle' | 'scanning' | 'metadata'>('idle')
   const [meta, setMeta]                 = useState<{ done: number; total: number }>({ done: 0, total: 0 })
   const [preview, setPreview]           = useState<ScanPreview | null>(null)
@@ -115,7 +116,7 @@ export function ScanPanel() {
       fetch('/api/admin/jobs/scan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(selectedSlug !== 'all' ? { platformSlug: selectedSlug } : {}),
+        body: JSON.stringify({ ...(selectedSlug !== 'all' ? { platformSlug: selectedSlug } : {}), mode: scanMode }),
       }).catch(() => {
         setLogs((prev) => [...prev, '❌ Failed to start scan'])
         setScanning(false)
@@ -169,6 +170,9 @@ export function ScanPanel() {
           }
           case 'auto_meta_done':
             line = `✅ Metadata done — ${event.added} applied, ${event.skipped} skipped, ${event.failed} failed`
+            break
+          case 'source_log':
+            line = `ℹ ${event.message}`
             break
           case 'pipeline_done':
             line = event.message ? `ℹ ${event.message}` : ''
@@ -247,9 +251,20 @@ export function ScanPanel() {
             <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
           </div>
 
+          <select
+            value={scanMode}
+            onChange={e => setScanMode(e.target.value as 'local' | 'torrent' | 'both')}
+            disabled={scanning}
+            className="bg-secondary border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50 cursor-pointer"
+          >
+            <option value="local">Locales</option>
+            <option value="torrent">Torrents</option>
+            <option value="both">Ambos</option>
+          </select>
+
           <button
             onClick={runPreview}
-            disabled={scanning || previewing}
+            disabled={scanning || previewing || scanMode === 'torrent'}
             className="flex items-center justify-center gap-2 px-4 py-2 bg-secondary text-foreground hover:bg-secondary/80 disabled:opacity-50 disabled:cursor-not-allowed rounded-md text-sm font-medium transition-colors"
           >
             {previewing ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Eye className="w-4 h-4" />}

@@ -1,6 +1,8 @@
 import { db } from '@/lib/db'
 import { runMetadataBatch, type BatchEvent } from '@/lib/metadata/batch'
 import { runScan } from '@/lib/scanner'
+import { syncSwitchGames } from '@/lib/external/switch-games'
+import { triggerAutoMetadata } from '@/lib/metadata/auto'
 import { fetchGameArt } from '@/lib/art'
 import { runAutomatic } from '@/lib/automatic'
 import { scanBus } from '@/lib/scanner/events'
@@ -30,6 +32,8 @@ export interface ArtJobParams {
 }
 export interface ScanJobParams {
   platformSlug?: string
+  /** Qué escanear: ROMs en disco, la lista de torrents, o ambos. Por defecto, los locales. */
+  mode?: 'local' | 'torrent' | 'both'
 }
 
 // Active AbortControllers + a small in-memory log ring buffer per job, shared
@@ -61,6 +65,7 @@ function describeScanEvent(ev: { type: string; platform?: string; filePath?: str
   const name = (p?: string) => (p ? p.split(/[\\/]/).pop() : '')
   switch (ev.type) {
     case 'scan_start':      return '→ Escaneo iniciado'
+    case 'source_log':      return `ℹ ${ev.message}`
     case 'platform_start':  return `→ Plataforma: ${ev.platform}`
     case 'file_found':      return `${ev.isNew ? '+ Nuevo' : '· Encontrado'}: ${name(ev.filePath)}`
     case 'platform_done':   return `✓ ${ev.platform} terminada`
@@ -314,6 +319,21 @@ export async function startArtJob(params: ArtJobParams, resumeJobId?: number): P
  * is running" on return. Scans are idempotent (upsert by filePath), so a resume
  * just re-runs the scan from the start.
  */
+async function runTorrentScan(platformSlug?: string) {
+  const log = (message: string) => scanBus.emit('scan', { type: 'source_log', message })
+  if (platformSlug && platformSlug !== 'switch') {
+    log('Esta plataforma no tiene fuente de torrents')
+    return
+  }
+  log('Sincronizando torrents de Switch…')
+  const r = await syncSwitchGames()
+  log(`Fuente: ${r.count} entradas (${r.sourceRows.created} nuevas, ${r.sourceRows.updated} cambiadas, ${r.sourceRows.removed} retiradas)`)
+  log(`Juegos torrent: ${r.games.created} nuevos, ${r.games.updated} actualizados, ${r.games.hidden} ocultos; ${r.linked} enlazados con la biblioteca`)
+  if (r.games.created > 0) {
+    triggerAutoMetadata(() => {}, 'switch').catch(err => console.error('[torrent] metadata:', err))
+  }
+}
+
 export async function startScanJob(params: ScanJobParams): Promise<number> {
   const existing = await getActiveJob('scan')
   if (existing) return existing.id
@@ -332,7 +352,9 @@ export async function startScanJob(params: ScanJobParams): Promise<number> {
 
   ;(async () => {
     try {
-      await runScan('manual', params.platformSlug, job.id)
+      const mode = params.mode ?? 'local'
+      if (mode !== 'torrent') await runScan('manual', params.platformSlug, job.id)
+      if (mode !== 'local') await runTorrentScan(params.platformSlug)
       await db.job.update({
         where: { id: job.id },
         data: { status: 'done', phase: 'done', message: 'Scan complete', finishedAt: new Date() },
