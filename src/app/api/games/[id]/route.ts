@@ -7,6 +7,7 @@ import { adminGuard } from '@/lib/admin-guard'
 import { baseApplicationId } from '@/lib/scanner/titleid'
 import { applyMetadata } from '@/lib/metadata/apply'
 import { parseFeaturedOrder } from '@/lib/featured-order'
+import { claimFeaturedSlot } from '@/lib/featured-slots'
 
 export const dynamic = 'force-dynamic'
 
@@ -48,8 +49,16 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   const unlock: string[] = Array.isArray(body.unlock) ? body.unlock.filter((x: unknown): x is string => typeof x === 'string') : []
   delete data.unlock
   if (typeof data.isHidden === 'boolean') data.userHidden = data.isHidden
-  // Puesto en la portada: 1 a 99, o vacío para volver al orden por nota.
-  if ('featuredOrder' in data) data.featuredOrder = parseFeaturedOrder(data.featuredOrder)
+  // Puesto en la portada: 1 a 99, o vacío para volver al orden por nota. Solo
+  // cuenta si el juego está en portada; quitar la marca libera el puesto, y
+  // elegir uno ocupado pasa el otro juego al puesto que dejaba este.
+  if ('featuredOrder' in data || data.isFeatured === false) {
+    const featured = typeof data.isFeatured === 'boolean'
+      ? data.isFeatured
+      : (await db.game.findUnique({ where: { id }, select: { isFeatured: true } }))?.isFeatured
+    data.featuredOrder = featured ? parseFeaturedOrder(data.featuredOrder) : null
+    await claimFeaturedSlot(id, data.featuredOrder)
+  }
 
   // Title ID: 16 hex o nada. Se normaliza aqui y no en el formulario porque
   // esto es lo que acaba en la base de datos y de aqui sale el nombre con el

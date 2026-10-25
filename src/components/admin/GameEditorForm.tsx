@@ -4,7 +4,8 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useTranslations } from 'next-intl'
 import { Save, Loader2, ArrowLeft, Heart, Star, EyeOff, Search, ImageIcon, Link2, Github, Plus, Trash2, GitMerge } from 'lucide-react'
-import useSWR from 'swr'
+import useSWR, { mutate } from 'swr'
+import { FeaturedSlotField } from './FeaturedSlotField'
 import { GameImagesPanel } from './GameImagesPanel'
 import { MetadataFetchButton } from './MetadataFetchButton'
 import { ScoreField } from './ScoreField'
@@ -147,7 +148,11 @@ export function GameEditorForm({ game, thumbnailWidth = 200, thumbnailHeight = 3
         popularityFetchedAt: new Date().toISOString(),
       }),
     })
-    if (res.ok) setLocks(parseLocks((await res.clone().json()).manualFields))
+    if (res.ok) {
+      setLocks(parseLocks((await res.clone().json()).manualFields))
+      // Another game may have lost its slot to this one: the picks list is stale.
+      mutate('/api/admin/featured')
+    }
     setSaving(false)
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
@@ -304,14 +309,13 @@ export function GameEditorForm({ game, thumbnailWidth = 200, thumbnailHeight = 3
               activeClass="text-amber-400"
             />
             <Field label={t('featuredOrder')}>
-              <input
-                type="number"
-                min={1}
-                max={99}
+              <FeaturedSlotField
+                gameId={game.id}
                 value={form.featuredOrder}
-                onChange={(e) => set('featuredOrder', e.target.value)}
-                placeholder={t('featuredOrderAuto')}
-                className={inputCls}
+                current={game.featuredOrder ?? null}
+                featured={form.isFeatured}
+                inputClassName={inputCls}
+                onChange={(v) => set('featuredOrder', v)}
               />
             </Field>
             <Toggle

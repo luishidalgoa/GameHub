@@ -9,6 +9,8 @@ import { ScoreField } from './ScoreField'
 import { TrailerField } from './TrailerField'
 import { RegionSelect } from './RegionSelect'
 import { parseFeaturedOrder } from '@/lib/featured-order'
+import { FeaturedSlotField } from './FeaturedSlotField'
+import { mutate } from 'swr'
 
 export interface PanelGame {
   id: number
@@ -123,7 +125,11 @@ export function GamePanel({ game, percent, missing, closeHref, imagesHref, prevH
     })
     setSaving(false)
     setStatus(res.ok ? { ok: true, text: 'Cambios guardados' } : { ok: false, text: 'No se pudo guardar. Revisa los datos.' })
-    if (res.ok) router.refresh()
+    if (res.ok) {
+      // Another game may have lost its slot to this one: the picks list is stale.
+      mutate('/api/admin/featured')
+      router.refresh()
+    }
   }
 
   const breakdown = FIELD_WEIGHTS.map(f => ({ ...f, filled: !missing.includes(f.key) }))
@@ -204,7 +210,10 @@ export function GamePanel({ game, percent, missing, closeHref, imagesHref, prevH
             <legend className="text-sm font-medium">Indicadores</legend>
             <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.isFavorite} onChange={e => set('isFavorite', e.target.checked)} /> Favorito</label>
             <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.isFeatured} onChange={e => set('isFeatured', e.target.checked)} /> En portada</label>
-            <label className="flex items-center gap-2 text-sm">Puesto en portada <input type="number" min={1} max={99} className={`${input} w-20`} value={form.featuredOrder} onChange={e => set('featuredOrder', e.target.value)} placeholder="Auto" /></label>
+            <div className="text-sm">
+              <span className="mb-1.5 block">Puesto en portada</span>
+              <FeaturedSlotField gameId={game.id} value={form.featuredOrder} current={game.featuredOrder} featured={form.isFeatured} inputClassName={input} onChange={v => set('featuredOrder', v)} />
+            </div>
             <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.isHidden} onChange={e => set('isHidden', e.target.checked)} /> Oculto (cementerio)</label>
           </fieldset>
 

@@ -227,6 +227,7 @@ export default async function AdminGamesPage({ searchParams }: { searchParams: R
                 <th scope="col" className="px-3 py-3 font-medium">Título</th>
                 <th scope="col" className="px-3 py-3 font-medium">Plataforma</th>
                 <th scope="col" className="px-3 py-3 font-medium">Año</th>
+                <th scope="col" className="px-3 py-3 font-medium">En portada</th>
                 <th scope="col" className="w-48 px-3 py-3 font-medium">Metadatos</th>
                 <th scope="col" className="px-3 py-3 font-medium">Faltan</th>
                 <th scope="col" className="px-3 py-3 text-right font-medium">Tamaño</th>
@@ -235,7 +236,7 @@ export default async function AdminGamesPage({ searchParams }: { searchParams: R
             </thead>
             <tbody>
               {pageRows.length === 0 && (
-                <tr><td colSpan={8} className="px-3 py-10 text-center text-muted-foreground">Ningún juego con estos filtros.</td></tr>
+                <tr><td colSpan={9} className="px-3 py-10 text-center text-muted-foreground">Ningún juego con estos filtros.</td></tr>
               )}
               {pageRows.map(g => {
                 const c = completeness(g)
@@ -256,6 +257,11 @@ export default async function AdminGamesPage({ searchParams }: { searchParams: R
                     <td className="max-w-xs px-3 py-2"><span className="block truncate font-medium">{g.title}</span></td>
                     <td className="px-3 py-2 text-muted-foreground">{g.platform.name}</td>
                     <td className="px-3 py-2 text-muted-foreground tabular-nums">{g.releaseYear ?? '—'}</td>
+                    <td className="px-3 py-2 text-xs tabular-nums">
+                      {g.isFeatured
+                        ? <span className="rounded-md bg-amber-400/15 px-2 py-0.5 font-medium text-amber-200">{g.featuredOrder ? `Puesto ${g.featuredOrder}` : 'Automático'}</span>
+                        : <span className="text-muted-foreground">—</span>}
+                    </td>
                     <td className="px-3 py-2">
                       <div className="flex items-center gap-2">
                         <div role="meter" aria-label={`Metadatos de ${g.title}`} aria-valuenow={c.percent} aria-valuemin={0} aria-valuemax={100} className="h-2 flex-1 overflow-hidden rounded-full bg-secondary">

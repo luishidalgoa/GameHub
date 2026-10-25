@@ -59,3 +59,19 @@ export function chooseHome<T extends Featured & Scored, P extends Scored>(
     .slice(0, sizes.wall - wall.length)
   return { hero, wall: [...wall, ...filler] }
 }
+
+export interface SlotPick {
+  id: number
+  title: string
+  featuredOrder: number | null
+}
+
+/**
+ * Qué juego ocupa el puesto `order` para `gameId` y a qué puesto pasará el
+ * ocupante al guardar: el que tiene hoy el juego (`currentOrder`), o automático.
+ */
+export function describeSlot(picks: readonly SlotPick[], gameId: number, order: number | null, currentOrder: number | null) {
+  if (order === null) return { occupant: null, swapTo: null }
+  const occupant = picks.find(p => p.featuredOrder === order && p.id !== gameId) ?? null
+  return { occupant, swapTo: occupant ? currentOrder : null }
+}

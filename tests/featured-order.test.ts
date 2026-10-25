@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { chooseHome, orderFeatured, parseFeaturedOrder } from '@/lib/featured-order'
+import { chooseHome, describeSlot, orderFeatured, parseFeaturedOrder } from '@/lib/featured-order'
 
 function row(title: string, rawgScore: number | null, featuredOrder: number | null = null) {
   return { title, rawgScore, featuredOrder }
@@ -80,5 +80,30 @@ describe('chooseHome', () => {
     const { hero, wall } = chooseHome(picks, popular, { hero: 5, wall: 6 })
     const ids = [...hero, ...wall].map(g => g.id)
     expect(new Set(ids).size).toBe(ids.length)
+  })
+})
+
+describe('describeSlot', () => {
+  const picks = [
+    { id: 1, title: 'Undertale', featuredOrder: 2 },
+    { id: 2, title: 'Minecraft', featuredOrder: null },
+    { id: 3, title: 'Pokémon X', featuredOrder: 4 },
+  ]
+
+  it('finds no occupant for a free slot or an automatic choice', () => {
+    expect(describeSlot(picks, 2, 5, null)).toEqual({ occupant: null, swapTo: null })
+    expect(describeSlot(picks, 2, null, 2)).toEqual({ occupant: null, swapTo: null })
+  })
+
+  it('reports who holds the slot and where they go on save', () => {
+    expect(describeSlot(picks, 2, 2, 4)).toEqual({ occupant: picks[0], swapTo: 4 })
+  })
+
+  it('sends the occupant to automatic when this game had no slot', () => {
+    expect(describeSlot(picks, 2, 2, null)).toEqual({ occupant: picks[0], swapTo: null })
+  })
+
+  it('treats the game’s own slot as free', () => {
+    expect(describeSlot(picks, 1, 2, 2)).toEqual({ occupant: null, swapTo: null })
   })
 })
