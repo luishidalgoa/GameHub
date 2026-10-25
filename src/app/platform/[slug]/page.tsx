@@ -6,6 +6,7 @@ import { isAdminSession } from '@/lib/auth'
 import { GameGrid } from '@/components/platform/GameGrid'
 import { EmulatorLinks } from '@/components/platform/EmulatorLinks'
 import { OnlineProviderLinks } from '@/components/platform/OnlineProviderLinks'
+import { onlineGameIds } from '@/lib/online/flags'
 import { RecommendedStrip } from '@/components/platform/RecommendedStrip'
 import { HiddenGemsStrip } from '@/components/platform/HiddenGemsStrip'
 import { comparePopularity, weightedSample, MIN_ADDED, GEM_MAX_ADDED, GEM_MIN_RATING } from '@/lib/metadata/popularity'
@@ -69,7 +70,7 @@ export default async function PlatformPage({ params }: Props) {
     where: { platformId: platform.id, isHidden: false, rawgAdded: { gte: MIN_ADDED } },
     select: {
       id: true, title: true, coverPath: true, coverUrl: true, releaseYear: true,
-      rawgAdded: true, rawgRating: true, rawgMetacritic: true,
+      rawgAdded: true, rawgRating: true, rawgMetacritic: true, titleId: true, platformId: true,
     },
     orderBy: { rawgAdded: 'desc' },
     take: 60,
@@ -78,11 +79,13 @@ export default async function PlatformPage({ params }: Props) {
   // it on each render, so the strip rotates between good games instead of always
   // showing the same top 15. (The page is force-dynamic → varies per visit.)
   const recPool = recCandidates.slice().sort(comparePopularity).slice(0, 40)
+  const onlineIds = await onlineGameIds(recCandidates)
   const recommended = weightedSample(recPool, 15).map(g => ({
     id: g.id,
     title: g.title,
     cover: resolveCoverPath(g.coverPath) ?? g.coverUrl,
     releaseYear: g.releaseYear,
+    online: onlineIds.has(g.id),
   }))
 
   // ── Hidden gems: well-rated but not widely owned ────────────────────────────
@@ -92,15 +95,17 @@ export default async function PlatformPage({ params }: Props) {
       rawgAdded:  { gte: MIN_ADDED, lt: GEM_MAX_ADDED },
       rawgRating: { gte: GEM_MIN_RATING },
     },
-    select: { id: true, title: true, coverPath: true, coverUrl: true, releaseYear: true },
+    select: { id: true, title: true, coverPath: true, coverUrl: true, releaseYear: true, titleId: true, platformId: true },
     orderBy: { rawgRating: 'desc' },
     take: 15,
   })
+  const gemOnline = await onlineGameIds(gemRows)
   const hiddenGems = gemRows.map(g => ({
     id: g.id,
     title: g.title,
     cover: resolveCoverPath(g.coverPath) ?? g.coverUrl,
     releaseYear: g.releaseYear,
+    online: gemOnline.has(g.id),
   }))
 
   return (

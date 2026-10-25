@@ -3,6 +3,7 @@
 import { ViewTransitionLink } from '@/components/shared/ViewTransitionLink'
 import { useTranslations } from 'next-intl'
 import { getPlatformIdentity } from '@/lib/platform-identity'
+import { OnlineBadge } from '@/components/shared/OnlineBadge'
 
 export interface RecommendedGame {
   id: number
@@ -10,6 +11,8 @@ export interface RecommendedGame {
   /** Already-resolved cover URL (proxy URL or external), computed server-side. */
   cover: string | null
   releaseYear: number | null
+  /** Tiene juego en línea en un proveedor de su plataforma. */
+  online?: boolean
 }
 
 interface Props {
@@ -60,6 +63,7 @@ export function RecommendedStrip({ games, thumbnailWidth, thumbnailHeight, platf
               className={`w-full rounded-md overflow-hidden bg-secondary relative mb-1.5 ring-0 group-hover:ring-1 transition-all duration-150 ${identity ? 'ring-[color:var(--platform-glow)]' : 'ring-primary/50'}`}
               style={{ aspectRatio: `${w}/${h}` }}
             >
+              {game.online && <OnlineBadge className="absolute right-1 top-1 z-10 scale-90 origin-top-right" />}
               {game.cover ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
