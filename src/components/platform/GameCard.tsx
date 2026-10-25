@@ -6,11 +6,12 @@ import { Heart, Pencil, Info } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { RatingPill } from '@/components/shared/RatingPill'
 import { OnlineBadge } from '@/components/shared/OnlineBadge'
+import { TorrentBadge } from '@/components/shared/TorrentBadge'
 import { getPlatformIdentity } from '@/lib/platform-identity'
 import type { GameListItem } from '@/types/game'
 
 interface Props {
-  game: GameListItem & { fileName: string; online?: boolean }
+  game: GameListItem & { fileName: string; online?: boolean; torrent?: boolean }
   onSelect: (id: number) => void
   onToggleFavorite: (id: number, current: boolean) => void
   isAdmin?: boolean
@@ -103,6 +104,7 @@ export function GameCard({
           <RatingPill score={game.rawgScore} metacritic={game.rawgMetacritic} rating={game.rawgRating} />
         </div>
         {game.online && <OnlineBadge className="absolute top-1.5 right-1.5 z-10" />}
+        {game.torrent && <TorrentBadge className={`absolute right-1.5 z-10 ${game.online ? 'top-8' : 'top-1.5'}`} />}
 
         {/* Desktop hover overlay */}
         <div className="absolute inset-0 bg-black/70 opacity-0 group-hover:opacity-100 transition-opacity hidden sm:flex items-end p-2">
