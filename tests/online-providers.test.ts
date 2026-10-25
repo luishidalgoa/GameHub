@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { parseNextendoTitles } from '@/lib/online/nextendo'
 import { normalizeGameTitle, parseOnlineProviders } from '@/lib/online/providers'
+import { parsePretendoTitle, toBase3dsTitleId } from '@/lib/online/pretendo'
 
 describe('parseNextendoTitles', () => {
   it('reads each title with its Title ID, required version and name', () => {
@@ -50,5 +51,33 @@ describe('normalizeGameTitle', () => {
 
   it('keeps different games apart', () => {
     expect(normalizeGameTitle('Pokémon Sword')).not.toBe(normalizeGameTitle('Pokémon Shield'))
+  })
+})
+
+describe('parsePretendoTitle', () => {
+  const file = `
+export default class MarioKart7 extends Title {
+	public static displayName = 'MARIO KART 7';
+	public static titleIDs = [
+		'0004000000030600',
+		'0004000000030700',
+		'0004000E00030600',
+		'0005000010112300',
+	];
+}`
+  it('reads the display name and the 3DS title IDs, updates folded into the base game', () => {
+    expect(parsePretendoTitle(file)).toEqual({
+      name: 'MARIO KART 7',
+      titleIds: ['0004000000030600', '0004000000030700'],
+    })
+  })
+
+  it('returns no IDs for a file without the list', () => {
+    expect(parsePretendoTitle("public static displayName = 'Nothing';")).toEqual({ name: 'Nothing', titleIds: [] })
+  })
+
+  it('recognises only 3DS base IDs as 3DS', () => {
+    expect(toBase3dsTitleId('0004008C00030600')).toBe('00040000' + '00030600')
+    expect(toBase3dsTitleId('0005000010112300')).toBeNull()
   })
 })

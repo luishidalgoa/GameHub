@@ -1,4 +1,6 @@
 import { parseNextendoTitles } from './nextendo'
+import { fetchText } from './fetch'
+import { loadPretendoTitles } from './pretendo'
 
 /** Un proyecto de juego en línea que una plataforma enlaza en su página. */
 export interface OnlineProviderLink {
@@ -20,8 +22,10 @@ export interface OnlineEntry {
  * basta con otra entrada aquí y su parser; la plataforma lo activa con `onlineProviders`.
  */
 export interface OnlineSource extends OnlineProviderLink {
-  sourceUrl: string
-  parse: (text: string) => OnlineEntry[]
+  /** Slugs de las plataformas donde se ofrece este proveedor. */
+  platforms: string[]
+  /** Lee la lista de títulos de la fuente (red). */
+  load: () => Promise<OnlineEntry[]>
 }
 
 export const ONLINE_SOURCES: OnlineSource[] = [
@@ -29,8 +33,19 @@ export const ONLINE_SOURCES: OnlineSource[] = [
     key: 'nextendo',
     label: 'Nextendo Network',
     url: 'https://github.com/NextendoNetwork',
-    sourceUrl: 'https://raw.githubusercontent.com/NextendoNetwork/citron-nextendo/HEAD/src/common/nextendo_compatible_titles.h',
-    parse: parseNextendoTitles,
+    platforms: ['switch'],
+    load: () => fetchText('https://raw.githubusercontent.com/NextendoNetwork/citron-nextendo/HEAD/src/common/nextendo_compatible_titles.h')
+      .then(parseNextendoTitles),
+  },
+  {
+    // Pretendo no publica una lista de compatibilidad: su herramienta nex-viewer tiene un
+    // fichero por juego 3DS con sus Title IDs. Un juego en esa lista es un juego que
+    // Pretendo tiene modelado, no una garantía de que funcione entero.
+    key: 'pretendo',
+    label: 'Pretendo Network',
+    url: 'https://github.com/PretendoNetwork',
+    platforms: ['3ds'],
+    load: loadPretendoTitles,
   },
 ]
 

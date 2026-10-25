@@ -263,9 +263,9 @@ const platformsSnapshot = (
 ) => JSON.stringify({ ps, paths, emus, online })
 
 /** Un bloque por proveedor de juego en línea, activo o no en esta plataforma. */
-const onlineConfigsFor = (raw: string | null | undefined): OnlineProviderConfig[] => {
+const onlineConfigsFor = (raw: string | null | undefined, slug: string): OnlineProviderConfig[] => {
   const saved = parseOnlineConfigs(raw)
-  return ONLINE_SOURCES.map((src) => {
+  return ONLINE_SOURCES.filter((src) => src.platforms.includes(slug)).map((src) => {
     const c = saved.find((x) => x.key === src.key)
     return { key: src.key, label: src.label, url: c?.url ?? src.url, enabled: c?.enabled ?? false }
   })
@@ -340,12 +340,12 @@ export function SettingsForm({ platforms: initial, settings, donation, onlineSta
   const getEmu = (id: number) => emulatorsMap[id] ?? {}
 
   const [onlineMap, setOnlineMap] = useState<Record<number, OnlineProviderConfig[]>>(() =>
-    Object.fromEntries(initial.map((p) => [p.id, onlineConfigsFor(p.onlineProviders)])))
-  const getOnline = (id: number) => onlineMap[id] ?? onlineConfigsFor(null)
+    Object.fromEntries(initial.map((p) => [p.id, onlineConfigsFor(p.onlineProviders, p.slug)])))
+  const getOnline = (id: number) => onlineMap[id] ?? onlineConfigsFor(null, initial.find((p) => p.id === id)?.slug ?? '')
   const setOnline = (id: number, key: string, patch: Partial<OnlineProviderConfig>) =>
     setOnlineMap((prev) => ({
       ...prev,
-      [id]: (prev[id] ?? onlineConfigsFor(null)).map((c) => (c.key === key ? { ...c, ...patch } : c)),
+      [id]: (prev[id] ?? []).map((c) => (c.key === key ? { ...c, ...patch } : c)),
     }))
 
   const [syncingOnline, setSyncingOnline] = useState(false)
@@ -582,7 +582,7 @@ export function SettingsForm({ platforms: initial, settings, donation, onlineSta
         setPlatforms(initial)
         setPathsMap(Object.fromEntries(initial.map((p) => [p.id, splitPaths(p.scanPath)])))
         setEmulatorsMap(Object.fromEntries(initial.map((p) => [p.id, parseEmulators(p.emulators)])))
-        setOnlineMap(Object.fromEntries(initial.map((p) => [p.id, onlineConfigsFor(p.onlineProviders)])))
+        setOnlineMap(Object.fromEntries(initial.map((p) => [p.id, onlineConfigsFor(p.onlineProviders, p.slug)])))
         break
       case 'claves':
         setRawgKey(settings['rawg_api_key'] ?? '')
