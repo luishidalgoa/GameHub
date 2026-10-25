@@ -38,6 +38,7 @@ model Platform {
   providerScreenshots String?
 
   games            Game[]
+  externalGames    ExternalGame[]
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 }
@@ -464,4 +465,31 @@ model OnlineSupport {
   syncedAt        DateTime
 
   @@id([provider, titleId])
+}
+
+/// Torrents de juegos de una fuente externa. No se alojan: solo el magnet y la ficha de la fuente.
+/// Se cruzan con la biblioteca por Title ID (Game.titleId), en mayúsculas.
+model ExternalGame {
+  id          Int      @id @default(autoincrement())
+  source      String
+  sourceKey   String
+  platformId  Int
+  platform    Platform @relation(fields: [platformId], references: [id], onDelete: Cascade)
+  title       String
+  titleId     String?
+  magnet      String
+  sourceUrl   String
+  size        String?
+  format      String?
+  hasDlc      Boolean  @default(false)
+  cover       String?
+  year        Int?
+  genre       String?
+  developer   String?
+  publisher   String?
+  description String?
+  syncedAt    DateTime
+
+  @@unique([source, sourceKey])
+  @@index([platformId, titleId])
 }
