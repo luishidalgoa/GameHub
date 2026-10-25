@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { parseNextendoTitles } from '@/lib/online/nextendo'
-import { parseOnlineProviders } from '@/lib/online/providers'
+import { normalizeGameTitle, parseOnlineProviders } from '@/lib/online/providers'
 
 describe('parseNextendoTitles', () => {
   it('reads each title with its Title ID, required version and name', () => {
@@ -37,5 +37,18 @@ describe('parseOnlineProviders', () => {
     expect(parseOnlineProviders(null)).toEqual([])
     expect(parseOnlineProviders('{"key":"nextendo"}')).toEqual([])
     expect(parseOnlineProviders('[nope')).toEqual([])
+  })
+})
+
+describe('normalizeGameTitle', () => {
+  it('matches a library title with the source name, whatever its region tag or accents', () => {
+    expect(normalizeGameTitle('Splatoon 2 (EU)')).toBe(normalizeGameTitle('Splatoon 2'))
+    expect(normalizeGameTitle('Pokémon Sword')).toBe(normalizeGameTitle('Pokemon Sword'))
+    expect(normalizeGameTitle('Diablo III: Eternal Collection')).toBe(normalizeGameTitle('Diablo III Eternal Collection'))
+    expect(normalizeGameTitle('Game Boy - Nintendo Switch Online')).toBe(normalizeGameTitle('Game Boy'))
+  })
+
+  it('keeps different games apart', () => {
+    expect(normalizeGameTitle('Pokémon Sword')).not.toBe(normalizeGameTitle('Pokémon Shield'))
   })
 })

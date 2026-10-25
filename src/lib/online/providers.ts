@@ -34,6 +34,21 @@ export const ONLINE_SOURCES: OnlineSource[] = [
   },
 ]
 
+/**
+ * Forma comparable de un título, para casar el nombre de la fuente con el de la biblioteca:
+ * sin acentos, sin lo que va entre paréntesis ("(EU)"), sin la coletilla de Nintendo Switch
+ * Online y sin puntuación. Así "Splatoon 2 (EU)" casa con "Splatoon 2".
+ */
+export function normalizeGameTitle(title: string): string {
+  return title
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/\([^)]*\)/g, ' ')
+    .replace(/\s*-\s*(nintendo switch online|nintendo classics)\s*$/i, ' ')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+}
+
 /** La lista JSON de proyectos de una plataforma; vacía o mal formada no enlaza nada. */
 export function parseOnlineProviders(raw: string | null | undefined): OnlineProviderLink[] {
   if (!raw) return []
