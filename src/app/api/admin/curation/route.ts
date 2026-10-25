@@ -16,7 +16,8 @@ export async function GET() {
 
   const [games, cards] = await Promise.all([
     db.game.findMany({
-      where: { isHidden: false, releaseYear: { not: null } },
+      // Los torrents no tienen fichero que renombrar: solo los locales.
+      where: { isHidden: false, source: 'local', releaseYear: { not: null } },
       select: {
         id: true,
         fileName: true,
@@ -32,7 +33,7 @@ export async function GET() {
     // here, so we flag it and let the reviewer decide.
     db.game.groupBy({
       by: ['rawgId'],
-      where: { isHidden: false, rawgId: { not: null } },
+      where: { isHidden: false, source: 'local', rawgId: { not: null } },
       _count: { rawgId: true },
       having: { rawgId: { _count: { gt: 1 } } },
     }),

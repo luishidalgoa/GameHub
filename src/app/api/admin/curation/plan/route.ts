@@ -53,7 +53,7 @@ export async function POST(req: Request) {
   }
 
   const games = await db.game.findMany({
-    where: { id: { in: items.map(i => Number(i.id)).filter(Number.isInteger) } },
+    where: { id: { in: items.map(i => Number(i.id)).filter(Number.isInteger) }, source: 'local' },
     select: { id: true, fileName: true, filePath: true },
   })
   const byId = new Map(games.map(g => [g.id, g]))
