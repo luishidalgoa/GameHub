@@ -40,7 +40,8 @@ export interface LibraryIssues {
  */
 export async function findLibraryIssues(): Promise<LibraryIssues> {
   const games = await db.game.findMany({
-    where:  { isHidden: false },
+    // Los torrents no tienen fichero en disco: no entran en la comprobación.
+    where:  { isHidden: false, source: 'local' },
     select: {
       id: true, title: true, fileName: true, filePath: true, titleId: true,
       platform: { select: { slug: true, name: true } },
