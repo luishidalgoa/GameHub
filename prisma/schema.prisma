@@ -45,6 +45,7 @@ model Platform {
 
   games            Game[]
   externalGames    ExternalGame[]
+  torrentBlacklist TorrentBlacklist[]
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 }
@@ -514,4 +515,21 @@ model ExternalGame {
   @@unique([source, sourceKey])
   @@index([platformId, titleId])
   @@index([platformId, titleKey])
+}
+
+// Títulos de torrent que el usuario quitó para siempre. La identidad es la del catálogo
+// (id:<titleId>, key:<consola>:<clave> o topic:<fuente>:<id>): apunta al fichero exacto,
+// así que el sync no vuelve a crear el juego aunque se purgue de la papelera.
+model TorrentBlacklist {
+  id         Int      @id @default(autoincrement())
+  platformId Int
+  platform   Platform @relation(fields: [platformId], references: [id], onDelete: Cascade)
+  identity   String
+  source     String?
+  sourceKey  String?
+  title      String
+  reason     String   @default("oculto")
+  createdAt  DateTime @default(now())
+
+  @@unique([platformId, identity])
 }

@@ -4,7 +4,9 @@ import { fileToTitle, toSortTitle } from '@/lib/utils'
 import { parseLocks } from '@/lib/manual-fields'
 import { extractSwitchTitleId } from '@/lib/scanner/titleid'
 import { titleKey } from './match'
-import { type RawEntry, sourcePriority, torrentSourcesFor, type TorrentSource } from './sources'
+import { cleanSwitchTitle } from './title-clean'
+import { createProvider, type RawEntry } from './sources'
+import { parseSourceConfigs, type SourceConfig } from './source-types'
 
 const CHUNK = 500
 
@@ -69,9 +71,30 @@ export function sizeBytes(size: string | null): bigint {
 const DLC_TAIL = /\+\s*\d+\s*DLC.*$/i
 
 /** Identidad de un juego entre fuentes: su Title ID, o su nombre cuando no lo tiene. */
+const GB_CONSOLES = ['gb', 'gbc', 'gba'] as const
+const GB_EXTENSIONS: Record<string, string> = { '.gb': 'gb', '.gbc': 'gbc', '.gba': 'gba' }
+
+/** Consola de Game Boy de una fuente («minerva-gbc» → «gbc»), o null si la fuente no es de una. */
+function consoleOfSource(source: string): string | null {
+  const c = source.replace(/^minerva-/, '')
+  return (GB_CONSOLES as readonly string[]).includes(c) ? c : null
+}
+
+/** Consola de Game Boy de un fichero local por su extensión, o null. */
+function consoleOfFile(fileName: string): string | null {
+  return GB_EXTENSIONS[fileName.slice(fileName.lastIndexOf('.')).toLowerCase()] ?? null
+}
+
+/**
+ * Identidad de un juego sin Title ID. En Game Boy el mismo título existe en GB, GBC y GBA y no es el
+ * mismo juego: GB y GBC llevan su consola en la identidad; GBA conserva la de siempre.
+ */
 function identityOf(e: { titleId: string | null; titleKey: string; source: string; sourceKey: string }): string {
   if (e.titleId) return `id:${e.titleId}`
-  if (e.titleKey.length >= 4) return `key:${e.titleKey}`
+  if (e.titleKey.length >= 4) {
+    const console = consoleOfSource(e.source)
+    return `key:${console && console !== 'gba' ? `${console}:` : ''}${e.titleKey}`
+  }
   return `topic:${e.source}:${e.sourceKey}`
 }
 
@@ -86,8 +109,12 @@ function parseTorrentKey(externalKey: string): { source: string; identity: strin
   return cut > 0 ? { source: externalKey.slice(0, cut), topic: externalKey.slice(cut + 1) } : null
 }
 
-function torrentFields(title: string, size: string | null, titleId: string | null) {
-  const clean = fileToTitle(title).replace(DLC_TAIL, '').trim() || title.trim()
+const torrentPath = (platformSlug: string, identity: string) => `torrent://${platformSlug}/${identity}`
+
+function torrentFields(platformSlug: string, title: string, size: string | null, titleId: string | null) {
+  const clean = platformSlug === 'switch'
+    ? cleanSwitchTitle(title)
+    : fileToTitle(title).replace(DLC_TAIL, '').trim() || title.trim()
   return {
     title: clean,
     sortTitle: toSortTitle(clean),
@@ -147,11 +174,16 @@ async function writeSourceRows(platformId: number, source: string, rows: (Extern
  * tenía mientras siga en su fuente; si no, la primera por preferencia. Los juegos que casan con
  * uno local no tienen fila torrent.
  */
-async function reconcileTorrentGames(platformId: number, syncedAt: Date) {
+async function reconcileTorrentGames(platformId: number, syncedAt: Date, order: string[]) {
   const ext = await db.externalGame.findMany({
-    where: { platformId },
+    where: { platformId, source: { in: order } },
     select: { id: true, source: true, sourceKey: true, title: true, titleId: true, titleKey: true, size: true, gameId: true },
   }) as ExtRow[]
+  const platformSlug = (await db.platform.findUnique({ where: { id: platformId }, select: { slug: true } }))?.slug ?? String(platformId)
+  const rank = (source: string) => {
+    const i = order.indexOf(source)
+    return i < 0 ? Number.MAX_SAFE_INTEGER : i
+  }
 
   const identityByTopic = new Map<string, string>()
   const byIdentity = new Map<string, ExtRow[]>()
@@ -166,12 +198,17 @@ async function reconcileTorrentGames(platformId: number, syncedAt: Date) {
     byIdentity.set(identity, [...(byIdentity.get(identity) ?? []), e])
   }
   for (const id of localIdentities) byIdentity.delete(id)
+  // Lo que el usuario quitó no vuelve a crearse, aunque el catálogo siga trayéndolo:
+  // así una purga de la papelera no hace reaparecer los juegos ocultos.
+  const blacklisted = await db.torrentBlacklist.findMany({ where: { platformId }, select: { identity: true } })
+  for (const { identity } of blacklisted) byIdentity.delete(identity)
   for (const list of byIdentity.values()) {
-    list.sort((a, b) => sourcePriority(a.source) - sourcePriority(b.source))
+    list.sort((a, b) => rank(a.source) - rank(b.source))
   }
 
+  // Los juegos divididos de un lote (splitFromId) no son filas de la fuente: no se reconcilian.
   const games = await db.game.findMany({
-    where: { platformId, source: 'torrent' },
+    where: { platformId, source: 'torrent', splitFromId: null },
     select: {
       id: true, externalKey: true, filePath: true, title: true, fileName: true, fileSize: true, titleId: true,
       manualFields: true, userHidden: true, isHidden: true,
@@ -189,11 +226,12 @@ async function reconcileTorrentGames(platformId: number, syncedAt: Date) {
     ownerSource.set(g.id, parsed.source)
     claimed.add(g.id)
   }
-  // Un juego que vuelve reutiliza su fila oculta: la ruta es única por identidad.
+  // Un juego que vuelve reutiliza su fila oculta. La ruta es única por plataforma e identidad;
+  // las filas anteriores (`torrent://<identidad>`) se siguen reconociendo dentro de la plataforma.
   const byFilePath = new Map(games.map(g => [g.filePath, g]))
   for (const identity of byIdentity.keys()) {
     if (ownerByIdentity.has(identity)) continue
-    const g = byFilePath.get(`torrent://${identity}`)
+    const g = byFilePath.get(torrentPath(platformSlug, identity)) ?? byFilePath.get(`torrent://${identity}`)
     if (g && !claimed.has(g.id)) {
       ownerByIdentity.set(identity, g)
       claimed.add(g.id)
@@ -209,12 +247,12 @@ async function reconcileTorrentGames(platformId: number, syncedAt: Date) {
     const keep = current ? ownerSource.get(current.id) : undefined
     const pick = entries.find(e => e.source === keep) ?? entries[0]
     const externalKey = `torrent:${pick.source}:${identity}`
-    const fields = torrentFields(pick.title, pick.size, pick.titleId)
+    const fields = torrentFields(platformSlug, pick.title, pick.size, pick.titleId)
 
     if (!current) {
       creates.push({
         ...fields, source: 'torrent', externalKey, platformId, lastSeenAt: syncedAt,
-        filePath: `torrent://${identity}`,
+        filePath: torrentPath(platformSlug, identity),
       })
       continue
     }
@@ -277,17 +315,19 @@ async function linkToLocal(platformId: number, platformSlug: string, rows: Exter
     const id = (platformSlug === 'switch' ? extractSwitchTitleId(g.fileName) : null) ?? g.titleId?.toUpperCase()
     if (id && !localById.has(id)) localById.set(id, g.id)
     const key = titleKey(g.title)
-    if (key.length >= 4 && !localByKey.has(key)) localByKey.set(key, g.id)
+    const bucket = `${consoleOfFile(g.fileName) ?? ''}|${key}`
+    if (key.length >= 4 && !localByKey.has(bucket)) localByKey.set(bucket, g.id)
   }
   return rows.map(r => {
     const byId = r.titleId ? localById.get(r.titleId) : undefined
-    return { ...r, gameId: byId ?? localByKey.get(r.titleKey) ?? null }
+    const bucket = `${consoleOfSource(r.source) ?? ''}|${r.titleKey}`
+    return { ...r, gameId: byId ?? localByKey.get(bucket) ?? null }
   })
 }
 
 /** Una fuente: la descarga, la convierte y escribe sus filas. Si falla, no toca nada de esa fuente. */
-async function syncOneSource(source: TorrentSource, platformId: number, platformSlug: string): Promise<SourceResult> {
-  const entries = await source.provider.fetchEntries()
+async function syncOneSource(source: SourceConfig, platformId: number, platformSlug: string): Promise<SourceResult> {
+  const entries = await createProvider(source).fetchEntries()
 
   const syncedAt = new Date()
   const rows = entries.flatMap(e => {
@@ -306,32 +346,41 @@ async function syncOneSource(source: TorrentSource, platformId: number, platform
   }
 }
 
+/** Tras cambiar las fuentes de una plataforma: borra las filas de las quitadas y recalcula sus juegos. */
+export async function refreshTorrentGames(platformId: number, removed: string[], active: string[]) {
+  if (removed.length) await db.externalGame.deleteMany({ where: { platformId, source: { in: removed } } })
+  return reconcileTorrentGames(platformId, new Date(), active)
+}
+
+/** Las fuentes configuradas de una plataforma, activas o no, en orden de prioridad. */
+export async function platformTorrentSources(platformSlug: string): Promise<SourceConfig[]> {
+  const platform = await db.platform.findUnique({ where: { slug: platformSlug }, select: { torrentSources: true } })
+  return parseSourceConfigs(platform?.torrentSources)
+}
+
 /**
- * Sincroniza las fuentes de torrents de una plataforma, o de todas, y reconcilia los juegos de
- * cada plataforma una vez. Una fuente que falla conserva sus filas anteriores y las demás siguen.
+ * Sincroniza las fuentes activas de cada plataforma, o solo de una, y reconcilia sus juegos.
+ * Una fuente que falla conserva sus filas anteriores y las demás siguen. Una fuente desactivada
+ * deja de contar: sus juegos que no tengan otra fuente se ocultan.
  */
 export async function syncTorrentSources(platformSlug?: string) {
-  const sources = torrentSourcesFor(platformSlug)
+  const platforms = await db.platform.findMany({
+    where: { torrentSources: { not: null }, ...(platformSlug ? { slug: platformSlug } : {}) },
+    select: { id: true, slug: true, torrentSources: true },
+  })
   const results: Record<string, SourceResult | { error: string }> = {}
-  const platforms = new Map<string, number>()
-
-  for (const source of sources) {
-    const platform = await db.platform.findUnique({ where: { slug: source.platformSlug }, select: { id: true } })
-    if (!platform) {
-      results[source.key] = { error: `no existe la plataforma ${source.platformSlug}` }
-      continue
-    }
-    platforms.set(source.platformSlug, platform.id)
-    try {
-      results[source.key] = await syncOneSource(source, platform.id, source.platformSlug)
-    } catch (err) {
-      results[source.key] = { error: err instanceof Error ? err.message : String(err) }
-    }
-  }
-
   const games: Record<string, Awaited<ReturnType<typeof reconcileTorrentGames>>> = {}
-  for (const [slug, id] of platforms) {
-    games[slug] = await reconcileTorrentGames(id, new Date())
+
+  for (const platform of platforms) {
+    const active = parseSourceConfigs(platform.torrentSources).filter(s => s.enabled)
+    for (const source of active) {
+      try {
+        results[source.key] = await syncOneSource(source, platform.id, platform.slug)
+      } catch (err) {
+        results[source.key] = { error: err instanceof Error ? err.message : String(err) }
+      }
+    }
+    games[platform.slug] = await reconcileTorrentGames(platform.id, new Date(), active.map(s => s.key))
   }
   return { sources: results, games }
 }
