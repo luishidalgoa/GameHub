@@ -1,16 +1,21 @@
 import { db } from '@/lib/db'
 import { SettingsForm } from '@/components/admin/SettingsForm'
+import { parsePlatformFamilies } from '@/lib/platform-family'
+import { getOrientations } from '@/lib/console-orientation'
+import { getProviderMatrix } from '@/lib/metadata/matrix'
+import { chainFor } from '@/lib/metadata/chain-view'
 
 export const dynamic = 'force-dynamic'
 
 export default async function SettingsPage() {
-  const [platforms, settings, support] = await Promise.all([
+  const [platforms, settings, support, orientations] = await Promise.all([
     db.platform.findMany({
       orderBy: { sortOrder: 'asc' },
       include: { _count: { select: { games: true } } },
     }),
     db.setting.findMany(),
     db.onlineSupport.groupBy({ by: ['provider'], _count: { _all: true }, _max: { syncedAt: true } }),
+    getOrientations(),
   ])
   const onlineStatus = Object.fromEntries(support.map((s) => [
     s.provider,
@@ -20,9 +25,21 @@ export default async function SettingsPage() {
   const settingsMap: Record<string, string> = {}
   settings.forEach((s) => { settingsMap[s.key] = s.value })
 
+  // The metadata chain as the batch will run it, per active platform (read-only panel).
+  const metadataChains = await Promise.all(
+    platforms.filter((p) => p.enabled).map(async (p) => chainFor({
+      slug:   p.slug,
+      name:   p.name,
+      matrix: await getProviderMatrix(p.slug),
+    })),
+  )
+
   return (
     <SettingsForm
       platforms={platforms}
+      metadataChains={metadataChains}
+      orientations={orientations}
+      families={parsePlatformFamilies(settingsMap['platform_families'])}
       onlineStatus={onlineStatus}
       settings={settingsMap}
       donation={{

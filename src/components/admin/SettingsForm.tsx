@@ -10,6 +10,14 @@ import { HomebrewRepos } from './HomebrewRepos'
 import { PlatformIconUploader } from './PlatformIconUploader'
 import { parseEmulators, OS_ORDER, OS_LABEL, type EmulatorSet, type EmulatorOS } from '@/components/platform/EmulatorLinks'
 import { ONLINE_SOURCES, parseOnlineConfigs, serializeOnlineConfigs, type OnlineProviderConfig } from '@/lib/online/providers'
+import type { PlatformFamily } from '@/lib/platform-family'
+import { PlatformFamiliesEditor } from './PlatformFamiliesEditor'
+import { MetadataChainPanel } from './MetadataChainPanel'
+import type { PlatformChain } from '@/lib/metadata/chain-view'
+import { SOURCE_TYPES, parseSourceConfigs, sourceConfigError, type SourceConfig } from '@/lib/external/source-types'
+import { consoleModelFor } from '@/lib/consoles'
+import { resolveCoverPath } from '@/lib/cover-url'
+import type { OrientationMap } from '@/lib/console-orientation'
 
 const splitPaths = (s: string) => s.split('|').map(p => p.trim()).filter(Boolean)
 const joinPaths  = (arr: string[]) => arr.filter(Boolean).join('|')
@@ -192,6 +200,8 @@ interface Platform {
   slug: string
   name: string
   scanPath: string
+  modelPath?: string | null
+  posterPath?: string | null
   extensions: string
   scanMode: string
   enabled: boolean
@@ -208,12 +218,19 @@ interface Platform {
   emulatorUrl?: string | null
   emulators?: string | null
   onlineProviders?: string | null
+  torrentSources?: string | null
   iconPath?: string | null
   _count?: { games: number }
 }
 
 interface Props {
   platforms: Platform[]
+  /** Cadena de metadatos de cada plataforma activa, tal como la ejecuta el lote (solo lectura). */
+  metadataChains: PlatformChain[]
+  /** Orientación guardada de cada modelo 3D (Modelos 3D). */
+  orientations: OrientationMap
+  /** Familias de consolas (menú y portada), guardadas en Ajustes. */
+  families: PlatformFamily[]
   /** Última sincronización de cada proveedor: cuántos juegos trae y cuándo. */
   onlineStatus: Record<string, { count: number; syncedAt: string | null }>
   settings: Record<string, string>
@@ -260,7 +277,8 @@ const platformsSnapshot = (
   paths: Record<number, string[]>,
   emus: Record<number, EmulatorSet>,
   online: Record<number, OnlineProviderConfig[]>,
-) => JSON.stringify({ ps, paths, emus, online })
+  torrent: Record<number, SourceConfig[]>,
+) => JSON.stringify({ ps, paths, emus, online, torrent })
 
 /** Un bloque por proveedor de juego en línea, activo o no en esta plataforma. */
 const onlineConfigsFor = (raw: string | null | undefined, slug: string): OnlineProviderConfig[] => {
@@ -318,7 +336,7 @@ function SectionFrame({ dirty, saving, saved, error, onSave, onDiscard, children
 }
 
 
-export function SettingsForm({ platforms: initial, settings, donation, onlineStatus }: Props) {
+export function SettingsForm({ platforms: initial, metadataChains, families, orientations, settings, donation, onlineStatus }: Props) {
   const t = useTranslations('SettingsForm')
   const router = useRouter()
 
@@ -347,6 +365,25 @@ export function SettingsForm({ platforms: initial, settings, donation, onlineSta
       ...prev,
       [id]: (prev[id] ?? []).map((c) => (c.key === key ? { ...c, ...patch } : c)),
     }))
+
+  const [torrentMap, setTorrentMap] = useState<Record<number, SourceConfig[]>>(() =>
+    Object.fromEntries(initial.map((p) => [p.id, parseSourceConfigs(p.torrentSources)])))
+  const getTorrent = (id: number) => torrentMap[id] ?? []
+  const setTorrentList = (id: number, next: SourceConfig[]) => setTorrentMap((prev) => ({ ...prev, [id]: next }))
+  const setTorrent = (id: number, i: number, patch: Partial<SourceConfig>) =>
+    setTorrentList(id, getTorrent(id).map((s, j) => (j === i ? { ...s, ...patch } : s)))
+  const moveTorrent = (id: number, i: number, d: -1 | 1) => {
+    const list = [...getTorrent(id)]
+    ;[list[i], list[i + d]] = [list[i + d], list[i]]
+    setTorrentList(id, list)
+  }
+  const removeTorrent = (id: number, i: number) => setTorrentList(id, getTorrent(id).filter((_, j) => j !== i))
+  const addTorrent = (p: Platform) => {
+    const list = getTorrent(p.id)
+    let n = list.length + 1
+    while (list.some((s) => s.key === `${p.slug}-${n}`)) n++
+    setTorrentList(p.id, [...list, { key: `${p.slug}-${n}`, type: 'json-list', url: '', enabled: true }])
+  }
 
   const [syncingOnline, setSyncingOnline] = useState(false)
   const [onlineNote, setOnlineNote] = useState<string | null>(null)
@@ -427,7 +464,7 @@ export function SettingsForm({ platforms: initial, settings, donation, onlineSta
   }
 
   // Línea base de las plataformas: cómo estaban al cargar o al último guardado.
-  const [platformsBaseline, setPlatformsBaseline] = useState(() => platformsSnapshot(platforms, pathsMap, emulatorsMap, onlineMap))
+  const [platformsBaseline, setPlatformsBaseline] = useState(() => platformsSnapshot(platforms, pathsMap, emulatorsMap, onlineMap, torrentMap))
   const [deleting, setDeleting] = useState<number | null>(null)
   const [addOpen,  setAddOpen]  = useState(false)
   const [adding,   setAdding]   = useState(false)
@@ -502,7 +539,7 @@ export function SettingsForm({ platforms: initial, settings, donation, onlineSta
 
   // Un ámbito se guarda por su cuenta: solo manda sus claves, o sus plataformas.
   const dirty = (id: ScopeId): boolean => {
-    if (id === 'plataformas') return platformsSnapshot(platforms, pathsMap, emulatorsMap, onlineMap) !== platformsBaseline
+    if (id === 'plataformas') return platformsSnapshot(platforms, pathsMap, emulatorsMap, onlineMap, torrentMap) !== platformsBaseline
     if (id === 'donaciones') return false
     return (SCOPE_KEYS[id] ?? []).some(([k, d]) => (live[id]?.[k] ?? '') !== (settings[k] ?? d))
   }
@@ -535,6 +572,7 @@ export function SettingsForm({ platforms: initial, settings, donation, onlineSta
                 providerScreenshots: p.providerScreenshots || null,
                 emulators:       serializeEmulators(getEmu(p.id)),
                 onlineProviders: serializeOnlineConfigs(getOnline(p.id)),
+                torrentSources:  JSON.stringify(getTorrent(p.id)),
                 // Clear the deprecated single fields once migrated into `emulators`
                 emulatorName:    null,
                 emulatorUrl:     null,
@@ -564,7 +602,7 @@ export function SettingsForm({ platforms: initial, settings, donation, onlineSta
         return
       }
 
-      if (id === 'plataformas') setPlatformsBaseline(platformsSnapshot(platforms, pathsMap, emulatorsMap, onlineMap))
+      if (id === 'plataformas') setPlatformsBaseline(platformsSnapshot(platforms, pathsMap, emulatorsMap, onlineMap, torrentMap))
       setSectionSaved(id)
       setTimeout(() => setSectionSaved(null), 2000)
       router.refresh()
@@ -583,6 +621,7 @@ export function SettingsForm({ platforms: initial, settings, donation, onlineSta
         setPathsMap(Object.fromEntries(initial.map((p) => [p.id, splitPaths(p.scanPath)])))
         setEmulatorsMap(Object.fromEntries(initial.map((p) => [p.id, parseEmulators(p.emulators)])))
         setOnlineMap(Object.fromEntries(initial.map((p) => [p.id, onlineConfigsFor(p.onlineProviders, p.slug)])))
+        setTorrentMap(Object.fromEntries(initial.map((p) => [p.id, parseSourceConfigs(p.torrentSources)])))
         break
       case 'claves':
         setRawgKey(settings['rawg_api_key'] ?? '')
@@ -778,6 +817,11 @@ export function SettingsForm({ platforms: initial, settings, donation, onlineSta
                         platformId={p.id}
                         slug={p.slug}
                         iconPath={p.iconPath}
+                        modelUrl={consoleModelFor(p.slug, p.modelPath ? resolveCoverPath(p.modelPath) : null)?.file ?? null}
+                        posterPath={p.posterPath}
+                        onPosterChange={() => router.refresh()}
+                        orientation={(() => { const v = consoleModelFor(p.slug, p.modelPath ? resolveCoverPath(p.modelPath) : null); return v ? (orientations[v.slug] ?? v.baseRotation ?? null) : null })()}
+                        fromModelLabel={t('iconFromModel')}
                         onChange={(iconPath) => { updateField(p.id, 'iconPath', iconPath ?? ''); router.refresh() }}
                         label={t('iconUpload')}
                         hint={t('iconHint')}
@@ -932,6 +976,58 @@ export function SettingsForm({ platforms: initial, settings, donation, onlineSta
                                 ? `${st.count} juegos en la fuente · última sincronización ${st.syncedAt ? new Date(st.syncedAt).toLocaleString() : 'nunca'}`
                                 : 'Sin datos todavía: sincroniza para traer la lista.'}
                             </p>
+                          </div>
+                        )
+                      })}
+                    </div>
+
+                    {/* Fuentes de torrents: de dónde se extraen los juegos, por orden de prioridad. */}
+                    <div className="space-y-2 lg:col-span-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <h4 className="text-xs font-medium text-muted-foreground">Fuentes de torrents</h4>
+                        <button
+                          type="button"
+                          onClick={() => addTorrent(p)}
+                          className="rounded-md border border-border px-2.5 py-1 text-xs hover:bg-accent"
+                        >
+                          Añadir fuente
+                        </button>
+                      </div>
+                      {getTorrent(p.id).length === 0 && (
+                        <p className="text-xs text-muted-foreground">Sin fuentes: esta plataforma no tiene torrents.</p>
+                      )}
+                      {getTorrent(p.id).map((s, i, all) => {
+                        const error = sourceConfigError(s)
+                        return (
+                          <div key={s.key} className="grid gap-2 rounded-md border border-border p-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
+                            <ToggleSwitch
+                              label={`${i + 1}. ${s.key}`}
+                              checked={s.enabled}
+                              onChange={(v) => setTorrent(p.id, i, { enabled: v })}
+                            />
+                            <select
+                              aria-label={`Tipo de ${s.key}`}
+                              value={s.type}
+                              onChange={(e) => setTorrent(p.id, i, { type: e.target.value as SourceConfig['type'] })}
+                              className="rounded-md border border-border bg-secondary px-2 py-1 text-sm text-foreground"
+                            >
+                              {Object.entries(SOURCE_TYPES).map(([type, def]) => (
+                                <option key={type} value={type}>{def.label}</option>
+                              ))}
+                            </select>
+                            <input
+                              type="text"
+                              aria-label={`URL de ${s.key}`}
+                              value={s.url}
+                              onChange={(e) => setTorrent(p.id, i, { url: e.target.value })}
+                              className="rounded-md border border-border bg-secondary px-2 py-1 text-sm text-foreground lg:col-span-2"
+                            />
+                            <div className="flex flex-wrap items-center gap-2 lg:col-span-2">
+                              <button type="button" disabled={i === 0} onClick={() => moveTorrent(p.id, i, -1)} className="rounded-md border border-border px-2 py-0.5 text-xs hover:bg-accent disabled:opacity-40">Subir</button>
+                              <button type="button" disabled={i === all.length - 1} onClick={() => moveTorrent(p.id, i, 1)} className="rounded-md border border-border px-2 py-0.5 text-xs hover:bg-accent disabled:opacity-40">Bajar</button>
+                              <button type="button" onClick={() => removeTorrent(p.id, i)} className="rounded-md border border-border px-2 py-0.5 text-xs hover:bg-accent">Quitar</button>
+                              {error && <span className="text-xs text-destructive">{error}</span>}
+                            </div>
                           </div>
                         )
                       })}
@@ -1130,6 +1226,7 @@ export function SettingsForm({ platforms: initial, settings, donation, onlineSta
           </div>
         )}
       </div>
+      <PlatformFamiliesEditor platforms={platforms} initial={families} />
         </SectionFrame>
       )}
 
@@ -1209,6 +1306,8 @@ export function SettingsForm({ platforms: initial, settings, donation, onlineSta
           onSave={() => void saveScope('proveedores')}
           onDiscard={() => discardScope('proveedores')}
         >
+      <MetadataChainPanel chains={metadataChains} />
+
       {/* Metadata provider matrix */}
       <div className="bg-card border border-border rounded-xl p-6 space-y-5">
         <div>
