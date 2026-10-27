@@ -7,7 +7,9 @@ import { chainFor } from '@/lib/metadata/chain-view'
 
 export const dynamic = 'force-dynamic'
 
-export default async function SettingsPage() {
+export default async function SettingsPage({ params }: { params: { seccion?: string[] } }) {
+  // The section lives in the URL: /admin/settings/<seccion>.
+  const initialSection = params.seccion?.[0] ?? ''
   const [platforms, settings, support, orientations] = await Promise.all([
     db.platform.findMany({
       orderBy: { sortOrder: 'asc' },
@@ -36,6 +38,7 @@ export default async function SettingsPage() {
 
   return (
     <SettingsForm
+      initialSection={initialSection}
       platforms={platforms}
       metadataChains={metadataChains}
       orientations={orientations}

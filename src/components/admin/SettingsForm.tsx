@@ -225,6 +225,8 @@ interface Platform {
 }
 
 interface Props {
+  /** The section from the URL (/admin/settings/<seccion>); empty means the default. */
+  initialSection?: string
   platforms: Platform[]
   /** Cadena de metadatos de cada plataforma activa, tal como la ejecuta el lote (solo lectura). */
   metadataChains: PlatformChain[]
@@ -263,6 +265,12 @@ const SCOPE_GROUPS: Array<{ label: string; items: Array<{ id: ScopeId; label: st
 ]
 
 /** Claves que guarda cada ámbito, con el valor que supone cuando no hay fila. */
+/** The section a URL segment names; anything unknown opens the first section. */
+function sectionFromSegment(segment: string): ScopeId {
+  const ids = SCOPE_GROUPS.flatMap(g => g.items.map(i => i.id)) as string[]
+  return (ids.includes(segment) ? segment : 'plataformas') as ScopeId
+}
+
 const SCOPE_KEYS: Partial<Record<ScopeId, Array<[string, string]>>> = {
   claves: [['rawg_api_key', ''], ['google_search_api_key', ''], ['steamgriddb_key', ''], ['youtube_api_key', '']],
   proveedores: [['provider_cover', 'launchbox'], ['provider_info', 'launchbox'], ['provider_description', 'rawg'], ['provider_screenshots', 'launchbox']],
@@ -337,7 +345,7 @@ function SectionFrame({ dirty, saving, saved, error, onSave, onDiscard, children
 }
 
 
-export function SettingsForm({ platforms: initial, metadataChains, families, orientations, settings, donation, onlineStatus }: Props) {
+export function SettingsForm({ initialSection = '', platforms: initial, metadataChains, families, orientations, settings, donation, onlineStatus }: Props) {
   const t = useTranslations('SettingsForm')
   const router = useRouter()
 
@@ -447,7 +455,17 @@ export function SettingsForm({ platforms: initial, metadataChains, families, ori
   const [shopPassword,  setShopPassword]  = useState(settings['shop_password']  ?? '')
   const [appUrl,        setAppUrl]        = useState(settings['app_url']        ?? process.env.NEXT_PUBLIC_APP_URL ?? '')
 
-  const [scope, setScope] = useState<ScopeId>('plataformas')
+  const [scope, setScope] = useState<ScopeId>(() => sectionFromSegment(initialSection))
+  // Changing section writes it to the URL; the browser's back and forward move between sections.
+  const chooseScope = (id: ScopeId) => {
+    setScope(id)
+    window.history.pushState(window.history.state, '', `/admin/settings/${id}`)
+  }
+  useEffect(() => {
+    const onPop = () => setScope(sectionFromSegment(window.location.pathname.split('/')[3] ?? ''))
+    window.addEventListener('popstate', onPop)
+    return () => window.removeEventListener('popstate', onPop)
+  }, [])
   const [sectionSaving, setSectionSaving] = useState<ScopeId | null>(null)
   const [sectionSaved, setSectionSaved] = useState<ScopeId | null>(null)
   const [sectionError, setSectionError] = useState<Partial<Record<ScopeId, string>>>({})
@@ -717,7 +735,7 @@ export function SettingsForm({ platforms: initial, metadataChains, families, ori
                   key={item.id}
                   type="button"
                   aria-current={scope === item.id ? 'true' : undefined}
-                  onClick={() => setScope(item.id)}
+                  onClick={() => chooseScope(item.id)}
                   className={`flex items-center justify-between gap-2 rounded-md px-3 py-2 text-left text-sm transition-colors ${
                     scope === item.id ? 'bg-accent font-semibold text-foreground' : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'
                   }`}
@@ -730,19 +748,6 @@ export function SettingsForm({ platforms: initial, metadataChains, families, ori
           ))}
         </nav>
         <div className="min-w-0 space-y-8">
-          {/* Where you are: the group and the section open in the menu. */}
-          <nav aria-label="Ubicación" className="text-xs text-muted-foreground">
-            <ol className="flex flex-wrap items-center gap-1.5">
-              <li>Ajustes</li>
-              <li aria-hidden="true">›</li>
-              <li>{SCOPE_GROUPS.find(g => g.items.some(i => i.id === scope))?.label}</li>
-              <li aria-hidden="true">›</li>
-              <li aria-current="page" className="font-medium text-foreground">
-                {SCOPE_GROUPS.flatMap(g => g.items).find(i => i.id === scope)?.label}
-              </li>
-            </ol>
-          </nav>
-
       {scope === 'plataformas' && (
         <SectionFrame
           dirty={dirty('plataformas')}
