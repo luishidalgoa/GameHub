@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll } from 'vitest'
 import { db } from '@/lib/db'
 import { listAdminGames, dbOrder, LIBRARY_SORT_DEFAULT, GRAVEYARD_SORT_DEFAULT } from '@/lib/games/list'
 import { parseGameFilters } from '@/lib/games/filters'
+import { artListPage } from '@/lib/art-list'
 
 // Each test uses its own platform, so the rows of other tests never mix in.
 const SLUG = 'test-admin-list'
@@ -91,5 +92,22 @@ describe('the admin game list: one query for the library and the graveyard', () 
   it('the database order puts nullable columns last', () => {
     expect(dbOrder('year', 'asc')[0]).toEqual({ releaseYear: { sort: 'asc', nulls: 'last' } })
     expect(dbOrder('region', 'desc')[0]).toEqual({ region: { sort: 'desc', nulls: 'last' } })
+  })
+
+  it('the art list pages through every missing-art entry once', async () => {
+    // Five visible games on the test platform, none with a backdrop or a logo: two entries each.
+    const filter = { vista: 'todos' as const, falta: 'ambos' as const, plataforma: 'Test admin list' }
+    const seen: string[] = []
+    let page = 1
+    let hasMore = true
+    while (hasMore) {
+      const r = await artListPage(filter, page, 2)
+      seen.push(...r.items.map(i => `${i.id}:${i.missing}`))
+      expect(r.total).toBeGreaterThanOrEqual(10)
+      hasMore = r.hasMore
+      page++
+    }
+    expect(new Set(seen).size).toBe(seen.length)
+    expect(seen.length).toBeGreaterThanOrEqual(10)
   })
 })

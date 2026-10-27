@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { RefreshCw, X } from 'lucide-react'
 
@@ -67,6 +67,19 @@ export function CompanyCatalog({ companies }: { companies: CompanyRow[] }) {
       return !q || norm(c.name).includes(q)
     })
   }, [bySort, query, status, ownerId, subCount]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const moreRef = useRef<HTMLDivElement>(null)
+  // A new filter starts again from the first rows.
+  useEffect(() => { setShown(PAGE) }, [query, status, ownerText, sort])
+  // More rows when the end of the list comes near the bottom of the screen.
+  const hasMoreRows = filtered.length > shown
+  useEffect(() => {
+    const el = moreRef.current
+    if (!el || !hasMoreRows) return
+    const obs = new IntersectionObserver(([e]) => { if (e.isIntersecting) setShown(s => s + PAGE) }, { rootMargin: '480px' })
+    obs.observe(el)
+    return () => obs.disconnect()
+  }, [hasMoreRows, shown])
 
   const selected = selectedId === null ? null : byId.get(selectedId) ?? null
 
@@ -149,10 +162,9 @@ export function CompanyCatalog({ companies }: { companies: CompanyRow[] }) {
         })}
       </ul>
 
-      {filtered.length > shown && (
-        <button type="button" onClick={() => setShown(s => s + PAGE)} className="px-3 py-1.5 rounded-md text-xs bg-secondary hover:bg-secondary/80">
-          Mostrar {Math.min(PAGE, filtered.length - shown)} más
-        </button>
+      <div ref={moreRef} className="h-2" aria-hidden="true" />
+      {hasMoreRows && (
+        <p className="py-2 text-center text-xs text-muted-foreground">Quedan {(filtered.length - shown).toLocaleString('es-ES')} más</p>
       )}
 
       {selected && (

@@ -2,26 +2,19 @@
 
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
-import useSWRInfinite from 'swr/infinite'
+import { useInfinitePages } from './useInfinitePages'
 import { SortHeader } from './SortHeader'
 import { GamePanel, type PanelGame } from './GamePanel'
 import { DeleteGameButton } from './GraveyardClient'
 import { FIELD_WEIGHTS, type FieldKey } from '@/lib/games/completeness'
 import { formatBytes } from '@/lib/utils'
-import type { AdminGameRow, AdminListPage } from '@/lib/games/list'
+import type { AdminGameRow } from '@/lib/games/list'
 
 // The admin's game table, shared by the library and the graveyard. Rows arrive a page
 // at a time from the list API as the reader scrolls: the table never holds the whole
 // library, and a sort or filter change starts again from the first page.
 
-const SENTINEL_PX = 480
 const MISSING_NAME = Object.fromEntries(FIELD_WEIGHTS.map(f => [f.key, f.label])) as Record<FieldKey, string>
-
-const fetchPage = (url: string): Promise<AdminListPage> =>
-  fetch(url).then(async r => {
-    if (!r.ok) throw new Error(`HTTP ${r.status}`)
-    return r.json() as Promise<AdminListPage>
-  })
 
 interface SavedScroll { size: number; y: number }
 
@@ -63,35 +56,11 @@ export function AdminGameTable({ variant, query, sort, sortLinks, panel = null }
   const [saved] = useState(() => (typeof window === 'undefined' ? null : readSaved(restoreKey)))
   const restored = useRef(false)
 
-  const getKey = (index: number, prev: AdminListPage | null) => {
-    if (prev && !prev.hasMore) return null
-    const qs = new URLSearchParams(query)
-    qs.set('page', String(index + 1))
-    return `${endpoint}?${qs.toString()}`
-  }
-
-  const { data, error, size, setSize, isValidating, isLoading, mutate } = useSWRInfinite<AdminListPage>(
-    getKey,
-    fetchPage,
-    { revalidateFirstPage: false, revalidateOnFocus: false, initialSize: saved?.size ?? 1 },
-  )
-
-  const items: AdminGameRow[] = data ? data.flatMap(p => p.items) : []
-  const total = data?.[0]?.total ?? null
-  const hasMore = data ? data[data.length - 1].hasMore : false
-
-  // Next page when the sentinel comes near the bottom of the screen.
-  const sentinelRef = useRef<HTMLDivElement>(null)
-  useEffect(() => {
-    const el = sentinelRef.current
-    if (!el) return
-    const obs = new IntersectionObserver(
-      ([entry]) => { if (entry.isIntersecting && hasMore && !isValidating) setSize(s => s + 1) },
-      { rootMargin: `${SENTINEL_PX}px` },
-    )
-    obs.observe(el)
-    return () => obs.disconnect()
-  }, [hasMore, isValidating, setSize])
+  const { items, total, hasMore, loaded: data, isLoading, isValidating, failed, mutate, sentinelRef, size } = useInfinitePages<AdminGameRow>({
+    url: endpoint,
+    query,
+    initialSize: saved?.size ?? 1,
+  })
 
   // Restore the scroll once the saved pages are in.
   useEffect(() => {
@@ -177,7 +146,7 @@ export function AdminGameTable({ variant, query, sort, sortLinks, panel = null }
                   <td colSpan={colSpan} className="px-3 py-2"><div className="h-8 animate-pulse rounded bg-secondary" /></td>
                 </tr>
               ))}
-              {error && (
+              {failed && (
                 <tr>
                   <td colSpan={colSpan} className="px-3 py-8 text-center text-sm text-destructive">
                     No se pudo cargar la lista.{' '}
@@ -199,7 +168,7 @@ export function AdminGameTable({ variant, query, sort, sortLinks, panel = null }
       </div>
 
       <div ref={sentinelRef} className="h-2" aria-hidden="true" />
-      {hasMore && !error && items.length > 0 && (
+      {hasMore && !failed && items.length > 0 && (
         <p className="py-4 text-center text-xs text-muted-foreground">{isValidating ? 'Cargando más juegos…' : ''}</p>
       )}
       {!hasMore && items.length > 0 && (

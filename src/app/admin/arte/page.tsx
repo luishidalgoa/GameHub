@@ -4,16 +4,12 @@ import { ArtGameList } from '@/components/admin/ArtGameList'
 import Link from 'next/link'
 import { purgeExpiredManualArt } from '@/lib/art-manual'
 import { ART_KINDS, artTitle, artKindOf } from '@/lib/art-catalog'
-import {
-  DEFAULT_ART_FILTER, hasRichMetadata, isValuableForArt, selectArtGames,
-  type ArtFilter, type ArtMissing, type ArtView,
-} from '@/lib/art-value'
+import { artFilterFrom, artSummary } from '@/lib/art-list'
+import { type ArtMissing, type ArtView } from '@/lib/art-value'
 
 export const dynamic = 'force-dynamic'
 
-const PAGE = 60
 const VIEWS: ArtView[] = ['valiosos', 'todos', 'pobres']
-const MISSING: ArtMissing[] = ['ambos', 'fondo', 'logo']
 
 const EMPTY: Record<ArtView, string> = {
   valiosos: 'Ningún juego valioso con estos filtros. Cambia la vista a «Todos los visibles» para ver el resto.',
@@ -21,51 +17,35 @@ const EMPTY: Record<ArtView, string> = {
   pobres: 'Ningún juego con metadatos pobres con estos filtros.',
 }
 
-function filterFrom(sp: Record<string, string | string[] | undefined>): ArtFilter {
-  const pick = <T extends string>(v: string | string[] | undefined, allowed: readonly T[], fallback: T): T =>
-    typeof v === 'string' && (allowed as readonly string[]).includes(v) ? (v as T) : fallback
-  return {
-    vista: pick(sp.vista, VIEWS, DEFAULT_ART_FILTER.vista),
-    falta: pick(sp.falta, MISSING, DEFAULT_ART_FILTER.falta),
-    plataforma: typeof sp.plataforma === 'string' && sp.plataforma ? sp.plataforma : 'todas',
-  }
-}
-
 // Arte (#142). Por defecto: juegos valiosos (metadatos completos y popular en RAWG o descargado).
 // Esta página es referencia; el arte de cada juego se edita en su panel, sin subir archivos aquí.
 export default async function AdminArtPage({ searchParams }: { searchParams: Record<string, string | string[] | undefined> }) {
   await purgeExpiredManualArt()
-  const filter = filterFrom(searchParams)
-  const shownRaw = typeof searchParams.n === 'string' ? parseInt(searchParams.n, 10) : NaN
-  const shown = Number.isFinite(shownRaw) && shownRaw > PAGE ? shownRaw : PAGE
+  const filter = artFilterFrom(searchParams)
+  const query = new URLSearchParams({ vista: filter.vista, falta: filter.falta, plataforma: filter.plataforma }).toString()
 
-  const [games, downloads, byKind, platforms] = await Promise.all([
-    db.game.findMany({
-      where: { isHidden: false },
-      select: {
-        id: true, title: true, coverPath: true, description: true, releaseYear: true,
-        developer: true, genre: true, rawgAdded: true, backdropPath: true, backdropKind: true,
-        logoPath: true, tilePath: true, screenshotPaths: true,
-        platform: { select: { name: true } },
-      },
-      orderBy: { title: 'asc' },
-    }),
-    db.downloadLog.findMany({ distinct: ['gameId'], select: { gameId: true } }),
-    db.gameImage.groupBy({ by: ['kind'], _count: { _all: true } }),
+  // Counts are read in the database, not by loading every game for the page.
+  const visibleWhere = { isHidden: false }
+  const [summary, platforms, byKind, cover, banner, fondo, logo, capturas] = await Promise.all([
+    artSummary(filter),
     db.platform.findMany({ where: { enabled: true }, select: { name: true }, orderBy: { sortOrder: 'asc' } }),
+    db.gameImage.groupBy({ by: ['kind'], _count: { _all: true } }),
+    db.game.count({ where: { ...visibleWhere, coverPath: { not: null } } }),
+    db.game.count({ where: { ...visibleWhere, backdropKind: 'banner' } }),
+    db.game.count({ where: { ...visibleWhere, backdropPath: { not: null }, OR: [{ backdropKind: null }, { backdropKind: { not: 'banner' } }] } }),
+    db.game.count({ where: { ...visibleWhere, logoPath: { not: null } } }),
+    db.game.count({ where: { ...visibleWhere, screenshotPaths: { not: null } } }),
   ])
-
-  const downloaded = new Set(downloads.map(d => d.gameId))
-  const visible = games.length
+  const visible = summary.visible
   const files = (kind: string) => byKind.find(k => k.kind === kind)?._count._all ?? 0
 
   // Game-level: what each game shows. Then one row per kind in the data model, with the files the repository holds.
   const fieldRows = [
-    { label: 'Portada', has: games.filter(g => g.coverPath).length, files: null, missing: null },
-    { label: 'Banner', has: games.filter(g => g.backdropKind === 'banner').length, files: null, missing: null },
-    { label: 'Fondo', has: games.filter(g => g.backdropPath && g.backdropKind !== 'banner').length, files: null, missing: 'fondo' as const },
-    { label: 'Logo', has: games.filter(g => g.logoPath).length, files: null, missing: 'logo' as const },
-    { label: 'Capturas', has: games.filter(g => g.screenshotPaths).length, files: null, missing: null },
+    { label: 'Portada', has: cover, missing: null },
+    { label: 'Banner', has: banner, missing: null },
+    { label: 'Fondo', has: fondo, missing: 'fondo' as const },
+    { label: 'Logo', has: logo, missing: 'logo' as const },
+    { label: 'Capturas', has: capturas, missing: null },
   ]
 
   // Every kind the repository holds: the catalogue first, in its order, then any kind it does not know.
@@ -76,31 +56,19 @@ export default async function AdminArtPage({ searchParams }: { searchParams: Rec
     .map(k => ({ kind: k, label: artTitle(k), group: artKindOf(k)?.group ?? 'other', files: files(k) }))
     .filter(r => r.files > 0 || catalogue.includes(r.kind))
 
-  const candidates = games.map(g => ({ ...g, platformName: g.platform.name }))
-  const count = (view: ArtView) => candidates.filter(g => {
-    if (view === 'valiosos') return isValuableForArt(g, downloaded.has(g.id))
-    if (view === 'pobres') return !hasRichMetadata(g)
-    return true
-  }).length
-
-  const selected = selectArtGames(candidates, filter, downloaded)
-  const byId = new Map(candidates.map(g => [g.id, g]))
-  const rows = selected.slice(0, shown).map(({ id, missing }) => ({ id, title: byId.get(id)!.title, platform: byId.get(id)!.platform.name, missing }))
-
   const viewLabel: Record<ArtView, string> = {
-    valiosos: `Valiosos (${count('valiosos')})`,
-    todos: `Todos los visibles (${count('todos')})`,
-    pobres: `Metadatos pobres (${count('pobres')})`,
+    valiosos: `Valiosos (${summary.views.valiosos})`,
+    todos: `Todos los visibles (${summary.views.todos})`,
+    pobres: `Metadatos pobres (${summary.views.pobres})`,
   }
   const select = 'bg-secondary border border-border rounded-md px-2.5 py-2 text-sm'
   // The chips count what each «Falta» option would show, and link to it; the same view and platform stay.
   const chips: { falta: ArtMissing; label: string; count: number }[] = [
-    { falta: 'ambos', label: 'Fondo o logo', count: selectArtGames(candidates, { ...filter, falta: 'ambos' }, downloaded).length },
-    { falta: 'fondo', label: 'Falta fondo', count: selectArtGames(candidates, { ...filter, falta: 'fondo' }, downloaded).length },
-    { falta: 'logo', label: 'Falta logo', count: selectArtGames(candidates, { ...filter, falta: 'logo' }, downloaded).length },
+    { falta: 'ambos', label: 'Fondo o logo', count: summary.chips.ambos },
+    { falta: 'fondo', label: 'Falta fondo', count: summary.chips.fondo },
+    { falta: 'logo', label: 'Falta logo', count: summary.chips.logo },
   ]
   const chipHref = (falta: ArtMissing) => `/admin/arte?${new URLSearchParams({ vista: filter.vista, falta, plataforma: filter.plataforma }).toString()}`
-  const moreParams = new URLSearchParams({ vista: filter.vista, falta: filter.falta, plataforma: filter.plataforma, n: String(shown + PAGE) })
 
   return (
     <div className="space-y-8">
@@ -146,7 +114,7 @@ export default async function AdminArtPage({ searchParams }: { searchParams: Rec
         <div>
           <h3 className="font-semibold">Sin fondo o sin logo</h3>
           <p className="text-sm text-muted-foreground mt-0.5">
-            {selected.length} resultados con estos filtros. Se muestran {Math.min(shown, selected.length)}. Pulsa «Editar arte» para ver y cambiar el arte de un juego en un panel.
+            {summary.selected.toLocaleString('es-ES')} resultados con estos filtros. Pulsa «Editar arte» para ver y cambiar el arte de un juego en un panel.
           </p>
         </div>
 
@@ -188,16 +156,8 @@ export default async function AdminArtPage({ searchParams }: { searchParams: Rec
           <button type="submit" className="px-3 py-2 rounded-md text-sm font-medium bg-violet-600 hover:bg-violet-500 text-white">Aplicar</button>
         </form>
 
-        <ArtGameList rows={rows} emptyText={EMPTY[filter.vista]} />
-
-        {selected.length > shown && (
-          <div className="flex items-center justify-between gap-4 border-t border-border pt-4">
-            <span className="text-xs text-muted-foreground">Mostrando {shown} de {selected.length}</span>
-            <Link href={`/admin/arte?${moreParams.toString()}`} className="px-3 py-2 rounded-md text-sm bg-secondary hover:bg-secondary/80">
-              Mostrar {PAGE} más
-            </Link>
-          </div>
-        )}
+        {/* Keyed by the filter, so a new filter starts again from the first page. */}
+        <ArtGameList key={query} query={query} emptyText={EMPTY[filter.vista]} />
       </div>
     </div>
   )
