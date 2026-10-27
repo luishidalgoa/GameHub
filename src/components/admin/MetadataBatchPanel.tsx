@@ -2,10 +2,9 @@
 
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, type ReactNode } from 'react'
 import { useTranslations } from 'next-intl'
-import { Sparkles, StopCircle, CheckCircle2, XCircle, AlertTriangle, Loader2, SlidersHorizontal, ChevronDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import {
-  BATCH_MODES, FIELD_SCOPES, MODE_APPLIES, SCOPE_FIELD_COUNT, SCOPE_LABEL,
+  BATCH_MODES, FIELD_SCOPES, MODE_APPLIES, SCOPE_FIELDS, SCOPE_LABEL,
   effectiveScope, reachOf, runScope, type BatchMode, type FieldScope, type Reach,
 } from '@/lib/metadata/scope'
 
@@ -29,36 +28,55 @@ interface JobState {
   message: string | null
 }
 
-/** What each category holds, shown on hover in its header. */
-const SCOPE_HINT: Record<FieldScope, string> = {
-  ficha:      'Título, descripción, género, desarrollador, editor, año y fecha',
-  imagenes:   'Portada, fondo, logo, tile y capturas',
-  notas:      'Nota, Metacritic, valoración y popularidad',
-  multimedia: 'Tráiler de YouTube',
+// What each mode does, in the words an admin would use. Shown under the choice and on hover.
+const MODE_COPY: Record<BatchMode, { label: string; line: string }> = {
+  'missing': {
+    label: 'Sin metadatos',
+    line: 'Juegos sin ficha que aún no se han resuelto: nunca buscados, o con un reintento ya vencido. Lo que ya tiene ficha no se toca.',
+  },
+  'fill': {
+    label: 'Con huecos',
+    line: 'Juegos con ficha y algún campo vacío. Solo rellena esos campos; lo que ya tiene valor y lo que fijaste a mano no cambia.',
+  },
+  'redo': {
+    label: 'Rehacer todo',
+    line: 'Todos los juegos visibles. Vuelve a buscar en las fuentes y reemplaza lo automático. Lo que fijaste a mano se conserva.',
+  },
+  'wrong-provider': {
+    label: 'Proveedor incorrecto',
+    line: 'Juegos cuya ficha o portada viene de una fuente distinta a la preferente de su plataforma. Los vuelve a buscar en la correcta.',
+  },
+  'popularity': {
+    label: 'Popularidad',
+    line: 'Actualiza en RAWG cuántos usuarios tienen cada juego y su valoración. Alimenta las recomendaciones.',
+  },
+  'autocomplete-scores': {
+    label: 'Nota automática',
+    line: 'Pone la nota a los juegos que no tienen ninguna, con la cadena RAWG → Metacritic → LaunchBox.',
+  },
 }
 
-// One line per mode, so the choice reads without the manual: what it does, and to whom.
-const MODE_TEXT: Record<BatchMode, string> = {
-  'missing':              'Busca los juegos que no tienen ningún metadato. Lo que ya existe no se toca.',
-  'fill':                 'Rellena solo los campos vacíos de cada juego. Nunca cambia lo que ya tiene valor ni lo que fijaste tú.',
-  'redo':                 'Vuelve a buscar en todas las fuentes y sobrescribe lo automático. Lo que fijaste tú se conserva.',
-  'wrong-provider':       'Vuelve a buscar solo en los juegos cuyos datos vienen de una fuente que no es la preferente de su plataforma.',
-  'popularity':           'Recalcula la popularidad de RAWG (cuántos lo tienen y su valoración), que alimenta las recomendaciones.',
-  'autocomplete-scores':  'Pone la nota a los juegos que no tienen ninguna, con la fuente configurada.',
+const SCOPE_DETAIL: Record<FieldScope, string> = {
+  ficha:      'Ficha del juego',
+  imagenes:   'Portadas y arte',
+  notas:      'Puntuaciones',
+  multimedia: 'Vídeo de presentación',
 }
 
-function ReachDot({ reach }: { reach: Reach }) {
-  if (reach === 'all') return <span className="inline-block h-2 w-2 rounded-full bg-violet-400" />
-  if (reach === 'gaps') return <span className="inline-block h-2 w-2 rounded-full border border-violet-400" />
-  return <span className="text-xs text-muted-foreground">—</span>
+const REACH_LEGEND = 'Completo · solo los huecos · no aplica'
+
+function ReachMark({ reach }: { reach: Reach }) {
+  if (reach === 'all') return <span aria-label="completo" className="inline-block h-2 w-2 rounded-full bg-primary" />
+  if (reach === 'gaps') return <span aria-label="solo los huecos" className="inline-block h-2 w-2 rounded-full border border-primary" />
+  return <span aria-label="no aplica" className="text-xs leading-none text-muted-foreground">–</span>
 }
 
 /**
- * A small button that opens a menu next to it; closes on outside click, Escape or resize.
+ * A button that opens a menu under it; closes on outside click, Escape or resize.
  * The menu stays inside the viewport: it opens to the side and above or below whichever
  * has room, and never grows past the screen.
  */
-function OptionsMenu({ label, disabled, children }: { label: string; disabled?: boolean; children: ReactNode }) {
+function OptionsMenu({ label, disabled, children }: { label: ReactNode; disabled?: boolean; children: ReactNode }) {
   const [open, setOpen] = useState(false)
   const [place, setPlace] = useState<{ right: boolean; up: boolean; maxH: number }>({ right: false, up: false, maxH: 0 })
   const ref = useRef<HTMLDivElement>(null)
@@ -96,20 +114,18 @@ function OptionsMenu({ label, disabled, children }: { label: string; disabled?: 
   }, [open])
 
   return (
-    <div ref={ref} className="relative flex-1 min-w-[140px] xl:flex-none">
+    <div ref={ref} className="relative flex-1 min-w-[160px] xl:flex-none">
       <button
         type="button"
         disabled={disabled}
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={() => setOpen(o => !o)}
-        className="flex w-full items-center justify-between gap-2 bg-secondary border border-border rounded-md px-2.5 py-2 text-sm hover:bg-accent transition-colors disabled:opacity-60"
+        className="flex w-full items-center justify-between gap-3 rounded-md border border-border bg-secondary px-3 py-2 text-left text-sm transition-colors hover:bg-accent disabled:opacity-60"
       >
-        <span className="flex items-center gap-2 min-w-0">
-          <SlidersHorizontal className="w-3.5 h-3.5 flex-shrink-0 text-muted-foreground" />
-          <span className="truncate">{label}</span>
-        </span>
-        <ChevronDown className="w-3.5 h-3.5 flex-shrink-0 text-muted-foreground" />
+        <span className="min-w-0 truncate">{label}</span>
+        {/* A plain caret: the trigger says that it opens, nothing more. */}
+        <span aria-hidden className={cn('h-0 w-0 flex-shrink-0 border-x-[5px] border-x-transparent border-t-[6px] border-t-muted-foreground transition-transform', open && 'rotate-180')} />
       </button>
       {open && (
         <div
@@ -117,7 +133,7 @@ function OptionsMenu({ label, disabled, children }: { label: string; disabled?: 
           role="menu"
           style={{ maxHeight: place.maxH || undefined, maxWidth: 'calc(100vw - 16px)' }}
           className={cn(
-            'absolute z-30 w-[26rem] overflow-y-auto rounded-md border border-border bg-card p-2 shadow-lg',
+            'absolute z-30 w-[26rem] overflow-y-auto rounded-lg border border-border bg-popover p-3 text-popover-foreground shadow-xl',
             place.right ? 'right-0' : 'left-0',
             place.up ? 'bottom-full mb-1.5' : 'top-full mt-1.5',
           )}
@@ -129,23 +145,19 @@ function OptionsMenu({ label, disabled, children }: { label: string; disabled?: 
   )
 }
 
-/** One setting: a checkbox with its name and, after a dot, what it changes. */
-function Setting({ label, hint, checked, onChange, disabled, title }: {
+/** One setting: a native checkbox, its name, and a line saying what it changes. */
+function Setting({ label, detail, checked, onChange, disabled }: {
   label: string
-  hint?: string
+  detail: string
   checked: boolean
   onChange: (checked: boolean) => void
   disabled?: boolean
-  title?: string
 }) {
   return (
-    <label
-      title={title}
-      className={cn('flex items-center gap-2 text-sm select-none cursor-pointer', disabled ? 'text-muted-foreground/50' : 'text-muted-foreground')}
-    >
-      <input type="checkbox" checked={checked} onChange={e => onChange(e.target.checked)} disabled={disabled} className="accent-primary" />
-      <span>{label}</span>
-      {hint && <span className="text-xs text-muted-foreground/70">· {hint}</span>}
+    <label className={cn('grid cursor-pointer grid-cols-[auto_1fr] gap-x-2.5 gap-y-0.5 select-none rounded-md px-1 py-1 transition-colors hover:bg-accent/40', disabled && 'cursor-not-allowed opacity-50 hover:bg-transparent')}>
+      <input type="checkbox" checked={checked} onChange={e => onChange(e.target.checked)} disabled={disabled} className="mt-0.5 accent-primary" />
+      <span className="text-sm text-foreground">{label}</span>
+      <span className="col-start-2 text-xs leading-snug text-muted-foreground">{detail}</span>
     </label>
   )
 }
@@ -166,18 +178,13 @@ export function MetadataBatchPanel({ platforms = [] }: { platforms?: PlatformOpt
   const pollRef = useRef<ReturnType<typeof setInterval>>()
   const logRef  = useRef<HTMLDivElement>(null)
 
-  const MODE_LABEL: Record<BatchMode, string> = {
-    'missing':             t('modeMissing'),
-    'fill':                t('modeFill'),
-    'redo':                t('modeRedo'),
-    'wrong-provider':      t('modeWrongProvider'),
-    'popularity':          t('modePopularity'),
-    'autocomplete-scores': t('modeAutocompleteScores'),
-  }
-
   // What the pass will write: the chosen categories, less the ones its switches turn off.
   const selected = runScope(mode, fields, { withTrailers: true, withScores })
   const selectedKey = selected.join(',')
+  // Whether a setting applies follows the categories chosen, not the switch it controls.
+  const chosen = effectiveScope(mode, fields)
+  const coversChosen = chosen.includes('imagenes')
+  const scoresChosen = chosen.includes('notas')
 
   useEffect(() => {
     // Only the newest request may set the count: an older response must not overwrite it.
@@ -271,13 +278,33 @@ export function MetadataBatchPanel({ platforms = [] }: { platforms?: PlatformOpt
   // What the pass would touch, as one line (the same count the run uses).
   const previewLine: ReactNode = preview === null ? null
     : preview.games === null
-      ? 'Cuántos juegos toca: se sabrá al empezar, porque depende de la fuente de cada juego.'
+      ? 'Se sabrá al empezar: depende de la fuente de cada juego.'
       : <>Tocará <b>{preview.games.toLocaleString('es-ES')}</b> juegos{preview.fields !== undefined ? <> · <b>{preview.fields.toLocaleString('es-ES')}</b> campos vacíos</> : null}.</>
 
-  // Whether a setting applies follows the categories chosen, not the switch it controls.
-  const chosen = effectiveScope(mode, fields)
-  const coversChosen = chosen.includes('imagenes')
-  const scoresChosen = chosen.includes('notas')
+  // The fields the chosen categories write, by name: what the admin is about to change.
+  const writes = selected.flatMap(f => SCOPE_FIELDS[f]).join(', ')
+
+  const modeButtons = BATCH_MODES.map(m => {
+    const active = mode === m
+    return (
+      <button
+        key={m}
+        type="button"
+        onClick={() => chooseMode(m)}
+        title={MODE_COPY[m].line}
+        aria-pressed={active}
+        className={cn(
+          'grid w-full grid-cols-[1fr_repeat(4,2.75rem)] items-center gap-x-1 rounded-md border-l-2 px-2 py-1.5 text-left transition-colors',
+          active ? 'border-primary bg-accent text-foreground' : 'border-transparent text-muted-foreground hover:bg-accent/50 hover:text-foreground',
+        )}
+      >
+        <span className="truncate text-sm">{MODE_COPY[m].label}</span>
+        {FIELD_SCOPES.map(f => (
+          <span key={f} className="flex justify-center"><ReachMark reach={reachOf(m, f)} /></span>
+        ))}
+      </button>
+    )
+  })
 
   return (
     <div className="bg-card border border-border rounded-xl p-6 space-y-4">
@@ -285,10 +312,7 @@ export function MetadataBatchPanel({ platforms = [] }: { platforms?: PlatformOpt
       {/* Header */}
       <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-3">
         <div className="min-w-0">
-          <h3 className="font-semibold flex items-center gap-2">
-            <Sparkles className="w-4 h-4 text-violet-400 flex-shrink-0" />
-            {t('title')}
-          </h3>
+          <h3 className="font-semibold">{t('title')}</h3>
           <p className="text-sm text-muted-foreground mt-0.5">
             {t('description', { threshold: AUTO_THRESHOLD, review: REVIEW_THRESHOLD, max: AUTO_THRESHOLD - 1 })}
           </p>
@@ -301,7 +325,7 @@ export function MetadataBatchPanel({ platforms = [] }: { platforms?: PlatformOpt
             onChange={e => setPlatform(e.target.value)}
             disabled={running}
             title={t('platformHint')}
-            className="flex-1 min-w-[140px] xl:flex-none bg-secondary border border-border rounded-md px-2.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-60"
+            className="flex-1 min-w-[140px] xl:flex-none rounded-md border border-border bg-secondary px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-60"
           >
             <option value="">{t('allPlatforms')}</option>
             {platforms.map(p => (
@@ -309,11 +333,17 @@ export function MetadataBatchPanel({ platforms = [] }: { platforms?: PlatformOpt
             ))}
           </select>
 
-          {/* One menu for the games, the categories and the settings: compact, opened on demand. */}
-          <OptionsMenu label={MODE_LABEL[mode]} disabled={running}>
-            <p className="px-2.5 pb-0.5 text-xs text-muted-foreground">Qué actualizar</p>
-            <div className="grid grid-cols-[1fr_repeat(4,4.5rem)] items-center px-2.5 pb-1">
-              <span className="text-xs text-muted-foreground">Juegos</span>
+          {/* The menu: which games, which categories, which settings. */}
+          <OptionsMenu
+            label={<>{MODE_COPY[mode].label} <span className="text-muted-foreground">· {selected.length} de {FIELD_SCOPES.length} categorías</span></>}
+            disabled={running}
+          >
+            <div className="grid grid-cols-[1fr_repeat(4,2.75rem)] gap-x-1 px-2 pb-1">
+              <span className="self-end text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Juegos</span>
+              <span className="col-span-4 px-0.5 pb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Qué actualizar</span>
+            </div>
+            <div className="grid grid-cols-[1fr_repeat(4,2.75rem)] gap-x-1 px-2 pb-2">
+              <span />
               {FIELD_SCOPES.map(f => {
                 const applies = MODE_APPLIES[mode].includes(f)
                 const on = applies && selected.includes(f)
@@ -322,105 +352,87 @@ export function MetadataBatchPanel({ platforms = [] }: { platforms?: PlatformOpt
                     key={f}
                     type="button"
                     onClick={() => toggleField(f)}
-                    disabled={!applies}
+                    disabled={!applies || running}
                     aria-pressed={on}
-                    title={`${SCOPE_LABEL[f]}: ${SCOPE_HINT[f]}`}
+                    title={`${SCOPE_LABEL[f]}: ${SCOPE_FIELDS[f].join(', ')}`}
                     className={cn(
-                      'rounded px-1 py-1 text-center text-xs leading-tight transition-colors',
-                      on ? 'bg-violet-500/15 text-foreground' : 'text-muted-foreground',
-                      applies ? 'hover:bg-accent/50' : 'opacity-30 cursor-not-allowed',
+                      'rounded-md border px-1 py-1 text-center transition-colors',
+                      on ? 'border-primary/60 bg-primary/10 text-foreground' : 'border-border text-muted-foreground',
+                      applies ? 'hover:border-primary/50' : 'cursor-not-allowed opacity-35',
                     )}
                   >
-                    <span className="block">{SCOPE_LABEL[f]}</span>
-                    <span className="block text-[10px] opacity-70">{SCOPE_FIELD_COUNT[f]} campos</span>
+                    <span className="block text-[11px] font-medium leading-tight">{SCOPE_LABEL[f]}</span>
                   </button>
                 )
               })}
             </div>
-            <div className="space-y-0.5">
-              {BATCH_MODES.map(m => (
-                <button
-                  key={m}
-                  type="button"
-                  onClick={() => chooseMode(m)}
-                  title={MODE_TEXT[m]}
-                  aria-pressed={mode === m}
-                  className={cn(
-                    'grid w-full grid-cols-[1fr_repeat(4,4.5rem)] items-center rounded px-2.5 py-1.5 text-sm text-left transition-colors',
-                    mode === m ? 'bg-accent text-foreground' : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground',
-                  )}
-                >
-                  <span className="truncate">{MODE_LABEL[m]}</span>
-                  {FIELD_SCOPES.map(f => (
-                    <span key={f} className="flex justify-center"><ReachDot reach={reachOf(m, f)} /></span>
-                  ))}
-                </button>
-              ))}
-            </div>
-            <p className="px-2.5 pt-1.5 text-xs text-muted-foreground">● todo · ○ solo lo que falta · — no aplica</p>
 
-            <div className="my-2 border-t border-border" />
-            <p className="px-2.5 pb-1 text-xs text-muted-foreground">Ajustes</p>
-            <div className="space-y-2 px-2.5">
+            <div className="space-y-0.5">{modeButtons}</div>
+            <p className="px-2 pt-1.5 text-[11px] text-muted-foreground">{REACH_LEGEND}</p>
+
+            <div className="my-3 border-t border-border" />
+
+            <p className="px-2 pb-1 text-xs font-medium text-foreground">Se escribe</p>
+            <p className="px-2 pb-3 text-xs leading-relaxed text-muted-foreground">
+              {writes || 'Ninguna categoría elegida: elige al menos una.'}
+            </p>
+
+            <p className="px-2 pb-1 text-xs font-medium text-foreground">Ajustes</p>
+            <div className="space-y-1">
               <Setting
                 label="Respetar fijadas"
-                hint="Portadas a mano"
+                detail="Conserva las portadas que elegiste a mano, también al rehacer todo."
                 checked={respectPinned}
                 onChange={setRespectPinned}
                 disabled={running || !coversChosen}
-                title="Si está activo, la portada que elegiste a mano no se cambia, ni siquiera al rehacer todo."
               />
               {(mode === 'missing' || mode === 'fill' || mode === 'redo') && (
                 <Setting
                   label="Buscar nota"
-                  hint="Pone la nota"
+                  detail="Calcula también la nota durante el pase, además de la ficha."
                   checked={withScores}
                   onChange={setWithScores}
                   disabled={running || !scoresChosen}
-                  title={t('fetchScoresHint')}
                 />
               )}
               {mode === 'popularity' && (
                 <Setting
                   label={t('popularityRedo')}
+                  detail="Vuelve a pedir a RAWG los juegos que ya consultó."
                   checked={popularityRedo}
                   onChange={setPopularityRedo}
                   disabled={running}
-                  title={t('popularityRedoHint')}
                 />
               )}
-              <div className="flex items-baseline justify-between gap-3 text-sm">
-                <span className="text-muted-foreground">Vista previa <span className="text-xs text-muted-foreground/70">· cuenta lo que tocará</span></span>
-                <span className="text-xs text-foreground text-right">{previewLine}</span>
-              </div>
             </div>
-            <p className="mt-2 px-1 text-xs text-muted-foreground leading-relaxed">{MODE_TEXT[mode]}</p>
+            <div className="mt-3 flex items-baseline justify-between gap-3 rounded-md bg-secondary px-3 py-2">
+              <span className="text-xs text-muted-foreground">Vista previa</span>
+              <span className="text-right text-xs text-foreground">{previewLine}</span>
+            </div>
           </OptionsMenu>
 
           {running ? (
             <button
               onClick={stop}
-              className="flex items-center justify-center gap-2 px-4 py-2 bg-destructive text-destructive-foreground text-sm rounded-md hover:bg-destructive/90 transition-colors flex-1 min-w-[120px] xl:flex-none"
+              className="flex-1 min-w-[120px] xl:flex-none rounded-md bg-destructive px-4 py-2 text-sm text-destructive-foreground transition-colors hover:bg-destructive/90"
             >
-              <StopCircle className="w-4 h-4" />
               {t('stop')}
             </button>
           ) : (
             <button
               onClick={start}
               disabled={starting || selected.length === 0}
-              className="flex items-center justify-center gap-2 px-4 py-2 bg-violet-600 hover:bg-violet-500 disabled:opacity-60 text-white text-sm rounded-md transition-colors flex-1 min-w-[120px] xl:flex-none"
+              className="flex-1 min-w-[120px] xl:flex-none rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
             >
-              {starting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-              {job && job.status !== 'running' ? t('runAgain') : t('start')}
+              {starting ? 'Iniciando…' : job && job.status !== 'running' ? t('runAgain') : t('start')}
             </button>
           )}
         </div>
       </div>
 
-      {/* Mode hint and what the pass would touch: full width, under the controls */}
+      {/* The mode in words, and what the pass would touch: full width, under the controls */}
       <div className="text-xs text-muted-foreground leading-relaxed">
-        <p>{MODE_TEXT[mode]}</p>
+        <p>{MODE_COPY[mode].line}</p>
         {preview && (
           <p className="mt-1 text-foreground">
             {previewLine}
@@ -433,20 +445,20 @@ export function MetadataBatchPanel({ platforms = [] }: { platforms?: PlatformOpt
       {running && (
         <div className="space-y-1.5">
           <div className="flex justify-between text-xs text-muted-foreground">
-            <span className="flex items-center gap-1.5">
-              <Loader2 className="w-3 h-3 animate-spin" />
+            <span className="flex items-center gap-2">
+              <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
               {job!.total > 0 ? `${job!.processed} / ${job!.total}` : t('processing')}
               {job!.lastTitle && <span className="text-foreground/60 truncate max-w-[220px]">· {job!.lastTitle}</span>}
             </span>
-            <span className="flex gap-3">
-              <span className="text-green-400">✓ {job!.applied}</span>
-              <span className="text-amber-400">⚠ {job!.skipped}</span>
-              <span className="text-red-400">✗ {job!.failed}</span>
+            <span className="flex gap-3 tabular-nums">
+              <span className="text-green-400">{job!.applied} aplicados</span>
+              <span className="text-amber-400">{job!.skipped} omitidos</span>
+              <span className="text-red-400">{job!.failed} fallidos</span>
             </span>
           </div>
           <div className="h-1.5 bg-secondary rounded-full overflow-hidden">
             {job!.total > 0 ? (
-              <div className="h-full bg-violet-500 rounded-full transition-all duration-300" style={{ width: `${pct}%` }} />
+              <div className="h-full bg-primary rounded-full transition-all duration-300" style={{ width: `${pct}%` }} />
             ) : (
               <div className="h-full bar-indeterminate" />
             )}
@@ -473,9 +485,9 @@ export function MetadataBatchPanel({ platforms = [] }: { platforms?: PlatformOpt
             </p>
           )}
           <div className="grid grid-cols-3 gap-3">
-            <SummaryCard icon={<CheckCircle2 className="w-4 h-4 text-green-400" />} label={t('applied')} value={job.applied} color="text-green-400" />
-            <SummaryCard icon={<AlertTriangle className="w-4 h-4 text-amber-400" />} label={t('skipped')} value={job.skipped} color="text-amber-400" />
-            <SummaryCard icon={<XCircle className="w-4 h-4 text-red-400" />} label={t('failed')} value={job.failed} color="text-red-400" />
+            <SummaryCard label={t('applied')} value={job.applied} tone="text-green-400" />
+            <SummaryCard label={t('skipped')} value={job.skipped} tone="text-amber-400" />
+            <SummaryCard label={t('failed')} value={job.failed} tone="text-red-400" />
           </div>
         </div>
       )}
@@ -485,14 +497,11 @@ export function MetadataBatchPanel({ platforms = [] }: { platforms?: PlatformOpt
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
-function SummaryCard({ icon, label, value, color }: { icon: React.ReactNode; label: string; value: number; color: string }) {
+function SummaryCard({ label, value, tone }: { label: string; value: number; tone: string }) {
   return (
-    <div className="bg-secondary/50 border border-border rounded-lg px-4 py-3 flex items-center gap-3">
-      {icon}
-      <div>
-        <p className={cn('text-xl font-bold tabular-nums', color)}>{value}</p>
-        <p className="text-xs text-muted-foreground">{label}</p>
-      </div>
+    <div className="rounded-md border border-border bg-secondary/50 px-4 py-3">
+      <p className={cn('text-xl font-semibold tabular-nums', tone)}>{value}</p>
+      <p className="text-xs text-muted-foreground">{label}</p>
     </div>
   )
 }

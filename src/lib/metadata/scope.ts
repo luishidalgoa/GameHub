@@ -17,12 +17,20 @@ export const SCOPE_LABEL: Record<FieldScope, string> = {
   multimedia: 'Multimedia',
 }
 
-/** How many fields each category holds, as the admin counts them. */
+/** The fields each category writes, as the admin reads them. */
+export const SCOPE_FIELDS: Record<FieldScope, readonly string[]> = {
+  ficha:      ['título', 'descripción', 'género', 'desarrollador', 'editor', 'año', 'fecha'],
+  imagenes:   ['portada', 'fondo', 'logo', 'tile', 'capturas'],
+  notas:      ['nota', 'Metacritic', 'valoración', 'popularidad'],
+  multimedia: ['tráiler'],
+}
+
+/** How many fields each category holds. Derived, so the count and the list cannot drift. */
 export const SCOPE_FIELD_COUNT: Record<FieldScope, number> = {
-  ficha:      7,   // título, descripción, género, desarrollador, editor, año, fecha
-  imagenes:   5,   // portada, fondo, logo, tile, capturas
-  notas:      4,   // nota, Metacritic, valoración, popularidad
-  multimedia: 1,   // tráiler
+  ficha:      SCOPE_FIELDS.ficha.length,
+  imagenes:   SCOPE_FIELDS.imagenes.length,
+  notas:      SCOPE_FIELDS.notas.length,
+  multimedia: SCOPE_FIELDS.multimedia.length,
 }
 
 /** Categories a mode can touch. A category outside this list is not applicable. */
