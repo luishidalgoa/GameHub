@@ -13,6 +13,8 @@ export interface GridFilters {
   region:     string
   genre:      string
   minRating:  string
+  /** Only games without a real box cover (the card would show art or nothing). */
+  noBox:      boolean
 }
 
 const SORTS: readonly GridSort[] = ['title', 'year', 'size', 'popularity', 'rating']
@@ -43,6 +45,7 @@ export function gridFiltersFromQuery(params: ParamReader): GridFilters {
     region:     text(params.get('region')),
     genre:      text(params.get('genre')),
     minRating:  text(params.get('minRating')),
+    noBox:      params.get('box') === 'none',
   }
 }
 
@@ -57,6 +60,7 @@ export function gridFiltersToQuery(f: GridFilters): string {
   if (f.region)     p.set('region', f.region)
   if (f.genre)      p.set('genre', f.genre)
   if (f.minRating)  p.set('minRating', f.minRating)
+  if (f.noBox)      p.set('box', 'none')
   return p.toString()
 }
 

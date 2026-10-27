@@ -5,41 +5,50 @@ import { db } from './db'
 const S3_PREFIX = 'covers'
 
 /**
- * Longest edge of a stored cover. The other edge follows the platform's own
- * aspect, so the box keeps its real shape instead of being letterboxed into a
- * single canvas.
+ * Longest edge of a stored cover. The image keeps its own shape: nothing is padded
+ * into a canvas of the platform's ratio. Art that is not a box (a banner, a square,
+ * a logo) stays what it is, and the card shows it as art instead of as a box.
  */
 const COVER_LONG_EDGE = 1200
 
-/** Fallback shape when the platform has no thumbnail size — the old 2:3 canvas. */
-const DEFAULT_RATIO = 200 / 300
+/**
+ * Resize a cover to the stored size without padding, and report its own proportion
+ * (width / height), or null when the image cannot be read.
+ */
+export async function processCover(buffer: Buffer): Promise<{ webp: Buffer; ratio: number | null }> {
+  const meta = await sharp(buffer).metadata()
+  const ratio = meta.width && meta.height ? meta.width / meta.height : null
+  const webp = await sharp(buffer)
+    .resize(COVER_LONG_EDGE, COVER_LONG_EDGE, { fit: 'inside', withoutEnlargement: true })
+    .webp({ quality: 90 })
+    .toBuffer()
+  return { webp, ratio }
+}
 
 /**
- * Pixel size to store a cover at for a platform, honouring the aspect its own
- * `thumbnailWidth`/`thumbnailHeight` already declare.
- *
- * Everything used to be resized to a hardcoded 1200x1800. Nothing was distorted
- * — `fit: 'contain'` pads rather than stretches — but a square Game Boy Advance
- * box ended up floating in a tall poster with transparent bands down both
- * sides, and a landscape PAL SNES box in an even worse one. The platform table
- * has carried the right proportions all along; they were only ever used for CSS.
+ * The part of a stored image that is not transparent padding. Covers saved before
+ * this change were padded into the platform's canvas; trimming gives back the art.
+ * An image with no padding comes back unchanged.
  */
-async function coverSize(platformSlug: string): Promise<{ width: number; height: number }> {
-  let ratio = DEFAULT_RATIO
-  try {
-    const platform = await db.platform.findUnique({
-      where:  { slug: platformSlug },
-      select: { thumbnailWidth: true, thumbnailHeight: true },
-    })
-    if (platform?.thumbnailWidth && platform?.thumbnailHeight) {
-      ratio = platform.thumbnailWidth / platform.thumbnailHeight
+export async function trimTransparent(buffer: Buffer): Promise<Buffer> {
+  const { data, info } = await sharp(buffer).ensureAlpha().raw().toBuffer({ resolveWithObject: true })
+  const { width, height, channels } = info
+  let minX = width, minY = height, maxX = -1, maxY = -1
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      if (data[(y * width + x) * channels + 3] > 0) {
+        if (x < minX) minX = x
+        if (x > maxX) maxX = x
+        if (y < minY) minY = y
+        if (y > maxY) maxY = y
+      }
     }
-  } catch {
-    // A cover is not worth failing over a DB hiccup; fall back to the old shape.
   }
-  return ratio >= 1
-    ? { width: COVER_LONG_EDGE, height: Math.round(COVER_LONG_EDGE / ratio) }
-    : { width: Math.round(COVER_LONG_EDGE * ratio), height: COVER_LONG_EDGE }
+  if (maxX < 0) return buffer
+  const w = maxX - minX + 1
+  const h = maxY - minY + 1
+  if (w * h > width * height * 0.98) return buffer
+  return sharp(buffer).extract({ left: minX, top: minY, width: w, height: h }).toBuffer()
 }
 
 export async function downloadAndCacheCover(
@@ -64,13 +73,9 @@ export async function saveCoverFromBuffer(
   const s3Key       = `${S3_PREFIX}/${platformSlug}/${gameId}.webp`
   const originalKey = `${S3_PREFIX}/${platformSlug}/${gameId}.original.webp`
 
-  const { width, height } = await coverSize(platformSlug)
-  const processed = await sharp(buffer)
-    .resize(width, height, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
-    .webp({ quality: 90 })
-    .toBuffer()
-
-  await uploadCoverToS3(processed, s3Key, originalKey, undefined, replaceOriginal)
+  const { webp, ratio } = await processCover(buffer)
+  await uploadCoverToS3(webp, s3Key, originalKey, undefined, replaceOriginal)
+  await db.game.update({ where: { id: gameId }, data: { coverRatio: ratio } }).catch(() => {})
 
   // Append a version timestamp so the stored DB key changes on every upload.
   // resolveCoverPath() forwards this as a query param in the proxy URL, which

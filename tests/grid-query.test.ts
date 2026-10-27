@@ -3,7 +3,7 @@ import { gridFiltersFromQuery, gridFiltersToQuery, safeReturnPath, type GridFilt
 
 const DEFAULTS: GridFilters = {
   search: '', sort: 'title', favOnly: false, onlineOnly: false,
-  origin: '', region: '', genre: '', minRating: '',
+  origin: '', region: '', genre: '', minRating: '', noBox: false,
 }
 
 const read = (qs: string) => gridFiltersFromQuery(new URLSearchParams(qs))
@@ -17,7 +17,7 @@ describe('grid filters in the URL', () => {
   it('round-trips every filter', () => {
     const f: GridFilters = {
       search: 'Zelda', sort: 'year', favOnly: true, onlineOnly: true,
-      origin: 'torrent', region: 'EUR', genre: 'RPG', minRating: '80',
+      origin: 'torrent', region: 'EUR', genre: 'RPG', minRating: '80', noBox: true,
     }
     expect(read(gridFiltersToQuery(f))).toEqual(f)
   })

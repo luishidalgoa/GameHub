@@ -5,6 +5,8 @@ import { getClientIp } from '@/lib/tracker'
 import { resolveCoverPath } from '@/lib/s3'
 import { onlineGameIds, onlineIdsIn } from '@/lib/online/flags'
 import { libraryGameWhere, NO_SCORE } from '@/lib/library'
+import { noBoxWhere } from '@/lib/cover-shape'
+import { backdropUrl } from '@/lib/tile-art'
 
 export const dynamic = 'force-dynamic'
 
@@ -17,6 +19,7 @@ export async function GET(req: Request) {
   const onlineOnly = searchParams.get('online') === 'true'
   const sourceParam = searchParams.get('source')
   const source = sourceParam === 'local' || sourceParam === 'torrent' ? sourceParam : null
+  const lotsOnly = sourceParam === 'lot'
   // NaN and out-of-range values fall back to the defaults or the limits: a bad
   // ?pageSize=1e9 must not load the whole library in one response.
   const page = Math.max(1, Number.parseInt(searchParams.get('page') ?? '1', 10) || 1)
@@ -27,13 +30,16 @@ export async function GET(req: Request) {
   const minRatingRaw = searchParams.get('minRating')
   const noScore = minRatingRaw === 'none'
   const minRating = minRatingRaw && !noScore ? Number(minRatingRaw) : null
+  // "none" → only games without a real box (no cover, or art that is not a box).
+  const noBox = searchParams.get('box') === 'none'
 
-  const where = {
+  const base = {
     ...libraryGameWhere(platformSlug),
     ...(search    && { title: { contains: search } }),
     ...(favorites && { isFavorite: true }),
     ...(onlineOnly && { id: { in: await onlineIdsIn(libraryGameWhere(platformSlug)) } }),
     ...(source && { source }),
+    ...(lotsOnly && { isLot: true }),
     // Match the primary region OR any region-variant edition, so a card whose
     // primary is e.g. EUR still shows when filtering by a JPN variant it holds.
     ...(region    && { OR: [{ region }, { dlcs: { some: { type: 'region', region } } }] }),
@@ -42,6 +48,7 @@ export async function GET(req: Request) {
     ...(noScore && NO_SCORE),
     ...(minRating != null && !Number.isNaN(minRating) && { rawgScore: { gte: minRating } }),
   }
+  const where = noBox ? { AND: [base, noBoxWhere()] } : base
 
   const orderBy =
     sort === 'year' ? { releaseYear: 'asc' as const }
@@ -69,6 +76,11 @@ export async function GET(req: Request) {
         genre: true,
         coverPath: true,
         coverUrl: true,
+        coverRatio: true,
+        logoPath: true,
+        backdropPath: true,
+        backdropKind: true,
+        tilePath: true,
         isFavorite: true,
         isHidden: true,
         platformId: true,
@@ -94,9 +106,12 @@ export async function GET(req: Request) {
 
   // The title ID only finds the online badge; it is not sent to the page.
   const online = await onlineGameIds(games)
-  const resolvedGames = games.map(({ titleId: _titleId, ...g }) => ({
+  // `logo` and `backdrop` are what a card without a box shows instead of its cover.
+  const resolvedGames = games.map(({ titleId: _titleId, logoPath, backdropPath, backdropKind, tilePath, ...g }) => ({
     ...g,
     coverPath: resolveCoverPath(g.coverPath),
+    logo: resolveCoverPath(logoPath),
+    backdrop: backdropUrl({ backdropPath, backdropKind, tilePath, coverPath: g.coverPath, coverUrl: g.coverUrl }),
     online: online.has(g.id),
   }))
 

@@ -3,6 +3,7 @@ import { getTranslations } from 'next-intl/server'
 import { db } from '@/lib/db'
 import { formatBytes } from '@/lib/utils'
 import { libraryGameWhere, NO_COVER, NO_SCORE, UNFINDABLE, pendingWhere, pendingMetadataWhere } from '@/lib/library'
+import { noBoxWhere } from '@/lib/cover-shape'
 import { HealthPanel } from '@/components/admin/HealthPanel'
 import { ScanLogsTable } from '@/components/admin/ScanLogsTable'
 import { Gamepad2, Monitor, HardDrive, ImageOff, FileQuestion, StarOff } from 'lucide-react'
@@ -10,11 +11,12 @@ import { Gamepad2, Monitor, HardDrive, ImageOff, FileQuestion, StarOff } from 'l
 export const dynamic = 'force-dynamic'
 
 export default async function AdminPage() {
-  const [t, totalGames, totalPlatforms, noCover, noMeta, waiting, noScore, scanLogs] = await Promise.all([
+  const [t, totalGames, totalPlatforms, noCover, noBox, noMeta, waiting, noScore, scanLogs] = await Promise.all([
     getTranslations('Admin'),
     db.game.count({ where: libraryGameWhere() }),
     db.platform.count({ where: { enabled: true } }),
     db.game.count({ where: { ...libraryGameWhere(), ...pendingWhere(NO_COVER) } }),
+    db.game.count({ where: { AND: [libraryGameWhere(), noBoxWhere()] } }),
     db.game.count({ where: { ...libraryGameWhere(), ...pendingMetadataWhere(new Date()) } }),
     // Sin ficha y con el reintento en el futuro: esperan su turno, no están pendientes.
     db.game.count({ where: { ...libraryGameWhere(), metadataStatus: { in: ['no_match', 'provider_error'] }, metadataFetchedAt: null, description: null, metadataNextRetryAt: { gt: new Date() } } }),
@@ -37,6 +39,9 @@ export default async function AdminPage() {
         <StatCard icon={<HardDrive className="w-5 h-5" />} label={t('totalSize')}     value={formatBytes(totalSize)} />
         <Link href="/admin/games?cover=no-cover" className="rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-ring">
           <StatCard icon={<ImageOff className="w-5 h-5" />} label={t('missingCovers')} value={noCover.toString()} color="text-amber-400" hover />
+        </Link>
+        <Link href="/admin/games?cover=no-box" className="rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+          <StatCard icon={<ImageOff className="w-5 h-5" />} label={t('noBox')} value={noBox.toString()} color="text-amber-400" hover />
         </Link>
         <Link href="/admin/games?meta=no-metadata" className="rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-ring">
           <StatCard icon={<FileQuestion className="w-5 h-5" />} label={t('noMetadata')} value={noMeta.toString()} color={noMeta > 0 ? 'text-violet-400' : 'text-foreground'} hover />

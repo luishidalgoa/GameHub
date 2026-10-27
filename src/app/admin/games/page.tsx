@@ -53,7 +53,7 @@ function sortValue(g: { title: string; sortTitle: string | null; releaseYear: nu
 function activeFilterCount(f: GameListFilters): number {
   return [
     f.search, f.platform, f.state, f.region, f.minMeta > 0 ? 'x' : '',
-    f.noScore ? 'x' : '', f.noCover ? 'x' : '', f.noMeta ? 'x' : '', f.unfindable ? 'x' : '',
+    f.noScore ? 'x' : '', f.noCover ? 'x' : '', f.noBox ? 'x' : '', f.noMeta ? 'x' : '', f.unfindable ? 'x' : '',
     f.favorite ? 'x' : '', f.featured ? 'x' : '', f.online ? 'x' : '',
   ].filter(Boolean).length + f.missing.length
 }
@@ -120,6 +120,7 @@ export default async function AdminGamesPage({ searchParams }: { searchParams: R
   if (filters.region) chips.push({ label: `Región: ${filters.region}`, href: without({ region: '' }) })
   if (filters.noScore) chips.push({ label: 'Sin nota', href: without({ noScore: false }) })
   if (filters.noCover) chips.push({ label: 'Sin portada', href: without({ noCover: false }) })
+  if (filters.noBox) chips.push({ label: 'Sin caja', href: without({ noBox: false }) })
   if (filters.noMeta) chips.push({ label: 'Sin metadatos', href: without({ noMeta: false }) })
   if (filters.unfindable) chips.push({ label: 'No encontrados', href: without({ unfindable: false }) })
   if (filters.favorite) chips.push({ label: 'Favorito', href: without({ favorite: false }) })

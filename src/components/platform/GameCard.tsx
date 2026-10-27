@@ -8,6 +8,7 @@ import { RatingPill } from '@/components/shared/RatingPill'
 import { OnlineBadge } from '@/components/shared/OnlineBadge'
 import { TorrentBadge } from '@/components/shared/TorrentBadge'
 import { getPlatformIdentity } from '@/lib/platform-identity'
+import { isBoxRatio } from '@/lib/cover-shape'
 import type { GameListItem } from '@/types/game'
 
 interface Props {
@@ -37,6 +38,10 @@ export function GameCard({
   returnTo,
 }: Props) {
   const cover = game.coverPath ?? game.coverUrl
+  // A measured cover that is not a box (a banner, a square, a logo) is shown as art:
+  // its blurred backdrop fills the card and the logo sits on top, instead of a box with bands.
+  const showArt = game.coverRatio != null && !isBoxRatio(game.coverRatio)
+  const artSource = game.backdrop ?? cover
   const [imgLoaded, setImgLoaded] = useState(false)
   const [favPop, setFavPop] = useState(false)
   // Cap the cumulative delay so a full page never feels slow (~24 cards × 22ms).
@@ -73,7 +78,40 @@ export function GameCard({
         style={{ aspectRatio: `${thumbnailWidth}/${thumbnailHeight}` }}
         className="relative bg-secondary overflow-hidden"
       >
-        {cover ? (
+        {showArt ? (
+          <>
+            {artSource && (
+              <Image
+                src={artSource}
+                alt=""
+                fill
+                className="object-cover scale-110 blur-md brightness-[0.45]"
+                sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 16vw"
+                loading="lazy"
+                unoptimized
+              />
+            )}
+            <div className="absolute inset-0 flex items-center justify-center p-4">
+              {game.logo ? (
+                <div className="relative w-[85%] h-[45%]">
+                  <Image
+                    src={game.logo}
+                    alt={game.title}
+                    fill
+                    className="object-contain drop-shadow-[0_2px_6px_rgba(0,0,0,0.8)]"
+                    sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 16vw"
+                    loading="lazy"
+                    unoptimized
+                  />
+                </div>
+              ) : (
+                <span className="text-center text-sm font-bold text-white drop-shadow line-clamp-4">
+                  {game.title}
+                </span>
+              )}
+            </div>
+          </>
+        ) : cover ? (
           <>
             {/* Skeleton shimmer — visible until image loads */}
             {!imgLoaded && (

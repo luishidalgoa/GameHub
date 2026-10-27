@@ -93,4 +93,8 @@ export type GameListItem = Pick<
   rawgMetacritic?: number | null
   rawgAdded?:      number | null
   rawgScore?:      number | null
+  // Portada: proporción medida, y el arte que la tarjeta usa cuando no hay caja.
+  coverRatio?:     number | null
+  logo?:           string | null
+  backdrop?:       string | null
 }

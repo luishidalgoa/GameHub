@@ -89,6 +89,9 @@ model Game {
   genres      GameGenre[]
 
   coverPath       String?
+  // Proporción ancho/alto de la portada guardada. Una caja real ronda 2:3 (<= 0.85);
+  // arte horizontal o cuadrado no es caja y la tarjeta lo muestra como respaldo.
+  coverRatio      Float?
   // Encuadre del recorte de la portada (JSON {x,y,s}); null si la portada no está recortada.
   coverFrame      String?
   coverUrl        String?

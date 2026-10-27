@@ -72,6 +72,7 @@ export function GameGrid({
   const [sort,      setSort]     = useState<SortKey>(initial.sort)
   const [favOnly,   setFavOnly]  = useState(initial.favOnly)
   const [onlineOnly, setOnlineOnly] = useState(initial.onlineOnly)
+  const [noBox,     setNoBox]    = useState(initial.noBox)
   const [origin, setOrigin] = useState<'' | 'local' | 'torrent' | 'lot'>(initial.origin)
   const [region,    setRegion]   = useState(initial.region)
   const [genre,     setGenre]    = useState(initial.genre)
@@ -79,7 +80,7 @@ export function GameGrid({
   const [selectedId, setSelectedId] = useState<number | null>(null)
 
   // This view's address: the editor and the modal return to it.
-  const query = gridFiltersToQuery({ search, sort, favOnly, onlineOnly, origin, region, genre, minRating })
+  const query = gridFiltersToQuery({ search, sort, favOnly, onlineOnly, origin, region, genre, minRating, noBox })
   const returnTo = query ? `${pathname}?${query}` : pathname
   useEffect(() => {
     if (window.location.pathname + window.location.search === returnTo) return
@@ -114,9 +115,10 @@ export function GameGrid({
     if (region)          p.set('region',    region)
     if (genre)           p.set('genre',     genre)
     if (minRating)       p.set('minRating', minRating)
+    if (noBox)           p.set('box', 'none')
 
     return `/api/games?${p}`
-  }, [platformSlug, sort, debouncedSearch, favOnly, onlineOnly, origin, region, genre, minRating])
+  }, [platformSlug, sort, debouncedSearch, favOnly, onlineOnly, origin, region, genre, minRating, noBox])
 
   // Restore the saved page count on mount, for this exact view (filters included).
   const savedState = useRef<ScrollState | null>(
@@ -289,6 +291,19 @@ export function GameGrid({
               {regions.map(r => <option key={r} value={r}>{r}</option>)}
             </select>
           )}
+
+          <button
+            onClick={() => setNoBox(v => !v)}
+            aria-pressed={noBox}
+            title={t('noBoxHint')}
+            className={`w-full sm:w-auto min-w-0 sm:flex-none px-3 py-2.5 sm:py-1.5 text-sm rounded-md border transition-colors touch-manipulation whitespace-nowrap truncate ${
+              noBox
+                ? 'bg-amber-600/20 border-amber-600/40 text-amber-300'
+                : 'bg-secondary border-border text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            {t('noBox')}
+          </button>
 
           <button
             onClick={() => setOnlineOnly(v => !v)}

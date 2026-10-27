@@ -1,12 +1,15 @@
 import type { Prisma } from '@prisma/client'
 import { NO_COVER, NO_SCORE, UNFINDABLE, pendingWhere, pendingMetadataWhere } from '@/lib/library'
 import { completeness, FIELD_WEIGHTS, type CompletenessInput, type FieldKey } from '@/lib/games/completeness'
+import { noBoxWhere } from '@/lib/cover-shape'
 
 export interface GameListFilters {
   search: string
   platform: string
   noScore: boolean
   noCover: boolean
+  /** Sin caja real: sin portada, o con arte que no es caja (banner, cuadrado, logo). */
+  noBox: boolean
   noMeta: boolean
   /** Games no source could identify: listed apart, not as pending work. */
   unfindable: boolean
@@ -41,6 +44,7 @@ export function parseGameFilters(p: RawParams): GameListFilters {
     platform: p.platform ?? '',
     noScore: p.score === 'no-score' || p.noScore === '1',
     noCover: p.cover === 'no-cover' || p.noCover === '1',
+    noBox: p.cover === 'no-box',
     noMeta: p.meta === 'no-metadata' || p.noMeta === '1',
     unfindable: p.meta === 'unfindable',
     missing: [...new Set(missing)],
@@ -55,7 +59,7 @@ export function parseGameFilters(p: RawParams): GameListFilters {
 
 /** Visible games; without a platform choice, only enabled platforms. */
 export function gameListWhere(f: GameListFilters): Prisma.GameWhereInput {
-  return {
+  const where: Prisma.GameWhereInput = {
     isHidden: f.state === 'hidden',
     platform: f.platform ? { slug: f.platform } : { enabled: true },
     ...(f.search && { title: { contains: f.search } }),
@@ -69,6 +73,8 @@ export function gameListWhere(f: GameListFilters): Prisma.GameWhereInput {
     ...(f.favorite && { isFavorite: true }),
     ...(f.featured && { isFeatured: true }),
   }
+  // Combined with AND, so it never overwrites the OR or AND clauses above.
+  return f.noBox ? { AND: [where, noBoxWhere()] } : where
 }
 
 /**
@@ -90,6 +96,7 @@ export function gameFilterQuery(f: GameListFilters, extra: Record<string, string
   if (f.platform) qs.set('platform', f.platform)
   if (f.noScore) qs.set('score', 'no-score')
   if (f.noCover) qs.set('cover', 'no-cover')
+  if (f.noBox) qs.set('cover', 'no-box')
   // `meta` takes one value: the unfindable filter wins over the no-metadata one.
   if (f.unfindable) qs.set('meta', 'unfindable')
   else if (f.noMeta) qs.set('meta', 'no-metadata')
