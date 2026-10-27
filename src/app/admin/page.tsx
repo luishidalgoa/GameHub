@@ -3,7 +3,8 @@ import { getTranslations } from 'next-intl/server'
 import { db } from '@/lib/db'
 import { formatBytes } from '@/lib/utils'
 import { libraryGameWhere, NO_COVER, NO_SCORE, UNFINDABLE, pendingWhere, pendingMetadataWhere } from '@/lib/library'
-import { noBoxWhere } from '@/lib/cover-shape'
+import { noBoxWhereByPlatform } from '@/lib/cover-shape'
+import { platformBoxes } from '@/lib/games/platform-boxes'
 import { HealthPanel } from '@/components/admin/HealthPanel'
 import { ScanLogsTable } from '@/components/admin/ScanLogsTable'
 import { Gamepad2, Monitor, HardDrive, ImageOff, FileQuestion, StarOff } from 'lucide-react'
@@ -16,7 +17,7 @@ export default async function AdminPage() {
     db.game.count({ where: libraryGameWhere() }),
     db.platform.count({ where: { enabled: true } }),
     db.game.count({ where: { ...libraryGameWhere(), ...pendingWhere(NO_COVER) } }),
-    db.game.count({ where: { AND: [libraryGameWhere(), noBoxWhere()] } }),
+    db.game.count({ where: { AND: [libraryGameWhere(), noBoxWhereByPlatform(await platformBoxes())] } }),
     db.game.count({ where: { ...libraryGameWhere(), ...pendingMetadataWhere(new Date()) } }),
     // Sin ficha y con el reintento en el futuro: esperan su turno, no están pendientes.
     db.game.count({ where: { ...libraryGameWhere(), metadataStatus: { in: ['no_match', 'provider_error'] }, metadataFetchedAt: null, description: null, metadataNextRetryAt: { gt: new Date() } } }),

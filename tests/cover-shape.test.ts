@@ -4,7 +4,7 @@ import sharp from 'sharp'
 vi.mock('@/lib/db', () => ({ db: {} }))
 vi.mock('@/lib/s3', () => ({ uploadCoverToS3: vi.fn() }))
 
-import { isBoxRatio, noBoxWhere, BOX_MAX_RATIO } from '@/lib/cover-shape'
+import { isBoxRatio, boxRatioOf, noBoxForPlatform, noBoxWhereByPlatform, DEFAULT_BOX_RATIO } from '@/lib/cover-shape'
 import { processCover, trimTransparent } from '@/lib/covers'
 
 // A solid colour image of the given size, as a PNG buffer.
@@ -19,29 +19,59 @@ const padded = (canvasW: number, canvasH: number, artW: number, artH: number) =>
       .composite([{ input: art, left: Math.round((canvasW - artW) / 2), top: Math.round((canvasH - artH) / 2) }])
       .png().toBuffer())
 
-describe('box shape', () => {
-  it('a 2:3 box is a box', () => {
-    expect(isBoxRatio(2 / 3)).toBe(true)
+describe('each platform judges its own box', () => {
+  const threeDS = boxRatioOf(350, 300)     // 1.17
+  const snes = boxRatioOf(200, 140)        // 1.43
+  const standard = boxRatioOf(200, 300)    // 0.67
+
+  it('a 3DS box (about 1.1) is a box on 3DS', () => {
+    expect(isBoxRatio(1.11, threeDS)).toBe(true)
   })
 
-  it('a nearly square box is still a box', () => {
-    expect(isBoxRatio(1.11)).toBe(true)
+  it('a 3DS box is not judged against a 2:3 platform', () => {
+    expect(isBoxRatio(1.11, standard)).toBe(false)
   })
 
-  it('a banner or a fanart is not a box', () => {
-    expect(isBoxRatio(16 / 9)).toBe(false)
-    expect(isBoxRatio(1.5)).toBe(false)
+  it('a landscape SNES box is a box on SNES', () => {
+    expect(isBoxRatio(1.43, snes)).toBe(true)
+  })
+
+  it('a 16:9 banner is art on every platform', () => {
+    expect(isBoxRatio(16 / 9, threeDS)).toBe(false)
+    expect(isBoxRatio(16 / 9, snes)).toBe(false)
+    expect(isBoxRatio(16 / 9, standard)).toBe(false)
+  })
+
+  it('a square on a 2:3 platform is art', () => {
+    expect(isBoxRatio(1, standard)).toBe(false)
   })
 
   it('an unmeasured cover is not counted as a box', () => {
-    expect(isBoxRatio(null)).toBe(false)
+    expect(isBoxRatio(null, standard)).toBe(false)
   })
 
-  it('the no-box filter catches games with no cover, no ratio or art-shaped covers', () => {
-    const where = noBoxWhere() as { OR: Array<Record<string, unknown>> }
+  it('falls back to 2:3 when a platform has no usable size', () => {
+    expect(boxRatioOf(null, null)).toBe(DEFAULT_BOX_RATIO)
+    expect(boxRatioOf(0, 300)).toBe(DEFAULT_BOX_RATIO)
+  })
+})
+
+describe('the no-box filter', () => {
+  it('for one platform catches games with no cover, no ratio, or a ratio outside its box', () => {
+    const where = noBoxForPlatform(boxRatioOf(350, 300)) as { OR: Array<Record<string, unknown>> }
     expect(where.OR).toContainEqual({ coverPath: null })
     expect(where.OR).toContainEqual({ coverRatio: null })
-    expect(where.OR).toContainEqual({ coverRatio: { gt: BOX_MAX_RATIO } })
+    expect(where.OR.some(c => c.coverRatio != null && typeof c.coverRatio === 'object' && 'lt' in (c.coverRatio as object))).toBe(true)
+    expect(where.OR.some(c => c.coverRatio != null && typeof c.coverRatio === 'object' && 'gt' in (c.coverRatio as object))).toBe(true)
+  })
+
+  it('across platforms, each platform uses its own bounds', () => {
+    const where = noBoxWhereByPlatform([
+      { platformId: 1, boxRatio: 0.67 },
+      { platformId: 2, boxRatio: 1.17 },
+    ]) as { OR: Array<{ AND: Array<Record<string, unknown>> }> }
+    expect(where.OR).toHaveLength(2)
+    expect(where.OR[1].AND[0]).toEqual({ platformId: 2 })
   })
 })
 
@@ -51,11 +81,6 @@ describe('processing a cover', () => {
     const meta = await sharp(webp).metadata()
     expect(ratio).toBeCloseTo(16 / 9, 2)
     expect(meta.width! / meta.height!).toBeCloseTo(16 / 9, 2)
-  })
-
-  it('reports a 2:3 box as a box', async () => {
-    const { ratio } = await processCover(await solid(600, 900))
-    expect(isBoxRatio(ratio)).toBe(true)
   })
 })
 

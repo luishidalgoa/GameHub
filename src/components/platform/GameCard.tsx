@@ -24,6 +24,8 @@ interface Props {
   animateIndex?: number
   /** The grid view this card is in (path + filters): the editor's «volver» goes back here. */
   returnTo?: string
+  /** The platform's own box proportion (width / height): what a box looks like here. */
+  boxRatio?: number
 }
 
 export function GameCard({
@@ -36,11 +38,12 @@ export function GameCard({
   platformSlug,
   animateIndex,
   returnTo,
+  boxRatio,
 }: Props) {
   const cover = game.coverPath ?? game.coverUrl
   // A measured cover that is not a box (a banner, a square, a logo) is shown as art:
   // its blurred backdrop fills the card and the logo sits on top, instead of a box with bands.
-  const showArt = game.coverRatio != null && !isBoxRatio(game.coverRatio)
+  const showArt = game.coverRatio != null && !isBoxRatio(game.coverRatio, boxRatio)
   const artSource = game.backdrop ?? cover
   const [imgLoaded, setImgLoaded] = useState(false)
   const [favPop, setFavPop] = useState(false)

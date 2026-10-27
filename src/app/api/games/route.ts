@@ -5,10 +5,22 @@ import { getClientIp } from '@/lib/tracker'
 import { resolveCoverPath } from '@/lib/s3'
 import { onlineGameIds, onlineIdsIn } from '@/lib/online/flags'
 import { libraryGameWhere, NO_SCORE } from '@/lib/library'
-import { noBoxWhere } from '@/lib/cover-shape'
+import { noBoxWhereByPlatform, boxRatioOf } from '@/lib/cover-shape'
 import { backdropUrl } from '@/lib/tile-art'
 
 export const dynamic = 'force-dynamic'
+
+/** Games without a real box, each judged against its own platform (or all of them). */
+async function noBoxClause(platformSlug?: string) {
+  const platforms = await db.platform.findMany({
+    where: platformSlug ? { slug: platformSlug } : {},
+    select: { id: true, thumbnailWidth: true, thumbnailHeight: true },
+  })
+  return noBoxWhereByPlatform(platforms.map(p => ({
+    platformId: p.id,
+    boxRatio: boxRatioOf(p.thumbnailWidth, p.thumbnailHeight),
+  })))
+}
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url)
@@ -48,7 +60,7 @@ export async function GET(req: Request) {
     ...(noScore && NO_SCORE),
     ...(minRating != null && !Number.isNaN(minRating) && { rawgScore: { gte: minRating } }),
   }
-  const where = noBox ? { AND: [base, noBoxWhere()] } : base
+  const where = noBox ? { AND: [base, await noBoxClause(platformSlug)] } : base
 
   const orderBy =
     sort === 'year' ? { releaseYear: 'asc' as const }

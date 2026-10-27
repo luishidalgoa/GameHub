@@ -1,7 +1,7 @@
 import type { Prisma } from '@prisma/client'
 import { NO_COVER, NO_SCORE, UNFINDABLE, pendingWhere, pendingMetadataWhere } from '@/lib/library'
 import { completeness, FIELD_WEIGHTS, type CompletenessInput, type FieldKey } from '@/lib/games/completeness'
-import { noBoxWhere } from '@/lib/cover-shape'
+import { noBoxWhereByPlatform } from '@/lib/cover-shape'
 
 export interface GameListFilters {
   search: string
@@ -58,7 +58,7 @@ export function parseGameFilters(p: RawParams): GameListFilters {
 }
 
 /** Visible games; without a platform choice, only enabled platforms. */
-export function gameListWhere(f: GameListFilters): Prisma.GameWhereInput {
+export function gameListWhere(f: GameListFilters, boxes: Array<{ platformId: number; boxRatio: number }> = []): Prisma.GameWhereInput {
   const where: Prisma.GameWhereInput = {
     isHidden: f.state === 'hidden',
     platform: f.platform ? { slug: f.platform } : { enabled: true },
@@ -74,7 +74,7 @@ export function gameListWhere(f: GameListFilters): Prisma.GameWhereInput {
     ...(f.featured && { isFeatured: true }),
   }
   // Combined with AND, so it never overwrites the OR or AND clauses above.
-  return f.noBox ? { AND: [where, noBoxWhere()] } : where
+  return f.noBox ? { AND: [where, noBoxWhereByPlatform(boxes)] } : where
 }
 
 /**

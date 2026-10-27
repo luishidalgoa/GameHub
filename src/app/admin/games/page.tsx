@@ -11,6 +11,7 @@ import { nextSort, parseSort, sortParams, sortRows } from '@/lib/admin-sort'
 import { GamePanel, type PanelGame } from '@/components/admin/GamePanel'
 import { ScrollRestorer } from '@/components/admin/ScrollRestorer'
 import { FileJson, FileSpreadsheet, Pencil } from 'lucide-react'
+import { platformBoxes } from '@/lib/games/platform-boxes'
 
 export const dynamic = 'force-dynamic'
 
@@ -81,7 +82,7 @@ export default async function AdminGamesPage({ searchParams }: { searchParams: R
 
   const [games, platforms, regionRows] = await Promise.all([
     db.game.findMany({
-      where: gameListWhere(filters),
+      where: gameListWhere(filters, await platformBoxes()),
       orderBy: { sortTitle: 'asc' },
       include: { platform: { select: { name: true, slug: true } } },
     }),

@@ -1,27 +1,59 @@
 import type { Prisma } from '@prisma/client'
 
 /**
- * A stored cover counts as a box up to this proportion (width / height). Real boxes
- * run from 2:3 (0.67) to nearly square (about 1.1: some 3DS and GameCube boxes).
- * Banners and fanarts are about 16:9 (1.78), so they fall above it and are shown as art.
- * A square piece of art cannot be told from a square box by shape alone, so it counts as a box.
+ * Each platform cuts its cards to its own proportion (width / height), set in the
+ * platform's thumbnailWidth/thumbnailHeight. A cover is a box when its proportion
+ * is within this relative tolerance of that platform's box. Anything else is art
+ * (a banner, a fanart, a logo) and is shown as art instead of a box.
  */
-export const BOX_MAX_RATIO = 1.25
+export const BOX_TOLERANCE = 0.15
 
-export function isBoxRatio(ratio: number | null | undefined): boolean {
-  return ratio != null && ratio <= BOX_MAX_RATIO
+/** Proportion used when a platform has no usable size: the common 2:3 box. */
+export const DEFAULT_BOX_RATIO = 2 / 3
+
+/** The proportion a platform's cards are cut to, from its stored size. */
+export function boxRatioOf(
+  thumbnailWidth: number | null | undefined,
+  thumbnailHeight: number | null | undefined,
+): number {
+  return thumbnailWidth && thumbnailHeight && thumbnailWidth > 0 && thumbnailHeight > 0
+    ? thumbnailWidth / thumbnailHeight
+    : DEFAULT_BOX_RATIO
 }
 
-/**
- * Games without a real box: no cover at all, a cover whose proportion is not measured
- * yet, or art that is not a box. Used as a filter, so it works in the API and the admin.
- */
-export function noBoxWhere(): Prisma.GameWhereInput {
+/** The proportions a cover may have and still be a box for a platform. */
+export function boxBounds(boxRatio: number): { low: number; high: number } {
+  return { low: boxRatio * (1 - BOX_TOLERANCE), high: boxRatio * (1 + BOX_TOLERANCE) }
+}
+
+/** True when a stored cover has the proportion of the platform's box. */
+export function isBoxRatio(ratio: number | null | undefined, boxRatio: number = DEFAULT_BOX_RATIO): boolean {
+  if (ratio == null) return false
+  const { low, high } = boxBounds(boxRatio)
+  return ratio >= low && ratio <= high
+}
+
+/** Games of one platform without a real box: no cover, no measured ratio, or art. */
+export function noBoxForPlatform(boxRatio: number): Prisma.GameWhereInput {
+  const { low, high } = boxBounds(boxRatio)
   return {
     OR: [
       { coverPath: null },
       { coverRatio: null },
-      { coverRatio: { gt: BOX_MAX_RATIO } },
+      { coverRatio: { lt: low } },
+      { coverRatio: { gt: high } },
     ],
+  }
+}
+
+/**
+ * Games without a real box, each judged against its own platform's box. Platforms
+ * missing from `boxes` are not matched, so pass every platform you want counted.
+ */
+export function noBoxWhereByPlatform(
+  boxes: Array<{ platformId: number; boxRatio: number }>,
+): Prisma.GameWhereInput {
+  return {
+    OR: boxes.map(b => ({ AND: [{ platformId: b.platformId }, noBoxForPlatform(b.boxRatio)] })),
   }
 }

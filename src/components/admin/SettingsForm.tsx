@@ -13,6 +13,7 @@ import { ONLINE_SOURCES, parseOnlineConfigs, serializeOnlineConfigs, type Online
 import type { PlatformFamily } from '@/lib/platform-family'
 import { PlatformFamiliesEditor } from './PlatformFamiliesEditor'
 import { MetadataChainPanel } from './MetadataChainPanel'
+import { PlatformBoxEditor } from './PlatformBoxEditor'
 import type { PlatformChain } from '@/lib/metadata/chain-view'
 import { SOURCE_TYPES, parseSourceConfigs, sourceConfigError, type SourceConfig } from '@/lib/external/source-types'
 import { consoleModelFor } from '@/lib/consoles'
@@ -874,6 +875,14 @@ export function SettingsForm({ platforms: initial, metadataChains, families, ori
                           />
                         </div>
                       </div>
+
+                      <PlatformBoxEditor
+                        slug={p.slug}
+                        name={p.name}
+                        width={p.thumbnailWidth ?? 200}
+                        height={p.thumbnailHeight ?? 300}
+                        onApply={(w, h) => { updateField(p.id, 'thumbnailWidth', w); updateField(p.id, 'thumbnailHeight', h) }}
+                      />
 
                       <ToggleSwitch
                         label={t('scanDlcLabel')}

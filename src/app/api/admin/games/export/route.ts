@@ -4,6 +4,7 @@ import { Prisma } from '@prisma/client'
 import { db } from '@/lib/db'
 import { adminGuard } from '@/lib/admin-guard'
 import { parseGameFilters, gameListWhere } from '@/lib/games/filters'
+import { platformBoxes } from '@/lib/games/platform-boxes'
 
 export const dynamic = 'force-dynamic'
 
@@ -103,7 +104,7 @@ export async function GET(req: NextRequest) {
   const includeHidden = searchParams.get('includeHidden') === '1'
 
   const where: Prisma.GameWhereInput = {
-    ...gameListWhere(filters),
+    ...gameListWhere(filters, await platformBoxes()),
     ...(includeHidden && { isHidden: undefined }),
   }
 
