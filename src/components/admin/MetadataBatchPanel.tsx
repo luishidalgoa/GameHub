@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef, useCallback, type ReactNode } from 'react'
+import { useState, useEffect, useLayoutEffect, useRef, useCallback, type ReactNode } from 'react'
 import { useTranslations } from 'next-intl'
 import { Sparkles, StopCircle, CheckCircle2, XCircle, AlertTriangle, Loader2, SlidersHorizontal, ChevronDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -45,21 +45,48 @@ function ReachDot({ reach }: { reach: Reach }) {
   return <span className="text-xs text-muted-foreground">—</span>
 }
 
-/** A small button that opens a menu under it; closes on outside click or Escape. */
+/**
+ * A small button that opens a menu next to it; closes on outside click, Escape or resize.
+ * The menu stays inside the viewport: it opens to the side and above or below whichever
+ * has room, and never grows past the screen.
+ */
 function OptionsMenu({ label, disabled, children }: { label: string; disabled?: boolean; children: ReactNode }) {
   const [open, setOpen] = useState(false)
+  const [place, setPlace] = useState<{ right: boolean; up: boolean; maxH: number }>({ right: false, up: false, maxH: 0 })
   const ref = useRef<HTMLDivElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
+
+  // Measure before paint, so the menu never shows in the wrong place.
+  useLayoutEffect(() => {
+    if (!open) return
+    const btn = ref.current?.getBoundingClientRect()
+    const menu = menuRef.current
+    if (!btn || !menu) return
+    const margin = 8
+    // scrollHeight is the full content height, even when a previous maxHeight clips it.
+    const width = menu.offsetWidth
+    const right = btn.left + width > window.innerWidth - margin && btn.right - width >= margin
+    const spaceBelow = window.innerHeight - btn.bottom - margin
+    const spaceAbove = btn.top - margin
+    const up = menu.scrollHeight > spaceBelow && spaceAbove > spaceBelow
+    setPlace({ right, up, maxH: Math.max(0, up ? spaceAbove : spaceBelow) })
+  }, [open])
+
   useEffect(() => {
     if (!open) return
     const onDown = (e: MouseEvent) => { if (!ref.current?.contains(e.target as Node)) setOpen(false) }
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false) }
+    const onResize = () => setOpen(false)
     document.addEventListener('mousedown', onDown)
     document.addEventListener('keydown', onKey)
+    window.addEventListener('resize', onResize)
     return () => {
       document.removeEventListener('mousedown', onDown)
       document.removeEventListener('keydown', onKey)
+      window.removeEventListener('resize', onResize)
     }
   }, [open])
+
   return (
     <div ref={ref} className="relative flex-1 min-w-[140px] xl:flex-none">
       <button
@@ -77,7 +104,16 @@ function OptionsMenu({ label, disabled, children }: { label: string; disabled?: 
         <ChevronDown className="w-3.5 h-3.5 flex-shrink-0 text-muted-foreground" />
       </button>
       {open && (
-        <div role="menu" className="absolute left-0 right-auto z-30 mt-1.5 w-[26rem] rounded-md border border-border bg-card p-2 shadow-lg">
+        <div
+          ref={menuRef}
+          role="menu"
+          style={{ maxHeight: place.maxH || undefined, maxWidth: 'calc(100vw - 16px)' }}
+          className={cn(
+            'absolute z-30 w-[26rem] overflow-y-auto rounded-md border border-border bg-card p-2 shadow-lg',
+            place.right ? 'right-0' : 'left-0',
+            place.up ? 'bottom-full mb-1.5' : 'top-full mt-1.5',
+          )}
+        >
           {children}
         </div>
       )}
