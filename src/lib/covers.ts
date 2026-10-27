@@ -1,4 +1,11 @@
 import sharp from 'sharp'
+
+// THE writers of a game's cover. Every cover that gets stored goes through saveCoverFromBuffer,
+// which uploads the picture and records its path, its proportion and its size in one update.
+// The callers that also set coverPath in applyMetadata do it for the locks, not for the size.
+// A copy of a cover (e.g. a graveyard recovery) copies these four columns together, with
+// coverColumnsOf; a cover that is removed clears them together, with NO_COVER_COLUMNS.
+// Anything else that changes coverPath is a bug: add it here, or it leaves a stale size behind.
 import { uploadCoverToS3 } from './s3'
 import { db } from './db'
 
@@ -83,6 +90,22 @@ export async function saveCoverFromBuffer(
   // busts any browser / CDN cache without changing the actual MinIO object key.
   return `${s3Key}?v=${Date.now()}`
 }
+
+/** The four columns that describe a game's cover. They are read, copied and cleared as one set. */
+export interface CoverColumns {
+  coverPath: string | null
+  coverRatio: number | null
+  coverWidth: number | null
+  coverHeight: number | null
+}
+
+/** The cover columns of a game row, ready to copy into another game. */
+export function coverColumnsOf(game: CoverColumns): CoverColumns {
+  return { coverPath: game.coverPath, coverRatio: game.coverRatio, coverWidth: game.coverWidth, coverHeight: game.coverHeight }
+}
+
+/** The cover columns of a game without a cover. */
+export const NO_COVER_COLUMNS: Readonly<CoverColumns> = { coverPath: null, coverRatio: null, coverWidth: null, coverHeight: null }
 
 /** Convert a display key/URL to its .original counterpart. */
 export function getOriginalCoverPath(coverPath: string): string {

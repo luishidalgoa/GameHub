@@ -5,7 +5,7 @@ import { runFields, type BatchField, type BatchMode } from './scope'
 import type { ProviderChains } from './chains'
 import { gapClausesFor, selectionWhere } from './selection'
 import { cachedAggregate } from '@/lib/aggregate-cache'
-import { lowQualityFields, wrongProvenanceFields } from './field-quality'
+import { coverQualityOf, lowQualityFields, wrongProvenanceFields } from './field-quality'
 import { getProviderMatrix } from './matrix'
 import { parseMetadataSources } from './sources'
 
@@ -19,6 +19,8 @@ export interface BatchPreview {
   fields?: number
   /** Games the pass leaves alone on purpose: no source could identify them. */
   skippedUnfindable: number
+  /** For the quality pass: how many games are low quality in each field. */
+  breakdown?: QualityBreakdown
 }
 
 export interface PreviewOptions {
@@ -27,6 +29,8 @@ export interface PreviewOptions {
   fields?:        readonly BatchField[]
   withScores?:    boolean
   popularityRedo?: boolean
+  /** The quality pass's minimum cover size, as a multiple of the platform box. */
+  coverMinScale?: number
 }
 
 /**
@@ -42,8 +46,8 @@ export async function previewBatch(mode: BatchMode, opts: PreviewOptions = {}): 
   // A quality or provenance pass is judged game by game, with the same rules the run uses.
   if (mode === 'quality' || mode === 'wrong-provider') {
     const where = selectionWhere({ mode, fields, platformSlug: opts.platformSlug, backfillTrailers: true, popularityRedo: false, now: new Date() })
-    const games = where ? await judgedCount(mode, fields, where) : 0
-    return { mode, games, skippedUnfindable }
+    const judged = where ? await judgedCount(mode, fields, where, opts.coverMinScale) : { games: 0 }
+    return { mode, games: judged.games, breakdown: judged.breakdown, skippedUnfindable }
   }
 
   const where = selectionWhere({
@@ -67,10 +71,16 @@ export async function previewBatch(mode: BatchMode, opts: PreviewOptions = {}): 
 
 /**
  * How many games a judged pass would touch: the games with a field to write under the same
- * rules the run applies to each game. Cached for a short while, since the panel asks on every change.
+ * rules the run applies to each game, and for a quality pass, how many per field. Cached for
+ * a short while, since the panel asks on every change.
  */
-async function judgedCount(mode: 'quality' | 'wrong-provider', fields: readonly BatchField[], where: Prisma.GameWhereInput): Promise<number> {
-  const key = `preview-judged:${mode}:${JSON.stringify(where)}:${fields.join(',')}`
+async function judgedCount(
+  mode: 'quality' | 'wrong-provider',
+  fields: readonly BatchField[],
+  where: Prisma.GameWhereInput,
+  coverMinScale: number | undefined,
+): Promise<{ games: number; breakdown?: QualityBreakdown }> {
+  const key = `preview-judged:${mode}:${JSON.stringify(where)}:${fields.join(',')}:${coverMinScale ?? ''}`
   return cachedAggregate(key, 20_000, async () => {
     const rows = await db.game.findMany({
       where,
@@ -80,9 +90,30 @@ async function judgedCount(mode: 'quality' | 'wrong-provider', fields: readonly 
         platform: { select: { slug: true, thumbnailWidth: true, thumbnailHeight: true } },
       },
     })
-    if (mode === 'quality') return rows.filter(r => lowQualityFields(r, fields).length > 0).length
-    const chains = new Map<string, ProviderChains>()
-    for (const slug of new Set(rows.map(r => r.platform.slug))) chains.set(slug, (await getProviderMatrix(slug)).chains)
-    return rows.filter(r => wrongProvenanceFields(parseMetadataSources(r.metadataSources), fields, chains.get(r.platform.slug)!).length > 0).length
+    if (mode === 'wrong-provider') {
+      const chains = new Map<string, ProviderChains>()
+      for (const slug of new Set(rows.map(r => r.platform.slug))) chains.set(slug, (await getProviderMatrix(slug)).chains)
+      const games = rows.filter(r => wrongProvenanceFields(parseMetadataSources(r.metadataSources), fields, chains.get(r.platform.slug)!).length > 0).length
+      return { games }
+    }
+    const breakdown: QualityBreakdown = { cover: 0, coverUnmeasured: 0, description: 0, screenshots: 0 }
+    let games = 0
+    for (const r of rows) {
+      const low = lowQualityFields(r, fields, { coverMinScale })
+      if (low.length === 0) continue
+      games++
+      for (const field of low) {
+        if (field === 'cover') {
+          const quality = coverQualityOf(r, coverMinScale)
+          if (quality === 'unmeasured') breakdown.coverUnmeasured++
+          else breakdown.cover++
+        } else if (field === 'description') breakdown.description++
+        else if (field === 'screenshots') breakdown.screenshots++
+      }
+    }
+    return { games, breakdown }
   })
 }
+
+/** Games a quality pass would rewrite, per field. A cover not measured yet is counted apart. */
+export type QualityBreakdown = { cover: number; coverUnmeasured: number; description: number; screenshots: number }

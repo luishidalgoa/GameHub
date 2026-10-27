@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { adminGuard } from '@/lib/admin-guard'
 import { previewBatch } from '@/lib/metadata/preview'
 import { isBatchField, isBatchMode, type BatchField } from '@/lib/metadata/scope'
+import { clampCoverScale } from '@/lib/metadata/field-quality'
 
 export const dynamic = 'force-dynamic'
 
@@ -21,5 +22,6 @@ export async function GET(req: Request) {
     fields,
     withScores: url.searchParams.get('withScores') !== 'false',
     popularityRedo: url.searchParams.get('popularityRedo') === 'true',
+    coverMinScale: clampCoverScale(url.searchParams.get('coverMinScale')),
   }))
 }

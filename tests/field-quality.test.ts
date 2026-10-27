@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { lowQualityFields, wrongProvenanceFields, coverScaleOf, DESCRIPTION_MIN_CHARS, SCREENSHOTS_MIN } from '@/lib/metadata/field-quality'
+import { lowQualityFields, wrongProvenanceFields, coverScaleOf, coverQualityOf, clampCoverScale, DESCRIPTION_MIN_CHARS, SCREENSHOTS_MIN } from '@/lib/metadata/field-quality'
 import { DEFAULT_CHAINS } from '@/lib/metadata/chains'
 
 const box = { thumbnailWidth: 200, thumbnailHeight: 300 }   // a good cover is 400×600
@@ -70,5 +70,26 @@ describe('a field whose source is outside the platform chain is wrong', () => {
 
   it('only the fields asked are judged, so a correct field of a wrong game is left alone', () => {
     expect(wrongProvenanceFields({ cover: 'nintendo', description: 'launchbox' }, ['description'], chains)).toEqual([])
+  })
+})
+
+describe('the cover slider and the measurement', () => {
+  it('the slider raises or lowers the bar for a cover, in multiples of the box', () => {
+    const cover = game({ coverWidth: 300, coverHeight: 450 })   // 1.5× the box
+    expect(lowQualityFields(cover, ['cover'], { coverMinScale: 1 })).toEqual([])
+    expect(lowQualityFields(cover, ['cover'], { coverMinScale: 2 })).toEqual(['cover'])
+  })
+
+  it('a cover not measured yet is "unmeasured", not "small"; a missing one is "missing"', () => {
+    expect(coverQualityOf(game({ coverWidth: null, coverHeight: null }))).toBe('unmeasured')
+    expect(coverQualityOf(game({ coverPath: null, coverUrl: null }))).toBe('missing')
+    expect(coverQualityOf(game({ coverWidth: 0, coverHeight: 0 }))).toBe('small')
+  })
+
+  it('a clamped slider value stays inside its range', () => {
+    expect(clampCoverScale(0.1)).toBe(0.5)
+    expect(clampCoverScale(9)).toBe(3)
+    expect(clampCoverScale('2.5')).toBe(2.5)
+    expect(clampCoverScale('nope')).toBeUndefined()
   })
 })

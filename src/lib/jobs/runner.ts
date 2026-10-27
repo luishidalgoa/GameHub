@@ -24,6 +24,8 @@ export interface MetadataJobParams {
   fields?: BatchField[]
   /** Keep the covers the owner picked by hand (default true). */
   respectPinned?: boolean
+  /** The quality pass's minimum cover size, as a multiple of the platform box. */
+  coverMinScale?: number
   popularityRedo?: boolean
   platformSlug?: string
   withCovers?: boolean
@@ -201,6 +203,7 @@ export async function startMetadataJob(params: MetadataJobParams, resumeJobId?: 
         withScores: params.withScores ?? true,
         fields: params.fields,
         respectPinned: params.respectPinned ?? true,
+        coverMinScale: params.coverMinScale,
         backfillTrailers: true,
         resumeAfterId,
       })

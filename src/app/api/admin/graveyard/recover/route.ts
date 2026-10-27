@@ -2,6 +2,7 @@ import { adminGuard } from '@/lib/admin-guard'
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { serializeBigInt } from '@/lib/serialize'
+import { coverColumnsOf } from '@/lib/covers'
 
 export const dynamic = 'force-dynamic'
 
@@ -40,7 +41,7 @@ export async function POST(req: Request) {
         id: true, title: true, sha256: true, fileName: true, platformId: true,
         description: true, releaseYear: true, genre: true, developer: true,
         publisher: true, rawgId: true, rawgSlug: true, coverUrl: true,
-        coverPath: true, trailerUrl: true, metadataFetchedAt: true,
+        coverPath: true, coverRatio: true, coverWidth: true, coverHeight: true, trailerUrl: true, metadataFetchedAt: true,
       },
     })
 
@@ -86,7 +87,7 @@ export async function POST(req: Request) {
                 rawgId:            old.rawgId,
                 rawgSlug:          old.rawgSlug,
                 coverUrl:          old.coverUrl,
-                coverPath:         old.coverPath,
+                ...coverColumnsOf(old),
                 trailerUrl:        old.trailerUrl,
                 metadataFetchedAt: old.metadataFetchedAt,
               },
@@ -121,7 +122,7 @@ export async function POST(req: Request) {
       select: {
         title: true, description: true, releaseYear: true, genre: true,
         developer: true, publisher: true, rawgId: true, rawgSlug: true,
-        coverUrl: true, coverPath: true, trailerUrl: true, metadataFetchedAt: true,
+        coverUrl: true, coverPath: true, coverRatio: true, coverWidth: true, coverHeight: true, trailerUrl: true, metadataFetchedAt: true,
       },
     })
     if (!graveyardGame) return NextResponse.json({ error: 'Graveyard game not found' }, { status: 404 })
@@ -142,7 +143,7 @@ export async function POST(req: Request) {
             rawgId:            graveyardGame.rawgId,
             rawgSlug:          graveyardGame.rawgSlug,
             coverUrl:          graveyardGame.coverUrl,
-            coverPath:         graveyardGame.coverPath,
+            ...coverColumnsOf(graveyardGame),
             trailerUrl:        graveyardGame.trailerUrl,
             metadataFetchedAt: graveyardGame.metadataFetchedAt,
           },

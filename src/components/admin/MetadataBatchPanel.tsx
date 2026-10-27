@@ -14,7 +14,13 @@ const REVIEW_THRESHOLD = 40
 
 interface PlatformOpt { slug: string; name: string }
 
-interface PreviewState { games: number | null; fields?: number; skippedUnfindable: number }
+interface PreviewState {
+  games: number | null
+  fields?: number
+  skippedUnfindable: number
+  /** For the quality pass: how many games are low quality in each field. */
+  breakdown?: { cover: number; coverUnmeasured: number; description: number; screenshots: number }
+}
 
 // Shape returned by GET /api/admin/jobs/active
 interface JobState {
@@ -202,6 +208,12 @@ export function MetadataBatchPanel({ platforms = [] }: { platforms?: PlatformOpt
   const [fields, setFields]         = useState<BatchField[]>([...MODE_FIELDS.missing])
   const [preview, setPreview]       = useState<PreviewState | null>(null)
   const [popularityRedo, setPopularityRedo] = useState(false)
+  // The quality pass's minimum cover size, as a multiple of the platform box (the slider).
+  const [coverMinScale, setCoverMinScale] = useState(2)
+  // Covers still waiting to be measured, and whether a measurement is running now.
+  const [measureLeft, setMeasureLeft] = useState<number | null>(null)
+  const [measuring, setMeasuring] = useState(false)
+  const [refreshKey, setRefreshKey] = useState(0)
   const [platform, setPlatform]     = useState('')
   const [respectPinned, setRespectPinned]   = useState(true)
   const [starting, setStarting]     = useState(false)
@@ -220,15 +232,51 @@ export function MetadataBatchPanel({ platforms = [] }: { platforms?: PlatformOpt
 
   useEffect(() => {
     // Only the newest request may set the count: an older response must not overwrite it.
+    // The slider waits a moment, so a drag asks once at the end, not at every step.
     let current = true
-    const q = new URLSearchParams({ mode, fields: selectedKey, withScores: String(withScores), popularityRedo: String(popularityRedo) })
-    if (platform) q.set('platformSlug', platform)
-    fetch(`/api/admin/metadata/batch/preview?${q}`)
-      .then(r => r.ok ? r.json() : null)
-      .then(data => { if (current) setPreview(data) })
-      .catch(() => { if (current) setPreview(null) })
-    return () => { current = false }
-  }, [mode, platform, selectedKey, withScores, popularityRedo])
+    const timer = setTimeout(() => {
+      const q = new URLSearchParams({ mode, fields: selectedKey, withScores: String(withScores), popularityRedo: String(popularityRedo) })
+      if (mode === 'quality') q.set('coverMinScale', String(coverMinScale))
+      if (platform) q.set('platformSlug', platform)
+      fetch(`/api/admin/metadata/batch/preview?${q}`)
+        .then(r => r.ok ? r.json() : null)
+        .then(data => { if (current) setPreview(data) })
+        .catch(() => { if (current) setPreview(null) })
+    }, 250)
+    return () => { current = false; clearTimeout(timer) }
+  }, [mode, platform, selectedKey, withScores, popularityRedo, coverMinScale, refreshKey])
+
+  // How many covers still wait to be measured, for the platform chosen.
+  useEffect(() => {
+    if (mode !== 'quality') return
+    let alive = true
+    fetch(`/api/admin/covers/measure${platform ? `?platform=${encodeURIComponent(platform)}` : ''}`)
+      .then(r => (r.ok ? r.json() : null))
+      .then((d: { remaining: number } | null) => { if (alive && d) setMeasureLeft(d.remaining) })
+      .catch(() => { /* the count is a hint: the button still works */ })
+    return () => { alive = false }
+  }, [mode, platform, refreshKey])
+
+  // Measuring reads the stored covers in turns until none is left, reporting after each turn.
+  const measure = async () => {
+    setMeasuring(true)
+    try {
+      for (;;) {
+        const res = await fetch('/api/admin/covers/measure', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ platform: platform || undefined }),
+        })
+        if (!res.ok) break
+        const d = await res.json() as { measured: number; unreadable: number; remaining: number }
+        setMeasureLeft(d.remaining)
+        setRefreshKey(k => k + 1)
+        if (d.remaining === 0 || d.measured + d.unreadable === 0) break
+      }
+    } finally {
+      setMeasuring(false)
+    }
+  }
 
   const chooseMode = (next: BatchMode) => {
     setMode(next)
@@ -300,6 +348,7 @@ export function MetadataBatchPanel({ platforms = [] }: { platforms?: PlatformOpt
           respectPinned,
           withScores,
           popularityRedo: mode === 'popularity' ? popularityRedo : undefined,
+          coverMinScale: mode === 'quality' ? coverMinScale : undefined,
         }),
       })
       await fetchJob()
@@ -326,6 +375,10 @@ export function MetadataBatchPanel({ platforms = [] }: { platforms?: PlatformOpt
       : <>Tocará <b>{preview.games.toLocaleString('es-ES')}</b> juegos{preview.fields !== undefined ? <> · <b>{preview.fields.toLocaleString('es-ES')}</b> campos vacíos</> : null}.</>
 
   const allowedNow = MODE_FIELDS[mode]
+  // The quality pass's breakdown: which fields are low quality, how many games each.
+  const breakdownLine: ReactNode = mode === 'quality' && preview?.breakdown ? (
+    <>Portada pequeña <b>{preview.breakdown.cover.toLocaleString('es-ES')}</b> · sin medir <b>{preview.breakdown.coverUnmeasured.toLocaleString('es-ES')}</b> · descripción <b>{preview.breakdown.description.toLocaleString('es-ES')}</b> · capturas <b>{preview.breakdown.screenshots.toLocaleString('es-ES')}</b></>
+  ) : null
 
   const modeRows = BATCH_MODES.map(m => {
     const active = mode === m
@@ -442,6 +495,27 @@ export function MetadataBatchPanel({ platforms = [] }: { platforms?: PlatformOpt
               })}
             </div>
 
+            {mode === 'quality' && selected.includes('cover') && (
+              <div className="mt-3 space-y-1.5 rounded-md bg-secondary px-3 py-2">
+                <label className="flex items-center justify-between gap-3 text-xs">
+                  <span className="text-foreground">Calidad mínima de la portada</span>
+                  <span className="tabular-nums text-muted-foreground">{coverMinScale}× la caja</span>
+                </label>
+                <input
+                  type="range"
+                  min={0.5}
+                  max={3}
+                  step={0.25}
+                  value={coverMinScale}
+                  onChange={e => setCoverMinScale(Number(e.target.value))}
+                  disabled={running}
+                  aria-label="Calidad mínima de la portada"
+                  className="w-full accent-primary"
+                />
+                <p className="text-[11px] text-muted-foreground">Una portada más pequeña que esto se rehace. Por defecto, 2× la caja de su plataforma.</p>
+              </div>
+            )}
+
             <div className="my-3 border-t border-border" />
 
             <p className="px-2 pb-1 text-xs font-medium text-foreground">Ajustes</p>
@@ -472,9 +546,31 @@ export function MetadataBatchPanel({ platforms = [] }: { platforms?: PlatformOpt
                 />
               )}
             </div>
+            {mode === 'quality' && (
+              <div className="mt-3 space-y-1.5 rounded-md bg-secondary px-3 py-2">
+                <div className="flex items-baseline justify-between gap-3 text-xs">
+                  <span className="text-foreground">Portadas por medir</span>
+                  <span className="tabular-nums text-muted-foreground">{measureLeft === null ? '…' : measureLeft.toLocaleString('es-ES')}</span>
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  Medir es leer el tamaño real de cada portada ya guardada, sin volver a pedirla a los proveedores. Hasta medirla, una portada cuenta como baja calidad.
+                </p>
+                <button
+                  type="button"
+                  onClick={measure}
+                  disabled={measuring || running || measureLeft === 0}
+                  className="rounded-md border border-border px-3 py-1.5 text-xs hover:bg-accent disabled:opacity-40"
+                >
+                  {measuring ? 'Midiendo…' : 'Medir portadas'}
+                </button>
+              </div>
+            )}
             <div className="mt-3 flex items-baseline justify-between gap-3 rounded-md bg-secondary px-3 py-2">
               <span className="text-xs text-muted-foreground">Vista previa</span>
-              <span className="text-right text-xs text-foreground">{previewLine}</span>
+              <span className="text-right text-xs text-foreground">
+                {previewLine}
+                {breakdownLine && <span className="mt-1 block text-[11px] text-muted-foreground">{breakdownLine}</span>}
+              </span>
             </div>
           </OptionsMenu>
 

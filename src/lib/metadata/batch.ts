@@ -85,6 +85,8 @@ async function runMetadataBatchInner(opts: {
   fields?:          BatchField[]
   /** Keep a cover the owner picked by hand (on by default). Off lets this pass replace it. */
   respectPinned?:   boolean
+  /** The quality pass's minimum cover size, as a multiple of the platform box (default COVER_MIN_SCALE). */
+  coverMinScale?:   number
   /** popularity mode only: re-fetch even games that already have metrics stored. */
   popularityRedo?:  boolean
   /** Restrict to a single platform slug. Undefined = all platforms. */
@@ -93,7 +95,7 @@ async function runMetadataBatchInner(opts: {
    *  Used to continue an interrupted job without redoing earlier games. */
   resumeAfterId?:   number
 }) {
-  const { emit: rawEmit, signal, withCovers = true, withTrailers = false, withScores = true, backfillTrailers = false, rateMs = 350, apiKey, mode = 'missing', popularityRedo = false, platformSlug, resumeAfterId, fields, respectPinned = true } = opts
+  const { emit: rawEmit, signal, withCovers = true, withTrailers = false, withScores = true, backfillTrailers = false, rateMs = 350, apiKey, mode = 'missing', popularityRedo = false, platformSlug, resumeAfterId, fields, respectPinned = true, coverMinScale } = opts
 
   // Wrap emit so every per-game event also carries cursorId = the game's id.
   // Games are processed in ascending id order, so the runner can persist this as
@@ -198,7 +200,7 @@ async function runMetadataBatchInner(opts: {
   // The fields this pass writes for one game: a quality pass its low-quality fields, a provenance
   // pass the fields whose source is outside the platform's chain, and any other pass what it asked.
   const fieldsFor = (game: (typeof games)[number]): Set<BatchField> => {
-    if (mode === 'quality') return new Set(lowQualityFields(game, [...passFields]))
+    if (mode === 'quality') return new Set(lowQualityFields(game, [...passFields], { coverMinScale }))
     if (mode === 'wrong-provider') {
       const chains = (matrixCache.get(game.platform.slug) ?? globalMatrix).chains
       return new Set(wrongProvenanceFields(parseMetadataSources(game.metadataSources), [...passFields], chains))

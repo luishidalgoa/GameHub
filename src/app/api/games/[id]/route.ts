@@ -1,3 +1,4 @@
+import { NO_COVER_COLUMNS } from '@/lib/covers'
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { serializeBigInt } from '@/lib/serialize'
@@ -9,7 +10,7 @@ import { applyMetadata } from '@/lib/metadata/apply'
 import { parseFeaturedOrder } from '@/lib/featured-order'
 import { claimFeaturedSlot } from '@/lib/featured-slots'
 import { onlineGameIds } from '@/lib/online/flags'
-import { torrentMagnet } from '@/lib/external/magnet'
+import { gameMagnet } from '@/lib/external/magnet'
 
 export const dynamic = 'force-dynamic'
 
@@ -33,7 +34,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     return NextResponse.json({ error: 'Not found' }, { status: 404 })
   }
   const online = (await onlineGameIds([game])).has(game.id)
-  const magnet = game.source === 'torrent' ? await torrentMagnet(game.externalKey) : null
+  const magnet = game.source === 'torrent' ? await gameMagnet(game) : null
   const resolved = { ...game, coverPath: resolveCoverPath(game.coverPath), online, magnet }
   return NextResponse.json(serializeBigInt(admin ? resolved : withoutFilePaths(resolved)))
 }
@@ -79,7 +80,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 
   // Null out legacy local cover paths (public/covers/ folder has been removed)
   if (typeof data.coverPath === 'string' && data.coverPath.startsWith('/covers/')) {
-    data.coverPath = null
+    Object.assign(data, NO_COVER_COLUMNS)
   }
 
   // The owner's save: applyMetadata decides the locks (apply.ts).

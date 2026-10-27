@@ -2,6 +2,7 @@ import { adminGuard } from '@/lib/admin-guard'
 import { NextResponse } from 'next/server'
 import { startMetadataJob, type MetadataJobParams } from '@/lib/jobs/runner'
 import { isBatchField, isBatchMode } from '@/lib/metadata/scope'
+import { clampCoverScale } from '@/lib/metadata/field-quality'
 
 export const dynamic = 'force-dynamic'
 
@@ -25,6 +26,7 @@ export async function POST(req: Request) {
     // An explicit list (even an empty one) is the admin's choice; no list means every category.
     fields: Array.isArray(body.fields) ? body.fields.filter(isBatchField) : undefined,
     respectPinned: body.respectPinned !== false,
+    coverMinScale: clampCoverScale((body as { coverMinScale?: unknown }).coverMinScale),
   }
   const id = await startMetadataJob(params)
   return NextResponse.json({ ok: true, jobId: id })

@@ -5,9 +5,11 @@ import type { MetadataSources } from './sources'
 // The quality of a game's fields, judged field by field. A field is either good, or it
 // is low quality and a quality pass rewrites it. The rules are what this app can measure:
 //
-//   cover        a cover at least COVER_MIN_SCALE times the platform's box, on each side.
-//                Its size is read when it is stored (Game.coverWidth/coverHeight). A cover
-//                whose size is not known yet is low quality until it is measured again.
+//   cover        at least `coverMinScale` times the platform's box, on each side (default
+//                COVER_MIN_SCALE, twice the box). The picture's size is read when it is
+//                stored, or by the measurement (Game.coverWidth/coverHeight). A cover
+//                whose size is not known yet is "unmeasured": it counts as low quality
+//                until it is measured. A size of 0×0 means the picture could not be read.
 //   description  at least DESCRIPTION_MIN_CHARS characters.
 //   screenshots  at least SCREENSHOTS_MIN screenshots.
 //
@@ -16,6 +18,9 @@ import type { MetadataSources } from './sources'
 
 export const DESCRIPTION_MIN_CHARS = 120
 export const SCREENSHOTS_MIN = 3
+
+/** The lowest multiple of the box the slider can ask for, and the highest. */
+export const COVER_SCALE_RANGE = { min: 0.5, max: 3, step: 0.25 } as const
 
 /** The fields a quality pass can rewrite, because each one has a measure above. */
 export const QUALITY_FIELDS: readonly BatchField[] = ['cover', 'description', 'screenshots']
@@ -30,11 +35,25 @@ export interface QualityGame {
   platform: { thumbnailWidth: number; thumbnailHeight: number }
 }
 
-/** A cover's size as a multiple of the platform's target (box × COVER_MIN_SCALE): 1 and above is good. */
-export function coverScaleOf(width: number, height: number, box: { thumbnailWidth: number; thumbnailHeight: number }): number {
-  const w = Math.max(1, box.thumbnailWidth) * COVER_MIN_SCALE
-  const h = Math.max(1, box.thumbnailHeight) * COVER_MIN_SCALE
+export type CoverQuality = 'good' | 'small' | 'unmeasured' | 'missing'
+
+/** A cover's size as a multiple of the platform's target (box × minScale): 1 and above is good. */
+export function coverScaleOf(
+  width: number,
+  height: number,
+  box: { thumbnailWidth: number; thumbnailHeight: number },
+  minScale: number = COVER_MIN_SCALE,
+): number {
+  const w = Math.max(1, box.thumbnailWidth) * minScale
+  const h = Math.max(1, box.thumbnailHeight) * minScale
   return Math.min(width / w, height / h)
+}
+
+/** How good a game's cover is, against the platform box at this minimum scale. */
+export function coverQualityOf(game: QualityGame, minScale: number = COVER_MIN_SCALE): CoverQuality {
+  if (!game.coverPath && !game.coverUrl) return 'missing'
+  if (game.coverWidth == null || game.coverHeight == null) return 'unmeasured'
+  return coverScaleOf(game.coverWidth, game.coverHeight, game.platform, minScale) < 1 ? 'small' : 'good'
 }
 
 function screenshotCount(json: string | null): number {
@@ -47,13 +66,18 @@ function screenshotCount(json: string | null): number {
   }
 }
 
+export interface QualityOptions {
+  /** The cover's minimum size as a multiple of the platform box. Default COVER_MIN_SCALE. */
+  coverMinScale?: number
+}
+
 /** The fields of the game that are low quality, among the ones asked. */
-export function lowQualityFields(game: QualityGame, asked: readonly BatchField[]): BatchField[] {
+export function lowQualityFields(game: QualityGame, asked: readonly BatchField[], opts: QualityOptions = {}): BatchField[] {
+  const minScale = opts.coverMinScale ?? COVER_MIN_SCALE
   return asked.filter(field => {
     if (field === 'cover') {
-      if (!game.coverPath && !game.coverUrl) return true
-      if (game.coverWidth == null || game.coverHeight == null) return true
-      return coverScaleOf(game.coverWidth, game.coverHeight, game.platform) < 1
+      const quality = coverQualityOf(game, minScale)
+      return quality !== 'good'
     }
     if (field === 'description') return (game.description?.trim().length ?? 0) < DESCRIPTION_MIN_CHARS
     if (field === 'screenshots') return screenshotCount(game.screenshotPaths) < SCREENSHOTS_MIN
@@ -88,4 +112,11 @@ export function wrongProvenanceFields(src: MetadataSources, asked: readonly Batc
         return false
     }
   })
+}
+
+/** A minimum cover scale from a request: a number inside the slider's range, else undefined (the default). */
+export function clampCoverScale(value: unknown): number | undefined {
+  const n = typeof value === 'string' ? Number(value) : value
+  if (typeof n !== 'number' || !Number.isFinite(n)) return undefined
+  return Math.min(COVER_SCALE_RANGE.max, Math.max(COVER_SCALE_RANGE.min, n))
 }
