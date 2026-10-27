@@ -20,6 +20,7 @@ describe('the mode-by-category matrix matches the panel', () => {
     'fill':                ['gaps', 'gaps', 'gaps', 'gaps'],
     'redo':                ['all',  'all',  'all',  'all'],
     'wrong-provider':      ['all',  'all',  'none', 'none'],
+    'quality':             ['quality', 'quality', 'none', 'none'],
     'popularity':          ['none', 'none', 'all',  'none'],
     'autocomplete-scores': ['none', 'none', 'all',  'none'],
   }

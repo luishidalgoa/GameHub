@@ -38,7 +38,7 @@ export type BatchField = StaticField | ArtField
 export const isArtField = (f: BatchField): f is ArtField => f.startsWith('art:')
 
 /** Which games a pass selects. */
-export const BATCH_MODES = ['missing', 'fill', 'redo', 'wrong-provider', 'popularity', 'autocomplete-scores'] as const
+export const BATCH_MODES = ['missing', 'fill', 'redo', 'wrong-provider', 'quality', 'popularity', 'autocomplete-scores'] as const
 export type BatchMode = typeof BATCH_MODES[number]
 
 export const SCOPE_LABEL: Record<FieldScope, string> = {
@@ -143,6 +143,8 @@ export const MODE_FIELDS: Record<BatchMode, readonly BatchField[]> = {
   'fill':                FULL_FLOW,
   'redo':                FULL_FLOW,
   'wrong-provider':      ['title', 'description', 'genre', 'developer', 'publisher', 'releaseYear', 'releaseDate', 'cover', 'screenshots'],
+  // Only the fields with a quality measure (see field-quality.ts) are offered.
+  'quality':             ['cover', 'description', 'screenshots'],
   'popularity':          ['rating', 'popularity', 'score', 'metacritic'],
   'autocomplete-scores': ['score', 'metacritic'],
 }
@@ -156,16 +158,19 @@ export const MODE_APPLIES: Record<BatchMode, readonly FieldScope[]> = {
   'fill':                categoriesOf('fill'),
   'redo':                categoriesOf('redo'),
   'wrong-provider':      categoriesOf('wrong-provider'),
+  'quality':             categoriesOf('quality'),
   'popularity':          categoriesOf('popularity'),
   'autocomplete-scores': categoriesOf('autocomplete-scores'),
 }
 
 /** How a mode reaches a category: everything, only the gaps, or not at all. */
-export type Reach = 'all' | 'gaps' | 'none'
+export type Reach = 'all' | 'gaps' | 'quality' | 'none'
 
 export function reachOf(mode: BatchMode, scope: FieldScope): Reach {
   if (!MODE_APPLIES[mode].includes(scope)) return 'none'
-  return mode === 'fill' ? 'gaps' : 'all'
+  if (mode === 'fill') return 'gaps'
+  if (mode === 'quality') return 'quality'
+  return 'all'
 }
 
 /**

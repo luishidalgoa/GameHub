@@ -84,7 +84,9 @@ export function selectionWhere(o: SelectionOptions): Prisma.GameWhereInput | nul
       return within({ rawgScore: null })                          // only games WITHOUT a score
     case 'redo':
     case 'wrong-provider':
-      // wrong-provider is judged per game in the engine: provenance is a JSON field.
+    case 'quality':
+      // wrong-provider and quality are judged per game in the engine (provenance is JSON, the
+      // quality of a field needs the platform's box): the selection is the whole library.
       return within({})
     case 'fill': {
       const gaps = gapClausesFor(fields)

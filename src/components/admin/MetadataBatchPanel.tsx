@@ -45,7 +45,11 @@ const MODE_COPY: Record<BatchMode, { label: string; line: string }> = {
   },
   'wrong-provider': {
     label: 'Proveedor incorrecto',
-    line: 'Juegos cuya ficha o portada viene de una fuente distinta a la preferente de su plataforma. Los vuelve a buscar en la correcta.',
+    line: 'Juegos con algún dato de una fuente fuera de la cadena de su plataforma. Solo rehace esos campos; los que ya vienen de una fuente correcta no se tocan.',
+  },
+  'quality': {
+    label: 'Mejorar calidad',
+    line: 'Rehace solo los campos de baja calidad: portadas pequeñas frente a la caja, descripciones de menos de 120 caracteres o con menos de 3 capturas. Lo que ya está bien no se toca.',
   },
   'popularity': {
     label: 'Popularidad',
@@ -67,11 +71,12 @@ function subgroupsOf(fields: readonly BatchField[]): [string, BatchField[]][] {
   return [...out.entries()]
 }
 
-const REACH_LEGEND = 'Completo · solo los huecos · no aplica'
+const REACH_LEGEND = 'Completo · solo los huecos · solo baja calidad · no aplica'
 
 function ReachMark({ reach }: { reach: Reach }) {
   if (reach === 'all') return <span aria-label="completo" className="inline-block h-2 w-2 rounded-full bg-primary" />
   if (reach === 'gaps') return <span aria-label="solo los huecos" className="inline-block h-2 w-2 rounded-full border border-primary" />
+  if (reach === 'quality') return <span aria-label="solo baja calidad" className="inline-flex h-2 w-2 overflow-hidden rounded-full border border-primary"><span className="w-1/2 bg-primary" /></span>
   return <span aria-label="no aplica" className="text-xs leading-none text-muted-foreground">–</span>
 }
 

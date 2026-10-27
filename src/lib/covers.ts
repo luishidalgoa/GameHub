@@ -15,14 +15,15 @@ const COVER_LONG_EDGE = 1200
  * Resize a cover to the stored size without padding, and report its own proportion
  * (width / height), or null when the image cannot be read.
  */
-export async function processCover(buffer: Buffer): Promise<{ webp: Buffer; ratio: number | null }> {
+export async function processCover(buffer: Buffer): Promise<{ webp: Buffer; ratio: number | null; width: number | null; height: number | null }> {
   const meta = await sharp(buffer).metadata()
   const ratio = meta.width && meta.height ? meta.width / meta.height : null
   const webp = await sharp(buffer)
     .resize(COVER_LONG_EDGE, COVER_LONG_EDGE, { fit: 'inside', withoutEnlargement: true })
     .webp({ quality: 90 })
     .toBuffer()
-  return { webp, ratio }
+  // The size of the picture as it came in: the quality of a cover is judged on this.
+  return { webp, ratio, width: meta.width ?? null, height: meta.height ?? null }
 }
 
 /**
@@ -73,9 +74,9 @@ export async function saveCoverFromBuffer(
   const s3Key       = `${S3_PREFIX}/${platformSlug}/${gameId}.webp`
   const originalKey = `${S3_PREFIX}/${platformSlug}/${gameId}.original.webp`
 
-  const { webp, ratio } = await processCover(buffer)
+  const { webp, ratio, width, height } = await processCover(buffer)
   await uploadCoverToS3(webp, s3Key, originalKey, undefined, replaceOriginal)
-  await db.game.update({ where: { id: gameId }, data: { coverRatio: ratio } }).catch(() => {})
+  await db.game.update({ where: { id: gameId }, data: { coverRatio: ratio, coverWidth: width, coverHeight: height } }).catch(() => {})
 
   // Append a version timestamp so the stored DB key changes on every upload.
   // resolveCoverPath() forwards this as a query param in the proxy URL, which

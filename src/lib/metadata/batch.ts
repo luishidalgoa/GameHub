@@ -17,6 +17,7 @@ import type { FieldSource } from './sources'
 import { parseMetadataSources, type MetadataSources } from './sources'
 import { hasMetadata, isRetryCandidate } from '@/lib/library'
 import { BATCH_FIELDS, FICHA_FIELDS, IMAGE_FIELDS, isArtField, runFields, type BatchField } from './scope'
+import { lowQualityFields, wrongProvenanceFields } from './field-quality'
 import { kindFromLaunchBox } from '@/lib/art-catalog'
 import { selectionWhere } from './selection'
 import { classifyNoMatch, emptyMatchDiagnostics, type NoMatchReason } from './no-match'
@@ -79,7 +80,7 @@ async function runMetadataBatchInner(opts: {
    *               so their data comes from the configured sources.
    *   'autocomplete-scores' — fill ONLY the score (via the RAWG→Metacritic→
    *               LaunchBox chain) for games that currently have no score. */
-  mode?:            'missing' | 'fill' | 'redo' | 'wrong-provider' | 'popularity' | 'autocomplete-scores'
+  mode?:            'missing' | 'fill' | 'redo' | 'wrong-provider' | 'quality' | 'popularity' | 'autocomplete-scores'
   /** The fields this pass may write (see scope.ts). Undefined = every field the mode allows. */
   fields?:          BatchField[]
   /** Keep a cover the owner picked by hand (on by default). Off lets this pass replace it. */
@@ -142,79 +143,70 @@ async function runMetadataBatchInner(opts: {
     return
   }
 
-  // What this pass writes, field by field: the fields the admin chose, inside what the
-  // mode allows. The mode decides who; the fields decide what. Trailers and scores are
-  // dropped when their switches are off.
-  const fieldSet = new Set<BatchField>(runFields(mode, fields, { withTrailers, withScores }))
-  const want = (f: BatchField) => fieldSet.has(f)
-  const inFicha = FICHA_FIELDS.some(want)
-  const inImagenes = IMAGE_FIELDS.some(want)
-  const inScores = want('score') || want('metacritic')
-  const trailersOn = want('trailer')
-  const coversOn = want('cover') && withCovers
-  const scoresOn = inScores
-  // Wikidata facts fill genre, developer, publisher and year: only when one of them is chosen.
-  const factsOn = want('genre') || want('developer') || want('publisher') || want('releaseYear')
-  // Identifiers (rawgId, rawgSlug, launchboxId) move only with the ficha or the art.
-  const ownsIdentity = inFicha || inImagenes
-  const metaScope = inFicha || inImagenes || inScores
-  // The LaunchBox art blocks this pass writes.
-  const artOnly = new Set<ArtBlock>((['backdrop', 'tile', 'logo'] as const).filter(want))
-  // The LaunchBox image kinds this pass stores: the art fields it chose, and the kinds the
-  // background, tile and logo blocks are picked from. Other kinds are not downloaded at all.
-  const artKinds = new Set<string>([
-    ...BATCH_FIELDS.filter(f => isArtField(f) && want(f)).map(f => f.slice(4)),
-    ...(want('backdrop') ? ['banner', 'fanart'] : []),
-    ...(want('tile') ? ['fanart'] : []),
-    ...(want('logo') ? ['clear-logo'] : []),
-  ])
+  // What this pass writes, field by field: the fields the admin chose, inside what the mode
+  // allows. The mode decides who; the fields decide what. A quality or provenance pass narrows
+  // that per game: only the fields that are low quality, or whose source is outside the
+  // platform's chain, are written, and the game's other fields are left as they are.
+  const passFields = new Set<BatchField>(runFields(mode, fields, { withTrailers, withScores }))
+  const planFor = (set: ReadonlySet<BatchField>) => {
+    const want = (f: BatchField) => set.has(f)
+    const inFicha = FICHA_FIELDS.some(want)
+    const inImagenes = IMAGE_FIELDS.some(want)
+    const inScores = want('score') || want('metacritic')
+    return {
+      want,
+      inFicha,
+      inImagenes,
+      inScores,
+      trailersOn: want('trailer'),
+      coversOn: want('cover') && withCovers,
+      scoresOn: inScores,
+      // Wikidata facts fill genre, developer, publisher and year: only when one of them is chosen.
+      factsOn: want('genre') || want('developer') || want('publisher') || want('releaseYear'),
+      // Identifiers (rawgId, rawgSlug, launchboxId) move only with the ficha or the art.
+      ownsIdentity: inFicha || inImagenes,
+      metaScope: inFicha || inImagenes || inScores,
+      // The LaunchBox art blocks this pass writes.
+      artOnly: new Set<ArtBlock>((['backdrop', 'tile', 'logo'] as const).filter(want)),
+      // The LaunchBox image kinds this pass stores: the art fields it chose, and the kinds the
+      // background, tile and logo blocks are picked from. Other kinds are not downloaded at all.
+      artKinds: new Set<string>([
+        ...BATCH_FIELDS.filter(f => isArtField(f) && want(f)).map(f => f.slice(4)),
+        ...(want('backdrop') ? ['banner', 'fanart'] : []),
+        ...(want('tile') ? ['fanart'] : []),
+        ...(want('logo') ? ['clear-logo'] : []),
+      ]),
+    }
+  }
+  // The pass-level plan. Each game then takes its own (see the loop).
+  let { want, inFicha, inImagenes, inScores, trailersOn, coversOn, scoresOn, factsOn, ownsIdentity, metaScope, artOnly, artKinds } = planFor(passFields)
 
   // Resume: only games after the cursor (ordered by id, see below). Nothing to write
   // selects nothing, and the run ends at once.
   const where = selectionWhere({
-    mode, fields: [...fieldSet], platformSlug, resumeAfterId,
+    mode, fields: [...passFields], platformSlug, resumeAfterId,
     backfillTrailers, popularityRedo, now: new Date(),
   })
   // Ordered by id so the resume cursor (id > resumeAfterId) is monotonic.
   let games = where ? await db.game.findMany({ where, include: { platform: true }, orderBy: { id: 'asc' } }) : []
 
-  // 'wrong-provider': keep only games whose stored provenance disagrees with the
-  // current matrix (any field whose source ≠ the configured provider, or that
-  // was never recorded). Done in JS because metadataSources is a JSON string.
-  if (mode === 'wrong-provider') {
-    // Judged against the matrix in force for each game's OWN platform: with a
-    // per-platform override, the same provenance can be right for one console
-    // and wrong for another. Resolved up front so the filter stays synchronous.
-    await Promise.all([...new Set(games.map(g => g.platform.slug))].map(matrixFor))
-    games = games.filter(g => {
-      const m = matrixCache.get(g.platform.slug) ?? globalMatrix
-      const wanted: Record<string, string> = {
-        cover:       m.cover,
-        info:        m.info,
-        description: m.description,
-        screenshots: m.screenshots,
-      }
-      const src = parseMetadataSources(g.metadataSources)
-      // Mismatch if any field that the matrix actively sources (≠ 'none') is
-      // missing from provenance or recorded from a different provider.
-      const checks: Array<'cover' | 'info' | 'description' | 'screenshots'> = [
-        ...(inFicha ? (['info', 'description'] as const) : []),
-        ...(inImagenes ? (['cover', 'screenshots'] as const) : []),
-      ]
-      return checks.some(f => {
-        if (wanted[f] === 'none') return false
-        // A hand-picked cover is a deliberate override, not a provider drift:
-        // it never counts as a mismatch, or this sweep would exist to undo it.
-        if (f === 'cover' && src.coverManual) return false
-        // Any source of the platform's chain may answer: a fallback is by design (a cover
-        // too small for the box moves to the next source). Only a source outside the chain
-        // is drift; Nintendo's store is the info fallback on Switch.
-        const from = src[f] as string | undefined
-        const inChain = Boolean(from) && ((m.chains[f] as string[]).includes(from!) || (f === 'info' && from === 'nintendo'))
-        return !inChain
-      })
-    })
+  // A provenance pass is judged against the matrix in force for each game's OWN platform: a
+  // per-platform override can make the same provenance right for one console and wrong for
+  // another. Resolved up front so the per-game decision stays synchronous.
+  if (mode === 'wrong-provider') await Promise.all([...new Set(games.map(g => g.platform.slug))].map(matrixFor))
+
+  // The fields this pass writes for one game: a quality pass its low-quality fields, a provenance
+  // pass the fields whose source is outside the platform's chain, and any other pass what it asked.
+  const fieldsFor = (game: (typeof games)[number]): Set<BatchField> => {
+    if (mode === 'quality') return new Set(lowQualityFields(game, [...passFields]))
+    if (mode === 'wrong-provider') {
+      const chains = (matrixCache.get(game.platform.slug) ?? globalMatrix).chains
+      return new Set(wrongProvenanceFields(parseMetadataSources(game.metadataSources), [...passFields], chains))
+    }
+    return passFields
   }
+  // A quality or provenance pass keeps only the games that have a field to write.
+  if (mode === 'quality' || mode === 'wrong-provider') games = games.filter(g => fieldsFor(g).size > 0)
 
   const total = games.length
   emit({ type: 'start', total })
@@ -229,6 +221,8 @@ async function runMetadataBatchInner(opts: {
 
     const game = games[i]
     const processed = i + 1
+    // This game's own fields, and the plan they give.
+    ;({ want, inFicha, inImagenes, inScores, trailersOn, coversOn, scoresOn, factsOn, ownsIdentity, metaScope, artOnly, artKinds } = planFor(fieldsFor(game)))
 
     // ── popularity mode: fetch & store RAWG metrics only ──────────────────────
     // Placed first so it isn't short-circuited by the metadata-mode branches.

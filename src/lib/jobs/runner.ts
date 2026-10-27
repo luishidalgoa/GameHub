@@ -19,7 +19,7 @@ import { libretroSystemFor } from '@/lib/metadata/libretro'
 export type JobType = 'metadata' | 'scan' | 'art'
 
 export interface MetadataJobParams {
-  mode?: 'missing' | 'fill' | 'redo' | 'wrong-provider' | 'popularity' | 'autocomplete-scores'
+  mode?: 'missing' | 'fill' | 'redo' | 'wrong-provider' | 'quality' | 'popularity' | 'autocomplete-scores'
   /** The fields the pass writes (see metadata/scope.ts). Undefined = all the mode allows. */
   fields?: BatchField[]
   /** Keep the covers the owner picked by hand (default true). */

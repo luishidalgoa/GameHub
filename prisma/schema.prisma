@@ -94,6 +94,9 @@ model Game {
   // Proporción ancho/alto de la portada guardada. Una caja real ronda 2:3 (<= 0.85);
   // arte horizontal o cuadrado no es caja y la tarjeta lo muestra como respaldo.
   coverRatio      Float?
+  // The picture's size as it came in: a cover is judged against the platform's box by it (field-quality.ts).
+  coverWidth  Int?
+  coverHeight Int?
   // Encuadre del recorte de la portada (JSON {x,y,s}); null si la portada no está recortada.
   coverFrame      String?
   coverUrl        String?
