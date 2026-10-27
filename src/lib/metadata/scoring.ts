@@ -67,10 +67,10 @@ export function calcConfidence(
   platformSlug: string,
   result: MetadataResult,
 ): number {
-  const expectedSlug = RAWG_PLATFORM_SLUGS[platformSlug]
+  const expectedSlugs = RAWG_PLATFORM_SLUGS[platformSlug]
   const candidateSlugs = result.platformSlugs ?? []
-  if (expectedSlug && candidateSlugs.length > 0) {
-    if (!candidateSlugs.includes(expectedSlug)) return 0   // wrong console → discard
+  if (expectedSlugs && candidateSlugs.length > 0) {
+    if (!candidateSlugs.some(s => expectedSlugs.includes(s))) return 0   // wrong console → discard
     return calcTitleConfidence(gameTitle, result.title, true)
   }
   // No reliable platform info — score on title alone (no platform bonus).

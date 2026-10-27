@@ -4,6 +4,7 @@ import { adminGuard } from '@/lib/admin-guard'
 import { fetchGameScore } from '@/lib/metadata/scoreChain'
 import { getRawgProvider } from '@/lib/metadata/rawg'
 import { fetchMetacriticScore } from '@/lib/metadata/metacritic'
+import { consoleSlugFor } from '@/lib/metadata/platform-console'
 import { fetchLaunchBoxRating } from '@/lib/metadata/launchbox'
 import { rankScoreCandidates, type ScoreCandidate } from '@/lib/metadata/score-candidates'
 
@@ -27,7 +28,7 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
   const id = parseInt(params.id, 10)
   const game = await db.game.findUnique({
     where: { id },
-    select: { title: true, platform: { select: { slug: true } } },
+    select: { title: true, filePath: true, externalKey: true, platform: { select: { slug: true } } },
   })
   if (!game || !game.platform) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
@@ -53,7 +54,7 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
   }
 
   try {
-    const mc = await fetchMetacriticScore(query, game.platform.slug)
+    const mc = await fetchMetacriticScore(query, game.platform.slug, consoleSlugFor(game.platform.slug, game))
     if (mc != null) candidates.push({ title: query, releaseYear: null, platforms: '', score: mc, source: 'metacritic' })
   } catch { /* scraper unavailable */ }
 
@@ -73,7 +74,7 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
   const id = parseInt(params.id, 10)
   const game = await db.game.findUnique({
     where: { id },
-    select: { title: true, rawgId: true, platform: { select: { slug: true } } },
+    select: { title: true, rawgId: true, filePath: true, externalKey: true, platform: { select: { slug: true } } },
   })
   if (!game || !game.platform) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
@@ -81,6 +82,7 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
     const r = await fetchGameScore({
       title: game.title,
       platformSlug: game.platform.slug,
+      consoleSlug: consoleSlugFor(game.platform.slug, game),
       rawgId: game.rawgId,
       apiKey: await rawgKey(),
     })

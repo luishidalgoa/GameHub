@@ -6,20 +6,21 @@ import { getRawgProvider } from '@/lib/metadata/rawg'
 import { fileToTitle } from '@/lib/utils'
 import { getLaunchBoxProvider, fetchLaunchBoxGame } from '@/lib/metadata/launchbox'
 import { getProviderMatrix } from '@/lib/metadata/matrix'
-import { gatherMetadata } from '@/lib/metadata/compose'
+import { gatherMetadata, StoreUnavailableError } from '@/lib/metadata/compose'
 import { downloadAndCacheCover } from '@/lib/covers'
 import { fetchSteamGridDBCover } from '@/lib/metadata/steamgriddb'
 import { searchYouTubeTrailer } from '@/lib/youtube'
 import { serializeBigInt } from '@/lib/serialize'
 import type { MetadataResult } from '@/lib/metadata/provider'
 import { chooseCover } from '@/lib/metadata/compose'
-import { fetchLibretroCover } from '@/lib/metadata/libretro'
+import { fetchLibretroCover, libretroSystemFor } from '@/lib/metadata/libretro'
 import type { LaunchBoxGame } from '@/lib/metadata/launchbox'
 import { changedFields, lockFields, LOCKABLE_FIELDS } from '@/lib/manual-fields'
 import { applyMetadata, textPatch, type TextField } from '@/lib/metadata/apply'
 import { storeLaunchBoxArt } from '@/lib/art'
 import type { FieldSource } from '@/lib/metadata/sources'
 import { scoreForGame } from '@/lib/metadata/one-score'
+import { consoleSlugFor } from '@/lib/metadata/platform-console'
 import { parseRomTags, languagesToCsv } from '@/lib/rom-tags'
 import { extractSwitchTitleId } from '@/lib/scanner/titleid'
 
@@ -110,15 +111,24 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   // Resolved for this game's platform: a per-platform override only takes
   // effect if the slug reaches here.
   const matrix = await getProviderMatrix(game.platform.slug)
-  const meta = await gatherMetadata({
-    title:        game.title,
-    platformSlug: game.platform.slug,
-    fileName:     game.fileName,
-    launchboxId:  game.launchboxId,
-    rawgId:       game.rawgId,
-    matrix,
-    rawgApiKey:   await rawgKey(),
-  })
+  let meta
+  try {
+    meta = await gatherMetadata({
+      title:        game.title,
+      platformSlug: game.platform.slug,
+      fileName:     game.fileName,
+      retroSystem:  libretroSystemFor(game.platform.slug, game),
+      launchboxId:  game.launchboxId,
+      rawgId:       game.rawgId,
+      matrix,
+      rawgApiKey:   await rawgKey(),
+    })
+  } catch (err) {
+    if (err instanceof StoreUnavailableError) {
+      return NextResponse.json({ error: 'store_unavailable', message: err.message }, { status: 503 })
+    }
+    throw err
+  }
   if (!meta) return NextResponse.json({ error: 'No confident match found' }, { status: 404 })
 
   // A cover the admin chose by hand is never replaced by an automatic run (#81).
@@ -143,7 +153,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 
   // The score the scores batch would write, when the game has none yet (#80 scale).
   const scoreFill = game.rawgScore == null
-    ? await scoreForGame({ title: game.title, platformSlug: game.platform.slug, rawgId: game.rawgId }, await rawgKey(), 350)
+    ? await scoreForGame({ title: game.title, platformSlug: game.platform.slug, consoleSlug: consoleSlugFor(game.platform.slug, game), rawgId: game.rawgId }, await rawgKey(), 350)
     : null
 
   // Each text field carries the provider that gave it: the info source, or the
@@ -212,7 +222,7 @@ async function applyManualPick(
   if (!meta) return null
 
   // The picked candidate's own art first; without it, the platform's cover chain.
-  const row = await db.game.findUnique({ where: { id: gameId }, select: { fileName: true } })
+  const row = await db.game.findUnique({ where: { id: gameId }, select: { fileName: true, filePath: true, externalKey: true } })
   // Only LaunchBox's own box art is taken as the picked candidate's cover; a RAWG
   // image is a screenshot (see chooseCover).
   const cover = source === 'launchbox' && meta.coverUrl
@@ -222,7 +232,10 @@ async function applyManualPick(
         lb:           source === 'launchbox' ? (meta as LaunchBoxGame) : null,
         rawg:         source === 'rawg' ? meta : null,
         sgdbTitle:    meta.title,
-        libretroBox:  () => fetchLibretroCover(row?.fileName ?? meta.title, platformSlug),
+        libretroBox:  () => {
+          const system = libretroSystemFor(platformSlug, row ?? {})
+          return system ? fetchLibretroCover(row?.fileName ?? meta.title, system) : Promise.resolve(null)
+        },
         sgdbCover:    fetchSteamGridDBCover,
       })
   const coverUrl = cover?.coverUrl

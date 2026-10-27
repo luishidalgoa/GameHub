@@ -23,6 +23,8 @@ export interface ScoreResult {
 export interface ScoreChainInput {
   title:           string
   platformSlug:    string
+  /** The game's own console when the platform holds several (Game Boy: gb, gbc or gba). */
+  consoleSlug?:    string | null
   rawgId?:         number | null
   /** A RAWG metacritic already fetched by the caller (skips re-querying RAWG). */
   rawgMetacritic?: number | null
@@ -38,7 +40,7 @@ const delay = (ms: number) => new Promise(r => setTimeout(r, ms))
  * returning the first hit. Returns null when no source has a score.
  */
 export async function fetchGameScore(input: ScoreChainInput): Promise<ScoreResult | null> {
-  const { title, platformSlug, rawgId, rawgMetacritic, apiKey, rateMs = 350 } = input
+  const { title, platformSlug, consoleSlug, rawgId, rawgMetacritic, apiKey, rateMs = 350 } = input
 
   // 1. RAWG metacritic (critic). Use a value already fetched, else look it up.
   if (rawgMetacritic != null) {
@@ -56,7 +58,7 @@ export async function fetchGameScore(input: ScoreChainInput): Promise<ScoreResul
 
   // 2. Metacritic scraper (critic).
   await delay(rateMs)
-  const mc = await fetchMetacriticScore(title, platformSlug)
+  const mc = await fetchMetacriticScore(title, platformSlug, consoleSlug)
   if (mc != null) return { score: mc, source: 'metacritic', isCritic: true }
 
   // 3. LaunchBox community rating (user score) — last resort.

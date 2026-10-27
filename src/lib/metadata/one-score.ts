@@ -9,7 +9,7 @@ import type { RawgPopularityMetrics } from './rawg'
  * source has a score. Never throws: a score miss must not fail the fill.
  */
 export async function scoreForGame(
-  game: { title: string; platformSlug: string; rawgId: number | null },
+  game: { title: string; platformSlug: string; consoleSlug?: string | null; rawgId: number | null },
   apiKey: string | undefined,
   rateMs = 350,
   /** Metrics the caller already fetched for this game (the popularity pass): not fetched twice. */
@@ -27,7 +27,7 @@ export async function scoreForGame(
 
     if (metacritic == null) {
       const r = await fetchGameScore({
-        title: game.title, platformSlug: game.platformSlug,
+        title: game.title, platformSlug: game.platformSlug, consoleSlug: game.consoleSlug,
         rawgMetacritic: m?.metacritic ?? null, rateMs, apiKey,
       })
       if (r) {

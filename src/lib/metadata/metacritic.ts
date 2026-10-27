@@ -16,7 +16,7 @@ const UA =
 export const METACRITIC_PLATFORM_SLUGS: Record<string, string> = {
   switch:   'switch',
   wii:      'wii',
-  wiiu:     'wii-u',
+  'wii-u':  'wii-u',
   gamecube: 'gamecube',
   n64:      'nintendo-64',
   '3ds':    '3ds',
@@ -35,6 +35,15 @@ export const METACRITIC_PLATFORM_SLUGS: Record<string, string> = {
   ps1:      'playstation',
   ps2:      'playstation-2',
   ps3:      'playstation-3',
+  xbox:     'xbox',
+  'xbox-360': 'xbox-360',
+  'mega-drive':    'sega-genesis',
+  'master-system': 'sega-master-system',
+  'game-gear':     'game-gear',
+  'sega-cd':       'sega-cd',
+  'sega-32x':      'sega-32x',
+  saturn:          'sega-saturn',
+  dreamcast:       'dreamcast',
   pc:       'pc',
 }
 
@@ -78,6 +87,8 @@ const MC_PLATFORM_LABEL: Record<string, string> = {
   'game-boy-advance': 'Game Boy Advance', 'game-boy-color': 'Game Boy Color', 'game-boy': 'Game Boy',
   psp: 'PSP', 'playstation-vita': 'PlayStation Vita', playstation: 'PlayStation',
   'playstation-2': 'PlayStation 2', 'playstation-3': 'PlayStation 3', pc: 'PC',
+  xbox: 'Xbox', 'xbox-360': 'Xbox 360', 'sega-genesis': 'Genesis', 'sega-master-system': 'Master System',
+  'game-gear': 'Game Gear', 'sega-cd': 'Sega CD', 'sega-32x': '32X', 'sega-saturn': 'Saturn', dreamcast: 'Dreamcast',
 }
 
 /** "Nintendo Switch" and "Switch" are the same platform: drop the maker and punctuation. */
@@ -154,16 +165,24 @@ export function pageIsSameGame(html: string, title: string): boolean {
  * Fetch a game's Metacritic metascore (0–100) by title, preferring the precise
  * per-platform URL (the generic one only when the platform is unknown). Returns null when no
  * confident match is found. Paces requests politely.
+ *
+ * `consoleSlug` is the game's own console when the platform holds several (Game Boy:
+ * gb, gbc or gba); it takes precedence over `platformSlug` for the page.
  */
-export async function fetchMetacriticScore(title: string, platformSlug?: string): Promise<number | null> {
+export async function fetchMetacriticScore(
+  title: string,
+  platformSlug?: string,
+  consoleSlug?: string | null,
+): Promise<number | null> {
   const slugs = metacriticSlugs(title)
   if (slugs.length === 0) return null
 
   // With a known platform, the generic URL can point at another version of the
   // game, so only the platform-specific page is accepted. A platform we cannot
   // map gets no page at all (#115): the generic one is never a safe guess.
-  const mcPlatform = platformSlug ? METACRITIC_PLATFORM_SLUGS[platformSlug] : undefined
-  if (platformSlug && !mcPlatform) return null
+  const key = consoleSlug ?? platformSlug
+  const mcPlatform = key ? METACRITIC_PLATFORM_SLUGS[key] : undefined
+  if (key && !mcPlatform) return null
   const urls: string[] = []
   for (const slug of slugs) {
     if (mcPlatform) urls.push(`${MC_SITE}/game/${mcPlatform}/${slug}/`)

@@ -1,4 +1,5 @@
 import { providerFetch } from './http'
+import { GAME_BOY_SLUG, consoleSlugFor } from './platform-console'
 /**
  * libretro-thumbnails as a cover source.
  *
@@ -34,21 +35,55 @@ export const LIBRETRO_SYSTEMS: Record<string, string> = {
   '3ds':    'Nintendo - Nintendo 3DS',
   gamecube: 'Nintendo - GameCube',
   wii:      'Nintendo - Wii',
-  wiiu:     'Nintendo - Wii U',
+  'wii-u':  'Nintendo - Wii U',
   ps1:      'Sony - PlayStation',
   ps2:      'Sony - PlayStation 2',
   psp:      'Sony - PlayStation Portable',
   psvita:   'Sony - PlayStation Vita',
   'psvita-ports': 'Sony - PlayStation Vita',
+  'mega-drive':    'Sega - Mega Drive - Genesis',
+  'master-system': 'Sega - Master System - Mark III',
+  'game-gear':     'Sega - Game Gear',
+  'sega-cd':       'Sega - Mega-CD - Sega CD',
+  'sega-32x':      'Sega - 32X',
+  saturn:          'Sega - Saturn',
+  dreamcast:       'Sega - Dreamcast',
+  xbox:            'Microsoft - Xbox',
+  'xbox-360':      'Microsoft - Xbox 360',
   // Deliberately absent: Nintendo Switch. The archive has no Switch set, and
   // returning nothing is better than returning another platform's art.
 }
 
+/**
+ * The Game Boy platform holds three consoles. The game's own console picks the
+ * libretro system (see libretroSystemFor); a search with no console tries all three.
+ */
+const GAME_BOY_SYSTEMS = ['gb', 'gbc', 'gba']
+
 const BASE = 'https://thumbnails.libretro.com'
+
+/** GameHub slugs (LIBRETRO_SYSTEMS keys) a platform can be served from. */
+export function libretroSystemsFor(platformSlug: string): string[] {
+  if (platformSlug === GAME_BOY_SLUG) return GAME_BOY_SYSTEMS
+  return platformSlug in LIBRETRO_SYSTEMS ? [platformSlug] : []
+}
 
 /** True when this platform can be served at all. */
 export function libretroSupports(platformSlug: string): boolean {
-  return platformSlug in LIBRETRO_SYSTEMS
+  return libretroSystemsFor(platformSlug).length > 0
+}
+
+/**
+ * The libretro system slug that serves one game, or null when the game's own
+ * console cannot be told apart. Game Boy games carry their console in the file
+ * extension (local ROMs) or in the torrent identity ("key:gbc:…") and its source
+ * key ("minerva-gba"); everything else keeps the platform's own slug.
+ */
+export function libretroSystemFor(
+  platformSlug: string,
+  game: { filePath?: string | null; externalKey?: string | null },
+): string | null {
+  return consoleSlugFor(platformSlug, game)
 }
 
 // ── Index cache ───────────────────────────────────────────────────────────────
@@ -256,14 +291,18 @@ export async function searchLibretroCovers(
   platformSlug: string,
   limit = 12,
 ): Promise<Array<{ name: string; url: string; score: number }>> {
-  const system = LIBRETRO_SYSTEMS[platformSlug]
-  if (!system || !query.trim()) return []
-  try {
-    const names = await loadIndex(system)
-    return rankBoxarts(query, names)
-      .slice(0, limit)
-      .map(c => ({ name: c.name, url: boxartUrl(system, c.name), score: c.score }))
-  } catch {
-    return []
+  if (!query.trim()) return []
+  const found: Array<{ name: string; url: string; score: number }> = []
+  for (const slug of libretroSystemsFor(platformSlug)) {
+    const system = LIBRETRO_SYSTEMS[slug]
+    try {
+      const names = await loadIndex(system)
+      for (const c of rankBoxarts(query, names).slice(0, limit)) {
+        found.push({ name: c.name, url: boxartUrl(system, c.name), score: c.score })
+      }
+    } catch {
+      // One unreachable system must not hide the others (Game Boy searches three).
+    }
   }
+  return found.sort((a, b) => b.score - a.score).slice(0, limit)
 }

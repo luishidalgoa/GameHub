@@ -9,6 +9,8 @@ import { searchYouTubeTrailer, YouTubeApiError } from '@/lib/youtube'
 import { AUTO_THRESHOLD } from './scoring'
 import { getProviderMatrix, type ProviderMatrix } from './matrix'
 import { gatherMetadata } from './compose'
+import { libretroSystemFor } from './libretro'
+import { consoleSlugFor } from './platform-console'
 import { applyMetadata, textPatch, type TextField } from './apply'
 import { storeLaunchBoxArt } from '@/lib/art'
 import type { FieldSource } from './sources'
@@ -264,7 +266,7 @@ async function runMetadataBatchInner(opts: {
         const keepScore = !popularityRedo && game.rawgScore != null && m.metacritic == null
         // The same score rule as every other path (one-score.ts), on the metrics just fetched.
         const scored = keepScore ? null : await scoreForGame(
-          { title: game.title, platformSlug: game.platform.slug, rawgId: game.rawgId },
+          { title: game.title, platformSlug: game.platform.slug, consoleSlug: consoleSlugFor(game.platform.slug, game), rawgId: game.rawgId },
           apiKey, rateMs, m,
         )
         await applyMetadata(game.id, {
@@ -293,7 +295,7 @@ async function runMetadataBatchInner(opts: {
         await delay(rateMs)
         if (signal.aborted) break
         const r = await scoreForGame(
-          { title: game.title, platformSlug: game.platform.slug, rawgId: game.rawgId },
+          { title: game.title, platformSlug: game.platform.slug, consoleSlug: consoleSlugFor(game.platform.slug, game), rawgId: game.rawgId },
           apiKey, rateMs,
         )
         if (!r) {
@@ -368,6 +370,7 @@ async function runMetadataBatchInner(opts: {
         title:        game.title,
         platformSlug: game.platform.slug,
         fileName:     game.fileName,
+        retroSystem:  libretroSystemFor(game.platform.slug, game),
         launchboxId:  game.launchboxId,
         matrix:       await matrixFor(game.platform.slug),
         rawgApiKey:   apiKey,
@@ -431,7 +434,7 @@ async function runMetadataBatchInner(opts: {
         // else RAWG rating x20, else the Metacritic/LaunchBox chain.
         await delay(rateMs)
         const r = await scoreForGame(
-          { title: meta.title || game.title, platformSlug: game.platform.slug, rawgId: meta.rawgId ?? game.rawgId },
+          { title: meta.title || game.title, platformSlug: game.platform.slug, consoleSlug: consoleSlugFor(game.platform.slug, game), rawgId: meta.rawgId ?? game.rawgId },
           apiKey,
           rateMs,
         )
