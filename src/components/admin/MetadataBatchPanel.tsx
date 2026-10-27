@@ -79,7 +79,7 @@ export function MetadataBatchPanel({ platforms = [] }: { platforms?: PlatformOpt
     'fill':                 'Rellena solo los campos vacíos de cada juego. Nunca cambia lo que ya tiene valor ni lo que fijaste tú.',
     'redo':                 'Vuelve a buscar en todas las fuentes y sobrescribe lo automático. Lo que fijaste tú se conserva.',
     'wrong-provider':       'Vuelve a buscar solo en los juegos cuyos datos vienen de una fuente que no es la preferente de su plataforma.',
-    'popularity':           'Recalcula popularidad y recomendados desde RAWG.',
+    'popularity':           'Recalcula la popularidad de RAWG (cuántos lo tienen y su valoración), que alimenta las recomendaciones.',
     'autocomplete-scores':  'Pone la nota a los juegos que no tienen ninguna, con la fuente configurada.',
   }
   const MODE_LABEL: Record<Mode, string> = {
@@ -191,12 +191,14 @@ export function MetadataBatchPanel({ platforms = [] }: { platforms?: PlatformOpt
 
           {/* One menu for the mode and its extras: compact, opened on demand. */}
           <OptionsMenu label={MODE_LABEL[mode]} disabled={running}>
+            <p className="px-2.5 pb-1 text-xs text-muted-foreground">Qué juegos revisar</p>
             <div className="space-y-0.5">
               {MODE_ORDER.map(m => (
                 <button
                   key={m}
                   type="button"
                   onClick={() => setMode(m)}
+                  title={MODE_TEXT[m]}
                   aria-pressed={mode === m}
                   className={cn(
                     'w-full text-left rounded px-2.5 py-1.5 text-sm transition-colors',
@@ -208,6 +210,7 @@ export function MetadataBatchPanel({ platforms = [] }: { platforms?: PlatformOpt
               ))}
             </div>
             <div className="my-2 border-t border-border" />
+            <p className="px-2.5 pb-1 text-xs text-muted-foreground">Ajustes</p>
             <div className="space-y-2 px-1">
               {mode === 'popularity' ? (
                 <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer select-none" title={t('popularityRedoHint')}>
@@ -216,7 +219,7 @@ export function MetadataBatchPanel({ platforms = [] }: { platforms?: PlatformOpt
                 </label>
               ) : mode === 'autocomplete-scores' ? null : (
                 <>
-                  <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer select-none">
+                  <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer select-none" title="Descarga y sustituye las portadas por las del proveedor elegido">
                     <input type="checkbox" checked={withCovers} onChange={e => setWithCovers(e.target.checked)} disabled={running} className="accent-primary" />
                     {t('downloadCovers')}
                   </label>
