@@ -18,7 +18,7 @@ export async function requeueUnfindable(ids?: number[]): Promise<number> {
   const where = { ...UNFINDABLE, ...(ids?.length ? { id: { in: ids } } : {}) }
   const res = await db.game.updateMany({
     where,
-    data: { metadataStatus: null, metadataNextRetryAt: null, artStatus: null, artCheckedAt: null },
+    data: { metadataStatus: null, metadataNextRetryAt: null, metadataReason: null, artStatus: null, artCheckedAt: null },
   })
   return res.count
 }

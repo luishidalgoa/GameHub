@@ -1,5 +1,5 @@
 import { db } from '@/lib/db'
-import { libraryGameWhere, UNFINDABLE, NOT_UNFINDABLE, pendingWhere, WITHOUT_METADATA } from '@/lib/library'
+import { libraryGameWhere, UNFINDABLE, NOT_UNFINDABLE, pendingWhere, pendingMetadataWhere } from '@/lib/library'
 
 export type BatchMode = 'missing' | 'fill' | 'redo' | 'wrong-provider' | 'popularity' | 'autocomplete-scores'
 
@@ -29,7 +29,7 @@ export async function previewBatch(mode: BatchMode, platformSlug?: string): Prom
     return { mode, games: await db.game.count({ where: base }), skippedUnfindable }
   }
   if (mode === 'missing') {
-    return { mode, games: await db.game.count({ where: { ...base, ...WITHOUT_METADATA } }), skippedUnfindable }
+    return { mode, games: await db.game.count({ where: { ...libraryGameWhere(platformSlug), ...pendingMetadataWhere(new Date()) } }), skippedUnfindable }
   }
   if (mode === 'popularity') {
     return { mode, games: await db.game.count({ where: { ...base, popularityFetchedAt: null } }), skippedUnfindable }

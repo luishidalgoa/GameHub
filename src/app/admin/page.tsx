@@ -2,7 +2,7 @@ import Link from 'next/link'
 import { getTranslations } from 'next-intl/server'
 import { db } from '@/lib/db'
 import { formatBytes } from '@/lib/utils'
-import { libraryGameWhere, WITHOUT_METADATA, NO_COVER, NO_SCORE, UNFINDABLE, pendingWhere } from '@/lib/library'
+import { libraryGameWhere, NO_COVER, NO_SCORE, UNFINDABLE, pendingWhere, pendingMetadataWhere } from '@/lib/library'
 import { HealthPanel } from '@/components/admin/HealthPanel'
 import { ScanLogsTable } from '@/components/admin/ScanLogsTable'
 import { Gamepad2, Monitor, HardDrive, ImageOff, FileQuestion, StarOff } from 'lucide-react'
@@ -10,12 +10,14 @@ import { Gamepad2, Monitor, HardDrive, ImageOff, FileQuestion, StarOff } from 'l
 export const dynamic = 'force-dynamic'
 
 export default async function AdminPage() {
-  const [t, totalGames, totalPlatforms, noCover, noMeta, noScore, scanLogs] = await Promise.all([
+  const [t, totalGames, totalPlatforms, noCover, noMeta, waiting, noScore, scanLogs] = await Promise.all([
     getTranslations('Admin'),
     db.game.count({ where: libraryGameWhere() }),
     db.platform.count({ where: { enabled: true } }),
     db.game.count({ where: { ...libraryGameWhere(), ...pendingWhere(NO_COVER) } }),
-    db.game.count({ where: { ...libraryGameWhere(), ...pendingWhere(WITHOUT_METADATA) } }),
+    db.game.count({ where: { ...libraryGameWhere(), ...pendingMetadataWhere(new Date()) } }),
+    // Sin ficha y con el reintento en el futuro: esperan su turno, no están pendientes.
+    db.game.count({ where: { ...libraryGameWhere(), metadataStatus: { in: ['no_match', 'provider_error'] }, metadataFetchedAt: null, description: null, metadataNextRetryAt: { gt: new Date() } } }),
     db.game.count({ where: { ...libraryGameWhere(), ...pendingWhere(NO_SCORE) } }),
     db.scanLog.findMany({ orderBy: { startedAt: 'desc' }, take: 5 }),
   ])
@@ -39,6 +41,8 @@ export default async function AdminPage() {
         <Link href="/admin/games?meta=no-metadata" className="rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-ring">
           <StatCard icon={<FileQuestion className="w-5 h-5" />} label={t('noMetadata')} value={noMeta.toString()} color={noMeta > 0 ? 'text-violet-400' : 'text-foreground'} hover />
         </Link>
+        <StatCard icon={<FileQuestion className="w-5 h-5" />} label={t('waitingRetry')} value={waiting.toString()} />
+
         <Link href="/admin/games?score=no-score" className="rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-ring">
           <StatCard icon={<StarOff className="w-5 h-5" />} label={t('noScore')} value={noScore.toString()} color={noScore > 0 ? 'text-rose-400' : 'text-foreground'} hover />
         </Link>

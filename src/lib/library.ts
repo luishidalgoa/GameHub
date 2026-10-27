@@ -52,3 +52,35 @@ export const WITHOUT_METADATA: Prisma.GameWhereInput = {
 export function hasMetadata(game: { metadataFetchedAt: Date | string | null; description: string | null; genre: string | null }): boolean {
   return game.metadataFetchedAt !== null || Boolean(game.description) || Boolean(game.genre)
 }
+
+/**
+ * Pending metadata: a game that was never tried (no status, no data), or one a
+ * provider missed or failed on whose retry is due, and that still has no ficha
+ * (no fetch, no description). Wikidata facts do not take a game out of the retry
+ * branch, so a no-match game keeps its retry. Matched games are out. Unfindable
+ * games are out too, as in pendingWhere.
+ */
+export function pendingMetadataWhere(now: Date): Prisma.GameWhereInput {
+  return {
+    AND: [
+      NOT_UNFINDABLE,
+      {
+        OR: [
+          { metadataStatus: null, ...WITHOUT_METADATA },
+          {
+            metadataStatus: { in: ['no_match', 'provider_error'] },
+            metadataFetchedAt: null,
+            description: null,
+            OR: [{ metadataNextRetryAt: null }, { metadataNextRetryAt: { lte: now } }],
+          },
+        ],
+      },
+    ],
+  }
+}
+
+/** The retry branch of pendingMetadataWhere, on a loaded row (the retry time is checked by the caller). */
+export function isRetryCandidate(game: { metadataStatus: string | null; metadataFetchedAt: Date | string | null; description: string | null }): boolean {
+  return (game.metadataStatus === 'no_match' || game.metadataStatus === 'provider_error')
+    && game.metadataFetchedAt === null && game.description === null
+}

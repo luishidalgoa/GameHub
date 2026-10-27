@@ -115,22 +115,16 @@ export async function fillGameFacts(gameId: number): Promise<string[]> {
   if (!game) return []
   if (game.developer && game.publisher && game.releaseYear && game.genre) return []
 
+  // Wikidata only fills facts. The metadata pass owns the status and the retry clock:
+  // writing "matched" here used to take a no_match game out of the retry queue for good.
   const facts = await wikidataFacts(game.title)
-  if (!facts) {
-    // Nothing matched: one more attempt on the record. A game that has none of the
-    // sources is "unfindable" (see UNFINDABLE), not a pending job.
-    await db.game.update({
-      where: { id: gameId },
-      data: { metadataStatus: 'no_match', metadataAttempts: { increment: 1 }, metadataNextRetryAt: noMatchRetryAt() },
-    })
-    return []
-  }
+  if (!facts) return []
   // Each fact carries its own source, so the editor labels it as Wikidata's (#133).
   const patch: MetadataPatch = {}
   if (!game.developer   && facts.developer)   patch.developer   = { value: facts.developer,   source: 'wikidata' }
   if (!game.publisher   && facts.publisher)   patch.publisher   = { value: facts.publisher,   source: 'wikidata' }
   if (!game.releaseYear && facts.releaseYear) patch.releaseYear = { value: facts.releaseYear, source: 'wikidata' }
   if (!game.genre       && facts.genre)       patch.genre       = { value: facts.genre,       source: 'wikidata' }
-  await applyMetadata(gameId, { origin: 'auto', patch, data: { metadataStatus: 'matched' } })
+  await applyMetadata(gameId, { origin: 'auto', patch, data: {} })
   return Object.keys(patch)
 }

@@ -40,8 +40,11 @@ export async function fetchHtmlWithRetry(url: string, policy: HtmlFetchPolicy, a
     if (res.status === 404) return ''
     if (policy.redirect === 'manual' && res.status >= 300 && res.status < 400) return ''
     if (res.status === 429 || res.status >= 500) {
-      if (lastAttempt) return ''
-      return retry()
+      if (!lastAttempt) return retry()
+      // Still failing after every retry is an outage, not an empty answer: a caller
+      // that asked for throwOnError (LaunchBox) must see it, or the game reads as "no results".
+      if (policy.throwOnError) throw new Error(`${policy.label} ${res.status} for ${url}`)
+      return ''
     }
     if (!res.ok) {
       if (policy.failOnStatus) throw new Error(`${policy.label} ${res.status} for ${url}`)

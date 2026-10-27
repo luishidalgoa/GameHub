@@ -15,7 +15,8 @@ import { applyMetadata, textPatch, type TextField } from './apply'
 import { storeLaunchBoxArt } from '@/lib/art'
 import type { FieldSource } from './sources'
 import { parseMetadataSources, type MetadataSources } from './sources'
-import { WITHOUT_METADATA, hasMetadata } from '@/lib/library'
+import { pendingMetadataWhere, hasMetadata, isRetryCandidate } from '@/lib/library'
+import { classifyNoMatch, emptyMatchDiagnostics, type NoMatchReason } from './no-match'
 
 // Re-exported for callers that imported these from the batch module historically.
 export { AUTO_THRESHOLD, calcConfidence } from './scoring'
@@ -29,6 +30,8 @@ export interface BatchEvent {
   matchedTitle?: string
   confidence?:   number
   reason?:       string
+  /** For a no_match skip: why no source matched (see classifyNoMatch). */
+  matchReason?:  NoMatchReason
   processed?:    number
   total?:        number
   applied?:      number
@@ -183,7 +186,7 @@ async function runMetadataBatchInner(opts: {
             ...platformFilter,
             ...resumeFilter,
             OR: [
-              WITHOUT_METADATA,
+              pendingMetadataWhere(new Date()),
               ...(withTrailers && backfillTrailers ? [{ trailerUrl: null }] : []),
             ],
           }
@@ -323,7 +326,9 @@ async function runMetadataBatchInner(opts: {
 
     // ── Trailer-only backfill: game already has metadata, just needs a trailer ─
     // Only in 'missing' mode; 'fill'/'redo' send every game through the full flow.
-    if (mode === 'missing' && hasMetadata(game)) {
+    // A retry (no match or provider error, now due) goes through the full flow even
+    // when it holds a genre from Wikidata: the trailer is searched there too.
+    if (mode === 'missing' && hasMetadata(game) && !isRetryCandidate(game)) {
       if (!withTrailers || game.trailerUrl) {
         // nothing to do (shouldn't normally be selected) — count as skipped silently
         skipped++
@@ -366,7 +371,9 @@ async function runMetadataBatchInner(opts: {
       if (signal.aborted) break
 
       // Compose metadata across providers per the matrix (LaunchBox/RAWG/SGDB).
+      const diag = emptyMatchDiagnostics()
       const meta = await gatherMetadata({
+        diagnostics:  diag,
         title:        game.title,
         platformSlug: game.platform.slug,
         fileName:     game.fileName,
@@ -378,14 +385,16 @@ async function runMetadataBatchInner(opts: {
       })
 
       if (!meta) {
+        // The reason is written before fillGameFacts runs, which never touches it.
+        const matchReason = classifyNoMatch(diag)
         await applyMetadata(game.id, {
           origin: 'auto',
-          data: { metadataStatus: 'no_match', metadataAttempts: { increment: 1 }, metadataNextRetryAt: noMatchRetryAt() },
+          data: { metadataStatus: 'no_match', metadataAttempts: { increment: 1 }, metadataNextRetryAt: noMatchRetryAt(), metadataReason: matchReason },
         }).catch(() => {})
         // The platform's own providers found nothing: Wikidata is the last word.
         await fillGameFacts(game.id).catch(() => [] as string[])
         skipped++
-        emit({ type: 'skipped', gameId: game.id, title: game.title, reason: 'no_match', processed, total, applied, skipped, failed })
+        emit({ type: 'skipped', gameId: game.id, title: game.title, reason: 'no_match', matchReason, processed, total, applied, skipped, failed })
         continue
       }
 
@@ -534,6 +543,12 @@ async function runMetadataBatchInner(opts: {
         { title: row.title, description: row.description, releaseYear: row.releaseYear, genre: row.genre, developer: row.developer, publisher: row.publisher } as Partial<Record<TextField, unknown>>,
         f => f === 'description' ? meta.sources.description : (facts?.[f] ?? meta.sources.info),
       )
+      // A cover-only result is not a ficha. The box is kept, but a game that never had a
+      // ficha goes back into the retry cycle as no_match instead of reading as "matched".
+      const coverOnly = !meta.sources.info && !game.metadataFetchedAt
+      const statusWrite = coverOnly
+        ? { metadataStatus: 'no_match', metadataAttempts: { increment: 1 }, metadataNextRetryAt: noMatchRetryAt(), metadataReason: classifyNoMatch(diag) }
+        : { metadataStatus: 'matched', metadataAttempts: 0, metadataNextRetryAt: null, metadataReason: null }
       await applyMetadata(game.id, {
         origin: 'auto',
         patch,
@@ -547,9 +562,7 @@ async function runMetadataBatchInner(opts: {
           // drop it out of the pending count with no description, year or genre
           // to show for it.
           ...(meta.sources.info ? { metadataFetchedAt: new Date() } : {}),
-          metadataStatus: 'matched',
-          metadataAttempts: 0,
-          metadataNextRetryAt: null,
+          ...statusWrite,
         },
       })
 
@@ -570,6 +583,7 @@ async function runMetadataBatchInner(opts: {
           metadataStatus: 'provider_error',
           metadataAttempts: { increment: 1 },
           metadataNextRetryAt: new Date(Date.now() + waitHours * 3600_000),
+          metadataReason: null,
         },
       }).catch(() => {})
       emit({ type: 'failed', gameId: game.id, title: game.title, reason, processed, total, applied, skipped, failed })

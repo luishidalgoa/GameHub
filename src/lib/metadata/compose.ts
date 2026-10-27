@@ -1,5 +1,6 @@
 import { getRawgProvider, RawgProvider } from './rawg'
 import { getLaunchBoxProvider, getLaunchBoxPlatformName, type LaunchBoxGame } from './launchbox'
+import { searchStore, fetchStoreProduct } from './nintendo-store'
 import { fetchSteamGridDBCover } from './steamgriddb'
 import { fetchLibretroCover } from './libretro'
 import { calcTitleConfidence, calcConfidence, AUTO_THRESHOLD } from './scoring'
@@ -7,6 +8,7 @@ import { LAUNCHBOX_PLATFORM_NAMES } from './launchbox'
 import type { ProviderMatrix } from './matrix'
 import type { LaunchBoxImage } from './launchbox'
 import type { MetadataResult } from './provider'
+import { isLaunchBoxUnmapped, type MatchDiagnostics } from './no-match'
 
 // Composes a single game's metadata from multiple providers according to the
 // per-field provider matrix, with graceful fallback when a chosen source is
@@ -30,9 +32,9 @@ export interface ComposedMetadata {
   /** Every image LaunchBox publishes for the game, at its original size: stored by the art flow. */
   images: LaunchBoxImage[]
   /** Provenance for each field (for logging / UI). */
-  sources: Partial<Record<'cover' | 'info' | 'description' | 'screenshots', 'launchbox' | 'rawg' | 'steamgriddb' | 'libretro'>>
+  sources: Partial<Record<'cover' | 'info' | 'description' | 'screenshots', 'launchbox' | 'rawg' | 'steamgriddb' | 'libretro' | 'nintendo'>>
   /** Which provider gave each fact field, so the editor labels it (#133). */
-  facts?: Partial<Record<'developer' | 'publisher' | 'releaseYear' | 'genre', 'launchbox' | 'rawg'>>
+  facts?: Partial<Record<'developer' | 'publisher' | 'releaseYear' | 'genre', 'launchbox' | 'rawg' | 'nintendo'>>
   /** Best confidence achieved by the primary info match. */
   confidence: number
   /** IDs for persistence. */
@@ -60,7 +62,7 @@ function bestMatch(
 
 export interface CoverChoice {
   coverUrl: string
-  source: 'launchbox' | 'rawg' | 'steamgriddb' | 'libretro'
+  source: 'launchbox' | 'rawg' | 'steamgriddb' | 'libretro' | 'nintendo'
 }
 
 export interface CoverContext {
@@ -98,6 +100,18 @@ export async function chooseCover(ctx: CoverContext): Promise<CoverChoice | null
   return null
 }
 
+/**
+ * The Nintendo store could not be read (index or product page failed). Thrown
+ * instead of answering "no match" so the batch retries the game soon, rather
+ * than parking it as no_match for two weeks.
+ */
+export class StoreUnavailableError extends Error {
+  constructor(message = 'La tienda de Nintendo no responde') {
+    super(message)
+    this.name = 'StoreUnavailableError'
+  }
+}
+
 export interface GatherInput {
   title: string
   platformSlug: string
@@ -106,6 +120,10 @@ export interface GatherInput {
    *  which of a game's boxes is the right one. Optional — without it that
    *  source simply finds nothing and the chain falls through. */
   fileName?: string
+  /** libretro system the game is served from (see libretroSystemFor). Game Boy
+   *  games pick gb, gbc or gba here; undefined means the platform's own slug,
+   *  null means no system can be told, so the libretro source is skipped. */
+  retroSystem?: string | null
   /** LaunchBox id saved from an earlier pick: fetched directly, no title search. */
   launchboxId?: number | null
   /** RAWG id saved from an earlier match: fetched directly, no title search. */
@@ -117,6 +135,9 @@ export interface GatherInput {
   /** Delay (ms) between a provider's search and its detail fetch, to avoid
    *  rate-limiting (LaunchBox throttles bursts). Default 600ms. */
   paceMs?: number
+  /** Filled in while the sources are asked, so a caller can tell why nothing matched
+   *  when this returns null. Ignored when a match is found. */
+  diagnostics?: MatchDiagnostics
 }
 
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms))
@@ -126,7 +147,8 @@ const sleep = (ms: number) => new Promise(r => setTimeout(r, ms))
  * a confident-enough match for the fields that need a game match.
  */
 export async function gatherMetadata(input: GatherInput): Promise<ComposedMetadata | null> {
-  const { title, platformSlug, fileName, launchboxId, rawgId, matrix, rawgApiKey, threshold = AUTO_THRESHOLD, paceMs = 600 } = input
+  const { title, platformSlug, fileName, launchboxId, rawgId, matrix, rawgApiKey, threshold = AUTO_THRESHOLD, paceMs = 600, diagnostics: diag } = input
+  const retroSystem = input.retroSystem === undefined ? platformSlug : input.retroSystem
 
   const needsLaunchBox =
     matrix.cover === 'launchbox' || matrix.info === 'launchbox' ||
@@ -141,6 +163,8 @@ export async function gatherMetadata(input: GatherInput): Promise<ComposedMetada
   // ── Resolve LaunchBox match + detail ──
   let lb: LaunchBoxGame | null = null
   let lbConfidence = 0
+  // LaunchBox no respondió (red, tiempo de espera): no es «sin coincidencia».
+  let lbDown = false
   if (needsLaunchBox) {
     try {
       const provider = await getLaunchBoxProvider(platformSlug)
@@ -151,6 +175,10 @@ export async function gatherMetadata(input: GatherInput): Promise<ComposedMetada
         const lbPlatformName = await getLaunchBoxPlatformName(platformSlug)
         const expected = (lbPlatformName ?? LAUNCHBOX_PLATFORM_NAMES[platformSlug] ?? '').toLowerCase()
         const results = await provider.search(title, platformSlug)
+        if (diag) {
+          diag.launchboxUnmapped = isLaunchBoxUnmapped(platformSlug, lbPlatformName)
+          diag.launchboxCandidates = results.length
+        }
         const match = bestMatch(title, results, r =>
           calcTitleConfidence(
             title,
@@ -165,13 +193,15 @@ export async function gatherMetadata(input: GatherInput): Promise<ComposedMetada
           lb = (detail as LaunchBoxGame) ?? null
         }
       }
-    } catch { /* LaunchBox failures are non-fatal — fall back to RAWG */ }
+    } catch { lbDown = true /* LaunchBox failures are non-fatal here; if nothing else matches, the game is retried later */ }
   }
 
   // ── Resolve RAWG match + detail ──
   let rawg: MetadataResult | null = null
   let rawgConfidence = 0
   let rawgProvider: RawgProvider | null = null
+  // RAWG no respondió: igual que LaunchBox, no es «sin coincidencia».
+  let rawgDown = false
   if (needsRawg) {
     try {
       rawgProvider = getRawgProvider(rawgApiKey)
@@ -181,6 +211,7 @@ export async function gatherMetadata(input: GatherInput): Promise<ComposedMetada
         rawgConfidence = rawg ? 100 : 0
       } else if (rawgProvider) {
         const results = await rawgProvider.search(title, platformSlug)
+        if (diag) diag.rawgCandidates = results.length
         const match = bestMatch(title, results, r => calcConfidence(title, platformSlug, r))
         if (match && match.confidence >= threshold) {
           rawgConfidence = match.confidence
@@ -188,7 +219,25 @@ export async function gatherMetadata(input: GatherInput): Promise<ComposedMetada
           rawg = await rawgProvider.fetchById(match.result.id)
         }
       }
-    } catch { /* RAWG failure non-fatal */ }
+    } catch { rawgDown = true /* RAWG failure non-fatal here; if nothing else matches, the game is retried later */ }
+  }
+
+  // Switch: la tienda oficial de Nintendo va antes que RAWG para la ficha y la portada.
+  let nin: MetadataResult | null = null
+  let storeDown = false
+  if (platformSlug === 'switch') {
+    try {
+      const hit = await searchStore(title)
+      if (diag) diag.storeHit = Boolean(hit)
+      if (hit) {
+        const product = await fetchStoreProduct(hit.url)
+        if (product) nin = { ...product, title }
+        else storeDown = true
+      }
+    } catch {
+      // Sin respuesta de la tienda: se sigue con RAWG y LaunchBox, y si nada responde se reintenta más tarde.
+      storeDown = true
+    }
   }
 
   // libretro matches on the file name, not on a provider hit, so it can dress a
@@ -200,7 +249,7 @@ export async function gatherMetadata(input: GatherInput): Promise<ComposedMetada
   let libretroMemo: string | null | undefined
   const libretroBox = async (): Promise<string | null> => {
     if (libretroMemo === undefined) {
-      libretroMemo = await fetchLibretroCover(fileName ?? title, platformSlug)
+      libretroMemo = retroSystem ? await fetchLibretroCover(fileName ?? title, retroSystem) : null
     }
     return libretroMemo
   }
@@ -211,7 +260,8 @@ export async function gatherMetadata(input: GatherInput): Promise<ComposedMetada
   // a game LaunchBox and RAWG have never heard of gets no second chance
   // otherwise, and "no_match" on a game whose box is sitting right there is a
   // poor answer.
-  if (!lb && !rawg) {
+  if (!lb && !rawg && !nin && (storeDown || lbDown || rawgDown)) throw new StoreUnavailableError()
+  if (!lb && !rawg && !nin) {
     const box = await libretroBox()
     if (!box) return null
     return {
@@ -229,10 +279,10 @@ export async function gatherMetadata(input: GatherInput): Promise<ComposedMetada
   // ── INFO (title/dev/publisher/genre/year/esrb) ──
   const infoPrimary = matrix.info === 'launchbox' ? lb : rawg
   const infoFallback = matrix.info === 'launchbox' ? rawg : lb
-  const info = infoPrimary ?? infoFallback
-  if (info) sources.info = (info === lb ? 'launchbox' : 'rawg')
+  const info = infoPrimary ?? nin ?? infoFallback
+  if (info) sources.info = (info === lb ? 'launchbox' : info === nin ? 'nintendo' : 'rawg')
   // The info source is LaunchBox or RAWG; those are the providers that can carry facts.
-  const infoSource: 'launchbox' | 'rawg' | undefined = info ? (info === lb ? 'launchbox' : 'rawg') : undefined
+  const infoSource: 'launchbox' | 'rawg' | 'nintendo' | undefined = info ? (info === lb ? 'launchbox' : info === nin ? 'nintendo' : 'rawg') : undefined
   const facts: NonNullable<ComposedMetadata['facts']> = {}
   if (info && infoSource) {
     if (info.developer)   facts.developer   = infoSource
@@ -249,12 +299,12 @@ export async function gatherMetadata(input: GatherInput): Promise<ComposedMetada
   if (description) sources.description = (description === lb?.description ? 'launchbox' : 'rawg')
 
   // ── COVER ──
-  const cover = await chooseCover({
+  const cover = (await chooseCover({
     matrix, lb, rawg,
     sgdbTitle: info?.title ?? title,
     libretroBox,
     sgdbCover: fetchSteamGridDBCover,
-  })
+  })) ?? (nin?.coverUrl ? { coverUrl: nin.coverUrl, source: 'nintendo' as const } : null)
   const coverUrl = cover?.coverUrl
   if (cover) sources.cover = cover.source
 

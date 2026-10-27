@@ -1,5 +1,5 @@
 import type { Prisma } from '@prisma/client'
-import { WITHOUT_METADATA, NO_COVER, NO_SCORE, UNFINDABLE, pendingWhere } from '@/lib/library'
+import { NO_COVER, NO_SCORE, UNFINDABLE, pendingWhere, pendingMetadataWhere } from '@/lib/library'
 import { completeness, FIELD_WEIGHTS, type CompletenessInput, type FieldKey } from '@/lib/games/completeness'
 
 export interface GameListFilters {
@@ -63,7 +63,7 @@ export function gameListWhere(f: GameListFilters): Prisma.GameWhereInput {
     // "Sin portada" means neither a stored file nor a remote URL, the same test
     // the dashboard counts with.
     ...(f.noCover && pendingWhere(NO_COVER)),
-    ...(f.noMeta && pendingWhere(WITHOUT_METADATA)),
+    ...(f.noMeta && pendingMetadataWhere(new Date())),
     ...(f.unfindable && UNFINDABLE),
     ...(f.region && { region: f.region }),
     ...(f.favorite && { isFavorite: true }),

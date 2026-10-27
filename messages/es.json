@@ -71,7 +71,8 @@
     "online": "● Online",
     "originAll": "Todos",
     "originDirect": "Descarga directa",
-    "originTorrent": "Torrent"
+    "originTorrent": "Torrent",
+    "originLot": "Lote"
   },
   "EmptyState": {
     "title": "No se encontraron juegos",
@@ -122,6 +123,7 @@
     "totalSize": "Tamaño total",
     "missingCovers": "Sin portada",
     "noMetadata": "Sin metadatos",
+    "waitingRetry": "En espera de reintento",
     "noScore": "Sin nota",
     "recentScans": "Escaneos recientes",
     "date": "Fecha",
@@ -301,6 +303,7 @@
     "deleteConfirm": "¿Borrar la plataforma \"{name}\" y sus {count} juegos? Se eliminarán de la base de datos y sus portadas de MinIO. NO se borran los archivos ROM del disco. Esta acción no se puede deshacer.",
     "deleteFailed": "No se pudo borrar la plataforma",
     "iconUpload": "Icono",
+    "iconFromModel": "Desde el 3D",
     "iconHint": "PNG o SVG, cuadrado",
     "iconRemove": "Quitar icono",
     "platformProviders": "Proveedores de metadatos de esta plataforma",

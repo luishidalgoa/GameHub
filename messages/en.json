@@ -71,7 +71,8 @@
     "online": "● Online",
     "originAll": "All",
     "originDirect": "Direct download",
-    "originTorrent": "Torrent"
+    "originTorrent": "Torrent",
+    "originLot": "Lot"
   },
   "EmptyState": {
     "title": "No games found",
@@ -122,6 +123,7 @@
     "totalSize": "Total Size",
     "missingCovers": "Missing Covers",
     "noMetadata": "No Metadata",
+    "waitingRetry": "Waiting for retry",
     "noScore": "No Score",
     "recentScans": "Recent Scans",
     "date": "Date",
@@ -301,6 +303,7 @@
     "deleteConfirm": "Delete platform \"{name}\" and its {count} games? They will be removed from the database and their covers from MinIO. ROM files on disk are NOT deleted. This cannot be undone.",
     "deleteFailed": "Could not delete the platform",
     "iconUpload": "Icon",
+    "iconFromModel": "From 3D",
     "iconHint": "PNG or SVG, square",
     "iconRemove": "Remove icon",
     "platformProviders": "Metadata providers for this platform",

@@ -1,13 +1,14 @@
 import { db } from '@/lib/db'
 import { runMetadataBatch, type BatchEvent } from '@/lib/metadata/batch'
 import { runScan } from '@/lib/scanner'
-import { syncTorrentSources } from '@/lib/external/torrents'
-import { torrentSourcesFor } from '@/lib/external/sources'
+import { platformTorrentSources, syncTorrentSources } from '@/lib/external/torrents'
 import { triggerAutoMetadata } from '@/lib/metadata/auto'
 import { fetchGameArt } from '@/lib/art'
 import { runAutomatic } from '@/lib/automatic'
 import { scanBus } from '@/lib/scanner/events'
 import { fillGameFacts, readyForWikidata } from '@/lib/metadata/wikidata'
+import { libretroSystemFor } from '@/lib/metadata/libretro'
+
 
 // Background job runner. Jobs run DETACHED from any HTTP request (so navigating
 // away never cancels them) and persist their progress to the Job table, so the
@@ -164,7 +165,7 @@ export async function startMetadataJob(params: MetadataJobParams, resumeJobId?: 
       const sc = ev.score != null ? ` ★${ev.score}` : ''
       pushLog(job.id, `✓ [${ev.processed}/${ev.total}] ${ev.title}${matched}${conf}${tr}${sc}`)
     } else if (ev.type === 'skipped') {
-      pushLog(job.id, `– [${ev.processed}/${ev.total}] ${ev.title}${ev.reason ? ` — ${ev.reason}` : ''}`)
+      pushLog(job.id, `– [${ev.processed}/${ev.total}] ${ev.title}${ev.reason ? ` — ${ev.reason}` : ''}${ev.matchReason ? ` (${ev.matchReason})` : ''}`)
     } else if (ev.type === 'failed' && ev.gameId) {
       pushLog(job.id, `✗ [${ev.processed}/${ev.total}] ${ev.title} — ${ev.reason ?? 'error'}`)
     }
@@ -259,7 +260,7 @@ export async function startArtJob(params: ArtJobParams, resumeJobId?: number): P
       const cursor = fresh?.cursorId ?? 0
       const games = await db.game.findMany({
         where: { ...where, id: { gt: cursor } },
-        select: { id: true, title: true, fileName: true, launchboxId: true, metadataFetchedAt: true, metadataStatus: true, platform: { select: { slug: true } } },
+        select: { id: true, title: true, fileName: true, filePath: true, externalKey: true, launchboxId: true, metadataFetchedAt: true, metadataStatus: true, platform: { select: { slug: true } } },
         orderBy: { id: 'asc' },
       })
       const done = fresh?.processed ?? 0
@@ -275,6 +276,7 @@ export async function startArtJob(params: ArtJobParams, resumeJobId?: number): P
           const outcome = await runAutomatic(() => fetchGameArt({
             id: g.id, title: g.title, fileName: g.fileName,
             launchboxId: g.launchboxId, platformSlug: g.platform.slug,
+            retroSystem: libretroSystemFor(g.platform.slug, g),
           }))
           if (outcome === 'applied') { applied++; line = `✓ [${processed}] ${g.title}` }
           else { skipped++; line = `– [${processed}] ${g.title} — ${outcome === 'no-match' ? 'no LaunchBox match' : 'no art'}` }
@@ -322,7 +324,7 @@ export async function startArtJob(params: ArtJobParams, resumeJobId?: number): P
  */
 async function runTorrentScan(platformSlug?: string) {
   const log = (message: string) => scanBus.emit('scan', { type: 'source_log', message })
-  if (platformSlug && torrentSourcesFor(platformSlug).length === 0) {
+  if (platformSlug && (await platformTorrentSources(platformSlug)).length === 0) {
     log('Esta plataforma no tiene fuentes de torrents')
     return
   }
