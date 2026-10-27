@@ -16,7 +16,7 @@ interface RecoverDetail {
 
 // ── Single-game delete ────────────────────────────────────────────────────────
 
-export function DeleteGameButton({ id }: { id: number }) {
+export function DeleteGameButton({ id, onDeleted }: { id: number; onDeleted?: () => void }) {
   const t = useTranslations('AdminGraveyard')
   const router = useRouter()
   const [loading, setLoading] = useState(false)
@@ -29,7 +29,7 @@ export function DeleteGameButton({ id }: { id: number }) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id }),
     })
-      .then(() => router.refresh())
+      .then(() => { onDeleted?.(); router.refresh() })
       .finally(() => setLoading(false))
   }
 

@@ -45,6 +45,8 @@ interface Props {
   imagesHref: string
   prevHref: string | null
   nextHref: string | null
+  /** The list refreshes its loaded rows after a save or a metadata apply. */
+  onSaved?: () => void
 }
 
 const input = 'bg-background border border-border rounded-md px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
@@ -66,7 +68,7 @@ function formFrom(game: PanelGame) {
  * Panel lateral de la ficha: los mismos datos que la ficha completa, sin las imágenes
  * (esas tienen su panel). Escape cierra y vuelve a la lista con sus filtros.
  */
-export function GamePanel({ game, percent, missing, closeHref, imagesHref, prevHref, nextHref }: Props) {
+export function GamePanel({ game, percent, missing, closeHref, imagesHref, prevHref, nextHref, onSaved }: Props) {
   const router = useRouter()
   const [form, setForm] = useState(() => formFrom(game))
   // Provenance of the score in the field: the provider that found it, or 'manual'.
@@ -128,6 +130,7 @@ export function GamePanel({ game, percent, missing, closeHref, imagesHref, prevH
     if (res.ok) {
       // Another game may have lost its slot to this one: the picks list is stale.
       mutate('/api/admin/featured')
+      onSaved?.()
       router.refresh()
     }
   }
@@ -163,7 +166,7 @@ export function GamePanel({ game, percent, missing, closeHref, imagesHref, prevH
               </li>
             ))}
           </ul>
-          <MetadataFetchButton gameId={game.id} onApplied={() => router.refresh()} />
+          <MetadataFetchButton gameId={game.id} onApplied={() => { onSaved?.(); router.refresh() }} />
         </section>
 
         <form aria-label="Datos del juego" className="space-y-3" onSubmit={e => { e.preventDefault(); save() }}>

@@ -1,24 +1,16 @@
 import Link from 'next/link'
-import { onlineGameIds } from '@/lib/online/flags'
 import { db } from '@/lib/db'
 import { formatBytes } from '@/lib/utils'
-import { resolveCoverPath } from '@/lib/s3'
-import { parseGameFilters, gameListWhere, gameFilterQuery, filterByCompleteness, type GameListFilters } from '@/lib/games/filters'
-import { completeness, type CompletenessInput, type FieldKey } from '@/lib/games/completeness'
+import { parseGameFilters, gameFilterQuery, type GameListFilters } from '@/lib/games/filters'
+import { completeness, type FieldKey } from '@/lib/games/completeness'
 import { MetaRange } from '@/components/admin/MetaRange'
-import { SortHeader } from '@/components/admin/SortHeader'
-import { nextSort, parseSort, sortParams, sortRows } from '@/lib/admin-sort'
-import { GamePanel, type PanelGame } from '@/components/admin/GamePanel'
-import { ScrollRestorer } from '@/components/admin/ScrollRestorer'
-import { FileJson, FileSpreadsheet, Pencil } from 'lucide-react'
-import { platformBoxes } from '@/lib/games/platform-boxes'
+import { nextSort, parseSort, sortParams } from '@/lib/admin-sort'
+import { type PanelGame } from '@/components/admin/GamePanel'
+import { AdminGameTable, type AdminTablePanel } from '@/components/admin/AdminGameTable'
+import { FileJson, FileSpreadsheet } from 'lucide-react'
+import { LIBRARY_SORT_DEFAULT, LIBRARY_SORT_KEYS, type LibrarySortKey } from '@/lib/games/list'
 
 export const dynamic = 'force-dynamic'
-
-const PAGE_SIZE = 50
-
-const SORT_KEYS = ['title', 'platform', 'year', 'featured', 'meta', 'missing', 'size'] as const
-type SortKey = (typeof SORT_KEYS)[number]
 
 const MISSING: { key: FieldKey; label: string }[] = [
   { key: 'cover', label: 'Sin portada' },
@@ -39,18 +31,6 @@ function flatten(sp: Record<string, string | string[] | undefined>): Record<stri
   return out
 }
 
-function sortValue(g: { title: string; sortTitle: string | null; releaseYear: number | null; isFeatured: boolean; fileSize: bigint; platform: { name: string } } & CompletenessInput, key: SortKey): string | number | null {
-  switch (key) {
-    case 'title': return g.sortTitle ?? g.title
-    case 'platform': return g.platform.name
-    case 'year': return g.releaseYear
-    case 'featured': return g.isFeatured ? 1 : 0
-    case 'meta': return completeness(g).percent
-    case 'missing': return completeness(g).missing.length
-    case 'size': return Number(g.fileSize)
-  }
-}
-
 function activeFilterCount(f: GameListFilters): number {
   return [
     f.search, f.platform, f.state, f.region, f.minMeta > 0 ? 'x' : '',
@@ -59,56 +39,26 @@ function activeFilterCount(f: GameListFilters): number {
   ].filter(Boolean).length + f.missing.length
 }
 
-// Las páginas que se muestran: la primera, la última, las cercanas a la actual y los puntos entre ellas.
-function pageWindow(current: number, total: number): (number | 'gap')[] {
-  const keep = new Set([1, total, current - 1, current, current + 1].filter(p => p >= 1 && p <= total))
-  const sorted = [...keep].sort((a, b) => a - b)
-  const out: (number | 'gap')[] = []
-  for (const p of sorted) {
-    if (out.length && typeof out[out.length - 1] === 'number' && p - (out[out.length - 1] as number) > 1) out.push('gap')
-    out.push(p)
-  }
-  return out
-}
-
 export default async function AdminGamesPage({ searchParams }: { searchParams: Record<string, string | string[] | undefined> }) {
   const flat = flatten(searchParams)
   const filters = parseGameFilters(flat)
-  const requestedPage = Math.max(1, parseInt(flat.page ?? '1', 10) || 1)
   const panelId = parseInt(flat.panel ?? '', 10)
-  const sortDefault = { key: 'title' as SortKey, dir: 'asc' as const }
-  const sort = parseSort<SortKey>(flat, SORT_KEYS, sortDefault)
-  const sortExtra = sortParams(sort, sortDefault)
+  const sort = parseSort<LibrarySortKey>(flat, LIBRARY_SORT_KEYS, LIBRARY_SORT_DEFAULT)
+  const sortExtra = sortParams(sort, LIBRARY_SORT_DEFAULT)
 
-  const [games, platforms, regionRows] = await Promise.all([
-    db.game.findMany({
-      where: gameListWhere(filters, await platformBoxes()),
-      orderBy: { sortTitle: 'asc' },
-      include: { platform: { select: { name: true, slug: true } } },
-    }),
+  // The list itself is loaded by the table, page by page, from the same filters and sort.
+  const query = gameFilterQuery(filters, sortExtra)
+  const listUrl = `/admin/games${query ? `?${query}` : ''}`
+  const sortLinks = Object.fromEntries(
+    LIBRARY_SORT_KEYS.map(k => [k, `/admin/games?${gameFilterQuery(filters, sortParams(nextSort(sort, k), LIBRARY_SORT_DEFAULT))}`]),
+  ) as Record<string, string>
+  const exportHref = (format: 'json' | 'csv') => `/api/admin/games/export?format=${format}${query ? `&${query}` : ''}`
+
+  const [platforms, regionRows] = await Promise.all([
     db.platform.findMany({ orderBy: { sortOrder: 'asc' } }),
     db.game.findMany({ where: { region: { not: null } }, distinct: ['region'], select: { region: true } }),
   ])
   const regions = regionRows.map(r => r.region).filter((r): r is string => !!r && r.trim() !== '').sort()
-
-  // El juego en línea sale de la compatibilidad de cada proveedor, no de una columna: se cruza aquí.
-  const online = filters.online ? await onlineGameIds(games) : null
-  const rows = sortRows(
-    filterByCompleteness(online ? games.filter(g => online.has(g.id)) : games, filters),
-    sort,
-    (g, key) => sortValue(g, key),
-  )
-  const total = rows.length
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
-  const page = Math.min(requestedPage, totalPages)
-  const pageRows = rows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
-
-  const listUrl = `/admin/games?${gameFilterQuery(filters, { ...sortExtra, page: String(page) })}`
-  const pageHref = (p: number) => `/admin/games?${gameFilterQuery(filters, { ...sortExtra, page: String(p) })}`
-  const rowHref = (id: number) => `/admin/games?${gameFilterQuery(filters, { ...sortExtra, page: String(page), panel: String(id) })}`
-  const headerHref = (key: SortKey) => `/admin/games?${gameFilterQuery(filters, { ...sortParams(nextSort(sort, key), sortDefault), page: '1' })}`
-  const exportHref = (format: 'json' | 'csv') => `/api/admin/games/export?format=${format}${gameFilterQuery(filters) ? `&${gameFilterQuery(filters)}` : ''}`
-  const hiddenInputs = [...new URLSearchParams(gameFilterQuery(filters, sortExtra)).entries()]
 
   // Chips: cada uno quita un filtro.
   const chips: { label: string; href: string }[] = []
@@ -128,13 +78,10 @@ export default async function AdminGamesPage({ searchParams }: { searchParams: R
   if (filters.featured) chips.push({ label: 'En portada', href: without({ featured: false }) })
   if (filters.online) chips.push({ label: 'Juego en línea', href: without({ online: false }) })
 
-  // Panel: se carga aparte, así sigue abierto aunque el juego ya no esté en la lista filtrada.
+  // Panel: se carga aparte, así sigue abierto aunque el juego ya no esté en la lista cargada.
   const panelGame = Number.isInteger(panelId)
     ? await db.game.findUnique({ where: { id: panelId }, include: { platform: { select: { name: true } } } })
     : null
-  const idx = panelGame ? pageRows.findIndex(g => g.id === panelGame.id) : -1
-  const prevRow = idx > 0 ? pageRows[idx - 1] : null
-  const nextRow = idx >= 0 && idx < pageRows.length - 1 ? pageRows[idx + 1] : null
   const panelData: PanelGame | null = panelGame && {
     id: panelGame.id,
     title: panelGame.title,
@@ -160,18 +107,26 @@ export default async function AdminGamesPage({ searchParams }: { searchParams: R
     metadataFetchedAt: panelGame.metadataFetchedAt ? panelGame.metadataFetchedAt.toISOString() : null,
   }
   const panelCompleteness = panelGame ? completeness(panelGame) : null
-  const panelReturn = panelGame ? `/admin/games?${gameFilterQuery(filters, { ...sortExtra, page: String(page), panel: String(panelGame.id) })}` : ''
+  const panelReturn = panelGame ? `/admin/games?${gameFilterQuery(filters, { ...sortExtra, panel: String(panelGame.id) })}` : ''
+  const panel: AdminTablePanel | null = panelData && panelCompleteness
+    ? {
+        game: panelData,
+        percent: panelCompleteness.percent,
+        missing: panelCompleteness.missing,
+        closeHref: listUrl,
+        imagesHref: `/admin/games/${panelData.id}?volver=${encodeURIComponent(panelReturn)}#imagenes`,
+      }
+    : null
 
   const input = 'bg-secondary border border-border rounded-md px-3 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
+  const filterCount = activeFilterCount(filters)
 
   return (
     <div>
-      <ScrollRestorer storageKey={`admin-games:${gameFilterQuery(filters, { ...sortExtra, page: String(page) })}`} />
-
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-xl font-semibold">Juegos</h2>
-          <p className="text-sm text-muted-foreground">{total.toLocaleString('es-ES')} juegos{activeFilterCount(filters) ? ` · ${activeFilterCount(filters)} filtros activos` : ''}</p>
+          <p className="text-sm text-muted-foreground">{filterCount ? `${filterCount} filtros activos` : 'Sin filtros'}</p>
         </div>
         <div className="flex items-center gap-2">
           <a href={exportHref('json')} className="inline-flex items-center gap-1.5 rounded-md bg-secondary px-3 py-1.5 text-sm hover:bg-accent"><FileJson className="h-4 w-4" /> JSON</a>
@@ -189,7 +144,7 @@ export default async function AdminGamesPage({ searchParams }: { searchParams: R
           </select>
           <details className="group relative">
             <summary className="cursor-pointer list-none rounded-md bg-violet-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-violet-500">
-              Filtros{activeFilterCount(filters) ? ` (${activeFilterCount(filters)})` : ''}
+              Filtros{filterCount ? ` (${filterCount})` : ''}
             </summary>
             <div className="absolute left-0 z-30 mt-2 w-[min(92vw,30rem)] space-y-4 rounded-xl border border-border bg-card p-5 shadow-2xl">
               <fieldset className="space-y-2">
@@ -253,106 +208,13 @@ export default async function AdminGamesPage({ searchParams }: { searchParams: R
         </div>
       )}
 
-      <div className="overflow-hidden rounded-xl border border-border bg-card">
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[860px] text-sm">
-            <thead className="border-b border-border text-left text-muted-foreground">
-              <tr>
-                <th scope="col" className="w-12 px-3 py-3 font-medium"><span className="sr-only">Portada</span></th>
-                <SortHeader label="Título" href={headerHref('title')} active={sort.key === 'title'} dir={sort.dir} />
-                <SortHeader label="Plataforma" href={headerHref('platform')} active={sort.key === 'platform'} dir={sort.dir} />
-                <SortHeader label="Año" href={headerHref('year')} active={sort.key === 'year'} dir={sort.dir} />
-                <SortHeader label="En portada" href={headerHref('featured')} active={sort.key === 'featured'} dir={sort.dir} />
-                <SortHeader label="Metadatos" href={headerHref('meta')} active={sort.key === 'meta'} dir={sort.dir} />
-                <SortHeader label="Faltan" href={headerHref('missing')} active={sort.key === 'missing'} dir={sort.dir} />
-                <SortHeader label="Tamaño" href={headerHref('size')} active={sort.key === 'size'} dir={sort.dir} align="right" />
-                <th scope="col" className="px-3 py-3 font-medium"><span className="sr-only">Acciones</span></th>
-              </tr>
-            </thead>
-            <tbody>
-              {pageRows.length === 0 && (
-                <tr><td colSpan={9} className="px-3 py-10 text-center text-muted-foreground">Ningún juego con estos filtros.</td></tr>
-              )}
-              {pageRows.map(g => {
-                const c = completeness(g)
-                const cover = resolveCoverPath(g.coverPath) ?? g.coverUrl ?? null
-                const selected = panelGame?.id === g.id
-                const missingNames = c.missing.map(k => MISSING_LABEL[k]?.replace('Sin ', '') ?? k)
-                const bar = c.percent >= 70 ? 'bg-emerald-400' : c.percent >= 40 ? 'bg-amber-400' : 'bg-rose-400'
-                return (
-                  <tr key={g.id} aria-selected={selected} className={`border-b border-border/50 last:border-0 ${selected ? 'bg-violet-500/10' : 'hover:bg-accent/30'}`}>
-                    <td className="px-3 py-2">
-                      <div className="flex h-10 w-7 items-center justify-center overflow-hidden rounded bg-secondary">
-                        {cover
-                          // eslint-disable-next-line @next/next/no-img-element
-                          ? <img src={cover} alt="" loading="lazy" className="h-full w-full object-cover" />
-                          : <span className="text-[9px] font-bold text-muted-foreground">{g.title.charAt(0).toUpperCase()}</span>}
-                      </div>
-                    </td>
-                    <td className="max-w-xs px-3 py-2"><span className="block truncate font-medium">{g.title}</span></td>
-                    <td className="px-3 py-2 text-muted-foreground">{g.platform.name}</td>
-                    <td className="px-3 py-2 text-muted-foreground tabular-nums">{g.releaseYear ?? '—'}</td>
-                    <td className="px-3 py-2 text-xs tabular-nums">
-                      {g.isFeatured
-                        ? <span className="rounded-md bg-amber-400/15 px-2 py-0.5 font-medium text-amber-200">{g.featuredOrder ? `Puesto ${g.featuredOrder}` : 'Automático'}</span>
-                        : <span className="text-muted-foreground">—</span>}
-                    </td>
-                    <td className="px-3 py-2">
-                      <div className="flex items-center gap-2">
-                        <div role="meter" aria-label={`Metadatos de ${g.title}`} aria-valuenow={c.percent} aria-valuemin={0} aria-valuemax={100} className="h-2 flex-1 overflow-hidden rounded-full bg-secondary">
-                          <span className={`block h-full ${bar}`} style={{ width: `${c.percent}%` }} />
-                        </div>
-                        <span className="w-10 text-right text-xs tabular-nums">{c.percent} %</span>
-                      </div>
-                    </td>
-                    <td className="px-3 py-2 text-xs text-amber-200">
-                      {missingNames.length === 0 ? <span className="text-muted-foreground">—</span> : missingNames.slice(0, 3).join(', ') + (missingNames.length > 3 ? ` +${missingNames.length - 3}` : '')}
-                    </td>
-                    <td className="px-3 py-2 text-right text-muted-foreground tabular-nums">{formatBytes(g.fileSize)}</td>
-                    <td className="px-3 py-2 text-right">
-                      <Link href={rowHref(g.id)} aria-current={selected ? 'true' : undefined} className="inline-flex items-center gap-1.5 rounded-md bg-secondary px-2.5 py-1 text-xs hover:bg-accent">
-                        <Pencil className="h-3 w-3" /> Editar
-                      </Link>
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {totalPages > 1 && (
-        <nav aria-label="Paginación" className="mt-5 flex flex-wrap items-center justify-between gap-4">
-          <span className="text-sm text-muted-foreground">Página {page} de {totalPages}</span>
-          <div className="flex flex-wrap items-center gap-1.5">
-            {page > 1 && <Link href={pageHref(page - 1)} className="rounded-md bg-secondary px-3 py-1.5 text-sm hover:bg-accent">← Anterior</Link>}
-            {pageWindow(page, totalPages).map((p, i) => p === 'gap'
-              ? <span key={`g${i}`} aria-hidden="true" className="px-2 text-muted-foreground">…</span>
-              : <Link key={p} href={pageHref(p)} aria-current={p === page ? 'page' : undefined}
-                  className={`rounded-md px-3 py-1.5 text-sm ${p === page ? 'bg-primary text-primary-foreground' : 'bg-secondary text-muted-foreground hover:text-foreground hover:bg-accent'}`}>{p}</Link>)}
-            {page < totalPages && <Link href={pageHref(page + 1)} className="rounded-md bg-secondary px-3 py-1.5 text-sm hover:bg-accent">Siguiente →</Link>}
-          </div>
-          <form method="get" action="/admin/games" className="flex items-center gap-2 text-sm text-muted-foreground">
-            {hiddenInputs.filter(([k]) => k !== 'page').map(([k, v]) => <input key={`${k}=${v}`} type="hidden" name={k} value={v} />)}
-            <label htmlFor="ir-a" className="text-sm">Ir a</label>
-            <input id="ir-a" type="number" name="page" min={1} max={totalPages} defaultValue={page} className={`${input} w-20`} />
-            <button type="submit" className="rounded-md bg-secondary px-3 py-1.5 text-sm hover:bg-accent">Ir</button>
-          </form>
-        </nav>
-      )}
-
-      {panelData && panelCompleteness && (
-        <GamePanel
-          game={panelData}
-          percent={panelCompleteness.percent}
-          missing={panelCompleteness.missing}
-          closeHref={listUrl}
-          imagesHref={`/admin/games/${panelData.id}?volver=${encodeURIComponent(panelReturn)}#imagenes`}
-          prevHref={prevRow ? rowHref(prevRow.id) : null}
-          nextHref={nextRow ? rowHref(nextRow.id) : null}
-        />
-      )}
+      <AdminGameTable
+        variant="library"
+        query={query}
+        sort={{ key: sort.key, dir: sort.dir }}
+        sortLinks={sortLinks}
+        panel={panel}
+      />
     </div>
   )
 }
