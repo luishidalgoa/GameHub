@@ -7,12 +7,11 @@ import { fileToTitle } from '@/lib/utils'
 import { getLaunchBoxProvider, fetchLaunchBoxGame } from '@/lib/metadata/launchbox'
 import { getProviderMatrix } from '@/lib/metadata/matrix'
 import { gatherMetadata, StoreUnavailableError } from '@/lib/metadata/compose'
-import { downloadAndCacheCover } from '@/lib/covers'
+import { downloadAndCacheCover, saveCoverFromBuffer } from '@/lib/covers'
 import { fetchSteamGridDBCover } from '@/lib/metadata/steamgriddb'
 import { searchYouTubeTrailer } from '@/lib/youtube'
 import { serializeBigInt } from '@/lib/serialize'
 import type { MetadataResult } from '@/lib/metadata/provider'
-import { chooseCover } from '@/lib/metadata/compose'
 import { fetchLibretroCover, libretroSystemFor } from '@/lib/metadata/libretro'
 import type { LaunchBoxGame } from '@/lib/metadata/launchbox'
 import { changedFields, lockFields, LOCKABLE_FIELDS } from '@/lib/manual-fields'
@@ -121,6 +120,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       launchboxId:  game.launchboxId,
       rawgId:       game.rawgId,
       matrix,
+      coverBox:     { width: game.platform.thumbnailWidth, height: game.platform.thumbnailHeight },
       rawgApiKey:   await rawgKey(),
     })
   } catch (err) {
@@ -137,7 +137,11 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 
   let coverPath: string | undefined
   if (meta.coverUrl && !coverLocked) {
-    try { coverPath = await downloadAndCacheCover(meta.coverUrl, game.platform.slug, gameId) } catch { /* non-fatal */ }
+    try {
+      coverPath = meta.coverBuffer
+        ? await saveCoverFromBuffer(meta.coverBuffer, game.platform.slug, gameId)
+        : await downloadAndCacheCover(meta.coverUrl, game.platform.slug, gameId)
+    } catch { /* non-fatal */ }
   }
   let trailerUrl: string | undefined
   if (!game.trailerUrl) trailerUrl = (await searchYouTubeTrailer(meta.title).catch(() => undefined)) ?? undefined
@@ -224,25 +228,31 @@ async function applyManualPick(
   // The picked candidate's own art first; without it, the platform's cover chain.
   const row = await db.game.findUnique({ where: { id: gameId }, select: { fileName: true, filePath: true, externalKey: true } })
   // Only LaunchBox's own box art is taken as the picked candidate's cover; a RAWG
-  // image is a screenshot (see chooseCover).
+  // image is a screenshot (see cover-choice.ts).
+  // The LaunchBox box the admin picked is its own cover. Otherwise the platform's cover chain
+  // decides, judged against the platform's box size.
+  const boxSize = await db.platform.findUnique({ where: { slug: platformSlug }, select: { thumbnailWidth: true, thumbnailHeight: true } })
   const cover = source === 'launchbox' && meta.coverUrl
-    ? { coverUrl: meta.coverUrl, source }
-    : await chooseCover({
+    ? { coverUrl: meta.coverUrl, source, buffer: undefined }
+    : await gatherMetadata({
+        title:        meta.title,
+        platformSlug,
+        fileName:     row?.fileName ?? undefined,
+        retroSystem:  libretroSystemFor(platformSlug, row ?? {}),
         matrix:       await getProviderMatrix(platformSlug),
-        lb:           source === 'launchbox' ? (meta as LaunchBoxGame) : null,
-        rawg:         source === 'rawg' ? meta : null,
-        sgdbTitle:    meta.title,
-        libretroBox:  () => {
-          const system = libretroSystemFor(platformSlug, row ?? {})
-          return system ? fetchLibretroCover(row?.fileName ?? meta.title, system) : Promise.resolve(null)
-        },
-        sgdbCover:    fetchSteamGridDBCover,
+        coverBox:     boxSize ? { width: boxSize.thumbnailWidth, height: boxSize.thumbnailHeight } : undefined,
       })
+        .then(g => (g?.coverUrl && g.sources.cover ? { coverUrl: g.coverUrl, source: g.sources.cover, buffer: g.coverBuffer } : null))
+        .catch(() => null)
   const coverUrl = cover?.coverUrl
   const coverSource = cover?.source
   let coverPath: string | undefined
   if (coverUrl) {
-    try { coverPath = await downloadAndCacheCover(coverUrl, platformSlug, gameId) } catch { /* non-fatal */ }
+    try {
+      coverPath = cover?.buffer
+        ? await saveCoverFromBuffer(cover.buffer, platformSlug, gameId)
+        : await downloadAndCacheCover(coverUrl, platformSlug, gameId)
+    } catch { /* non-fatal */ }
   }
 
   let trailerUrl: string | undefined

@@ -49,7 +49,6 @@ export async function POST(req: Request) {
 const PLATFORM_EDITABLE = [
   'name', 'scanPath', 'extensions', 'scanMode', 'thumbnailWidth', 'thumbnailHeight', 'sortOrder', 'scanDlc',
   'enabled', 'iconPath', 'emulators', 'onlineProviders', 'torrentSources', 'emulatorName', 'emulatorUrl',
-  'providerCover', 'providerInfo', 'providerDescription', 'providerScreenshots',
 ] as const
 
 /** Valida las fuentes de torrents de una plataforma y devuelve su forma normalizada para guardar. */

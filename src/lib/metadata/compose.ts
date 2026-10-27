@@ -6,6 +6,8 @@ import { fetchLibretroCover } from './libretro'
 import { calcTitleConfidence, calcConfidence, AUTO_THRESHOLD } from './scoring'
 import { LAUNCHBOX_PLATFORM_NAMES } from './launchbox'
 import type { ProviderMatrix } from './matrix'
+import type { CoverSource } from './chains'
+import { chooseCover } from './cover-choice'
 import type { LaunchBoxImage } from './launchbox'
 import type { MetadataResult } from './provider'
 import { isLaunchBoxUnmapped, type MatchDiagnostics } from './no-match'
@@ -23,8 +25,10 @@ export interface ComposedMetadata {
   developer?: string
   publisher?: string
   esrb?: string
-  /** Resolved cover image URL (not yet downloaded). */
+  /** Resolved cover image URL. */
   coverUrl?: string
+  /** The cover's bytes, read while the chain chose it: stored from these, not downloaded again. */
+  coverBuffer?: Buffer
   /** LaunchBox id of the matched game, kept so later lookups skip the title search. */
   launchboxId?: number
   /** Screenshot/extra image URLs. */
@@ -60,46 +64,6 @@ function bestMatch(
   return scored[0]
 }
 
-export interface CoverChoice {
-  coverUrl: string
-  source: 'launchbox' | 'rawg' | 'steamgriddb' | 'libretro' | 'nintendo'
-}
-
-export interface CoverContext {
-  matrix: ProviderMatrix
-  lb: LaunchBoxGame | null
-  rawg: MetadataResult | null
-  sgdbTitle: string
-  libretroBox: () => Promise<string | null>
-  sgdbCover: (title: string) => Promise<string | null>
-}
-
-/**
- * The one cover chain, used by automatic gathering and by manual picks: the
- * platform's configured cover source first, then the fallbacks. libretro goes
- * ahead of SteamGridDB and RAWG because it is the only one that guarantees this
- * console's box.
- */
-export async function chooseCover(ctx: CoverContext): Promise<CoverChoice | null> {
-  const { matrix, lb, rawg } = ctx
-  if (matrix.cover === 'launchbox' && lb?.coverUrl) return { coverUrl: lb.coverUrl, source: 'launchbox' }
-  // RAWG has no box art: its image field is a screenshot, so it is never a cover.
-  if (matrix.cover === 'steamgriddb') {
-    const url = await ctx.sgdbCover(ctx.sgdbTitle)
-    if (url) return { coverUrl: url, source: 'steamgriddb' }
-  }
-  if (matrix.cover === 'libretro') {
-    const url = await ctx.libretroBox()
-    if (url) return { coverUrl: url, source: 'libretro' }
-  }
-  if (lb?.coverUrl) return { coverUrl: lb.coverUrl, source: 'launchbox' }
-  const box = await ctx.libretroBox()
-  if (box) return { coverUrl: box, source: 'libretro' }
-  const url = await ctx.sgdbCover(ctx.sgdbTitle)
-  if (url) return { coverUrl: url, source: 'steamgriddb' }
-  return null
-}
-
 /**
  * The Nintendo store could not be read (index or product page failed). Thrown
  * instead of answering "no match" so the batch retries the game soon, rather
@@ -129,6 +93,10 @@ export interface GatherInput {
   /** RAWG id saved from an earlier match: fetched directly, no title search. */
   rawgId?: number | null
   matrix: ProviderMatrix
+  /** The platform's box size, in pixels: a cover is judged against it (cover-choice.ts). */
+  coverBox?: { width: number; height: number }
+  /** False when the pass will not write the cover: the cover chain is not asked at all. Default true. */
+  coverWanted?: boolean
   rawgApiKey?: string
   /** Minimum confidence for the primary match to be accepted. */
   threshold?: number
@@ -150,15 +118,16 @@ export async function gatherMetadata(input: GatherInput): Promise<ComposedMetada
   const { title, platformSlug, fileName, launchboxId, rawgId, matrix, rawgApiKey, threshold = AUTO_THRESHOLD, paceMs = 600, diagnostics: diag } = input
   const retroSystem = input.retroSystem === undefined ? platformSlug : input.retroSystem
 
-  const needsLaunchBox =
-    matrix.cover === 'launchbox' || matrix.info === 'launchbox' ||
-    matrix.description === 'launchbox' || matrix.screenshots === 'launchbox'
+  // Every source a chain asks for: a provider is only fetched when some chain needs it.
+  const chains = matrix.chains
+  const asked = (source: string) =>
+    chains.cover.includes(source as CoverSource) || chains.info.includes(source as never) ||
+    chains.description.includes(source as never) || chains.screenshots.includes(source as never)
+  const needsLaunchBox = asked('launchbox')
   // A RAWG id saved on the game is fetched even when the matrix does not use RAWG
   // as primary: it is the fallback for info, and without it a game LaunchBox does
   // not match would have no source at all.
-  const needsRawg =
-    matrix.cover === 'rawg' || matrix.info === 'rawg' ||
-    matrix.description === 'rawg' || matrix.screenshots === 'rawg' || Boolean(rawgId)
+  const needsRawg = asked('rawg') || Boolean(rawgId)
 
   // ── Resolve LaunchBox match + detail ──
   let lb: LaunchBoxGame | null = null
@@ -262,13 +231,19 @@ export async function gatherMetadata(input: GatherInput): Promise<ComposedMetada
   // poor answer.
   if (!lb && !rawg && !nin && (storeDown || lbDown || rawgDown)) throw new StoreUnavailableError()
   if (!lb && !rawg && !nin) {
-    const box = await libretroBox()
+    // Only the libretro box can stand alone here: it is matched on the file name.
+    const box = await chooseCover({
+      chain: input.coverWanted === false ? [] : chains.cover.filter(source => source === 'libretro'),
+      urls: { libretro: libretroBox },
+      box: input.coverBox,
+    })
     if (!box) return null
     return {
       title,
       screenshots: [],
       images: [],
-      coverUrl: box,
+      coverUrl: box.coverUrl,
+      coverBuffer: box.buffer,
       sources: { cover: 'libretro' },
       confidence: 0,
     }
@@ -277,12 +252,13 @@ export async function gatherMetadata(input: GatherInput): Promise<ComposedMetada
   const sources: ComposedMetadata['sources'] = {}
 
   // ── INFO (title/dev/publisher/genre/year/esrb) ──
-  const infoPrimary = matrix.info === 'launchbox' ? lb : rawg
-  const infoFallback = matrix.info === 'launchbox' ? rawg : lb
-  const info = infoPrimary ?? nin ?? infoFallback
-  if (info) sources.info = (info === lb ? 'launchbox' : info === nin ? 'nintendo' : 'rawg')
-  // The info source is LaunchBox or RAWG; those are the providers that can carry facts.
+  // The first source of the info chain that has the game; Nintendo's store answers when none does.
+  const infoFromChain = chains.info
+    .map(source => (source === 'launchbox' ? lb : rawg))
+    .find(hit => Boolean(hit)) ?? null
+  const info = infoFromChain ?? nin ?? null
   const infoSource: 'launchbox' | 'rawg' | 'nintendo' | undefined = info ? (info === lb ? 'launchbox' : info === nin ? 'nintendo' : 'rawg') : undefined
+  if (infoSource) sources.info = infoSource
   const facts: NonNullable<ComposedMetadata['facts']> = {}
   if (info && infoSource) {
     if (info.developer)   facts.developer   = infoSource
@@ -292,38 +268,45 @@ export async function gatherMetadata(input: GatherInput): Promise<ComposedMetada
   }
 
   // ── DESCRIPTION ──
+  // The first source of the description chain that has one.
   let description: string | undefined
-  const descPrimary = matrix.description === 'launchbox' ? lb?.description : rawg?.description
-  const descFallback = matrix.description === 'launchbox' ? rawg?.description : lb?.description
-  description = descPrimary || descFallback
-  if (description) sources.description = (description === lb?.description ? 'launchbox' : 'rawg')
+  for (const source of chains.description) {
+    const text = source === 'launchbox' ? lb?.description : rawg?.description
+    if (text) { description = text; sources.description = source; break }
+  }
 
   // ── COVER ──
-  const cover = (await chooseCover({
-    matrix, lb, rawg,
-    sgdbTitle: info?.title ?? title,
-    libretroBox,
-    sgdbCover: fetchSteamGridDBCover,
-  })) ?? (nin?.coverUrl ? { coverUrl: nin.coverUrl, source: 'nintendo' as const } : null)
+  // The cover chain, in order. A source's cover is used when it is good enough for the box;
+  // a smaller one only when no other source has a good one (cover-choice.ts).
+  const cover = await chooseCover({
+    chain: input.coverWanted === false ? [] : chains.cover,
+    urls: {
+      launchbox:   async () => lb?.coverUrl ?? null,
+      libretro:    libretroBox,
+      steamgriddb: () => fetchSteamGridDBCover(info?.title ?? title),
+      nintendo:    async () => nin?.coverUrl ?? null,
+    },
+    box: input.coverBox,
+  })
   const coverUrl = cover?.coverUrl
+  const coverBuffer = cover?.buffer
   if (cover) sources.cover = cover.source
 
   // ── SCREENSHOTS ──
+  // The first source of the screenshot chain that has any.
   let screenshots: string[] = []
-  if (matrix.screenshots === 'launchbox') {
-    screenshots = lb?.screenshots ?? []
-    if (screenshots.length) sources.screenshots = 'launchbox'
-  } else if (matrix.screenshots === 'rawg') {
-    if (rawgProvider && rawg?.slug) {
+  for (const source of chains.screenshots) {
+    if (source === 'launchbox' && lb?.screenshots?.length) {
+      screenshots = lb.screenshots
+      sources.screenshots = 'launchbox'
+      break
+    }
+    if (source === 'rawg' && rawgProvider && rawg?.slug) {
       try {
-        screenshots = await rawgProvider.fetchScreenshots(rawg.slug)
-        if (screenshots.length) sources.screenshots = 'rawg'
+        const shots = await rawgProvider.fetchScreenshots(rawg.slug)
+        if (shots.length) { screenshots = shots; sources.screenshots = 'rawg'; break }
       } catch { /* non-fatal */ }
     }
-  }
-  // Fallback if primary screenshot source was empty
-  if (screenshots.length === 0) {
-    if (lb?.screenshots?.length) { screenshots = lb.screenshots; sources.screenshots = 'launchbox' }
   }
 
   const title2 = info?.title ?? title
@@ -339,6 +322,7 @@ export async function gatherMetadata(input: GatherInput): Promise<ComposedMetada
     publisher: info?.publisher,
     esrb: info?.esrb,
     coverUrl,
+    coverBuffer,
     screenshots,
     images: lb?.images ?? [],
     sources,

@@ -1,76 +1,47 @@
 import { db } from '@/lib/db'
+import {
+  CHAIN_FIELDS, overrideOf, parseGlobal, resolveChains,
+  type ChainField, type CoverSource, type DescriptionSource, type InfoSource, type ProviderChains, type ScreenshotSource,
+} from './chains'
 
-// Per-field metadata provider selection. Each category of data can come from a
-// different source, picked for what that source does best:
-//   - cover:       box-art front     → libretro / LaunchBox / SteamGridDB / RAWG
-//   - info:        dev/publisher/genre/year/ESRB → LaunchBox / RAWG
-//   - description: long overview     → RAWG (richer) / LaunchBox
-//   - screenshots: gameplay images   → LaunchBox / RAWG / none
+// Per-field metadata sources. Each kind of data has a chain of sources: the first one
+// that answers wins, and the rest are the fallbacks (see chains.ts). The chains are the
+// global default, and each platform can set its own (Platform.providerChains).
 //
-// Stored in the Setting table (keys below) as the global default, and
-// overridable per platform via the nullable `provider*` columns on Platform:
-// the best source depends on the console. libretro is indexed per system and is
-// the only one that guarantees the right platform's box, but has no Switch data
-// at all; LaunchBox is thin on Japan-only releases. Each field still falls back
-// to the other available sources if the chosen one returns nothing.
+// The primary of each chain is also exposed as a single value: the batch's "wrong
+// provider" sweep compares a game's stored source with it.
 
-// 'libretro' is indexed by system and by No-Intro file name, so it returns the
-// box that shipped for *this* console in its real proportions, where the others
-// index by game and can hand a GBA cartridge the PS2 cover. No Switch data.
-export type CoverProvider = 'launchbox' | 'steamgriddb' | 'rawg' | 'libretro'
-export type InfoProvider = 'launchbox' | 'rawg'
-export type DescProvider = 'launchbox' | 'rawg'
-export type ShotProvider = 'launchbox' | 'rawg' | 'none'
+export type CoverProvider = CoverSource | 'none'
+export type InfoProvider = InfoSource | 'none'
+export type DescProvider = DescriptionSource | 'none'
+export type ShotProvider = ScreenshotSource | 'none'
 
 export interface ProviderMatrix {
   cover: CoverProvider
   info: InfoProvider
   description: DescProvider
   screenshots: ShotProvider
+  /** The chains the primaries above start. The engine walks them in order. */
+  chains: ProviderChains
 }
 
-const PROVIDER_MATRIX_KEYS = {
+const CHAIN_KEY = 'provider_chains'
+const LEGACY_KEYS: Record<ChainField, string> = {
   cover:       'provider_cover',
   info:        'provider_info',
   description: 'provider_description',
   screenshots: 'provider_screenshots',
-} as const
-
-// Defaults: LaunchBox leads on covers/info/screenshots; RAWG leads on the long
-// description (its overviews are richer than LaunchBox's meta description).
-const DEFAULT_MATRIX: ProviderMatrix = {
-  cover:       'launchbox',
-  info:        'launchbox',
-  description: 'rawg',
-  screenshots: 'launchbox',
 }
 
-const COVER_OPTS: CoverProvider[] = ['launchbox', 'steamgriddb', 'rawg', 'libretro']
-const INFO_OPTS:  InfoProvider[]  = ['launchbox', 'rawg']
-const DESC_OPTS:  DescProvider[]  = ['launchbox', 'rawg']
-const SHOT_OPTS:  ShotProvider[]  = ['launchbox', 'rawg', 'none']
-
-const oneOf = <T extends string>(v: string | undefined, opts: T[], fallback: T): T =>
-  v && (opts as string[]).includes(v) ? (v as T) : fallback
-
-/**
- * The provider matrix in force for a platform.
- *
- * Resolution order per field: the platform's own override, then the global
- * setting, then the built-in default. A platform column that is NULL — or holds
- * a value no longer offered — simply inherits, so removing an option from the UI
- * can never strand a platform on something the code doesn't understand.
- *
- * Call it without a slug for the global matrix (e.g. to render the settings
- * form).
- */
+/** The matrix in force for a platform. Without a slug, the global one. */
 export async function getProviderMatrix(platformSlug?: string): Promise<ProviderMatrix> {
   const [rows, platform] = await Promise.all([
-    db.setting.findMany({ where: { key: { in: Object.values(PROVIDER_MATRIX_KEYS) } } }),
+    db.setting.findMany({ where: { key: { in: [CHAIN_KEY, ...Object.values(LEGACY_KEYS)] } } }),
     platformSlug
       ? db.platform.findUnique({
           where:  { slug: platformSlug },
           select: {
+            providerChains: true,
             providerCover: true, providerInfo: true,
             providerDescription: true, providerScreenshots: true,
           },
@@ -78,18 +49,26 @@ export async function getProviderMatrix(platformSlug?: string): Promise<Provider
       : Promise.resolve(null),
   ])
 
-  const global = (k: string) => rows.find(r => r.key === k)?.value
+  const setting = (key: string) => rows.find(r => r.key === key)?.value || undefined
+  const legacy = (field: ChainField) => setting(LEGACY_KEYS[field])
+  const global = parseGlobal(setting(CHAIN_KEY), {
+    cover: legacy('cover'), info: legacy('info'), description: legacy('description'), screenshots: legacy('screenshots'),
+  })
 
-  // `?? undefined` so an empty override falls through to the global value
-  // rather than being validated as an empty string.
-  const pick = (override: string | null | undefined, key: string) =>
-    override || global(key) || undefined
+  const slug = platformSlug ?? 'global'
+  const override = platform
+    ? overrideOf(slug, platform.providerChains, {
+        cover: platform.providerCover, info: platform.providerInfo,
+        description: platform.providerDescription, screenshots: platform.providerScreenshots,
+      })
+    : null
+  const chains = resolveChains(global, override, slug)
 
   return {
-    cover:       oneOf(pick(platform?.providerCover,       PROVIDER_MATRIX_KEYS.cover),       COVER_OPTS, DEFAULT_MATRIX.cover),
-    info:        oneOf(pick(platform?.providerInfo,        PROVIDER_MATRIX_KEYS.info),        INFO_OPTS,  DEFAULT_MATRIX.info),
-    description: oneOf(pick(platform?.providerDescription, PROVIDER_MATRIX_KEYS.description), DESC_OPTS,  DEFAULT_MATRIX.description),
-    screenshots: oneOf(pick(platform?.providerScreenshots, PROVIDER_MATRIX_KEYS.screenshots), SHOT_OPTS,  DEFAULT_MATRIX.screenshots),
+    cover:       chains.cover[0] ?? 'none',
+    info:        chains.info[0] ?? 'none',
+    description: chains.description[0] ?? 'none',
+    screenshots: chains.screenshots[0] ?? 'none',
+    chains,
   }
 }
-

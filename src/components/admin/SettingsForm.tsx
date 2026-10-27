@@ -13,6 +13,8 @@ import { ONLINE_SOURCES, parseOnlineConfigs, serializeOnlineConfigs, type Online
 import type { PlatformFamily } from '@/lib/platform-family'
 import { PlatformFamiliesEditor } from './PlatformFamiliesEditor'
 import { MetadataChainPanel } from './MetadataChainPanel'
+import { ChainEditor, type PlatformChainRow } from './ChainEditor'
+import type { ProviderChains } from '@/lib/metadata/chains'
 import { PlatformBoxEditor } from './PlatformBoxEditor'
 import type { PlatformChain } from '@/lib/metadata/chain-view'
 import { SOURCE_TYPES, parseSourceConfigs, sourceConfigError, type SourceConfig } from '@/lib/external/source-types'
@@ -230,6 +232,8 @@ interface Props {
   platforms: Platform[]
   /** Cadena de metadatos de cada plataforma activa, tal como la ejecuta el lote (solo lectura). */
   metadataChains: PlatformChain[]
+  /** The chains of sources: the global default and each active platform's own and effective chains. */
+  providerChains: { global: ProviderChains; platforms: PlatformChainRow[] }
   /** Orientación guardada de cada modelo 3D (Modelos 3D). */
   orientations: OrientationMap
   /** Familias de consolas (menú y portada), guardadas en Ajustes. */
@@ -273,7 +277,7 @@ function sectionFromSegment(segment: string): ScopeId {
 
 const SCOPE_KEYS: Partial<Record<ScopeId, Array<[string, string]>>> = {
   claves: [['rawg_api_key', ''], ['google_search_api_key', ''], ['steamgriddb_key', ''], ['youtube_api_key', '']],
-  proveedores: [['provider_cover', 'launchbox'], ['provider_info', 'launchbox'], ['provider_description', 'rawg'], ['provider_screenshots', 'launchbox']],
+  proveedores: [],
   s3: [['s3_endpoint_interno', ''], ['s3_endpoint_publico', ''], ['s3_access_key', ''], ['s3_secret_key', ''], ['s3_bucket_name', ''], ['s3_region', '']],
   cola: [['max_concurrent_downloads', '1'], ['download_limit_kib_per_s', '0']],
   tienda: [['shop_password', '']],
@@ -345,7 +349,7 @@ function SectionFrame({ dirty, saving, saved, error, onSave, onDiscard, children
 }
 
 
-export function SettingsForm({ initialSection = '', platforms: initial, metadataChains, families, orientations, settings, donation, onlineStatus }: Props) {
+export function SettingsForm({ initialSection = '', platforms: initial, metadataChains, providerChains, families, orientations, settings, donation, onlineStatus }: Props) {
   const t = useTranslations('SettingsForm')
   const router = useRouter()
 
@@ -439,11 +443,6 @@ export function SettingsForm({ initialSection = '', platforms: initial, metadata
   const [maxDownloads,  setMaxDownloads]  = useState(settings['max_concurrent_downloads'] ?? '1')
   const [downloadLimit, setDownloadLimit] = useState(settings['download_limit_kib_per_s'] ?? '0')
 
-  // Metadata provider matrix (which source supplies each kind of data)
-  const [provCover,       setProvCover]       = useState(settings['provider_cover']       ?? 'launchbox')
-  const [provInfo,        setProvInfo]        = useState(settings['provider_info']        ?? 'launchbox')
-  const [provDescription, setProvDescription] = useState(settings['provider_description'] ?? 'rawg')
-  const [provScreenshots, setProvScreenshots] = useState(settings['provider_screenshots'] ?? 'launchbox')
 
   // S3 / MinIO
   const [s3Internal,   setS3Internal]   = useState(settings['s3_endpoint_interno'] ?? '')
@@ -475,7 +474,7 @@ export function SettingsForm({ initialSection = '', platforms: initial, metadata
   // Lo que muestra cada ámbito de claves: sus campos de arriba.
   const live: Partial<Record<ScopeId, Record<string, string>>> = {
     claves:      { rawg_api_key: rawgKey, google_search_api_key: googleApiKey, steamgriddb_key: sgdbKey, youtube_api_key: youtubeKey },
-    proveedores: { provider_cover: provCover, provider_info: provInfo, provider_description: provDescription, provider_screenshots: provScreenshots },
+    proveedores: {},
     s3:          { s3_endpoint_interno: s3Internal, s3_endpoint_publico: s3Public, s3_access_key: s3AccessKey, s3_secret_key: s3SecretKey, s3_bucket_name: s3Bucket, s3_region: s3Region },
     cola:        { max_concurrent_downloads: maxDownloads, download_limit_kib_per_s: downloadLimit },
     tienda:      { shop_password: shopPassword },
@@ -583,12 +582,6 @@ export function SettingsForm({ initialSection = '', platforms: initial, metadata
                 thumbnailWidth:  p.thumbnailWidth ?? 200,
                 thumbnailHeight: p.thumbnailHeight ?? 300,
                 scanDlc:         p.scanDlc,
-                // '' (la opción "heredar") se guarda como NULL, no como cadena
-                // vacía: NULL es lo que significa "usa el ajuste global".
-                providerCover:       p.providerCover       || null,
-                providerInfo:        p.providerInfo        || null,
-                providerDescription: p.providerDescription || null,
-                providerScreenshots: p.providerScreenshots || null,
                 emulators:       serializeEmulators(getEmu(p.id)),
                 onlineProviders: serializeOnlineConfigs(getOnline(p.id)),
                 torrentSources:  JSON.stringify(getTorrent(p.id)),
@@ -649,10 +642,6 @@ export function SettingsForm({ initialSection = '', platforms: initial, metadata
         setYoutubeKey(settings['youtube_api_key'] ?? '')
         break
       case 'proveedores':
-        setProvCover(settings['provider_cover'] ?? 'launchbox')
-        setProvInfo(settings['provider_info'] ?? 'launchbox')
-        setProvDescription(settings['provider_description'] ?? 'rawg')
-        setProvScreenshots(settings['provider_screenshots'] ?? 'launchbox')
         break
       case 's3':
         setS3Internal(settings['s3_endpoint_interno'] ?? '')
@@ -907,60 +896,10 @@ export function SettingsForm({ initialSection = '', platforms: initial, metadata
                         onChange={(v) => updateField(p.id, 'scanDlc', v)}
                       />
 
-                      {/* Proveedores de metadatos de ESTA plataforma. Vacío = hereda el global:
-                          la fuente buena depende de la consola (libretro no tiene Switch,
-                          LaunchBox flojea con lanzamientos solo japoneses). */}
-                      <details className="rounded-md border border-border bg-card">
-                        <summary className="flex cursor-pointer items-center gap-2 px-3 py-2 text-xs text-muted-foreground hover:text-foreground">
-                          {t('platformProviders')}
-                          {(p.providerCover || p.providerInfo || p.providerDescription || p.providerScreenshots) && (
-                            <span className="rounded bg-primary/15 px-1.5 py-0.5 text-[10px] text-primary">
-                              {t('platformProvidersOverridden')}
-                            </span>
-                          )}
-                        </summary>
-                        <div className="grid grid-cols-2 gap-2 px-3 pb-3 pt-1">
-                          <PlatformProviderSelect
-                            label={t('providerCover')} value={p.providerCover}
-                            inheritLabel={t('inheritGlobal')}
-                            onChange={(v) => updateField(p.id, 'providerCover', v)}
-                            options={[
-                              { value: 'libretro',    label: t('srcLibretro') },
-                              { value: 'launchbox',   label: t('srcLaunchbox') },
-                              { value: 'steamgriddb', label: t('srcSteamgriddb') },
-                              { value: 'rawg',        label: t('srcRawg') },
-                            ]}
-                          />
-                          <PlatformProviderSelect
-                            label={t('providerInfo')} value={p.providerInfo}
-                            inheritLabel={t('inheritGlobal')}
-                            onChange={(v) => updateField(p.id, 'providerInfo', v)}
-                            options={[
-                              { value: 'launchbox', label: t('srcLaunchbox') },
-                              { value: 'rawg',      label: t('srcRawg') },
-                            ]}
-                          />
-                          <PlatformProviderSelect
-                            label={t('providerDescription')} value={p.providerDescription}
-                            inheritLabel={t('inheritGlobal')}
-                            onChange={(v) => updateField(p.id, 'providerDescription', v)}
-                            options={[
-                              { value: 'launchbox', label: t('srcLaunchbox') },
-                              { value: 'rawg',      label: t('srcRawg') },
-                            ]}
-                          />
-                          <PlatformProviderSelect
-                            label={t('providerScreenshots')} value={p.providerScreenshots}
-                            inheritLabel={t('inheritGlobal')}
-                            onChange={(v) => updateField(p.id, 'providerScreenshots', v)}
-                            options={[
-                              { value: 'launchbox', label: t('srcLaunchbox') },
-                              { value: 'rawg',      label: t('srcRawg') },
-                              { value: 'none',      label: t('srcNone') },
-                            ]}
-                          />
-                        </div>
-                      </details>
+                      {/* The platform's sources of metadata are edited with the chains, in Proveedores. */}
+                      <p className="text-xs text-muted-foreground">
+                        Fuentes de metadatos: <a href="/admin/settings/proveedores" className="text-primary hover:underline">cadena de {p.name} en Proveedores</a>.
+                      </p>
                     </div>
 
                     {/* Juego en línea: cada proveedor se activa aquí y enlaza su proyecto. Su estado
@@ -1334,53 +1273,8 @@ export function SettingsForm({ initialSection = '', platforms: initial, metadata
         >
       <MetadataChainPanel chains={metadataChains} />
 
-      {/* Metadata provider matrix */}
-      <div className="bg-card border border-border rounded-xl p-6 space-y-5">
-        <div>
-          <h3 className="font-semibold">{t('providersTitle')}</h3>
-          <p className="text-xs text-muted-foreground mt-1">{t('providersDesc')}</p>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-          <ProviderSelect
-            label={t('providerCover')}
-            value={provCover}
-            onChange={setProvCover}
-            options={[
-              { value: 'libretro',    label: t('srcLibretro') },
-              { value: 'launchbox',   label: t('srcLaunchbox') },
-              { value: 'steamgriddb', label: t('srcSteamgriddb') },
-              { value: 'rawg',        label: t('srcRawg') },
-            ]}
-          />
-          <ProviderSelect
-            label={t('providerInfo')}
-            value={provInfo}
-            onChange={setProvInfo}
-            options={[
-              { value: 'launchbox', label: t('srcLaunchbox') },
-              { value: 'rawg',      label: t('srcRawg') },
-            ]}
-          />
-          <ProviderSelect
-            label={t('providerDescription')}
-            value={provDescription}
-            onChange={setProvDescription}
-            options={[
-              { value: 'rawg',      label: t('srcRawg') },
-              { value: 'launchbox', label: t('srcLaunchbox') },
-            ]}
-          />
-          <ProviderSelect
-            label={t('providerScreenshots')}
-            value={provScreenshots}
-            onChange={setProvScreenshots}
-            options={[
-              { value: 'launchbox', label: t('srcLaunchbox') },
-              { value: 'rawg',      label: t('srcRawg') },
-              { value: 'none',      label: t('srcNone') },
-            ]}
-          />
-        </div>
+      <div className="bg-card border border-border rounded-xl p-6">
+        <ChainEditor global={providerChains.global} platforms={providerChains.platforms} />
       </div>
         </SectionFrame>
       )}

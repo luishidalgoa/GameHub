@@ -2,7 +2,7 @@ import { db } from '@/lib/db'
 import { runAutomatic } from '@/lib/automatic'
 import { fillGameFacts } from './wikidata'
 import { noMatchRetryAt } from './retry'
-import { downloadAndCacheCover } from '@/lib/covers'
+import { downloadAndCacheCover, saveCoverFromBuffer } from '@/lib/covers'
 import { getRawgProvider } from './rawg'
 import { scoreForGame } from './one-score'
 import { searchYouTubeTrailer, YouTubeApiError } from '@/lib/youtube'
@@ -134,7 +134,7 @@ async function runMetadataBatchInner(opts: {
     globalMatrix.cover === 'launchbox' || globalMatrix.info === 'launchbox' ||
     globalMatrix.description === 'launchbox' || globalMatrix.screenshots === 'launchbox'
   const usesAnyRawg =
-    globalMatrix.cover === 'rawg' || globalMatrix.info === 'rawg' ||
+    globalMatrix.info === 'rawg' ||
     globalMatrix.description === 'rawg' || globalMatrix.screenshots === 'rawg'
   if (!usesAnyLaunchBox && usesAnyRawg && !getRawgProvider(apiKey)) {
     emit({ type: 'failed', reason: 'RAWG API key not configured' })
@@ -206,7 +206,12 @@ async function runMetadataBatchInner(opts: {
         // A hand-picked cover is a deliberate override, not a provider drift:
         // it never counts as a mismatch, or this sweep would exist to undo it.
         if (f === 'cover' && src.coverManual) return false
-        return src[f] !== wanted[f]
+        // Any source of the platform's chain may answer: a fallback is by design (a cover
+        // too small for the box moves to the next source). Only a source outside the chain
+        // is drift; Nintendo's store is the info fallback on Switch.
+        const from = src[f] as string | undefined
+        const inChain = Boolean(from) && ((m.chains[f] as string[]).includes(from!) || (f === 'info' && from === 'nintendo'))
+        return !inChain
       })
     })
   }
@@ -352,7 +357,12 @@ async function runMetadataBatchInner(opts: {
 
       // Compose metadata across providers per the matrix (LaunchBox/RAWG/SGDB).
       const diag = emptyMatchDiagnostics()
+      // The cover is asked only when this pass will write it: the box is the platform's own size.
+      const coverWanted = coversOn && !(respectPinned && parseMetadataSources(game.metadataSources).coverManual === true)
+        && (mode !== 'fill' || !game.coverPath)
       const meta = await gatherMetadata({
+        coverWanted,
+        coverBox: { width: game.platform.thumbnailWidth, height: game.platform.thumbnailHeight },
         diagnostics:  diag,
         title:        game.title,
         platformSlug: game.platform.slug,
@@ -396,7 +406,9 @@ async function runMetadataBatchInner(opts: {
       const needCover = coversOn && !coverLocked && (!fillOnly || isEmpty(game.coverPath))
       if (meta.coverUrl && needCover) {
         try {
-          coverPath = await downloadAndCacheCover(meta.coverUrl, game.platform.slug, game.id)
+          coverPath = meta.coverBuffer
+            ? await saveCoverFromBuffer(meta.coverBuffer, game.platform.slug, game.id)
+            : await downloadAndCacheCover(meta.coverUrl, game.platform.slug, game.id)
         } catch { /* cover download failure is non-fatal */ }
       }
 

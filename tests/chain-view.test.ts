@@ -4,8 +4,6 @@ vi.mock('@/lib/db', () => ({ db: {} }))
 
 import { chainFor, sourcesFor } from '@/lib/metadata/chain-view'
 
-const MATRIX = { cover: 'launchbox', info: 'launchbox', description: 'rawg', screenshots: 'launchbox' } as const
-
 describe('which sources can answer for a platform', () => {
   it('Xbox 360 is reachable on LaunchBox, RAWG and Metacritic', () => {
     expect(sourcesFor('xbox-360')).toMatchObject({ launchbox: true, rawg: true, metacritic: true, libretro: true, store: false })
@@ -28,7 +26,7 @@ describe('which sources can answer for a platform', () => {
 
 describe('the chain for one platform', () => {
   it('lists the match sources in the order the batch consults them', () => {
-    const chain = chainFor({ slug: 'xbox-360', name: 'Xbox 360', matrix: MATRIX })
+    const chain = chainFor({ slug: 'xbox-360', name: 'Xbox 360' })
     const order = chain.steps.map(s => s.id)
     expect(order.indexOf('launchbox')).toBeLessThan(order.indexOf('rawg'))
     expect(order.indexOf('rawg')).toBeLessThan(order.indexOf('libretro-cover'))
@@ -36,19 +34,17 @@ describe('the chain for one platform', () => {
   })
 
   it('flags LaunchBox as missing for a platform without a LaunchBox name', () => {
-    const chain = chainFor({ slug: 'no-such-platform', name: 'X', matrix: MATRIX })
+    const chain = chainFor({ slug: 'no-such-platform', name: 'X' })
     expect(chain.steps.find(s => s.id === 'launchbox')?.state).toBe('missing')
   })
 
   it('marks the store step as not applicable outside Switch', () => {
-    const chain = chainFor({ slug: 'xbox-360', name: 'Xbox 360', matrix: MATRIX })
+    const chain = chainFor({ slug: 'xbox-360', name: 'Xbox 360' })
     expect(chain.steps.find(s => s.id === 'store')?.state).toBe('na')
   })
 
-  it('states the primary source of each field in the matrix', () => {
-    const chain = chainFor({ slug: 'xbox-360', name: 'Xbox 360', matrix: MATRIX })
-    const fields = chain.steps.find(s => s.id === 'fields')!
-    expect(fields.detail).toContain('Portada: LaunchBox')
-    expect(fields.detail).toContain('Descripción: RAWG')
+  it('does not state the field sources: those are edited in settings, as a chain', () => {
+    const chain = chainFor({ slug: 'xbox-360', name: 'Xbox 360' })
+    expect(chain.steps.some(s => s.id === 'fields')).toBe(false)
   })
 })

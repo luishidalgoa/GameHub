@@ -42,6 +42,8 @@ model Platform {
   providerInfo        String?
   providerDescription String?
   providerScreenshots String?
+  // The platform's own chains of sources per kind of data (JSON, see lib/metadata/chains.ts). Null: inherit.
+  providerChains      String?
 
   games            Game[]
   externalGames    ExternalGame[]
