@@ -39,6 +39,7 @@ export const LAUNCHBOX_PLATFORM_NAMES: Record<string, string> = {
   gamecube:  'Nintendo GameCube',
   wii:       'Nintendo Wii',
   wiiu:      'Nintendo Wii U',
+  'wii-u':   'Nintendo Wii U',
   switch:    'Nintendo Switch',
   n64:       'Nintendo 64',
   // LaunchBox's results filter expects the bare name — "…System (SNES)" returns 0.
@@ -52,15 +53,23 @@ export const LAUNCHBOX_PLATFORM_NAMES: Record<string, string> = {
   gbc:       'Nintendo Game Boy Color',
   nds:       'Nintendo DS',
   '3ds':     'Nintendo 3DS',
-  genesis:   'Sega Genesis / Mega Drive',
-  megadrive: 'Sega Genesis / Mega Drive',
+  // Slugs are GameHub's (`mega-drive`, `xbox-360`…); the bare keys stay for older rows.
+  // LaunchBox lists the Mega Drive under "Sega Genesis" and the Master System/CD without suffixes.
+  genesis:   'Sega Genesis',
+  megadrive: 'Sega Genesis',
+  'mega-drive': 'Sega Genesis',
   dreamcast: 'Sega Dreamcast',
   saturn:    'Sega Saturn',
-  segacd:    'Sega CD / Mega-CD',
+  segacd:    'Sega CD',
+  'sega-cd': 'Sega CD',
+  'sega-32x': 'Sega 32X',
   gamegear:  'Sega Game Gear',
-  mastersystem: 'Sega Master System / Mark III',
+  'game-gear': 'Sega Game Gear',
+  mastersystem: 'Sega Master System',
+  'master-system': 'Sega Master System',
   xbox:      'Microsoft Xbox',
   xbox360:   'Microsoft Xbox 360',
+  'xbox-360': 'Microsoft Xbox 360',
   pc:        'Windows',
   dos:       'MS-DOS',
   arcade:    'Arcade',
@@ -556,18 +565,29 @@ export async function fetchLaunchBoxPlatforms(): Promise<LaunchBoxPlatform[]> {
 
 // ── Provider adapter (matches the RAWG provider shape) ────────────────────────
 class LaunchBoxProvider implements MetadataProvider {
-  constructor(private platformName: string | null) {}
+  /** One name per LaunchBox platform searched (Game Boy searches three); null searches all. */
+  constructor(private platformNames: Array<string | null>) {}
 
   async search(title: string, _platform: string, overrideQuery?: string): Promise<MetadataResult[]> {
-    const candidates = await searchLaunchBox(this.platformName, overrideQuery ?? title)
-    return candidates.map(c => ({
-      id: c.id,
-      slug: c.slug,
-      title: c.title,
-      platformName: c.platform ?? this.platformName ?? undefined,
-      coverUrl: c.coverUrl,
-      source: 'launchbox' as const,
-    }))
+    const query = decodeEntities(overrideQuery ?? title)
+    const seen = new Set<number>()
+    const out: MetadataResult[] = []
+    for (const name of this.platformNames) {
+      const candidates = await searchLaunchBox(name, query)
+      for (const c of candidates) {
+        if (seen.has(c.id)) continue
+        seen.add(c.id)
+        out.push({
+          id: c.id,
+          slug: c.slug,
+          title: c.title,
+          platformName: c.platform ?? name ?? undefined,
+          coverUrl: c.coverUrl,
+          source: 'launchbox' as const,
+        })
+      }
+    }
+    return out
   }
 
   async fetchById(id: number): Promise<MetadataResult | null> {
@@ -577,6 +597,10 @@ class LaunchBoxProvider implements MetadataProvider {
 
 /** Build a LaunchBox provider for a GameHub platform slug. */
 export async function getLaunchBoxProvider(platformSlug: string): Promise<MetadataProvider> {
+  // Game Boy es una sola plataforma en GameHub con tres consolas en LaunchBox: se busca en las tres.
+  if (platformSlug === 'game-boy') {
+    return new LaunchBoxProvider([LAUNCHBOX_PLATFORM_NAMES.gb, LAUNCHBOX_PLATFORM_NAMES.gbc, LAUNCHBOX_PLATFORM_NAMES.gba])
+  }
   const name = await getLaunchBoxPlatformName(platformSlug)
-  return new LaunchBoxProvider(name)
+  return new LaunchBoxProvider([name])
 }
