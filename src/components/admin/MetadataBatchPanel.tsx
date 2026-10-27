@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, type ReactNode } from 'react'
 import { useTranslations } from 'next-intl'
-import { Sparkles, StopCircle, CheckCircle2, XCircle, AlertTriangle, Loader2 } from 'lucide-react'
+import { Sparkles, StopCircle, CheckCircle2, XCircle, AlertTriangle, Loader2, SlidersHorizontal, ChevronDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const AUTO_THRESHOLD   = 68
@@ -25,6 +25,48 @@ interface JobState {
   message: string | null
 }
 
+const MODE_ORDER: Mode[] = ['missing', 'fill', 'redo', 'wrong-provider', 'popularity', 'autocomplete-scores']
+
+/** A small button that opens a menu under it; closes on outside click or Escape. */
+function OptionsMenu({ label, disabled, children }: { label: string; disabled?: boolean; children: ReactNode }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!open) return
+    const onDown = (e: MouseEvent) => { if (!ref.current?.contains(e.target as Node)) setOpen(false) }
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false) }
+    document.addEventListener('mousedown', onDown)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDown)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [open])
+  return (
+    <div ref={ref} className="relative flex-1 min-w-[140px] xl:flex-none">
+      <button
+        type="button"
+        disabled={disabled}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => setOpen(o => !o)}
+        className="flex w-full items-center justify-between gap-2 bg-secondary border border-border rounded-md px-2.5 py-2 text-sm hover:bg-accent transition-colors disabled:opacity-60"
+      >
+        <span className="flex items-center gap-2 min-w-0">
+          <SlidersHorizontal className="w-3.5 h-3.5 flex-shrink-0 text-muted-foreground" />
+          <span className="truncate">{label}</span>
+        </span>
+        <ChevronDown className="w-3.5 h-3.5 flex-shrink-0 text-muted-foreground" />
+      </button>
+      {open && (
+        <div role="menu" className="absolute left-0 right-auto z-30 mt-1.5 w-72 rounded-md border border-border bg-card p-2 shadow-lg">
+          {children}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function MetadataBatchPanel({ platforms = [] }: { platforms?: PlatformOpt[] }) {
   const t = useTranslations('MetadataBatch')
   const [job, setJob]               = useState<JobState | null>(null)
@@ -39,6 +81,14 @@ export function MetadataBatchPanel({ platforms = [] }: { platforms?: PlatformOpt
     'wrong-provider':       'Vuelve a buscar solo en los juegos cuyos datos vienen de una fuente que no es la preferente de su plataforma.',
     'popularity':           'Recalcula popularidad y recomendados desde RAWG.',
     'autocomplete-scores':  'Pone la nota a los juegos que no tienen ninguna, con la fuente configurada.',
+  }
+  const MODE_LABEL: Record<Mode, string> = {
+    'missing':             t('modeMissing'),
+    'fill':                t('modeFill'),
+    'redo':                t('modeRedo'),
+    'wrong-provider':      t('modeWrongProvider'),
+    'popularity':          t('modePopularity'),
+    'autocomplete-scores': t('modeAutocompleteScores'),
   }
   const [popularityRedo, setPopularityRedo] = useState(false)
   const [platform, setPlatform]     = useState('')
@@ -125,21 +175,6 @@ export function MetadataBatchPanel({ platforms = [] }: { platforms?: PlatformOpt
         </div>
 
         <div className="flex flex-wrap items-center gap-2 sm:gap-3 xl:flex-shrink-0">
-          {/* Mode selector */}
-          <select
-            value={mode}
-            onChange={e => setMode(e.target.value as Mode)}
-            disabled={running}
-            title={t('modeHint')}
-            className="flex-1 min-w-[140px] xl:flex-none bg-secondary border border-border rounded-md px-2.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-60"
-          >
-            <option value="missing">{t('modeMissing')}</option>
-            <option value="fill">{t('modeFill')}</option>
-            <option value="redo">{t('modeRedo')}</option>
-            <option value="wrong-provider">{t('modeWrongProvider')}</option>
-            <option value="popularity">{t('modePopularity')}</option>
-            <option value="autocomplete-scores">{t('modeAutocompleteScores')}</option>
-          </select>
           {/* Platform selector */}
           <select
             value={platform}
@@ -154,43 +189,46 @@ export function MetadataBatchPanel({ platforms = [] }: { platforms?: PlatformOpt
             ))}
           </select>
 
-          {/* Toggle: covers (metadata modes) / re-fetch (popularity). The
-              autocomplete-scores mode has neither — it only fills the score. */}
-          {mode === 'popularity' ? (
-            <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer select-none whitespace-nowrap" title={t('popularityRedoHint')}>
-              <input
-                type="checkbox"
-                checked={popularityRedo}
-                onChange={e => setPopularityRedo(e.target.checked)}
-                disabled={running}
-                className="accent-primary"
-              />
-              {t('popularityRedo')}
-            </label>
-          ) : mode === 'autocomplete-scores' ? null : (
-            <>
-              <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer select-none whitespace-nowrap">
-                <input
-                  type="checkbox"
-                  checked={withCovers}
-                  onChange={e => setWithCovers(e.target.checked)}
-                  disabled={running}
-                  className="accent-primary"
-                />
-                {t('downloadCovers')}
-              </label>
-              <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer select-none whitespace-nowrap" title={t('fetchScoresHint')}>
-                <input
-                  type="checkbox"
-                  checked={withScores}
-                  onChange={e => setWithScores(e.target.checked)}
-                  disabled={running}
-                  className="accent-primary"
-                />
-                {t('fetchScores')}
-              </label>
-            </>
-          )}
+          {/* One menu for the mode and its extras: compact, opened on demand. */}
+          <OptionsMenu label={MODE_LABEL[mode]} disabled={running}>
+            <div className="space-y-0.5">
+              {MODE_ORDER.map(m => (
+                <button
+                  key={m}
+                  type="button"
+                  onClick={() => setMode(m)}
+                  aria-pressed={mode === m}
+                  className={cn(
+                    'w-full text-left rounded px-2.5 py-1.5 text-sm transition-colors',
+                    mode === m ? 'bg-accent text-foreground' : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground',
+                  )}
+                >
+                  {MODE_LABEL[m]}
+                </button>
+              ))}
+            </div>
+            <div className="my-2 border-t border-border" />
+            <div className="space-y-2 px-1">
+              {mode === 'popularity' ? (
+                <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer select-none" title={t('popularityRedoHint')}>
+                  <input type="checkbox" checked={popularityRedo} onChange={e => setPopularityRedo(e.target.checked)} disabled={running} className="accent-primary" />
+                  {t('popularityRedo')}
+                </label>
+              ) : mode === 'autocomplete-scores' ? null : (
+                <>
+                  <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer select-none">
+                    <input type="checkbox" checked={withCovers} onChange={e => setWithCovers(e.target.checked)} disabled={running} className="accent-primary" />
+                    {t('downloadCovers')}
+                  </label>
+                  <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer select-none" title={t('fetchScoresHint')}>
+                    <input type="checkbox" checked={withScores} onChange={e => setWithScores(e.target.checked)} disabled={running} className="accent-primary" />
+                    {t('fetchScores')}
+                  </label>
+                </>
+              )}
+            </div>
+            <p className="mt-2 px-1 text-xs text-muted-foreground leading-relaxed">{MODE_TEXT[mode]}</p>
+          </OptionsMenu>
 
           {running ? (
             <button
