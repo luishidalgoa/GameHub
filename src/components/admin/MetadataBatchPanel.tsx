@@ -27,6 +27,24 @@ interface JobState {
 
 const MODE_ORDER: Mode[] = ['missing', 'fill', 'redo', 'wrong-provider', 'popularity', 'autocomplete-scores']
 
+/** What each mode touches per category: all of it, only the missing parts, or nothing. */
+type Reach = 'all' | 'gaps' | 'none'
+const CATEGORIES = ['Ficha', 'Imágenes', 'Notas', 'Multimedia'] as const
+const MODE_REACH: Record<Mode, Reach[]> = {
+  'missing':             ['all',  'all',  'all',  'all'],
+  'fill':                ['gaps', 'gaps', 'gaps', 'gaps'],
+  'redo':                ['all',  'all',  'all',  'all'],
+  'wrong-provider':      ['all',  'all',  'none', 'none'],
+  'popularity':          ['none', 'none', 'all',  'none'],
+  'autocomplete-scores': ['none', 'none', 'all',  'none'],
+}
+
+function ReachDot({ reach }: { reach: Reach }) {
+  if (reach === 'all') return <span className="inline-block h-2 w-2 rounded-full bg-violet-400" />
+  if (reach === 'gaps') return <span className="inline-block h-2 w-2 rounded-full border border-violet-400" />
+  return <span className="text-xs text-muted-foreground">—</span>
+}
+
 /** A small button that opens a menu under it; closes on outside click or Escape. */
 function OptionsMenu({ label, disabled, children }: { label: string; disabled?: boolean; children: ReactNode }) {
   const [open, setOpen] = useState(false)
@@ -59,7 +77,7 @@ function OptionsMenu({ label, disabled, children }: { label: string; disabled?: 
         <ChevronDown className="w-3.5 h-3.5 flex-shrink-0 text-muted-foreground" />
       </button>
       {open && (
-        <div role="menu" className="absolute left-0 right-auto z-30 mt-1.5 w-72 rounded-md border border-border bg-card p-2 shadow-lg">
+        <div role="menu" className="absolute left-0 right-auto z-30 mt-1.5 w-[26rem] rounded-md border border-border bg-card p-2 shadow-lg">
           {children}
         </div>
       )}
@@ -192,6 +210,10 @@ export function MetadataBatchPanel({ platforms = [] }: { platforms?: PlatformOpt
           {/* One menu for the mode and its extras: compact, opened on demand. */}
           <OptionsMenu label={MODE_LABEL[mode]} disabled={running}>
             <p className="px-2.5 pb-1 text-xs text-muted-foreground">Qué juegos revisar</p>
+            <div className="grid grid-cols-[1fr_repeat(4,3.25rem)] items-center text-xs text-muted-foreground px-2.5 pb-1">
+              <span />
+              {CATEGORIES.map(c => <span key={c} className="text-center">{c}</span>)}
+            </div>
             <div className="space-y-0.5">
               {MODE_ORDER.map(m => (
                 <button
@@ -201,14 +223,18 @@ export function MetadataBatchPanel({ platforms = [] }: { platforms?: PlatformOpt
                   title={MODE_TEXT[m]}
                   aria-pressed={mode === m}
                   className={cn(
-                    'w-full text-left rounded px-2.5 py-1.5 text-sm transition-colors',
+                    'grid w-full grid-cols-[1fr_repeat(4,3.25rem)] items-center rounded px-2.5 py-1.5 text-sm text-left transition-colors',
                     mode === m ? 'bg-accent text-foreground' : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground',
                   )}
                 >
-                  {MODE_LABEL[m]}
+                  <span className="truncate">{MODE_LABEL[m]}</span>
+                  {MODE_REACH[m].map((r, i) => (
+                    <span key={i} className="flex justify-center"><ReachDot reach={r} /></span>
+                  ))}
                 </button>
               ))}
             </div>
+            <p className="px-2.5 pt-1.5 text-xs text-muted-foreground">● todo · ○ solo lo que falta · — no aplica</p>
             <div className="my-2 border-t border-border" />
             <p className="px-2.5 pb-1 text-xs text-muted-foreground">Ajustes</p>
             <div className="space-y-2 px-1">
