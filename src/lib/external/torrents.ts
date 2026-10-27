@@ -200,8 +200,10 @@ async function reconcileTorrentGames(platformId: number, syncedAt: Date, order: 
   for (const id of localIdentities) byIdentity.delete(id)
   // Lo que el usuario quitó no vuelve a crearse, aunque el catálogo siga trayéndolo:
   // así una purga de la papelera no hace reaparecer los juegos ocultos.
-  const blacklisted = await db.torrentBlacklist.findMany({ where: { platformId }, select: { identity: true } })
+  const blacklisted = await db.torrentBlacklist.findMany({ where: { platformId }, select: { identity: true, source: true } })
   for (const { identity } of blacklisted) byIdentity.delete(identity)
+  // Las claves de la lista negra se conservan en las filas ocultas: el cementerio las usa para no mostrarlas.
+  const blockedKeys = new Set(blacklisted.flatMap(b => (b.source ? [`torrent:${b.source}:${b.identity}`] : [])))
   for (const list of byIdentity.values()) {
     list.sort((a, b) => rank(a.source) - rank(b.source))
   }
@@ -279,7 +281,9 @@ async function reconcileTorrentGames(platformId: number, syncedAt: Date, order: 
 
   // Antes de asignar claves se sueltan las de las filas que ya no son el juego de ninguna fuente:
   // la clave es única y un duplicado oculto podría tenerla.
-  const released = games.filter(g => !kept.has(g.id) && (g.externalKey !== null || !g.isHidden))
+  const released = games.filter(g =>
+    !kept.has(g.id) && (g.externalKey !== null || !g.isHidden) && !(g.externalKey !== null && blockedKeys.has(g.externalKey)),
+  )
   const writes: Prisma.PrismaPromise<unknown>[] = []
   for (let i = 0; i < released.length; i += CHUNK) {
     writes.push(db.game.updateMany({

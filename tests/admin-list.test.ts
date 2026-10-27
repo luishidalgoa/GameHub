@@ -89,6 +89,25 @@ describe('the admin game list: one query for the library and the graveyard', () 
     expect(grave.items.every(i => i.isHidden)).toBe(true)
   })
 
+  it('the graveyard leaves out a hidden game whose torrent is on the blacklist', async () => {
+    const platform = await db.platform.findUniqueOrThrow({ where: { slug: SLUG } })
+    await db.game.create({ data: {
+      filePath: '/test/admin-list/blocked.nsp', fileName: 'blocked.nsp', fileSize: BigInt(5), platformId: platform.id,
+      title: 'Golf', sortTitle: 'Golf', isHidden: true, source: 'torrent', externalKey: 'torrent:test-src:id:BLOCKED1',
+    } })
+    await db.torrentBlacklist.create({
+      data: { platformId: platform.id, identity: 'id:BLOCKED1', source: 'test-src', title: 'Golf' },
+    })
+    const grave = await listAdminGames({
+      scope: 'graveyard',
+      filters: parseGameFilters({ platform: SLUG }),
+      sort: GRAVEYARD_SORT_DEFAULT,
+      page: 1,
+      pageSize: 10,
+    })
+    expect(grave.items.map(i => i.title)).toEqual(['Foxtrot'])
+  })
+
   it('the database order puts nullable columns last', () => {
     expect(dbOrder('year', 'asc')[0]).toEqual({ releaseYear: { sort: 'asc', nulls: 'last' } })
     expect(dbOrder('region', 'desc')[0]).toEqual({ region: { sort: 'desc', nulls: 'last' } })

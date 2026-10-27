@@ -85,10 +85,25 @@ const ROW_SELECT = {
 
 type RowRecord = Prisma.GameGetPayload<{ select: typeof ROW_SELECT }>
 
-/** The graveyard: hidden games, filtered by title and platform only (as it always was). */
-export function graveyardWhere(f: Pick<GameListFilters, 'search' | 'platform'>): Prisma.GameWhereInput {
+/**
+ * The hidden games whose torrent is on the blacklist. The blacklist is the record that the
+ * admin removed them for good, so the graveyard does not offer them back.
+ */
+async function blacklistedHiddenIds(): Promise<number[]> {
+  const rows = await db.$queryRaw<{ id: number }[]>`
+    SELECT g.id FROM Game g
+    JOIN TorrentBlacklist b ON b.platformId = g.platformId
+      AND g.externalKey = 'torrent:' || b.source || ':' || b.identity
+    WHERE g.isHidden = 1`
+  return rows.map(r => r.id)
+}
+
+/** The graveyard: hidden games, filtered by title and platform only, less the blacklisted ones. */
+export async function graveyardWhere(f: Pick<GameListFilters, 'search' | 'platform'>): Promise<Prisma.GameWhereInput> {
+  const blacklisted = await blacklistedHiddenIds()
   return {
     isHidden: true,
+    ...(blacklisted.length > 0 && { id: { notIn: blacklisted } }),
     ...(f.search && { title: { contains: f.search } }),
     ...(f.platform && { platform: { slug: f.platform } }),
   }
@@ -156,7 +171,7 @@ function toRow(g: RowRecord): AdminGameRow {
 /** The ordered ids of a completeness-sorted list, cached per query for a short while. */
 async function orderedIds(scope: ListScope, filters: GameListFilters, sort: SortState<ListSortKey>): Promise<number[]> {
   const boxes = scope === 'library' && filters.noBox ? await platformBoxes() : []
-  const where = scope === 'graveyard' ? graveyardWhere(filters) : gameListWhere(filters, boxes)
+  const where = scope === 'graveyard' ? await graveyardWhere(filters) : gameListWhere(filters, boxes)
   const key = `admin-list:${scope}:${JSON.stringify({ filters, sort })}`
   return cachedAggregate(key, IDS_TTL_MS, async () => {
     let rows = await db.game.findMany({ where, select: ROW_SELECT })
@@ -198,7 +213,7 @@ export async function listAdminGames(opts: {
   }
 
   const boxes = scope === 'library' && filters.noBox ? await platformBoxes() : []
-  const where = scope === 'graveyard' ? graveyardWhere(filters) : gameListWhere(filters, boxes)
+  const where = scope === 'graveyard' ? await graveyardWhere(filters) : gameListWhere(filters, boxes)
   const [rows, total] = await Promise.all([
     db.game.findMany({
       where,
