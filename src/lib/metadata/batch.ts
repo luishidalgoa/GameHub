@@ -12,11 +12,11 @@ import { gatherMetadata } from './compose'
 import { libretroSystemFor } from './libretro'
 import { consoleSlugFor } from './platform-console'
 import { applyMetadata, textPatch, type TextField } from './apply'
-import { storeLaunchBoxArt } from '@/lib/art'
+import { storeLaunchBoxArt, type ArtBlock } from '@/lib/art'
 import type { FieldSource } from './sources'
 import { parseMetadataSources, type MetadataSources } from './sources'
 import { hasMetadata, isRetryCandidate } from '@/lib/library'
-import { runScope, type FieldScope } from './scope'
+import { FICHA_FIELDS, IMAGE_FIELDS, runFields, type BatchField } from './scope'
 import { selectionWhere } from './selection'
 import { classifyNoMatch, emptyMatchDiagnostics, type NoMatchReason } from './no-match'
 
@@ -79,8 +79,8 @@ async function runMetadataBatchInner(opts: {
    *   'autocomplete-scores' — fill ONLY the score (via the RAWG→Metacritic→
    *               LaunchBox chain) for games that currently have no score. */
   mode?:            'missing' | 'fill' | 'redo' | 'wrong-provider' | 'popularity' | 'autocomplete-scores'
-  /** The categories this pass may write (see scope.ts). Undefined = every category the mode applies to. */
-  fields?:          FieldScope[]
+  /** The fields this pass may write (see scope.ts). Undefined = every field the mode allows. */
+  fields?:          BatchField[]
   /** Keep a cover the owner picked by hand (on by default). Off lets this pass replace it. */
   respectPinned?:   boolean
   /** popularity mode only: re-fetch even games that already have metrics stored. */
@@ -141,24 +141,30 @@ async function runMetadataBatchInner(opts: {
     return
   }
 
-  // What this pass may write (its categories) and which games it selects. The mode
-  // decides who; the categories decide what. A category the mode does not apply to
-  // is dropped, and so are trailers or scores when they are switched off.
-  const scope: FieldScope[] = runScope(mode, fields, { withTrailers, withScores })
-  const inFicha = scope.includes('ficha')
-  const inImagenes = scope.includes('imagenes')
-  // Identifiers (rawgId, rawgSlug, launchboxId) move only with the ficha or the covers.
+  // What this pass writes, field by field: the fields the admin chose, inside what the
+  // mode allows. The mode decides who; the fields decide what. Trailers and scores are
+  // dropped when their switches are off.
+  const fieldSet = new Set<BatchField>(runFields(mode, fields, { withTrailers, withScores }))
+  const want = (f: BatchField) => fieldSet.has(f)
+  const inFicha = FICHA_FIELDS.some(want)
+  const inImagenes = IMAGE_FIELDS.some(want)
+  const inScores = want('score') || want('metacritic')
+  const trailersOn = want('trailer')
+  const coversOn = want('cover') && withCovers
+  const scoresOn = inScores
+  // Wikidata facts fill genre, developer, publisher and year: only when one of them is chosen.
+  const factsOn = want('genre') || want('developer') || want('publisher') || want('releaseYear')
+  // Identifiers (rawgId, rawgSlug, launchboxId) move only with the ficha or the art.
   const ownsIdentity = inFicha || inImagenes
-  const metaScope = inFicha || inImagenes || scope.includes('notas')
-  const coversOn = inImagenes && withCovers
-  const trailersOn = scope.includes('multimedia')
-  const scoresOn = scope.includes('notas')
+  const metaScope = inFicha || inImagenes || inScores
+  // The LaunchBox art blocks this pass writes.
+  const artOnly = new Set<ArtBlock>((['backdrop', 'tile', 'logo'] as const).filter(want))
 
-  // Resume: only games after the cursor (ordered by id, see below).
-  // An empty scope selects nothing, and the run ends at once.
+  // Resume: only games after the cursor (ordered by id, see below). Nothing to write
+  // selects nothing, and the run ends at once.
   const where = selectionWhere({
-    mode, scope, platformSlug, resumeAfterId,
-    withTrailers: trailersOn, withScores: scoresOn, backfillTrailers, popularityRedo, now: new Date(),
+    mode, fields: [...fieldSet], platformSlug, resumeAfterId,
+    backfillTrailers, popularityRedo, now: new Date(),
   })
   // Ordered by id so the resume cursor (id > resumeAfterId) is monotonic.
   let games = where ? await db.game.findMany({ where, include: { platform: true }, orderBy: { id: 'asc' } }) : []
@@ -232,18 +238,20 @@ async function runMetadataBatchInner(opts: {
         // has a real metascore (which outranks it) or the admin asked for a
         // re-fetch — otherwise this pass would replace a Metacritic with RAWG's
         // user rating, or wipe it when RAWG knows nothing.
+        const scoreWanted = inScores
         const keepScore = !popularityRedo && game.rawgScore != null && m.metacritic == null
         // The same score rule as every other path (one-score.ts), on the metrics just fetched.
-        const scored = keepScore ? null : await scoreForGame(
+        const scored = !scoreWanted || keepScore ? null : await scoreForGame(
           { title: game.title, platformSlug: game.platform.slug, consoleSlug: consoleSlugFor(game.platform.slug, game), rawgId: game.rawgId },
           apiKey, rateMs, m,
         )
         await applyMetadata(game.id, {
           origin: 'auto',
           data: {
-            rawgAdded:           m.added,
-            rawgRating:          m.rating,
-            ...(scored ? { rawgMetacritic: scored.rawgMetacritic, rawgScore: scored.rawgScore, scoreSource: scored.scoreSource } : {}),
+            ...(want('popularity') ? { rawgAdded: m.added } : {}),
+            ...(want('rating') ? { rawgRating: m.rating } : {}),
+            ...(scored && want('metacritic') ? { rawgMetacritic: scored.rawgMetacritic } : {}),
+            ...(scored && want('score') ? { rawgScore: scored.rawgScore, scoreSource: scored.scoreSource } : {}),
             popularityFetchedAt: new Date(),
           },
         })
@@ -275,9 +283,8 @@ async function runMetadataBatchInner(opts: {
         await applyMetadata(game.id, {
           origin: 'auto',
           data: {
-            rawgScore:           r.rawgScore,
-            scoreSource:         r.scoreSource,
-            ...(r.rawgMetacritic != null ? { rawgMetacritic: r.rawgMetacritic } : {}),
+            ...(want('score') ? { rawgScore: r.rawgScore, scoreSource: r.scoreSource } : {}),
+            ...(want('metacritic') && r.rawgMetacritic != null ? { rawgMetacritic: r.rawgMetacritic } : {}),
             popularityFetchedAt: new Date(),
           },
         })
@@ -329,7 +336,7 @@ async function runMetadataBatchInner(opts: {
       continue
     }
 
-    // ── Full flow: the game's metadata, written per category ───────────────────
+    // ── Full flow: the game's metadata, written field by field ─────────────────
     try {
       await delay(rateMs)
       if (signal.aborted) break
@@ -358,7 +365,7 @@ async function runMetadataBatchInner(opts: {
             data: { metadataStatus: 'no_match', metadataAttempts: { increment: 1 }, metadataNextRetryAt: noMatchRetryAt(), metadataReason: matchReason },
           }).catch(() => {})
           // The platform's own providers found nothing: Wikidata is the last word.
-          await fillGameFacts(game.id).catch(() => [] as string[])
+          if (factsOn) await fillGameFacts(game.id).catch(() => [] as string[])
         }
         skipped++
         emit({ type: 'skipped', gameId: game.id, title: game.title, reason: 'no_match', matchReason, processed, total, applied, skipped, failed })
@@ -371,12 +378,11 @@ async function runMetadataBatchInner(opts: {
       const isEmpty = (v: unknown) => v === null || v === undefined || v === ''
 
       const prevSourcesAll = parseMetadataSources(game.metadataSources)
-      // A cover the owner picked by hand survives every automated pass while
-      // respectPinned is on (the default). Off, a pass may replace it.
+      // A cover the owner picked by hand survives every automated pass while respectPinned
+      // is on (the default). Off, a pass may replace it.
       const coverLocked = respectPinned && prevSourcesAll.coverManual === true
 
-      // Cover: only (re)download when overwriting, or when the game has no cover.
-      // In fill mode an existing coverPath is left untouched.
+      // Cover: only (re)download when overwriting, or when the local file is missing (fill).
       let coverPath: string | undefined
       const needCover = coversOn && !coverLocked && (!fillOnly || isEmpty(game.coverPath))
       if (meta.coverUrl && needCover) {
@@ -400,10 +406,8 @@ async function runMetadataBatchInner(opts: {
       }
 
       // Score. No metadata provider carries one, so it has its own chain (RAWG
-      // metacritic → Metacritic → LaunchBox community rating). Resolving it here
-      // is what makes a scanned game arrive with its score already filled in;
-      // the dedicated score modes remain for backfilling an existing library.
-      // Only for games that don't have one — 'redo' re-derives everything.
+      // metacritic → Metacritic → LaunchBox community rating). Only for games that don't
+      // have one — 'redo' re-derives everything. Only the score fields chosen are written.
       let scoreData: { rawgScore?: number; scoreSource?: string; rawgMetacritic?: number } = {}
       if (scoresOn && (mode === 'redo' || game.rawgScore == null)) {
         // The same score rule as the fill button (one-score.ts): RAWG metacritic,
@@ -416,38 +420,44 @@ async function runMetadataBatchInner(opts: {
         )
         if (r) {
           scoreData = {
-            rawgScore:   r.rawgScore,
-            scoreSource: r.scoreSource,
+            ...(want('score') ? { rawgScore: r.rawgScore, scoreSource: r.scoreSource } : {}),
             // Only a critic metascore belongs in rawgMetacritic (one-score.ts keeps it apart).
-            ...(r.rawgMetacritic != null ? { rawgMetacritic: r.rawgMetacritic } : {}),
+            ...(want('metacritic') && r.rawgMetacritic != null ? { rawgMetacritic: r.rawgMetacritic } : {}),
           }
         }
         if (signal.aborted) break
       }
 
-      const screenshotsJson = inImagenes && meta.screenshots.length > 0 ? JSON.stringify(meta.screenshots) : undefined
+      const screenshotsJson = want('screenshots') && meta.screenshots.length > 0 ? JSON.stringify(meta.screenshots) : undefined
 
       // Build the update: fill = only currently-empty fields; otherwise overwrite all.
-      // Only the fields of the categories in scope are written.
+      // Only the fields chosen for this pass are written.
       const data = fillOnly
         ? {
-            ...(inFicha && isEmpty(game.description)     && meta.description         && { description: meta.description }),
-            ...(inFicha && isEmpty(game.releaseYear)     && meta.releaseYear != null && { releaseYear: meta.releaseYear }),
-            ...(inFicha && isEmpty(game.releaseDate)     && meta.releaseDate         && { releaseDate: meta.releaseDate }),
-            ...(inFicha && isEmpty(game.genre)           && meta.genre               && { genre: meta.genre }),
-            ...(inFicha && isEmpty(game.developer)       && meta.developer           && { developer: meta.developer }),
-            ...(inFicha && isEmpty(game.publisher)       && meta.publisher           && { publisher: meta.publisher }),
-            ...(inImagenes && !coverLocked && isEmpty(game.coverUrl) && meta.coverUrl && { coverUrl: meta.coverUrl }),
-            ...(inImagenes && isEmpty(game.screenshotPaths) && screenshotsJson && { screenshotPaths: screenshotsJson }),
+            ...(want('description') && isEmpty(game.description) && meta.description && { description: meta.description }),
+            ...(want('releaseYear') && isEmpty(game.releaseYear) && meta.releaseYear != null && { releaseYear: meta.releaseYear }),
+            ...(want('releaseDate') && isEmpty(game.releaseDate) && meta.releaseDate && { releaseDate: meta.releaseDate }),
+            ...(want('genre') && isEmpty(game.genre) && meta.genre && { genre: meta.genre }),
+            ...(want('developer') && isEmpty(game.developer) && meta.developer && { developer: meta.developer }),
+            ...(want('publisher') && isEmpty(game.publisher) && meta.publisher && { publisher: meta.publisher }),
+            ...(want('cover') && !coverLocked && isEmpty(game.coverUrl) && meta.coverUrl && { coverUrl: meta.coverUrl }),
+            ...(want('screenshots') && isEmpty(game.screenshotPaths) && screenshotsJson && { screenshotPaths: screenshotsJson }),
             ...(game.rawgId == null && meta.rawgId != null && { rawgId: meta.rawgId }),
             ...(!game.rawgSlug && meta.rawgSlug && { rawgSlug: meta.rawgSlug }),
             ...(coverPath  && { coverPath }),   // only set when needCover was true
             ...(trailerUrl && { trailerUrl }),
           }
         : {
-            ...(inFicha ? { title: meta.title, description: meta.description, releaseYear: meta.releaseYear, releaseDate: meta.releaseDate, genre: meta.genre, developer: meta.developer, publisher: meta.publisher } : {}),
-            ...(inImagenes && !coverLocked ? { coverUrl: meta.coverUrl } : {}),
+            ...(want('title') ? { title: meta.title } : {}),
+            ...(want('description') ? { description: meta.description } : {}),
+            ...(want('releaseYear') ? { releaseYear: meta.releaseYear } : {}),
+            ...(want('releaseDate') ? { releaseDate: meta.releaseDate } : {}),
+            ...(want('genre') ? { genre: meta.genre } : {}),
+            ...(want('developer') ? { developer: meta.developer } : {}),
+            ...(want('publisher') ? { publisher: meta.publisher } : {}),
+            ...(want('cover') && !coverLocked ? { coverUrl: meta.coverUrl } : {}),
             ...(screenshotsJson && { screenshotPaths: screenshotsJson }),
+            // Identifiers move only with the ficha or the art; any other pass fills a missing one.
             ...(meta.rawgId != null && (ownsIdentity || game.rawgId == null) && { rawgId: meta.rawgId }),
             ...(meta.rawgSlug && (ownsIdentity || !game.rawgSlug) && { rawgSlug: meta.rawgSlug }),
             ...(meta.launchboxId != null && (ownsIdentity || game.launchboxId == null) && { launchboxId: meta.launchboxId }),
@@ -455,11 +465,16 @@ async function runMetadataBatchInner(opts: {
             ...(trailerUrl && { trailerUrl }),
           }
 
-      // Provenance: fill merges what it wrote over the old record. The other passes
-      // rebuild the labels of the categories in scope and leave the rest alone.
-      const prevSources: MetadataSources = fillOnly ? prevSourcesAll : {}
-      // Only attribute sources for fields we actually wrote in fill mode.
-      const writtenSources = fillOnly
+      // Provenance: fill merges what it wrote over the old record. The other passes rebuild the
+      // labels of what they write and keep the labels of what they leave alone.
+      const prevSources: MetadataSources = fillOnly
+        ? prevSourcesAll
+        : {
+            ...(!want('cover') && { cover: prevSourcesAll.cover, coverManual: prevSourcesAll.coverManual }),
+            ...(!want('screenshots') && { screenshots: prevSourcesAll.screenshots }),
+          }
+      // Only attribute sources for fields we actually wrote.
+      const writtenSources: MetadataSources = fillOnly
         ? Object.fromEntries(
             Object.entries(meta.sources).filter(([k]) => {
               if (k === 'cover')       return 'coverUrl' in data || 'coverPath' in data
@@ -469,7 +484,9 @@ async function runMetadataBatchInner(opts: {
               return false
             }),
           )
-        : inImagenes ? meta.sources : {}
+        : Object.fromEntries(
+            Object.entries(meta.sources).filter(([k]) => (k === 'cover' ? want('cover') : k === 'screenshots' ? want('screenshots') : true)),
+          )
       const merged: MetadataSources = { ...prevSources, ...writtenSources }
       // The lock also protects the badge: we didn't touch the image, so the
       // hand-picked provenance stays instead of being relabelled as the
@@ -482,9 +499,12 @@ async function runMetadataBatchInner(opts: {
       // A cover this pass replaces is no longer the owner's pick: its label is the provider's.
       const coverReplaced = Boolean(coverPath) || Boolean((data as { coverUrl?: string }).coverUrl)
       if (!coverLocked && coverReplaced) delete merged.coverManual
-      // Cover and screenshot labels are written only when the images are in scope.
-      const sources = inImagenes
-        ? { cover: merged.cover, screenshots: merged.screenshots, coverManual: merged.coverManual }
+      // The cover and screenshot labels, only for the images this pass writes.
+      const imageSources = want('cover') || want('screenshots')
+        ? {
+            ...(want('cover') && { cover: merged.cover, coverManual: merged.coverManual }),
+            ...(want('screenshots') && { screenshots: merged.screenshots }),
+          }
         : undefined
 
       // In fill mode, if nothing was actually empty, don't write (and don't bump
@@ -495,12 +515,12 @@ async function runMetadataBatchInner(opts: {
         continue
       }
 
-      // Art from the same LaunchBox page: every image, and the banner, fanart and logo.
-      if (inImagenes && meta.images.length > 0) {
+      // Art from the same LaunchBox page: the blocks this pass writes (background, tile, logo).
+      if (artOnly.size > 0 && meta.images.length > 0) {
         await storeLaunchBoxArt(
           { id: game.id, platformSlug: game.platform.slug, fileName: game.fileName },
           meta.images,
-          { found: true, launchboxId: meta.launchboxId, paceMs: 250 },
+          { found: true, launchboxId: meta.launchboxId, paceMs: 250, only: artOnly },
         ).catch(() => 'no-art' as const)
       }
 
@@ -524,7 +544,7 @@ async function runMetadataBatchInner(opts: {
       await applyMetadata(game.id, {
         origin: 'auto',
         patch,
-        sources,
+        sources: imageSources,
         data: {
           ...columns,
           ...scoreData,
@@ -540,7 +560,7 @@ async function runMetadataBatchInner(opts: {
 
       applied++
       // Facts the preferred providers left empty: Wikidata fills them, never overwriting.
-      if (inFicha) await fillGameFacts(game.id).catch(() => [] as string[])
+      if (factsOn) await fillGameFacts(game.id).catch(() => [] as string[])
       emit({ type: 'applied', gameId: game.id, title: game.title, matchedTitle: meta.title, confidence: meta.confidence, trailerFound, score: scoreData.rawgScore, processed, total, applied, skipped, failed })
 
     } catch (err) {

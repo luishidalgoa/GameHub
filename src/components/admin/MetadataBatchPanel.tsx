@@ -4,8 +4,8 @@ import { useState, useEffect, useLayoutEffect, useRef, useCallback, type ReactNo
 import { useTranslations } from 'next-intl'
 import { cn } from '@/lib/utils'
 import {
-  BATCH_MODES, FIELD_SCOPES, MODE_APPLIES, SCOPE_FIELDS, SCOPE_LABEL,
-  effectiveScope, reachOf, runScope, type BatchMode, type FieldScope, type Reach,
+  BATCH_MODES, FIELD_SCOPES, FIELD_CATEGORY, FIELD_LABEL, MODE_FIELDS, SCOPE_LABEL,
+  effectiveFields, reachOf, runFields, type BatchField, type BatchMode, type FieldScope, type Reach,
 } from '@/lib/metadata/scope'
 
 const AUTO_THRESHOLD   = 68
@@ -36,11 +36,11 @@ const MODE_COPY: Record<BatchMode, { label: string; line: string }> = {
   },
   'fill': {
     label: 'Con huecos',
-    line: 'Juegos con ficha y algún campo vacío. Solo rellena esos campos; lo que ya tiene valor y lo que fijaste a mano no cambia.',
+    line: 'Juegos con ficha y algún campo vacío. Solo rellena los campos vacíos que elijas; lo que ya tiene valor y lo que fijaste a mano no cambia.',
   },
   'redo': {
     label: 'Rehacer todo',
-    line: 'Todos los juegos visibles. Vuelve a buscar en las fuentes y reemplaza lo automático. Lo que fijaste a mano se conserva.',
+    line: 'Todos los juegos visibles. Vuelve a buscar en las fuentes y reemplaza lo automático en los campos que elijas. Lo que fijaste a mano se conserva.',
   },
   'wrong-provider': {
     label: 'Proveedor incorrecto',
@@ -56,11 +56,25 @@ const MODE_COPY: Record<BatchMode, { label: string; line: string }> = {
   },
 }
 
-const SCOPE_DETAIL: Record<FieldScope, string> = {
-  ficha:      'Ficha del juego',
-  imagenes:   'Portadas y arte',
-  notas:      'Puntuaciones',
-  multimedia: 'Vídeo de presentación',
+// One line per field, shown on hover: what the field is in the admin's own words.
+const FIELD_HINT: Record<BatchField, string> = {
+  title:       'El título del juego',
+  description: 'El texto de la ficha',
+  genre:       'El género',
+  developer:   'El desarrollador',
+  publisher:   'La editora',
+  releaseYear: 'El año de lanzamiento',
+  releaseDate: 'La fecha de lanzamiento',
+  cover:       'La portada (la caja)',
+  backdrop:    'El fondo de la ficha y del carrusel',
+  logo:        'El logotipo sobre el fondo',
+  tile:        'La miniatura ancha de la portada',
+  screenshots: 'Las capturas del juego',
+  score:       'La nota unificada',
+  metacritic:  'La puntuación de Metacritic',
+  rating:      'La valoración de RAWG',
+  popularity:  'Cuántos usuarios lo tienen en RAWG',
+  trailer:     'El tráiler de YouTube',
 }
 
 const REACH_LEGEND = 'Completo · solo los huecos · no aplica'
@@ -145,6 +159,29 @@ function OptionsMenu({ label, disabled, children }: { label: ReactNode; disabled
   )
 }
 
+/** A checkbox that can show the mixed state: some of its fields chosen, not all. */
+function GroupCheck({ checked, mixed, onChange, disabled, label }: {
+  checked: boolean
+  mixed: boolean
+  onChange: () => void
+  disabled?: boolean
+  label: string
+}) {
+  const ref = useRef<HTMLInputElement>(null)
+  useEffect(() => { if (ref.current) ref.current.indeterminate = mixed }, [mixed])
+  return (
+    <input
+      ref={ref}
+      type="checkbox"
+      checked={checked}
+      onChange={onChange}
+      disabled={disabled}
+      aria-label={label}
+      className="accent-primary"
+    />
+  )
+}
+
 /** One setting: a native checkbox, its name, and a line saying what it changes. */
 function Setting({ label, detail, checked, onChange, disabled }: {
   label: string
@@ -166,8 +203,8 @@ export function MetadataBatchPanel({ platforms = [] }: { platforms?: PlatformOpt
   const t = useTranslations('MetadataBatch')
   const [job, setJob]               = useState<JobState | null>(null)
   const [mode, setMode]             = useState<BatchMode>('missing')
-  // The categories the pass writes. A mode starts with every category it applies to.
-  const [fields, setFields]         = useState<FieldScope[]>([...MODE_APPLIES.missing])
+  // The fields the pass writes: inside what the mode allows, the admin picks them.
+  const [fields, setFields]         = useState<BatchField[]>([...MODE_FIELDS.missing])
   const [preview, setPreview]       = useState<PreviewState | null>(null)
   const [popularityRedo, setPopularityRedo] = useState(false)
   const [platform, setPlatform]     = useState('')
@@ -178,13 +215,13 @@ export function MetadataBatchPanel({ platforms = [] }: { platforms?: PlatformOpt
   const pollRef = useRef<ReturnType<typeof setInterval>>()
   const logRef  = useRef<HTMLDivElement>(null)
 
-  // What the pass will write: the chosen categories, less the ones its switches turn off.
-  const selected = runScope(mode, fields, { withTrailers: true, withScores })
+  // What the pass will write: the chosen fields, less the ones its switches turn off.
+  const selected = runFields(mode, fields, { withTrailers: true, withScores })
   const selectedKey = selected.join(',')
-  // Whether a setting applies follows the categories chosen, not the switch it controls.
-  const chosen = effectiveScope(mode, fields)
-  const coversChosen = chosen.includes('imagenes')
-  const scoresChosen = chosen.includes('notas')
+  // Whether a setting applies follows the fields chosen, not the switch it controls.
+  const chosen = effectiveFields(mode, fields)
+  const coversChosen = chosen.includes('cover')
+  const scoresChosen = chosen.includes('score') || chosen.includes('metacritic')
 
   useEffect(() => {
     // Only the newest request may set the count: an older response must not overwrite it.
@@ -200,15 +237,27 @@ export function MetadataBatchPanel({ platforms = [] }: { platforms?: PlatformOpt
 
   const chooseMode = (next: BatchMode) => {
     setMode(next)
-    setFields([...MODE_APPLIES[next]])
+    setFields([...MODE_FIELDS[next]])
   }
 
-  // A category the mode does not apply to cannot be chosen; the last one stays chosen.
-  const toggleField = (f: FieldScope) => {
-    if (!MODE_APPLIES[mode].includes(f)) return
+  // A field the mode does not allow cannot be chosen; the last one chosen stays chosen.
+  const toggleField = (f: BatchField) => {
+    if (!MODE_FIELDS[mode].includes(f)) return
     setFields(cur => {
-      const next = cur.includes(f) ? cur.filter(x => x !== f) : FIELD_SCOPES.filter(x => x === f || cur.includes(x))
-      return effectiveScope(mode, next).length > 0 ? next : cur
+      const next = cur.includes(f) ? cur.filter(x => x !== f) : MODE_FIELDS[mode].filter(x => x === f || cur.includes(x))
+      return runFields(mode, next, { withTrailers: true, withScores: true }).length > 0 ? next : cur
+    })
+  }
+
+  // The whole category at once: all its allowed fields, or none of them.
+  const toggleGroup = (c: FieldScope) => {
+    const allowed = MODE_FIELDS[mode].filter(f => FIELD_CATEGORY[f] === c)
+    const allChosen = allowed.every(f => fields.includes(f))
+    setFields(cur => {
+      const next = allChosen
+        ? cur.filter(f => !allowed.includes(f))
+        : MODE_FIELDS[mode].filter(f => cur.includes(f) || allowed.includes(f))
+      return runFields(mode, next, { withTrailers: true, withScores: true }).length > 0 ? next : cur
     })
   }
 
@@ -281,10 +330,9 @@ export function MetadataBatchPanel({ platforms = [] }: { platforms?: PlatformOpt
       ? 'Se sabrá al empezar: depende de la fuente de cada juego.'
       : <>Tocará <b>{preview.games.toLocaleString('es-ES')}</b> juegos{preview.fields !== undefined ? <> · <b>{preview.fields.toLocaleString('es-ES')}</b> campos vacíos</> : null}.</>
 
-  // The fields the chosen categories write, by name: what the admin is about to change.
-  const writes = selected.flatMap(f => SCOPE_FIELDS[f]).join(', ')
+  const allowedNow = MODE_FIELDS[mode]
 
-  const modeButtons = BATCH_MODES.map(m => {
+  const modeRows = BATCH_MODES.map(m => {
     const active = mode === m
     return (
       <button
@@ -294,13 +342,13 @@ export function MetadataBatchPanel({ platforms = [] }: { platforms?: PlatformOpt
         title={MODE_COPY[m].line}
         aria-pressed={active}
         className={cn(
-          'grid w-full grid-cols-[1fr_repeat(4,2.75rem)] items-center gap-x-1 rounded-md border-l-2 px-2 py-1.5 text-left transition-colors',
+          'grid w-full grid-cols-[1fr_repeat(4,minmax(0,3.5rem))] items-center gap-x-1 rounded-md border-l-2 px-2 py-1.5 text-left transition-colors',
           active ? 'border-primary bg-accent text-foreground' : 'border-transparent text-muted-foreground hover:bg-accent/50 hover:text-foreground',
         )}
       >
         <span className="truncate text-sm">{MODE_COPY[m].label}</span>
-        {FIELD_SCOPES.map(f => (
-          <span key={f} className="flex justify-center"><ReachMark reach={reachOf(m, f)} /></span>
+        {FIELD_SCOPES.map(c => (
+          <span key={c} className="flex justify-center"><ReachMark reach={reachOf(m, c)} /></span>
         ))}
       </button>
     )
@@ -333,49 +381,68 @@ export function MetadataBatchPanel({ platforms = [] }: { platforms?: PlatformOpt
             ))}
           </select>
 
-          {/* The menu: which games, which categories, which settings. */}
+          {/* The menu: which games, which fields, which settings. */}
           <OptionsMenu
-            label={<>{MODE_COPY[mode].label} <span className="text-muted-foreground">· {selected.length} de {FIELD_SCOPES.length} categorías</span></>}
+            label={<>{MODE_COPY[mode].label} <span className="text-muted-foreground">· {selected.length} campos</span></>}
             disabled={running}
           >
-            <div className="grid grid-cols-[1fr_repeat(4,2.75rem)] gap-x-1 px-2 pb-1">
-              <span className="self-end text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Juegos</span>
-              <span className="col-span-4 px-0.5 pb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Qué actualizar</span>
+            {/* Juegos: the mode decides who is selected, and what it may touch at all. */}
+            <div className="grid grid-cols-[1fr_repeat(4,minmax(0,3.5rem))] items-end gap-x-1 px-2 pb-1">
+              <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Juegos</span>
+              {FIELD_SCOPES.map(c => (
+                <span key={c} className="truncate text-center text-[10px] font-medium text-muted-foreground" title={SCOPE_LABEL[c]}>{SCOPE_LABEL[c]}</span>
+              ))}
             </div>
-            <div className="grid grid-cols-[1fr_repeat(4,2.75rem)] gap-x-1 px-2 pb-2">
-              <span />
-              {FIELD_SCOPES.map(f => {
-                const applies = MODE_APPLIES[mode].includes(f)
-                const on = applies && selected.includes(f)
-                return (
-                  <button
-                    key={f}
-                    type="button"
-                    onClick={() => toggleField(f)}
-                    disabled={!applies || running}
-                    aria-pressed={on}
-                    title={`${SCOPE_LABEL[f]}: ${SCOPE_FIELDS[f].join(', ')}`}
-                    className={cn(
-                      'rounded-md border px-1 py-1 text-center transition-colors',
-                      on ? 'border-primary/60 bg-primary/10 text-foreground' : 'border-border text-muted-foreground',
-                      applies ? 'hover:border-primary/50' : 'cursor-not-allowed opacity-35',
-                    )}
-                  >
-                    <span className="block text-[11px] font-medium leading-tight">{SCOPE_LABEL[f]}</span>
-                  </button>
-                )
-              })}
-            </div>
-
-            <div className="space-y-0.5">{modeButtons}</div>
+            <div className="space-y-0.5">{modeRows}</div>
             <p className="px-2 pt-1.5 text-[11px] text-muted-foreground">{REACH_LEGEND}</p>
 
             <div className="my-3 border-t border-border" />
 
-            <p className="px-2 pb-1 text-xs font-medium text-foreground">Se escribe</p>
-            <p className="px-2 pb-3 text-xs leading-relaxed text-muted-foreground">
-              {writes || 'Ninguna categoría elegida: elige al menos una.'}
-            </p>
+            {/* Qué actualizar: inside what the mode allows, the admin picks the fields. */}
+            <p className="px-2 pb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Qué actualizar</p>
+            <div className="space-y-3 px-2">
+              {FIELD_SCOPES.map(c => {
+                const allowed = allowedNow.filter(f => FIELD_CATEGORY[f] === c)
+                if (allowed.length === 0) return null
+                const chosenHere = allowed.filter(f => selected.includes(f)).length
+                return (
+                  <div key={c}>
+                    <label className="flex items-center gap-2 text-sm font-medium text-foreground">
+                      <GroupCheck
+                        checked={chosenHere === allowed.length}
+                        mixed={chosenHere > 0 && chosenHere < allowed.length}
+                        onChange={() => toggleGroup(c)}
+                        disabled={running}
+                        label={`Todo ${SCOPE_LABEL[c]}`}
+                      />
+                      {SCOPE_LABEL[c]}
+                      <span className="text-xs font-normal text-muted-foreground tabular-nums">{chosenHere} de {allowed.length}</span>
+                    </label>
+                    <div className="mt-1.5 flex flex-wrap gap-1.5 pl-6">
+                      {allowed.map(f => {
+                        const on = selected.includes(f)
+                        return (
+                          <label
+                            key={f}
+                            title={FIELD_HINT[f]}
+                            className={cn(
+                              'inline-flex cursor-pointer select-none items-center gap-1.5 rounded-md border px-2 py-1 text-xs transition-colors',
+                              on ? 'border-primary/50 bg-primary/10 text-foreground' : 'border-border text-muted-foreground hover:border-primary/30',
+                              running && 'cursor-not-allowed opacity-50',
+                            )}
+                          >
+                            <input type="checkbox" checked={on} onChange={() => toggleField(f)} disabled={running} className="accent-primary" />
+                            {FIELD_LABEL[f]}
+                          </label>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+
+            <div className="my-3 border-t border-border" />
 
             <p className="px-2 pb-1 text-xs font-medium text-foreground">Ajustes</p>
             <div className="space-y-1">

@@ -1,11 +1,14 @@
 import { describe, it, expect } from 'vitest'
 import { NOT_UNFINDABLE } from '@/lib/library'
-import { BATCH_MODES, FIELD_SCOPES, effectiveScope, reachOf, runScope, type BatchMode, type FieldScope } from '@/lib/metadata/scope'
+import {
+  BATCH_FIELDS, BATCH_MODES, FIELD_SCOPES, MODE_APPLIES, MODE_FIELDS,
+  effectiveFields, reachOf, runFields, type BatchField, type BatchMode, type Reach,
+} from '@/lib/metadata/scope'
 import { selectionWhere, gapColumnsFor } from '@/lib/metadata/selection'
 
 const now = new Date('2026-10-27T12:00:00Z')
 
-const base = { withTrailers: true, withScores: true, backfillTrailers: true, popularityRedo: false, now }
+const base = { backfillTrailers: true, popularityRedo: false, now }
 
 /** Serialised where, so a test can look for a clause without knowing its exact nesting. */
 const text = (w: unknown) => JSON.stringify(w)
@@ -20,123 +23,139 @@ describe('the mode-by-category matrix matches the panel', () => {
     'popularity':          ['none', 'none', 'all',  'none'],
     'autocomplete-scores': ['none', 'none', 'all',  'none'],
   }
-  type Reach = 'all' | 'gaps' | 'none'
 
   for (const mode of BATCH_MODES) {
     it(`${mode} reaches its categories as drawn`, () => {
-      expect(FIELD_SCOPES.map(f => reachOf(mode, f))).toEqual(expected[mode])
+      expect(FIELD_SCOPES.map(c => reachOf(mode, c))).toEqual(expected[mode])
     })
   }
 })
 
-describe('the categories a pass writes', () => {
-  it('a mode runs every category it applies to by default', () => {
-    expect(effectiveScope('missing')).toEqual(['ficha', 'imagenes', 'notas', 'multimedia'])
-    expect(effectiveScope('wrong-provider')).toEqual(['ficha', 'imagenes'])
-    expect(effectiveScope('popularity')).toEqual(['notas'])
+describe('the fields a mode allows', () => {
+  it('the full-flow modes never allow RAWG rating or popularity', () => {
+    for (const mode of ['missing', 'fill', 'redo'] as const) {
+      expect(MODE_FIELDS[mode]).not.toContain('rating')
+      expect(MODE_FIELDS[mode]).not.toContain('popularity')
+    }
   })
 
-  it('a requested list keeps only the categories the mode applies to', () => {
-    expect(effectiveScope('wrong-provider', ['notas', 'ficha'])).toEqual(['ficha'])
-    expect(effectiveScope('popularity', ['ficha'])).toEqual([])
+  it('wrong-provider only touches the ficha and the cover and screenshots it judges', () => {
+    expect([...MODE_FIELDS['wrong-provider']].sort()).toEqual(
+      ['title', 'description', 'genre', 'developer', 'publisher', 'releaseYear', 'releaseDate', 'cover', 'screenshots'].sort(),
+    )
+  })
+
+  it('a mode without a field of a category does not reach that category', () => {
+    expect(MODE_APPLIES['popularity']).toEqual(['notas'])
+    expect(MODE_APPLIES['autocomplete-scores']).toEqual(['notas'])
+  })
+
+  it('a request keeps only the fields the mode allows, in the order of the catalogue', () => {
+    expect(effectiveFields('wrong-provider', ['score', 'genre', 'cover'])).toEqual(['genre', 'cover'])
+    expect(effectiveFields('popularity', ['genre'])).toEqual([])
   })
 
   it('an explicit empty list selects nothing', () => {
-    expect(effectiveScope('missing', [])).toEqual([])
+    expect(effectiveFields('missing', [])).toEqual([])
+  })
+
+  it('every field belongs to one mode at least', () => {
+    for (const f of BATCH_FIELDS) {
+      expect(BATCH_MODES.some(m => MODE_FIELDS[m].includes(f))).toBe(true)
+    }
+  })
+})
+
+describe('the run fields: the switches take out what they turn off', () => {
+  it('turning scores off removes the score fields, except for the score-only modes', () => {
+    const off = { withTrailers: true, withScores: false }
+    expect(runFields('redo', undefined, off)).not.toContain('score')
+    expect(runFields('redo', undefined, off)).not.toContain('metacritic')
+    expect(runFields('autocomplete-scores', undefined, off)).toEqual(['score', 'metacritic'])
+  })
+
+  it('turning trailers off removes the trailer', () => {
+    expect(runFields('missing', undefined, { withTrailers: false, withScores: true })).not.toContain('trailer')
   })
 })
 
 describe('the selection of a pass', () => {
-  it('an empty scope selects nothing', () => {
-    expect(selectionWhere({ mode: 'missing', scope: [], ...base })).toBeNull()
+  it('no field selects nothing', () => {
+    expect(selectionWhere({ mode: 'missing', fields: [], ...base })).toBeNull()
   })
 
   it('every pass leaves out unfindable games', () => {
-    const scope: FieldScope[] = ['ficha']
     for (const mode of ['missing', 'fill', 'redo', 'wrong-provider'] as const) {
-      const w = selectionWhere({ mode, scope, ...base })
+      const w = selectionWhere({ mode, fields: ['description'], ...base })
       expect(text(w)).toContain(text(NOT_UNFINDABLE))
     }
   })
 
-  it('fill looks only at the gaps of the categories in scope', () => {
-    const w = text(selectionWhere({ mode: 'fill', scope: ['ficha'], ...base }))
+  it('fill looks only at the gaps of the fields chosen', () => {
+    const w = text(selectionWhere({ mode: 'fill', fields: ['description', 'releaseDate'], ...base }))
     expect(w).toContain('"description":null')
     expect(w).toContain('"releaseDate":null')
     expect(w).not.toContain('"coverPath":null')
     expect(w).not.toContain('"trailerUrl":null')
   })
 
-  it('fill with only trailers looks at trailers alone', () => {
-    const w = text(selectionWhere({ mode: 'fill', scope: ['multimedia'], ...base }))
+  it('fill on the logo looks at the logo alone', () => {
+    const w = text(selectionWhere({ mode: 'fill', fields: ['logo'], ...base }))
+    expect(w).toContain('"logoPath":null')
+    expect(w).not.toContain('"description":null')
+  })
+
+  it('fill with only the trailer looks at trailers alone', () => {
+    const w = text(selectionWhere({ mode: 'fill', fields: ['trailer'], ...base }))
     expect(w).toContain('"trailerUrl":null')
     expect(w).not.toContain('"description":null')
   })
 
-  it('fill with no gap to look at selects nothing', () => {
-    expect(selectionWhere({ mode: 'fill', scope: ['multimedia'], ...base, withTrailers: false })).toBeNull()
-  })
-
-  it('missing with trailers also takes games that only lack a trailer', () => {
-    const w = text(selectionWhere({ mode: 'missing', scope: ['ficha', 'multimedia'], ...base }))
+  it('missing with the trailer also takes games that only lack a trailer', () => {
+    const w = text(selectionWhere({ mode: 'missing', fields: ['description', 'trailer'], ...base }))
     expect(w).toContain('"trailerUrl":null')
   })
 
-  it('missing without the trailer category does not take trailer-only games', () => {
-    const w = text(selectionWhere({ mode: 'missing', scope: ['ficha'], ...base }))
+  it('missing without the trailer does not take trailer-only games', () => {
+    const w = text(selectionWhere({ mode: 'missing', fields: ['description'], ...base }))
     expect(w).not.toContain('"trailerUrl":null')
   })
 
   it('a platform filter keeps the library rule that the platform is enabled', () => {
-    const w = text(selectionWhere({ mode: 'redo', scope: ['ficha'], platformSlug: 'psx', ...base }))
+    const w = text(selectionWhere({ mode: 'redo', fields: ['description'], platformSlug: 'psx', ...base }))
     expect(w).toContain('"enabled":true')
     expect(w).toContain('"slug":"psx"')
   })
 
   it('popularity keeps its idempotency marker unless it is asked to redo', () => {
-    const once = text(selectionWhere({ mode: 'popularity', scope: ['notas'], ...base }))
-    const redo = text(selectionWhere({ mode: 'popularity', scope: ['notas'], ...base, popularityRedo: true }))
+    const once = text(selectionWhere({ mode: 'popularity', fields: ['rating'], ...base }))
+    const redo = text(selectionWhere({ mode: 'popularity', fields: ['rating'], ...base, popularityRedo: true }))
     expect(once).toContain('"popularityFetchedAt":null')
     expect(redo).not.toContain('"popularityFetchedAt":null')
   })
-})
 
-describe('the gap columns of a fill pass', () => {
-  it('lists the fields of each category in scope', () => {
-    const all: FieldScope[] = [...FIELD_SCOPES]
-    expect(gapColumnsFor(all, true, true)).toEqual(
-      expect.arrayContaining(['description', 'releaseDate', 'coverPath', 'screenshotPaths', 'rawgScore', 'trailerUrl']),
-    )
-  })
-
-  it('leaves out scores and trailers when they are switched off', () => {
-    const all: FieldScope[] = [...FIELD_SCOPES]
-    expect(gapColumnsFor(all, false, false)).not.toEqual(expect.arrayContaining(['rawgScore', 'trailerUrl']))
-  })
-})
-
-describe('one run scope for the engine, the preview and the panel', () => {
-  it('turning scores off removes the score category, except for the score-only modes', () => {
-    expect(runScope('redo', undefined, { withTrailers: true, withScores: false })).not.toContain('notas')
-    expect(runScope('popularity', undefined, { withTrailers: true, withScores: false })).toEqual(['notas'])
-  })
-
-  it('turning trailers off removes the multimedia category', () => {
-    expect(runScope('missing', undefined, { withTrailers: false, withScores: true })).not.toContain('multimedia')
-  })
-})
-
-describe('retry timing and the pending state of a pass without the ficha', () => {
   it('every selection leaves out games still waiting for a retry', () => {
     for (const mode of ['missing', 'fill', 'redo', 'popularity'] as const) {
-      const w = text(selectionWhere({ mode, scope: ['ficha', 'notas'], ...base }))
+      const w = text(selectionWhere({ mode, fields: ['description', 'score'], ...base }))
       expect(w).toContain('"metadataNextRetryAt"')
     }
   })
 
-  it('missing without the ficha targets pending games that lack something in scope', () => {
-    const w = text(selectionWhere({ mode: 'missing', scope: ['imagenes'], ...base }))
+  it('missing without the ficha targets pending games that lack something it writes', () => {
+    const w = text(selectionWhere({ mode: 'missing', fields: ['cover'], ...base }))
     expect(w).toContain('"coverPath":null')
     expect(w).toContain('"metadataStatus"')
+  })
+})
+
+describe('the gap columns of a fill pass', () => {
+  it('lists the column each chosen field leaves empty', () => {
+    expect(gapColumnsFor(['description', 'cover', 'logo', 'score', 'trailer'])).toEqual(
+      ['description', 'coverPath', 'logoPath', 'rawgScore', 'trailerUrl'],
+    )
+  })
+
+  it('a field with no gap column adds nothing', () => {
+    expect(gapColumnsFor(['title'])).toEqual([])
   })
 })

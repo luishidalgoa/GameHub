@@ -25,6 +25,8 @@ export interface ArtGame {
   fileName: string
   launchboxId: number | null
   platformSlug: string
+  /** libretro system of the game (see libretroSystemFor); null when unknown. */
+  retroSystem?: string | null
 }
 
 async function download(url: string): Promise<Buffer> {
@@ -79,11 +81,15 @@ export type ArtOutcome = 'applied' | 'no-art' | 'no-match'
  *
  * A game with no LaunchBox fanart takes the libretro snapshot for its wide tile.
  */
+/** The art blocks a LaunchBox store writes into the game's own columns. */
+export type ArtBlock = 'backdrop' | 'tile' | 'logo'
+
 export async function storeLaunchBoxArt(
-  game: { id: number; platformSlug: string; fileName?: string },
+  game: { id: number; platformSlug: string; fileName?: string; retroSystem?: string | null },
   imagesIn: LaunchBoxImage[],
-  opts: { found: boolean; launchboxId?: number | null; paceMs?: number },
+  opts: { found: boolean; launchboxId?: number | null; paceMs?: number; /** The blocks this call writes. Undefined = all of them. */ only?: ReadonlySet<ArtBlock> },
 ): Promise<ArtOutcome> {
+  const want = (block: ArtBlock) => !opts.only || opts.only.has(block)
   // Images the owner removed are left out: not stored again, and never picked as banner, fanart or logo.
   let images = imagesIn
   const removed = new Set((await db.gameImage.findMany({
@@ -100,26 +106,27 @@ export async function storeLaunchBoxArt(
 
   const data: Record<string, unknown> = { artCheckedAt: new Date() }
   if (opts.launchboxId) data.launchboxId = opts.launchboxId
-  if (bd && backdrop) {
+  if (want('backdrop') && bd && backdrop) {
     data.backdropPath = bd.key
     data.backdropKind = backdrop.kind
     if (bd.buffer) data.themePalette = JSON.stringify(await paletteOf(bd.buffer))
   }
-  if (fa) data.tilePath = fa.key
-  if (lo) data.logoPath = lo.key
+  if (want('tile') && fa) data.tilePath = fa.key
+  if (want('logo') && lo) data.logoPath = lo.key
 
   // No LaunchBox fanart: the libretro snapshot stands in for the wide tile.
   let retroStored = false
-  if (!fa) {
-    const retro = await fetchLibretroScreens(game.fileName ?? '', game.platformSlug)
+  if (!fa && (want('tile') || want('backdrop'))) {
+    const retro = await fetchLibretroScreens(game.fileName ?? '', game.retroSystem === undefined ? game.platformSlug : (game.retroSystem ?? ''))
     const retroUrl = retro.snap ?? retro.title ?? null
     if (retroUrl) {
       const webp = await pixelWebp(retroUrl)
       const key = `art/${game.platformSlug}/${game.id}-tile.webp`
       await uploadToS3(webp, key)
-      data.tilePath = `${key}?v=${Date.now()}`
-      if (!bd) {
-        data.backdropPath = data.tilePath
+      const stamped = `${key}?v=${Date.now()}`
+      if (want('tile')) data.tilePath = stamped
+      if (!bd && want('backdrop')) {
+        data.backdropPath = stamped
         data.backdropKind = retro.snap ? 'snap' : 'title'
         data.themePalette = JSON.stringify(await paletteOf(webp))
       }
@@ -142,7 +149,7 @@ export async function storeLaunchBoxArt(
 export async function fetchGameArt(game: ArtGame, paceMs = 600): Promise<ArtOutcome> {
   const found = await resolveLaunchBoxGame(game, paceMs)
   return storeLaunchBoxArt(
-    { id: game.id, platformSlug: game.platformSlug, fileName: game.fileName },
+    { id: game.id, platformSlug: game.platformSlug, fileName: game.fileName, retroSystem: game.retroSystem },
     found?.lb.images ?? [],
     { found: !!found, launchboxId: found?.id, paceMs },
   )

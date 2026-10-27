@@ -1,39 +1,42 @@
 import type { Prisma } from '@prisma/client'
 import { libraryGameWhere, NOT_UNFINDABLE, pendingMetadataWhere } from '@/lib/library'
-import type { BatchMode, FieldScope } from './scope'
+import { FICHA_FIELDS, type BatchField, type BatchMode } from './scope'
 
 // Which games a batch pass selects. The batch engine and its preview both build the
 // selection here, so the number the admin sees is the number the pass will touch.
 
-/** Empty-field columns a 'fill' pass looks at, per category. */
-const GAP_COLUMNS: Record<'ficha' | 'imagenes', readonly string[]> = {
-  ficha:    ['description', 'developer', 'publisher', 'genre', 'releaseYear', 'releaseDate'],
-  imagenes: ['coverPath', 'screenshotPaths'],
+/** The column each field leaves empty when it is missing: what a 'fill' pass looks for. */
+const GAP_COLUMN: Partial<Record<BatchField, string>> = {
+  description: 'description',
+  genre:       'genre',
+  developer:   'developer',
+  publisher:   'publisher',
+  releaseYear: 'releaseYear',
+  releaseDate: 'releaseDate',
+  cover:       'coverPath',
+  backdrop:    'backdropPath',
+  logo:        'logoPath',
+  tile:        'tilePath',
+  screenshots: 'screenshotPaths',
+  score:       'rawgScore',
+  metacritic:  'rawgMetacritic',
+  rating:      'rawgRating',
+  popularity:  'rawgAdded',
+  trailer:     'trailerUrl',
 }
 
-/**
- * The columns a 'fill' pass counts as gaps for this scope. Trailers and scores count
- * only when they are wanted at all.
- */
-export function gapColumnsFor(scope: readonly FieldScope[], withTrailers: boolean, withScores: boolean): string[] {
-  return [
-    ...(scope.includes('ficha') ? GAP_COLUMNS.ficha : []),
-    ...(scope.includes('imagenes') ? GAP_COLUMNS.imagenes : []),
-    ...(scope.includes('notas') && withScores ? ['rawgScore'] : []),
-    ...(scope.includes('multimedia') && withTrailers ? ['trailerUrl'] : []),
-  ]
+/** The columns a 'fill' pass counts as gaps for these fields. A field with no gap column adds none. */
+export function gapColumnsFor(fields: readonly BatchField[]): string[] {
+  return [...new Set(fields.map(f => GAP_COLUMN[f]).filter((c): c is string => !!c))]
 }
 
 export interface SelectionOptions {
   mode:             BatchMode
-  scope:            readonly FieldScope[]
+  /** The fields the run writes (already limited by runFields). */
+  fields:           readonly BatchField[]
   platformSlug?:    string
   /** Only games with an id above this (the resume cursor of an interrupted job). */
   resumeAfterId?:   number
-  /** Trailers wanted at all (the multimedia category is also needed). */
-  withTrailers:     boolean
-  /** Scores wanted at all (the notas category is also needed). */
-  withScores:       boolean
   /** 'missing' also takes games that already have metadata but no trailer. */
   backfillTrailers: boolean
   popularityRedo:   boolean
@@ -41,16 +44,16 @@ export interface SelectionOptions {
 }
 
 /**
- * The Prisma filter of one pass, or null when nothing can match (an empty scope,
- * or a 'fill' with no gaps to look at). Unfindable games and disabled platforms are
- * out of every pass, as in the admin's counts.
+ * The Prisma filter of one pass, or null when nothing can match (no fields, or a 'fill'
+ * with no gaps to look at). Unfindable games and disabled platforms are out of every
+ * pass, as in the admin's counts.
  */
 export function selectionWhere(o: SelectionOptions): Prisma.GameWhereInput | null {
-  const scope = o.scope
-  if (scope.length === 0) return null
+  const fields = o.fields
+  if (fields.length === 0) return null
 
-  const trailers = scope.includes('multimedia') && o.withTrailers
-  const scores = scope.includes('notas') && o.withScores
+  const trailers = fields.includes('trailer') && o.backfillTrailers
+  const hasFicha = fields.some(f => (FICHA_FIELDS as readonly string[]).includes(f))
 
   // A game whose provider failed waits for its retry time (#110), in every mode.
   const base: Prisma.GameWhereInput[] = [
@@ -74,16 +77,16 @@ export function selectionWhere(o: SelectionOptions): Prisma.GameWhereInput | nul
       // wrong-provider is judged per game in the engine: provenance is a JSON field.
       return within({})
     case 'fill': {
-      const gaps = gapColumnsFor(scope, trailers, scores)
+      const gaps = gapColumnsFor(fields)
       if (gaps.length === 0) return null
       return within({ OR: gaps.map(column => ({ [column]: null })) })
     }
     case 'missing': {
-      const trailerBackfill: Prisma.GameWhereInput[] = trailers && o.backfillTrailers ? [{ trailerUrl: null }] : []
-      if (scope.includes('ficha')) return within({ OR: [pendingMetadataWhere(o.now), ...trailerBackfill] })
+      const trailerBackfill: Prisma.GameWhereInput[] = trailers ? [{ trailerUrl: null }] : []
+      if (hasFicha) return within({ OR: [pendingMetadataWhere(o.now), ...trailerBackfill] })
       // Without the ficha the pass cannot mark a game as done, so it targets the games
-      // still lacking something in scope. Once the pass writes it, the game drops out.
-      const gaps = gapColumnsFor(scope, trailers, scores)
+      // still lacking something it writes. Once the pass writes it, the game drops out.
+      const gaps = gapColumnsFor(fields)
       const pendingGaps: Prisma.GameWhereInput[] = gaps.length
         ? [{ AND: [pendingMetadataWhere(o.now), { OR: gaps.map(column => ({ [column]: null })) }] }]
         : []

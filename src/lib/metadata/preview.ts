@@ -1,6 +1,6 @@
 import { db } from '@/lib/db'
 import { libraryGameWhere, UNFINDABLE } from '@/lib/library'
-import { runScope, type BatchMode, type FieldScope } from './scope'
+import { runFields, type BatchField, type BatchMode } from './scope'
 import { gapColumnsFor, selectionWhere } from './selection'
 
 export type { BatchMode } from './scope'
@@ -17,8 +17,8 @@ export interface BatchPreview {
 
 export interface PreviewOptions {
   platformSlug?:  string
-  /** The categories the pass writes. Undefined = every category the mode applies to. */
-  fields?:        readonly FieldScope[]
+  /** The fields the pass writes. Undefined = every field the mode allows. */
+  fields?:        readonly BatchField[]
   withScores?:    boolean
   popularityRedo?: boolean
 }
@@ -30,17 +30,15 @@ export interface PreviewOptions {
 export async function previewBatch(mode: BatchMode, opts: PreviewOptions = {}): Promise<BatchPreview> {
   const withScores = opts.withScores ?? true
   // Trailers are on in a run unless the caller turns them off, and the job does not.
-  const scope = runScope(mode, opts.fields, { withTrailers: true, withScores })
+  const fields = runFields(mode, opts.fields, { withTrailers: true, withScores })
   const skippedUnfindable = await db.game.count({ where: { ...libraryGameWhere(opts.platformSlug), ...UNFINDABLE } })
 
   // wrong-provider needs each game's source to know whether it is wrong.
   if (mode === 'wrong-provider') return { mode, games: null, skippedUnfindable }
 
   const where = selectionWhere({
-    mode, scope,
+    mode, fields,
     platformSlug:    opts.platformSlug,
-    withTrailers:    true,
-    withScores,
     backfillTrailers: true,
     popularityRedo:  opts.popularityRedo ?? false,
     now:             new Date(),
@@ -50,9 +48,9 @@ export async function previewBatch(mode: BatchMode, opts: PreviewOptions = {}): 
   const games = await db.game.count({ where })
   if (mode !== 'fill') return { mode, games, skippedUnfindable }
 
-  let fields = 0
-  for (const column of gapColumnsFor(scope, true, withScores)) {
-    fields += await db.game.count({ where: { AND: [where, { [column]: null }] } })
+  let empty = 0
+  for (const column of gapColumnsFor(fields)) {
+    empty += await db.game.count({ where: { AND: [where, { [column]: null }] } })
   }
-  return { mode, games, fields, skippedUnfindable }
+  return { mode, games, fields: empty, skippedUnfindable }
 }

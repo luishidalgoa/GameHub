@@ -1,7 +1,7 @@
 import { adminGuard } from '@/lib/admin-guard'
 import { NextResponse } from 'next/server'
 import { startMetadataJob, type MetadataJobParams } from '@/lib/jobs/runner'
-import { isBatchMode, isFieldScope } from '@/lib/metadata/scope'
+import { isBatchField, isBatchMode } from '@/lib/metadata/scope'
 
 export const dynamic = 'force-dynamic'
 
@@ -23,7 +23,7 @@ export async function POST(req: Request) {
     withTrailers: body.withTrailers !== false,
     withScores: body.withScores !== false,
     // An explicit list (even an empty one) is the admin's choice; no list means every category.
-    fields: Array.isArray(body.fields) ? body.fields.filter(isFieldScope) : undefined,
+    fields: Array.isArray(body.fields) ? body.fields.filter(isBatchField) : undefined,
     respectPinned: body.respectPinned !== false,
   }
   const id = await startMetadataJob(params)
