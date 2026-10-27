@@ -24,9 +24,13 @@ describe('box shape', () => {
     expect(isBoxRatio(2 / 3)).toBe(true)
   })
 
-  it('a banner or a square is not a box', () => {
+  it('a nearly square box is still a box', () => {
+    expect(isBoxRatio(1.11)).toBe(true)
+  })
+
+  it('a banner or a fanart is not a box', () => {
     expect(isBoxRatio(16 / 9)).toBe(false)
-    expect(isBoxRatio(1)).toBe(false)
+    expect(isBoxRatio(1.5)).toBe(false)
   })
 
   it('an unmeasured cover is not counted as a box', () => {

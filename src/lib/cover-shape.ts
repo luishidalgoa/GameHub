@@ -1,11 +1,12 @@
 import type { Prisma } from '@prisma/client'
 
 /**
- * A stored cover counts as a box when it is taller than wide. Real boxes are about
- * 2:3 (0.67); the threshold leaves room for squarer boxes such as some Game Boy ones.
- * Anything above it is art (a banner, a fanart, a square, a logo) and not a box.
+ * A stored cover counts as a box up to this proportion (width / height). Real boxes
+ * run from 2:3 (0.67) to nearly square (about 1.1: some 3DS and GameCube boxes).
+ * Banners and fanarts are about 16:9 (1.78), so they fall above it and are shown as art.
+ * A square piece of art cannot be told from a square box by shape alone, so it counts as a box.
  */
-export const BOX_MAX_RATIO = 0.85
+export const BOX_MAX_RATIO = 1.25
 
 export function isBoxRatio(ratio: number | null | undefined): boolean {
   return ratio != null && ratio <= BOX_MAX_RATIO
