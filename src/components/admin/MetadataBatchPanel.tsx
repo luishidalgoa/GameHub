@@ -4,13 +4,17 @@ import { useState, useEffect, useLayoutEffect, useRef, useCallback, type ReactNo
 import { useTranslations } from 'next-intl'
 import { Sparkles, StopCircle, CheckCircle2, XCircle, AlertTriangle, Loader2, SlidersHorizontal, ChevronDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import {
+  BATCH_MODES, FIELD_SCOPES, MODE_APPLIES, SCOPE_FIELD_COUNT, SCOPE_LABEL,
+  effectiveScope, reachOf, runScope, type BatchMode, type FieldScope, type Reach,
+} from '@/lib/metadata/scope'
 
 const AUTO_THRESHOLD   = 68
 const REVIEW_THRESHOLD = 40
 
-type Mode = 'missing' | 'fill' | 'redo' | 'wrong-provider' | 'popularity' | 'autocomplete-scores'
-
 interface PlatformOpt { slug: string; name: string }
+
+interface PreviewState { games: number | null; fields?: number; skippedUnfindable: number }
 
 // Shape returned by GET /api/admin/jobs/active
 interface JobState {
@@ -25,18 +29,22 @@ interface JobState {
   message: string | null
 }
 
-const MODE_ORDER: Mode[] = ['missing', 'fill', 'redo', 'wrong-provider', 'popularity', 'autocomplete-scores']
+/** What each category holds, shown on hover in its header. */
+const SCOPE_HINT: Record<FieldScope, string> = {
+  ficha:      'Título, descripción, género, desarrollador, editor, año y fecha',
+  imagenes:   'Portada, fondo, logo, tile y capturas',
+  notas:      'Nota, Metacritic, valoración y popularidad',
+  multimedia: 'Tráiler de YouTube',
+}
 
-/** What each mode touches per category: all of it, only the missing parts, or nothing. */
-type Reach = 'all' | 'gaps' | 'none'
-const CATEGORIES = ['Ficha', 'Imágenes', 'Notas', 'Multimedia'] as const
-const MODE_REACH: Record<Mode, Reach[]> = {
-  'missing':             ['all',  'all',  'all',  'all'],
-  'fill':                ['gaps', 'gaps', 'gaps', 'gaps'],
-  'redo':                ['all',  'all',  'all',  'all'],
-  'wrong-provider':      ['all',  'all',  'none', 'none'],
-  'popularity':          ['none', 'none', 'all',  'none'],
-  'autocomplete-scores': ['none', 'none', 'all',  'none'],
+// One line per mode, so the choice reads without the manual: what it does, and to whom.
+const MODE_TEXT: Record<BatchMode, string> = {
+  'missing':              'Busca los juegos que no tienen ningún metadato. Lo que ya existe no se toca.',
+  'fill':                 'Rellena solo los campos vacíos de cada juego. Nunca cambia lo que ya tiene valor ni lo que fijaste tú.',
+  'redo':                 'Vuelve a buscar en todas las fuentes y sobrescribe lo automático. Lo que fijaste tú se conserva.',
+  'wrong-provider':       'Vuelve a buscar solo en los juegos cuyos datos vienen de una fuente que no es la preferente de su plataforma.',
+  'popularity':           'Recalcula la popularidad de RAWG (cuántos lo tienen y su valoración), que alimenta las recomendaciones.',
+  'autocomplete-scores':  'Pone la nota a los juegos que no tienen ninguna, con la fuente configurada.',
 }
 
 function ReachDot({ reach }: { reach: Reach }) {
@@ -121,22 +129,44 @@ function OptionsMenu({ label, disabled, children }: { label: string; disabled?: 
   )
 }
 
+/** One setting: a checkbox with its name and, after a dot, what it changes. */
+function Setting({ label, hint, checked, onChange, disabled, title }: {
+  label: string
+  hint?: string
+  checked: boolean
+  onChange: (checked: boolean) => void
+  disabled?: boolean
+  title?: string
+}) {
+  return (
+    <label
+      title={title}
+      className={cn('flex items-center gap-2 text-sm select-none cursor-pointer', disabled ? 'text-muted-foreground/50' : 'text-muted-foreground')}
+    >
+      <input type="checkbox" checked={checked} onChange={e => onChange(e.target.checked)} disabled={disabled} className="accent-primary" />
+      <span>{label}</span>
+      {hint && <span className="text-xs text-muted-foreground/70">· {hint}</span>}
+    </label>
+  )
+}
+
 export function MetadataBatchPanel({ platforms = [] }: { platforms?: PlatformOpt[] }) {
   const t = useTranslations('MetadataBatch')
   const [job, setJob]               = useState<JobState | null>(null)
-  const [withCovers, setWithCovers] = useState(true)
-  const [mode, setMode]             = useState<Mode>('missing')
-  const [preview, setPreview]       = useState<{ games: number | null; fields?: number; skippedUnfindable: number } | null>(null)
-  // One line per mode, so the choice reads without the manual: what it does, and to whom.
-  const MODE_TEXT: Record<Mode, string> = {
-    'missing':              'Busca los juegos que no tienen ningún metadato. Lo que ya existe no se toca.',
-    'fill':                 'Rellena solo los campos vacíos de cada juego. Nunca cambia lo que ya tiene valor ni lo que fijaste tú.',
-    'redo':                 'Vuelve a buscar en todas las fuentes y sobrescribe lo automático. Lo que fijaste tú se conserva.',
-    'wrong-provider':       'Vuelve a buscar solo en los juegos cuyos datos vienen de una fuente que no es la preferente de su plataforma.',
-    'popularity':           'Recalcula la popularidad de RAWG (cuántos lo tienen y su valoración), que alimenta las recomendaciones.',
-    'autocomplete-scores':  'Pone la nota a los juegos que no tienen ninguna, con la fuente configurada.',
-  }
-  const MODE_LABEL: Record<Mode, string> = {
+  const [mode, setMode]             = useState<BatchMode>('missing')
+  // The categories the pass writes. A mode starts with every category it applies to.
+  const [fields, setFields]         = useState<FieldScope[]>([...MODE_APPLIES.missing])
+  const [preview, setPreview]       = useState<PreviewState | null>(null)
+  const [popularityRedo, setPopularityRedo] = useState(false)
+  const [platform, setPlatform]     = useState('')
+  const [respectPinned, setRespectPinned]   = useState(true)
+  const [starting, setStarting]     = useState(false)
+  const [withScores, setWithScores] = useState(true)
+  const [logLines, setLogLines]     = useState<string[]>([])
+  const pollRef = useRef<ReturnType<typeof setInterval>>()
+  const logRef  = useRef<HTMLDivElement>(null)
+
+  const MODE_LABEL: Record<BatchMode, string> = {
     'missing':             t('modeMissing'),
     'fill':                t('modeFill'),
     'redo':                t('modeRedo'),
@@ -144,18 +174,36 @@ export function MetadataBatchPanel({ platforms = [] }: { platforms?: PlatformOpt
     'popularity':          t('modePopularity'),
     'autocomplete-scores': t('modeAutocompleteScores'),
   }
-  const [popularityRedo, setPopularityRedo] = useState(false)
-  const [platform, setPlatform]     = useState('')
+
+  // What the pass will write: the chosen categories, less the ones its switches turn off.
+  const selected = runScope(mode, fields, { withTrailers: true, withScores })
+  const selectedKey = selected.join(',')
+
   useEffect(() => {
-    const q = new URLSearchParams({ mode })
+    // Only the newest request may set the count: an older response must not overwrite it.
+    let current = true
+    const q = new URLSearchParams({ mode, fields: selectedKey, withScores: String(withScores), popularityRedo: String(popularityRedo) })
     if (platform) q.set('platformSlug', platform)
-    fetch(`/api/admin/metadata/batch/preview?${q}`).then(r => r.ok ? r.json() : null).then(setPreview).catch(() => setPreview(null))
-  }, [mode, platform])
-  const [starting, setStarting]     = useState(false)
-  const [withScores, setWithScores] = useState(true)
-  const [logLines, setLogLines]     = useState<string[]>([])
-  const pollRef = useRef<ReturnType<typeof setInterval>>()
-  const logRef  = useRef<HTMLDivElement>(null)
+    fetch(`/api/admin/metadata/batch/preview?${q}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (current) setPreview(data) })
+      .catch(() => { if (current) setPreview(null) })
+    return () => { current = false }
+  }, [mode, platform, selectedKey, withScores, popularityRedo])
+
+  const chooseMode = (next: BatchMode) => {
+    setMode(next)
+    setFields([...MODE_APPLIES[next]])
+  }
+
+  // A category the mode does not apply to cannot be chosen; the last one stays chosen.
+  const toggleField = (f: FieldScope) => {
+    if (!MODE_APPLIES[mode].includes(f)) return
+    setFields(cur => {
+      const next = cur.includes(f) ? cur.filter(x => x !== f) : FIELD_SCOPES.filter(x => x === f || cur.includes(x))
+      return effectiveScope(mode, next).length > 0 ? next : cur
+    })
+  }
 
   const running = job?.status === 'running'
 
@@ -188,13 +236,20 @@ export function MetadataBatchPanel({ platforms = [] }: { platforms?: PlatformOpt
   }, [fetchJob])
 
   const start = async () => {
-    if (running || starting) return
+    if (running || starting || selected.length === 0) return
     setStarting(true)
     try {
       await fetch('/api/admin/jobs/metadata', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mode, platformSlug: platform || undefined, withCovers, withScores, popularityRedo: mode === 'popularity' ? popularityRedo : undefined }),
+        body: JSON.stringify({
+          mode,
+          platformSlug: platform || undefined,
+          fields: selected,
+          respectPinned,
+          withScores,
+          popularityRedo: mode === 'popularity' ? popularityRedo : undefined,
+        }),
       })
       await fetchJob()
     } finally {
@@ -212,6 +267,17 @@ export function MetadataBatchPanel({ platforms = [] }: { platforms?: PlatformOpt
   }
 
   const pct = job && job.total > 0 ? Math.round((job.processed / job.total) * 100) : 0
+
+  // What the pass would touch, as one line (the same count the run uses).
+  const previewLine: ReactNode = preview === null ? null
+    : preview.games === null
+      ? 'Cuántos juegos toca: se sabrá al empezar, porque depende de la fuente de cada juego.'
+      : <>Tocará <b>{preview.games.toLocaleString('es-ES')}</b> juegos{preview.fields !== undefined ? <> · <b>{preview.fields.toLocaleString('es-ES')}</b> campos vacíos</> : null}.</>
+
+  // Whether a setting applies follows the categories chosen, not the switch it controls.
+  const chosen = effectiveScope(mode, fields)
+  const coversChosen = chosen.includes('imagenes')
+  const scoresChosen = chosen.includes('notas')
 
   return (
     <div className="bg-card border border-border rounded-xl p-6 space-y-4">
@@ -243,54 +309,90 @@ export function MetadataBatchPanel({ platforms = [] }: { platforms?: PlatformOpt
             ))}
           </select>
 
-          {/* One menu for the mode and its extras: compact, opened on demand. */}
+          {/* One menu for the games, the categories and the settings: compact, opened on demand. */}
           <OptionsMenu label={MODE_LABEL[mode]} disabled={running}>
-            <p className="px-2.5 pb-1 text-xs text-muted-foreground">Qué juegos revisar</p>
-            <div className="grid grid-cols-[1fr_repeat(4,3.25rem)] items-center text-xs text-muted-foreground px-2.5 pb-1">
-              <span />
-              {CATEGORIES.map(c => <span key={c} className="text-center">{c}</span>)}
+            <p className="px-2.5 pb-0.5 text-xs text-muted-foreground">Qué actualizar</p>
+            <div className="grid grid-cols-[1fr_repeat(4,4.5rem)] items-center px-2.5 pb-1">
+              <span className="text-xs text-muted-foreground">Juegos</span>
+              {FIELD_SCOPES.map(f => {
+                const applies = MODE_APPLIES[mode].includes(f)
+                const on = applies && selected.includes(f)
+                return (
+                  <button
+                    key={f}
+                    type="button"
+                    onClick={() => toggleField(f)}
+                    disabled={!applies}
+                    aria-pressed={on}
+                    title={`${SCOPE_LABEL[f]}: ${SCOPE_HINT[f]}`}
+                    className={cn(
+                      'rounded px-1 py-1 text-center text-xs leading-tight transition-colors',
+                      on ? 'bg-violet-500/15 text-foreground' : 'text-muted-foreground',
+                      applies ? 'hover:bg-accent/50' : 'opacity-30 cursor-not-allowed',
+                    )}
+                  >
+                    <span className="block">{SCOPE_LABEL[f]}</span>
+                    <span className="block text-[10px] opacity-70">{SCOPE_FIELD_COUNT[f]} campos</span>
+                  </button>
+                )
+              })}
             </div>
             <div className="space-y-0.5">
-              {MODE_ORDER.map(m => (
+              {BATCH_MODES.map(m => (
                 <button
                   key={m}
                   type="button"
-                  onClick={() => setMode(m)}
+                  onClick={() => chooseMode(m)}
                   title={MODE_TEXT[m]}
                   aria-pressed={mode === m}
                   className={cn(
-                    'grid w-full grid-cols-[1fr_repeat(4,3.25rem)] items-center rounded px-2.5 py-1.5 text-sm text-left transition-colors',
+                    'grid w-full grid-cols-[1fr_repeat(4,4.5rem)] items-center rounded px-2.5 py-1.5 text-sm text-left transition-colors',
                     mode === m ? 'bg-accent text-foreground' : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground',
                   )}
                 >
                   <span className="truncate">{MODE_LABEL[m]}</span>
-                  {MODE_REACH[m].map((r, i) => (
-                    <span key={i} className="flex justify-center"><ReachDot reach={r} /></span>
+                  {FIELD_SCOPES.map(f => (
+                    <span key={f} className="flex justify-center"><ReachDot reach={reachOf(m, f)} /></span>
                   ))}
                 </button>
               ))}
             </div>
             <p className="px-2.5 pt-1.5 text-xs text-muted-foreground">● todo · ○ solo lo que falta · — no aplica</p>
+
             <div className="my-2 border-t border-border" />
             <p className="px-2.5 pb-1 text-xs text-muted-foreground">Ajustes</p>
-            <div className="space-y-2 px-1">
-              {mode === 'popularity' ? (
-                <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer select-none" title={t('popularityRedoHint')}>
-                  <input type="checkbox" checked={popularityRedo} onChange={e => setPopularityRedo(e.target.checked)} disabled={running} className="accent-primary" />
-                  {t('popularityRedo')}
-                </label>
-              ) : mode === 'autocomplete-scores' ? null : (
-                <>
-                  <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer select-none" title="Descarga y sustituye las portadas por las del proveedor elegido">
-                    <input type="checkbox" checked={withCovers} onChange={e => setWithCovers(e.target.checked)} disabled={running} className="accent-primary" />
-                    {t('downloadCovers')}
-                  </label>
-                  <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer select-none" title={t('fetchScoresHint')}>
-                    <input type="checkbox" checked={withScores} onChange={e => setWithScores(e.target.checked)} disabled={running} className="accent-primary" />
-                    {t('fetchScores')}
-                  </label>
-                </>
+            <div className="space-y-2 px-2.5">
+              <Setting
+                label="Respetar fijadas"
+                hint="Portadas a mano"
+                checked={respectPinned}
+                onChange={setRespectPinned}
+                disabled={running || !coversChosen}
+                title="Si está activo, la portada que elegiste a mano no se cambia, ni siquiera al rehacer todo."
+              />
+              {(mode === 'missing' || mode === 'fill' || mode === 'redo') && (
+                <Setting
+                  label="Buscar nota"
+                  hint="Pone la nota"
+                  checked={withScores}
+                  onChange={setWithScores}
+                  disabled={running || !scoresChosen}
+                  title={t('fetchScoresHint')}
+                />
               )}
+              {mode === 'popularity' && (
+                <Setting
+                  label={t('popularityRedo')}
+                  checked={popularityRedo}
+                  onChange={setPopularityRedo}
+                  disabled={running}
+                  title={t('popularityRedoHint')}
+                />
+              )}
+              <div className="flex items-baseline justify-between gap-3 text-sm">
+                <span className="text-muted-foreground">Vista previa <span className="text-xs text-muted-foreground/70">· cuenta lo que tocará</span></span>
+                <span className="text-xs text-foreground text-right">{previewLine}</span>
+              </div>
             </div>
             <p className="mt-2 px-1 text-xs text-muted-foreground leading-relaxed">{MODE_TEXT[mode]}</p>
           </OptionsMenu>
@@ -306,7 +408,7 @@ export function MetadataBatchPanel({ platforms = [] }: { platforms?: PlatformOpt
           ) : (
             <button
               onClick={start}
-              disabled={starting}
+              disabled={starting || selected.length === 0}
               className="flex items-center justify-center gap-2 px-4 py-2 bg-violet-600 hover:bg-violet-500 disabled:opacity-60 text-white text-sm rounded-md transition-colors flex-1 min-w-[120px] xl:flex-none"
             >
               {starting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
@@ -321,9 +423,7 @@ export function MetadataBatchPanel({ platforms = [] }: { platforms?: PlatformOpt
         <p>{MODE_TEXT[mode]}</p>
         {preview && (
           <p className="mt-1 text-foreground">
-            {preview.games === null
-              ? 'Cuántos juegos toca: se sabrá al empezar, porque depende de la fuente de cada juego.'
-              : <>Tocará <b>{preview.games.toLocaleString('es-ES')}</b> juegos{preview.fields !== undefined ? <> · <b>{preview.fields.toLocaleString('es-ES')}</b> campos vacíos</> : null}.</>}
+            {previewLine}
             {preview.skippedUnfindable > 0 && <span className="text-muted-foreground"> No se tocan {preview.skippedUnfindable} sin fuente.</span>}
           </p>
         )}

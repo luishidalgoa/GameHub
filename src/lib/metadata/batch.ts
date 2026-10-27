@@ -15,7 +15,9 @@ import { applyMetadata, textPatch, type TextField } from './apply'
 import { storeLaunchBoxArt } from '@/lib/art'
 import type { FieldSource } from './sources'
 import { parseMetadataSources, type MetadataSources } from './sources'
-import { pendingMetadataWhere, hasMetadata, isRetryCandidate } from '@/lib/library'
+import { hasMetadata, isRetryCandidate } from '@/lib/library'
+import { runScope, type FieldScope } from './scope'
+import { selectionWhere } from './selection'
 import { classifyNoMatch, emptyMatchDiagnostics, type NoMatchReason } from './no-match'
 
 // Re-exported for callers that imported these from the batch module historically.
@@ -77,6 +79,10 @@ async function runMetadataBatchInner(opts: {
    *   'autocomplete-scores' — fill ONLY the score (via the RAWG→Metacritic→
    *               LaunchBox chain) for games that currently have no score. */
   mode?:            'missing' | 'fill' | 'redo' | 'wrong-provider' | 'popularity' | 'autocomplete-scores'
+  /** The categories this pass may write (see scope.ts). Undefined = every category the mode applies to. */
+  fields?:          FieldScope[]
+  /** Keep a cover the owner picked by hand (on by default). Off lets this pass replace it. */
+  respectPinned?:   boolean
   /** popularity mode only: re-fetch even games that already have metrics stored. */
   popularityRedo?:  boolean
   /** Restrict to a single platform slug. Undefined = all platforms. */
@@ -85,7 +91,7 @@ async function runMetadataBatchInner(opts: {
    *  Used to continue an interrupted job without redoing earlier games. */
   resumeAfterId?:   number
 }) {
-  const { emit: rawEmit, signal, withCovers = true, withTrailers = false, withScores = true, backfillTrailers = false, rateMs = 350, apiKey, mode = 'missing', popularityRedo = false, platformSlug, resumeAfterId } = opts
+  const { emit: rawEmit, signal, withCovers = true, withTrailers = false, withScores = true, backfillTrailers = false, rateMs = 350, apiKey, mode = 'missing', popularityRedo = false, platformSlug, resumeAfterId, fields, respectPinned = true } = opts
 
   // Wrap emit so every per-game event also carries cursorId = the game's id.
   // Games are processed in ascending id order, so the runner can persist this as
@@ -135,71 +141,27 @@ async function runMetadataBatchInner(opts: {
     return
   }
 
-  // Fields considered "metadata" for the gap detection used by 'fill' mode.
-  // A missing score counts as a gap like any other — otherwise a game with
-  // complete metadata and no score is never selected, and "fill the gaps" leaves
-  // the one gap it has.
-  const GAP_FIELDS = [
-    { description: null },
-    { genre: null },
-    { developer: null },
-    { publisher: null },
-    { releaseYear: null },
-    { releaseDate: null },
-    { coverPath: null },
-    { screenshotPaths: null },
-    ...(withTrailers ? [{ trailerUrl: null }] : []),
-    ...(withScores ? [{ rawgScore: null }] : []),
-  ]
+  // What this pass may write (its categories) and which games it selects. The mode
+  // decides who; the categories decide what. A category the mode does not apply to
+  // is dropped, and so are trailers or scores when they are switched off.
+  const scope: FieldScope[] = runScope(mode, fields, { withTrailers, withScores })
+  const inFicha = scope.includes('ficha')
+  const inImagenes = scope.includes('imagenes')
+  // Identifiers (rawgId, rawgSlug, launchboxId) move only with the ficha or the covers.
+  const ownsIdentity = inFicha || inImagenes
+  const metaScope = inFicha || inImagenes || scope.includes('notas')
+  const coversOn = inImagenes && withCovers
+  const trailersOn = scope.includes('multimedia')
+  const scoresOn = scope.includes('notas')
 
-  const platformFilter = platformSlug ? { platform: { slug: platformSlug } } : {}
   // Resume: only games after the cursor (ordered by id, see below).
-  const resumeFilter = resumeAfterId ? { id: { gt: resumeAfterId } } : {}
-
-  // Build the selection per mode:
-  //   missing        → no metadata yet (+ optional trailer-only backfill)
-  //   fill           → has metadata but at least one empty field
-  //   redo           → every (visible) game
-  //   wrong-provider → has metadata; provenance filtered in JS below (JSON field)
-  const where =
-    mode === 'popularity'
-      ? {
-          isHidden: false,
-          ...platformFilter,
-          ...resumeFilter,
-          rawgId: { not: null },                                       // only games we can look up
-          ...(popularityRedo ? {} : { popularityFetchedAt: null }),    // idempotent: skip already-fetched
-        }
-    : mode === 'autocomplete-scores'
-      ? {
-          isHidden: false,
-          ...platformFilter,
-          ...resumeFilter,
-          rawgScore: null,                                             // only games WITHOUT a score (idempotent)
-        }
-    : mode === 'redo' || mode === 'wrong-provider'
-      ? { isHidden: false, ...platformFilter, ...resumeFilter }
-      : mode === 'fill'
-        ? { isHidden: false, ...platformFilter, ...resumeFilter, OR: GAP_FIELDS }
-        : {
-            isHidden: false,
-            ...platformFilter,
-            ...resumeFilter,
-            OR: [
-              pendingMetadataWhere(new Date()),
-              ...(withTrailers && backfillTrailers ? [{ trailerUrl: null }] : []),
-            ],
-          }
-
-  // Ordered by id so the resume cursor (id > resumeAfterId) is monotonic.
-  let games = await db.game.findMany({
-    where,
-    include: { platform: true },
-    orderBy: { id: 'asc' },
+  // An empty scope selects nothing, and the run ends at once.
+  const where = selectionWhere({
+    mode, scope, platformSlug, resumeAfterId,
+    withTrailers: trailersOn, withScores: scoresOn, backfillTrailers, popularityRedo, now: new Date(),
   })
-  // A game whose provider failed waits for its retry time before the batch tries again (#110).
-  const nowMs = Date.now()
-  games = games.filter(g => !g.metadataNextRetryAt || g.metadataNextRetryAt.getTime() <= nowMs)
+  // Ordered by id so the resume cursor (id > resumeAfterId) is monotonic.
+  let games = where ? await db.game.findMany({ where, include: { platform: true }, orderBy: { id: 'asc' } }) : []
 
   // 'wrong-provider': keep only games whose stored provenance disagrees with the
   // current matrix (any field whose source ≠ the configured provider, or that
@@ -220,7 +182,11 @@ async function runMetadataBatchInner(opts: {
       const src = parseMetadataSources(g.metadataSources)
       // Mismatch if any field that the matrix actively sources (≠ 'none') is
       // missing from provenance or recorded from a different provider.
-      return (['cover', 'info', 'description', 'screenshots'] as const).some(f => {
+      const checks: Array<'cover' | 'info' | 'description' | 'screenshots'> = [
+        ...(inFicha ? (['info', 'description'] as const) : []),
+        ...(inImagenes ? (['cover', 'screenshots'] as const) : []),
+      ]
+      return checks.some(f => {
         if (wanted[f] === 'none') return false
         // A hand-picked cover is a deliberate override, not a provider drift:
         // it never counts as a mismatch, or this sweep would exist to undo it.
@@ -324,12 +290,10 @@ async function runMetadataBatchInner(opts: {
       continue
     }
 
-    // ── Trailer-only backfill: game already has metadata, just needs a trailer ─
-    // Only in 'missing' mode; 'fill'/'redo' send every game through the full flow.
-    // A retry (no match or provider error, now due) goes through the full flow even
-    // when it holds a genre from Wikidata: the trailer is searched there too.
-    if (mode === 'missing' && hasMetadata(game) && !isRetryCandidate(game)) {
-      if (!withTrailers || game.trailerUrl) {
+    // ── Trailer-only work: the scope is trailers alone, or a game already has its
+    // metadata and only waits for a trailer (missing mode). Nothing else is written.
+    if (!metaScope || (mode === 'missing' && hasMetadata(game) && !isRetryCandidate(game))) {
+      if (!trailersOn || (game.trailerUrl && mode !== 'redo')) {
         // nothing to do (shouldn't normally be selected) — count as skipped silently
         skipped++
         emit({ type: 'skipped', gameId: game.id, title: game.title, reason: 'has_metadata', processed, total, applied, skipped, failed })
@@ -365,7 +329,7 @@ async function runMetadataBatchInner(opts: {
       continue
     }
 
-    // ── Full flow: game has no metadata ───────────────────────────────────────
+    // ── Full flow: the game's metadata, written per category ───────────────────
     try {
       await delay(rateMs)
       if (signal.aborted) break
@@ -383,16 +347,19 @@ async function runMetadataBatchInner(opts: {
         rawgApiKey:   apiKey,
         threshold:    AUTO_THRESHOLD,
       })
+      const matchReason = classifyNoMatch(diag)
 
       if (!meta) {
-        // The reason is written before fillGameFacts runs, which never touches it.
-        const matchReason = classifyNoMatch(diag)
-        await applyMetadata(game.id, {
-          origin: 'auto',
-          data: { metadataStatus: 'no_match', metadataAttempts: { increment: 1 }, metadataNextRetryAt: noMatchRetryAt(), metadataReason: matchReason },
-        }).catch(() => {})
-        // The platform's own providers found nothing: Wikidata is the last word.
-        await fillGameFacts(game.id).catch(() => [] as string[])
+        // The no-match state describes the ficha, so a pass without it leaves the state alone.
+        if (inFicha) {
+          // The reason is written before fillGameFacts runs, which never touches it.
+          await applyMetadata(game.id, {
+            origin: 'auto',
+            data: { metadataStatus: 'no_match', metadataAttempts: { increment: 1 }, metadataNextRetryAt: noMatchRetryAt(), metadataReason: matchReason },
+          }).catch(() => {})
+          // The platform's own providers found nothing: Wikidata is the last word.
+          await fillGameFacts(game.id).catch(() => [] as string[])
+        }
         skipped++
         emit({ type: 'skipped', gameId: game.id, title: game.title, reason: 'no_match', matchReason, processed, total, applied, skipped, failed })
         continue
@@ -404,15 +371,15 @@ async function runMetadataBatchInner(opts: {
       const isEmpty = (v: unknown) => v === null || v === undefined || v === ''
 
       const prevSourcesAll = parseMetadataSources(game.metadataSources)
-      // A cover the admin picked by hand survives every automated pass. Only
-      // 'redo' — the explicit "rebuild it all" mode — is allowed to replace it.
-      const coverLocked = prevSourcesAll.coverManual === true && mode !== 'redo'
+      // A cover the owner picked by hand survives every automated pass while
+      // respectPinned is on (the default). Off, a pass may replace it.
+      const coverLocked = respectPinned && prevSourcesAll.coverManual === true
 
       // Cover: only (re)download when overwriting, or when the game has no cover.
       // In fill mode an existing coverPath is left untouched.
       let coverPath: string | undefined
-      const needCover = !coverLocked && (!fillOnly || (isEmpty(game.coverPath) && isEmpty(game.coverUrl)))
-      if (withCovers && meta.coverUrl && needCover) {
+      const needCover = coversOn && !coverLocked && (!fillOnly || isEmpty(game.coverPath))
+      if (meta.coverUrl && needCover) {
         try {
           coverPath = await downloadAndCacheCover(meta.coverUrl, game.platform.slug, game.id)
         } catch { /* cover download failure is non-fatal */ }
@@ -421,7 +388,7 @@ async function runMetadataBatchInner(opts: {
       // YouTube trailer (skipped once the API errors; in fill, only if missing).
       let trailerUrl: string | undefined
       let trailerFound = false
-      if (withTrailers && !youtubeDisabled && (!fillOnly || isEmpty(game.trailerUrl))) {
+      if (trailersOn && !youtubeDisabled && (!fillOnly || isEmpty(game.trailerUrl))) {
         try {
           const url = await searchYouTubeTrailer(meta.title)
           if (url) { trailerUrl = url; trailerFound = true }
@@ -438,7 +405,7 @@ async function runMetadataBatchInner(opts: {
       // the dedicated score modes remain for backfilling an existing library.
       // Only for games that don't have one — 'redo' re-derives everything.
       let scoreData: { rawgScore?: number; scoreSource?: string; rawgMetacritic?: number } = {}
-      if (withScores && (mode === 'redo' || game.rawgScore == null)) {
+      if (scoresOn && (mode === 'redo' || game.rawgScore == null)) {
         // The same score rule as the fill button (one-score.ts): RAWG metacritic,
         // else RAWG rating x20, else the Metacritic/LaunchBox chain.
         await delay(rateMs)
@@ -458,43 +425,38 @@ async function runMetadataBatchInner(opts: {
         if (signal.aborted) break
       }
 
-      const screenshotsJson = meta.screenshots.length > 0 ? JSON.stringify(meta.screenshots) : undefined
+      const screenshotsJson = inImagenes && meta.screenshots.length > 0 ? JSON.stringify(meta.screenshots) : undefined
 
       // Build the update: fill = only currently-empty fields; otherwise overwrite all.
+      // Only the fields of the categories in scope are written.
       const data = fillOnly
         ? {
-            ...(isEmpty(game.description)     && meta.description         && { description: meta.description }),
-            ...(isEmpty(game.releaseYear)     && meta.releaseYear != null && { releaseYear: meta.releaseYear }),
-            ...(isEmpty(game.releaseDate)     && meta.releaseDate         && { releaseDate: meta.releaseDate }),
-            ...(isEmpty(game.genre)           && meta.genre               && { genre: meta.genre }),
-            ...(isEmpty(game.developer)       && meta.developer           && { developer: meta.developer }),
-            ...(isEmpty(game.publisher)       && meta.publisher           && { publisher: meta.publisher }),
-            ...(!coverLocked && isEmpty(game.coverUrl) && meta.coverUrl    && { coverUrl: meta.coverUrl }),
-            ...(isEmpty(game.screenshotPaths) && screenshotsJson          && { screenshotPaths: screenshotsJson }),
+            ...(inFicha && isEmpty(game.description)     && meta.description         && { description: meta.description }),
+            ...(inFicha && isEmpty(game.releaseYear)     && meta.releaseYear != null && { releaseYear: meta.releaseYear }),
+            ...(inFicha && isEmpty(game.releaseDate)     && meta.releaseDate         && { releaseDate: meta.releaseDate }),
+            ...(inFicha && isEmpty(game.genre)           && meta.genre               && { genre: meta.genre }),
+            ...(inFicha && isEmpty(game.developer)       && meta.developer           && { developer: meta.developer }),
+            ...(inFicha && isEmpty(game.publisher)       && meta.publisher           && { publisher: meta.publisher }),
+            ...(inImagenes && !coverLocked && isEmpty(game.coverUrl) && meta.coverUrl && { coverUrl: meta.coverUrl }),
+            ...(inImagenes && isEmpty(game.screenshotPaths) && screenshotsJson && { screenshotPaths: screenshotsJson }),
             ...(game.rawgId == null && meta.rawgId != null && { rawgId: meta.rawgId }),
             ...(!game.rawgSlug && meta.rawgSlug && { rawgSlug: meta.rawgSlug }),
             ...(coverPath  && { coverPath }),   // only set when needCover was true
             ...(trailerUrl && { trailerUrl }),
           }
         : {
-            title:       meta.title,
-            description: meta.description,
-            releaseYear: meta.releaseYear,
-            releaseDate: meta.releaseDate,
-            genre:       meta.genre,
-            developer:   meta.developer,
-            publisher:   meta.publisher,
-            ...(coverLocked ? {} : { coverUrl: meta.coverUrl }),
+            ...(inFicha ? { title: meta.title, description: meta.description, releaseYear: meta.releaseYear, releaseDate: meta.releaseDate, genre: meta.genre, developer: meta.developer, publisher: meta.publisher } : {}),
+            ...(inImagenes && !coverLocked ? { coverUrl: meta.coverUrl } : {}),
             ...(screenshotsJson && { screenshotPaths: screenshotsJson }),
-            ...(meta.rawgId   != null && { rawgId: meta.rawgId }),
-            ...(meta.rawgSlug && { rawgSlug: meta.rawgSlug }),
-            ...(meta.launchboxId != null && { launchboxId: meta.launchboxId }),
+            ...(meta.rawgId != null && (ownsIdentity || game.rawgId == null) && { rawgId: meta.rawgId }),
+            ...(meta.rawgSlug && (ownsIdentity || !game.rawgSlug) && { rawgSlug: meta.rawgSlug }),
+            ...(meta.launchboxId != null && (ownsIdentity || game.launchboxId == null) && { launchboxId: meta.launchboxId }),
             ...(coverPath  && { coverPath }),
             ...(trailerUrl && { trailerUrl }),
           }
 
-      // Provenance: in fill, merge new sources over the previous record so a
-      // field we didn't touch keeps its old source badge.
+      // Provenance: fill merges what it wrote over the old record. The other passes
+      // rebuild the labels of the categories in scope and leave the rest alone.
       const prevSources: MetadataSources = fillOnly ? prevSourcesAll : {}
       // Only attribute sources for fields we actually wrote in fill mode.
       const writtenSources = fillOnly
@@ -507,7 +469,7 @@ async function runMetadataBatchInner(opts: {
               return false
             }),
           )
-        : meta.sources
+        : inImagenes ? meta.sources : {}
       const merged: MetadataSources = { ...prevSources, ...writtenSources }
       // The lock also protects the badge: we didn't touch the image, so the
       // hand-picked provenance stays instead of being relabelled as the
@@ -517,6 +479,13 @@ async function runMetadataBatchInner(opts: {
         else delete merged.cover
         merged.coverManual = true
       }
+      // A cover this pass replaces is no longer the owner's pick: its label is the provider's.
+      const coverReplaced = Boolean(coverPath) || Boolean((data as { coverUrl?: string }).coverUrl)
+      if (!coverLocked && coverReplaced) delete merged.coverManual
+      // Cover and screenshot labels are written only when the images are in scope.
+      const sources = inImagenes
+        ? { cover: merged.cover, screenshots: merged.screenshots, coverManual: merged.coverManual }
+        : undefined
 
       // In fill mode, if nothing was actually empty, don't write (and don't bump
       // metadataFetchedAt) — count it as skipped so we don't churn existing data.
@@ -527,7 +496,7 @@ async function runMetadataBatchInner(opts: {
       }
 
       // Art from the same LaunchBox page: every image, and the banner, fanart and logo.
-      if (meta.images.length > 0) {
+      if (inImagenes && meta.images.length > 0) {
         await storeLaunchBoxArt(
           { id: game.id, platformSlug: game.platform.slug, fileName: game.fileName },
           meta.images,
@@ -545,14 +514,17 @@ async function runMetadataBatchInner(opts: {
       )
       // A cover-only result is not a ficha. The box is kept, but a game that never had a
       // ficha goes back into the retry cycle as no_match instead of reading as "matched".
+      // Without the ficha in scope, the ficha state is left as it is.
       const coverOnly = !meta.sources.info && !game.metadataFetchedAt
-      const statusWrite = coverOnly
-        ? { metadataStatus: 'no_match', metadataAttempts: { increment: 1 }, metadataNextRetryAt: noMatchRetryAt(), metadataReason: classifyNoMatch(diag) }
-        : { metadataStatus: 'matched', metadataAttempts: 0, metadataNextRetryAt: null, metadataReason: null }
+      const statusWrite = !inFicha
+        ? {}
+        : coverOnly
+          ? { metadataStatus: 'no_match', metadataAttempts: { increment: 1 }, metadataNextRetryAt: noMatchRetryAt(), metadataReason: matchReason }
+          : { metadataStatus: 'matched', metadataAttempts: 0, metadataNextRetryAt: null, metadataReason: null }
       await applyMetadata(game.id, {
         origin: 'auto',
         patch,
-        sources: { cover: merged.cover, screenshots: merged.screenshots, coverManual: merged.coverManual },
+        sources,
         data: {
           ...columns,
           ...scoreData,
@@ -561,31 +533,34 @@ async function runMetadataBatchInner(opts: {
           // a box and nothing else — would otherwise mark the game as "done" and
           // drop it out of the pending count with no description, year or genre
           // to show for it.
-          ...(meta.sources.info ? { metadataFetchedAt: new Date() } : {}),
+          ...(inFicha && meta.sources.info ? { metadataFetchedAt: new Date() } : {}),
           ...statusWrite,
         },
       })
 
       applied++
       // Facts the preferred providers left empty: Wikidata fills them, never overwriting.
-      await fillGameFacts(game.id).catch(() => [] as string[])
+      if (inFicha) await fillGameFacts(game.id).catch(() => [] as string[])
       emit({ type: 'applied', gameId: game.id, title: game.title, matchedTitle: meta.title, confidence: meta.confidence, trailerFound, score: scoreData.rawgScore, processed, total, applied, skipped, failed })
 
     } catch (err) {
       failed++
       const reason = err instanceof Error ? err.message : 'unknown_error'
       // Provider error: wait 1, 2, 4... hours (at most a day) before the next try (#110).
-      const attempts = game.metadataAttempts + 1
-      const waitHours = Math.min(24, 2 ** (attempts - 1))
-      await applyMetadata(game.id, {
-        origin: 'auto',
-        data: {
-          metadataStatus: 'provider_error',
-          metadataAttempts: { increment: 1 },
-          metadataNextRetryAt: new Date(Date.now() + waitHours * 3600_000),
-          metadataReason: null,
-        },
-      }).catch(() => {})
+      // The retry state belongs to the ficha, so a pass without it leaves the game as it is.
+      if (inFicha) {
+        const attempts = game.metadataAttempts + 1
+        const waitHours = Math.min(24, 2 ** (attempts - 1))
+        await applyMetadata(game.id, {
+          origin: 'auto',
+          data: {
+            metadataStatus: 'provider_error',
+            metadataAttempts: { increment: 1 },
+            metadataNextRetryAt: new Date(Date.now() + waitHours * 3600_000),
+            metadataReason: null,
+          },
+        }).catch(() => {})
+      }
       emit({ type: 'failed', gameId: game.id, title: game.title, reason, processed, total, applied, skipped, failed })
     }
   }

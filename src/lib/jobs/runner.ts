@@ -1,5 +1,6 @@
 import { db } from '@/lib/db'
 import { runMetadataBatch, type BatchEvent } from '@/lib/metadata/batch'
+import type { FieldScope } from '@/lib/metadata/scope'
 import { runScan } from '@/lib/scanner'
 import { platformTorrentSources, syncTorrentSources } from '@/lib/external/torrents'
 import { triggerAutoMetadata } from '@/lib/metadata/auto'
@@ -19,6 +20,10 @@ export type JobType = 'metadata' | 'scan' | 'art'
 
 export interface MetadataJobParams {
   mode?: 'missing' | 'fill' | 'redo' | 'wrong-provider' | 'popularity' | 'autocomplete-scores'
+  /** The categories the pass writes (see metadata/scope.ts). Undefined = all the mode applies to. */
+  fields?: FieldScope[]
+  /** Keep the covers the owner picked by hand (default true). */
+  respectPinned?: boolean
   popularityRedo?: boolean
   platformSlug?: string
   withCovers?: boolean
@@ -194,6 +199,8 @@ export async function startMetadataJob(params: MetadataJobParams, resumeJobId?: 
         withCovers: params.withCovers ?? true,
         withTrailers: params.withTrailers ?? true,
         withScores: params.withScores ?? true,
+        fields: params.fields,
+        respectPinned: params.respectPinned ?? true,
         backfillTrailers: true,
         resumeAfterId,
       })

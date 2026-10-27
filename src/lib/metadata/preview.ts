@@ -1,10 +1,9 @@
 import { db } from '@/lib/db'
-import { libraryGameWhere, UNFINDABLE, NOT_UNFINDABLE, pendingWhere, pendingMetadataWhere } from '@/lib/library'
+import { libraryGameWhere, UNFINDABLE } from '@/lib/library'
+import { runScope, type BatchMode, type FieldScope } from './scope'
+import { gapColumnsFor, selectionWhere } from './selection'
 
-export type BatchMode = 'missing' | 'fill' | 'redo' | 'wrong-provider' | 'popularity' | 'autocomplete-scores'
-
-/** The fields a fill pass can complete on a game. */
-const FILLABLE = ['description', 'developer', 'publisher', 'genre', 'releaseYear'] as const
+export type { BatchMode } from './scope'
 
 export interface BatchPreview {
   mode: BatchMode
@@ -16,36 +15,44 @@ export interface BatchPreview {
   skippedUnfindable: number
 }
 
-/**
- * What a batch pass would touch, counted before anything runs. Mirrors the batch's
- * own filters: unfindable games are left out of every pass but the explicit
- * requeue, and fields the owner locked are not counted as fillable.
- */
-export async function previewBatch(mode: BatchMode, platformSlug?: string): Promise<BatchPreview> {
-  const base = { AND: [libraryGameWhere(platformSlug), NOT_UNFINDABLE] }
-  const skippedUnfindable = await db.game.count({ where: { ...libraryGameWhere(platformSlug), ...UNFINDABLE } })
+export interface PreviewOptions {
+  platformSlug?:  string
+  /** The categories the pass writes. Undefined = every category the mode applies to. */
+  fields?:        readonly FieldScope[]
+  withScores?:    boolean
+  popularityRedo?: boolean
+}
 
-  if (mode === 'redo') {
-    return { mode, games: await db.game.count({ where: base }), skippedUnfindable }
-  }
-  if (mode === 'missing') {
-    return { mode, games: await db.game.count({ where: { ...libraryGameWhere(platformSlug), ...pendingMetadataWhere(new Date()) } }), skippedUnfindable }
-  }
-  if (mode === 'popularity') {
-    return { mode, games: await db.game.count({ where: { ...base, popularityFetchedAt: null } }), skippedUnfindable }
-  }
-  if (mode === 'autocomplete-scores') {
-    return { mode, games: await db.game.count({ where: { ...base, rawgScore: null } }), skippedUnfindable }
-  }
-  if (mode === 'fill') {
-    const anyEmpty = { OR: FILLABLE.map(f => ({ [f]: null })) } as const
-    const games = await db.game.count({ where: { ...pendingWhere(anyEmpty as never), ...libraryGameWhere(platformSlug) } })
-    let fields = 0
-    for (const f of FILLABLE) {
-      fields += await db.game.count({ where: { ...pendingWhere({ [f]: null } as never), ...libraryGameWhere(platformSlug) } })
-    }
-    return { mode, games, fields, skippedUnfindable }
-  }
+/**
+ * What a batch pass would touch, counted before anything runs. It asks the same
+ * selection the engine runs (selection.ts), so the two cannot disagree.
+ */
+export async function previewBatch(mode: BatchMode, opts: PreviewOptions = {}): Promise<BatchPreview> {
+  const withScores = opts.withScores ?? true
+  // Trailers are on in a run unless the caller turns them off, and the job does not.
+  const scope = runScope(mode, opts.fields, { withTrailers: true, withScores })
+  const skippedUnfindable = await db.game.count({ where: { ...libraryGameWhere(opts.platformSlug), ...UNFINDABLE } })
+
   // wrong-provider needs each game's source to know whether it is wrong.
-  return { mode, games: null, skippedUnfindable }
+  if (mode === 'wrong-provider') return { mode, games: null, skippedUnfindable }
+
+  const where = selectionWhere({
+    mode, scope,
+    platformSlug:    opts.platformSlug,
+    withTrailers:    true,
+    withScores,
+    backfillTrailers: true,
+    popularityRedo:  opts.popularityRedo ?? false,
+    now:             new Date(),
+  })
+  if (!where) return { mode, games: 0, skippedUnfindable }
+
+  const games = await db.game.count({ where })
+  if (mode !== 'fill') return { mode, games, skippedUnfindable }
+
+  let fields = 0
+  for (const column of gapColumnsFor(scope, true, withScores)) {
+    fields += await db.game.count({ where: { AND: [where, { [column]: null }] } })
+  }
+  return { mode, games, fields, skippedUnfindable }
 }
