@@ -16,7 +16,8 @@ import { storeLaunchBoxArt, type ArtBlock } from '@/lib/art'
 import type { FieldSource } from './sources'
 import { parseMetadataSources, type MetadataSources } from './sources'
 import { hasMetadata, isRetryCandidate } from '@/lib/library'
-import { FICHA_FIELDS, IMAGE_FIELDS, runFields, type BatchField } from './scope'
+import { BATCH_FIELDS, FICHA_FIELDS, IMAGE_FIELDS, isArtField, runFields, type BatchField } from './scope'
+import { kindFromLaunchBox } from '@/lib/art-catalog'
 import { selectionWhere } from './selection'
 import { classifyNoMatch, emptyMatchDiagnostics, type NoMatchReason } from './no-match'
 
@@ -159,6 +160,14 @@ async function runMetadataBatchInner(opts: {
   const metaScope = inFicha || inImagenes || inScores
   // The LaunchBox art blocks this pass writes.
   const artOnly = new Set<ArtBlock>((['backdrop', 'tile', 'logo'] as const).filter(want))
+  // The LaunchBox image kinds this pass stores: the art fields it chose, and the kinds the
+  // background, tile and logo blocks are picked from. Other kinds are not downloaded at all.
+  const artKinds = new Set<string>([
+    ...BATCH_FIELDS.filter(f => isArtField(f) && want(f)).map(f => f.slice(4)),
+    ...(want('backdrop') ? ['banner', 'fanart'] : []),
+    ...(want('tile') ? ['fanart'] : []),
+    ...(want('logo') ? ['clear-logo'] : []),
+  ])
 
   // Resume: only games after the cursor (ordered by id, see below). Nothing to write
   // selects nothing, and the run ends at once.
@@ -516,10 +525,11 @@ async function runMetadataBatchInner(opts: {
       }
 
       // Art from the same LaunchBox page: the blocks this pass writes (background, tile, logo).
-      if (artOnly.size > 0 && meta.images.length > 0) {
+      const artImages = meta.images.filter(i => artKinds.has(kindFromLaunchBox(i.type)))
+      if (artImages.length > 0) {
         await storeLaunchBoxArt(
           { id: game.id, platformSlug: game.platform.slug, fileName: game.fileName },
-          meta.images,
+          artImages,
           { found: true, launchboxId: meta.launchboxId, paceMs: 250, only: artOnly },
         ).catch(() => 'no-art' as const)
       }

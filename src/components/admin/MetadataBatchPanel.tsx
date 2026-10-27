@@ -4,8 +4,9 @@ import { useState, useEffect, useLayoutEffect, useRef, useCallback, type ReactNo
 import { useTranslations } from 'next-intl'
 import { cn } from '@/lib/utils'
 import {
-  BATCH_MODES, FIELD_SCOPES, FIELD_CATEGORY, FIELD_LABEL, MODE_FIELDS, SCOPE_LABEL,
-  effectiveFields, reachOf, runFields, type BatchField, type BatchMode, type FieldScope, type Reach,
+  BATCH_MODES, FIELD_SCOPES, MODE_FIELDS, SCOPE_LABEL,
+  effectiveFields, fieldCategory, fieldHint, fieldLabel, fieldSubgroup, reachOf, runFields,
+  type BatchField, type BatchMode, type FieldScope, type Reach,
 } from '@/lib/metadata/scope'
 
 const AUTO_THRESHOLD   = 68
@@ -56,25 +57,14 @@ const MODE_COPY: Record<BatchMode, { label: string; line: string }> = {
   },
 }
 
-// One line per field, shown on hover: what the field is in the admin's own words.
-const FIELD_HINT: Record<BatchField, string> = {
-  title:       'El título del juego',
-  description: 'El texto de la ficha',
-  genre:       'El género',
-  developer:   'El desarrollador',
-  publisher:   'La editora',
-  releaseYear: 'El año de lanzamiento',
-  releaseDate: 'La fecha de lanzamiento',
-  cover:       'La portada (la caja)',
-  backdrop:    'El fondo de la ficha y del carrusel',
-  logo:        'El logotipo sobre el fondo',
-  tile:        'La miniatura ancha de la portada',
-  screenshots: 'Las capturas del juego',
-  score:       'La nota unificada',
-  metacritic:  'La puntuación de Metacritic',
-  rating:      'La valoración de RAWG',
-  popularity:  'Cuántos usuarios lo tienen en RAWG',
-  trailer:     'El tráiler de YouTube',
+/** The fields of one category, split under their sub-headings, in catalogue order. */
+function subgroupsOf(fields: readonly BatchField[]): [string, BatchField[]][] {
+  const out = new Map<string, BatchField[]>()
+  for (const f of fields) {
+    const heading = fieldSubgroup(f) ?? ''
+    out.set(heading, [...(out.get(heading) ?? []), f])
+  }
+  return [...out.entries()]
 }
 
 const REACH_LEGEND = 'Completo · solo los huecos · no aplica'
@@ -251,7 +241,7 @@ export function MetadataBatchPanel({ platforms = [] }: { platforms?: PlatformOpt
 
   // The whole category at once: all its allowed fields, or none of them.
   const toggleGroup = (c: FieldScope) => {
-    const allowed = MODE_FIELDS[mode].filter(f => FIELD_CATEGORY[f] === c)
+    const allowed = MODE_FIELDS[mode].filter(f => fieldCategory(f) === c)
     const allChosen = allowed.every(f => fields.includes(f))
     setFields(cur => {
       const next = allChosen
@@ -402,7 +392,7 @@ export function MetadataBatchPanel({ platforms = [] }: { platforms?: PlatformOpt
             <p className="px-2 pb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Qué actualizar</p>
             <div className="space-y-3 px-2">
               {FIELD_SCOPES.map(c => {
-                const allowed = allowedNow.filter(f => FIELD_CATEGORY[f] === c)
+                const allowed = allowedNow.filter(f => fieldCategory(f) === c)
                 if (allowed.length === 0) return null
                 const chosenHere = allowed.filter(f => selected.includes(f)).length
                 return (
@@ -418,13 +408,16 @@ export function MetadataBatchPanel({ platforms = [] }: { platforms?: PlatformOpt
                       {SCOPE_LABEL[c]}
                       <span className="text-xs font-normal text-muted-foreground tabular-nums">{chosenHere} de {allowed.length}</span>
                     </label>
-                    <div className="mt-1.5 flex flex-wrap gap-1.5 pl-6">
-                      {allowed.map(f => {
+                    {subgroupsOf(allowed).map(([heading, list]) => (
+                    <div key={heading || 'all'} className="mt-1.5 pl-6">
+                      {heading && <p className="mb-1 text-[11px] text-muted-foreground">{heading}</p>}
+                      <div className="flex flex-wrap gap-1.5">
+                      {list.map(f => {
                         const on = selected.includes(f)
                         return (
                           <label
                             key={f}
-                            title={FIELD_HINT[f]}
+                            title={fieldHint(f)}
                             className={cn(
                               'inline-flex cursor-pointer select-none items-center gap-1.5 rounded-md border px-2 py-1 text-xs transition-colors',
                               on ? 'border-primary/50 bg-primary/10 text-foreground' : 'border-border text-muted-foreground hover:border-primary/30',
@@ -432,11 +425,13 @@ export function MetadataBatchPanel({ platforms = [] }: { platforms?: PlatformOpt
                             )}
                           >
                             <input type="checkbox" checked={on} onChange={() => toggleField(f)} disabled={running} className="accent-primary" />
-                            {FIELD_LABEL[f]}
+                            {fieldLabel(f)}
                           </label>
                         )
                       })}
+                      </div>
                     </div>
+                    ))}
                   </div>
                 )
               })}

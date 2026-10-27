@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { NOT_UNFINDABLE } from '@/lib/library'
 import {
   BATCH_FIELDS, BATCH_MODES, FIELD_SCOPES, MODE_APPLIES, MODE_FIELDS,
-  effectiveFields, reachOf, runFields, type BatchField, type BatchMode, type Reach,
+  effectiveFields, fieldCategory, fieldSubgroup, reachOf, runFields, type BatchField, type BatchMode, type Reach,
 } from '@/lib/metadata/scope'
 import { selectionWhere, gapColumnsFor } from '@/lib/metadata/selection'
 
@@ -157,5 +157,36 @@ describe('the gap columns of a fill pass', () => {
 
   it('a field with no gap column adds nothing', () => {
     expect(gapColumnsFor(['title'])).toEqual([])
+  })
+})
+
+describe('every LaunchBox image kind is a field of its own', () => {
+  it('a kind that another field already covers is not repeated', () => {
+    expect(BATCH_FIELDS).not.toContain('art:box-front')
+    expect(BATCH_FIELDS).not.toContain('art:fanart')
+    expect(BATCH_FIELDS).not.toContain('art:clear-logo')
+  })
+
+  it('the box, cartridge, disc, banner, manual and screenshot kinds are fields', () => {
+    for (const f of ['art:box-back', 'art:cart-front', 'art:disc', 'art:banner', 'art:manual', 'art:screenshot-gameplay']) {
+      expect(BATCH_FIELDS).toContain(f)
+    }
+  })
+
+  it('an image field is read under the images category and grouped under its heading', () => {
+    expect(fieldCategory('art:disc')).toBe('imagenes')
+    expect(fieldSubgroup('art:disc')).toBe('Caja y medios')
+    expect(fieldSubgroup('art:manual')).toBe('Documentos y otros')
+    expect(fieldSubgroup('logo')).toBe('Arte principal')
+  })
+
+  it('a fill pass looks for a missing image kind of the game', () => {
+    const w = text(selectionWhere({ mode: 'fill', fields: ['art:disc'], ...base }))
+    expect(w).toContain('"images":{"none":{"kind":"disc"}}')
+  })
+
+  it('an image field is allowed by the full-flow modes and not by the score modes', () => {
+    expect(effectiveFields('redo')).toContain('art:disc')
+    expect(effectiveFields('popularity')).not.toContain('art:disc')
   })
 })

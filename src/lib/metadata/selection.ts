@@ -1,6 +1,6 @@
 import type { Prisma } from '@prisma/client'
 import { libraryGameWhere, NOT_UNFINDABLE, pendingMetadataWhere } from '@/lib/library'
-import { FICHA_FIELDS, type BatchField, type BatchMode } from './scope'
+import { FICHA_FIELDS, isArtField, type BatchField, type BatchMode } from './scope'
 
 // Which games a batch pass selects. The batch engine and its preview both build the
 // selection here, so the number the admin sees is the number the pass will touch.
@@ -28,6 +28,16 @@ const GAP_COLUMN: Partial<Record<BatchField, string>> = {
 /** The columns a 'fill' pass counts as gaps for these fields. A field with no gap column adds none. */
 export function gapColumnsFor(fields: readonly BatchField[]): string[] {
   return [...new Set(fields.map(f => GAP_COLUMN[f]).filter((c): c is string => !!c))]
+}
+
+/**
+ * Every gap a 'fill' pass looks for, as a clause: a column that is empty, or a LaunchBox
+ * image kind the game does not have yet.
+ */
+export function gapClausesFor(fields: readonly BatchField[]): Prisma.GameWhereInput[] {
+  const columns = gapColumnsFor(fields).map(column => ({ [column]: null }) as Prisma.GameWhereInput)
+  const kinds = fields.filter(isArtField).map(f => ({ images: { none: { kind: f.slice(4) } } }) as Prisma.GameWhereInput)
+  return [...columns, ...kinds]
 }
 
 export interface SelectionOptions {
@@ -77,18 +87,18 @@ export function selectionWhere(o: SelectionOptions): Prisma.GameWhereInput | nul
       // wrong-provider is judged per game in the engine: provenance is a JSON field.
       return within({})
     case 'fill': {
-      const gaps = gapColumnsFor(fields)
+      const gaps = gapClausesFor(fields)
       if (gaps.length === 0) return null
-      return within({ OR: gaps.map(column => ({ [column]: null })) })
+      return within({ OR: gaps })
     }
     case 'missing': {
       const trailerBackfill: Prisma.GameWhereInput[] = trailers ? [{ trailerUrl: null }] : []
       if (hasFicha) return within({ OR: [pendingMetadataWhere(o.now), ...trailerBackfill] })
       // Without the ficha the pass cannot mark a game as done, so it targets the games
       // still lacking something it writes. Once the pass writes it, the game drops out.
-      const gaps = gapColumnsFor(fields)
+      const gaps = gapClausesFor(fields)
       const pendingGaps: Prisma.GameWhereInput[] = gaps.length
-        ? [{ AND: [pendingMetadataWhere(o.now), { OR: gaps.map(column => ({ [column]: null })) }] }]
+        ? [{ AND: [pendingMetadataWhere(o.now), { OR: gaps }] }]
         : []
       const ors = [...pendingGaps, ...trailerBackfill]
       return ors.length > 0 ? within({ OR: ors }) : null

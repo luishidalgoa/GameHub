@@ -1,7 +1,7 @@
 import { db } from '@/lib/db'
 import { libraryGameWhere, UNFINDABLE } from '@/lib/library'
 import { runFields, type BatchField, type BatchMode } from './scope'
-import { gapColumnsFor, selectionWhere } from './selection'
+import { gapClausesFor, selectionWhere } from './selection'
 
 export type { BatchMode } from './scope'
 
@@ -49,8 +49,8 @@ export async function previewBatch(mode: BatchMode, opts: PreviewOptions = {}): 
   if (mode !== 'fill') return { mode, games, skippedUnfindable }
 
   let empty = 0
-  for (const column of gapColumnsFor(fields)) {
-    empty += await db.game.count({ where: { AND: [where, { [column]: null }] } })
+  for (const gap of gapClausesFor(fields)) {
+    empty += await db.game.count({ where: { AND: [where, gap] } })
   }
   return { mode, games, fields: empty, skippedUnfindable }
 }
