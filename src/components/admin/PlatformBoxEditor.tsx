@@ -87,10 +87,11 @@ function EditorModal({ slug, name, initialWidth, initialHeight, onClose, onApply
         .then(r => (r.ok ? r.json() : { games: [] }))
         .then((data: { games: SampleGame[] }) => {
           if (!alive) return
-          const withCover = data.games.filter(g => g.coverPath)
-          setSamples(withCover)
-          // A new search picks its first match; the initial list keeps the current choice.
-          if (q || !sample) setSample(withCover[0] ?? null)
+          // Any game of the platform can stand in as the example, with or without a cover yet:
+          // a platform that has not been filled in still has games to measure against.
+          setSamples(data.games)
+          // A new search picks its first match, a cover first when there is one; the initial list keeps the current choice.
+          if (q || !sample) setSample(data.games.find(g => g.coverPath) ?? data.games[0] ?? null)
         })
         .catch(() => { /* no covers: the frame still works */ })
     }, q ? 300 : 0)
@@ -178,7 +179,9 @@ function EditorModal({ slug, name, initialWidth, initialHeight, onClose, onApply
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={sample.coverPath} alt="" className="w-full h-full object-cover pointer-events-none select-none" draggable={false} />
                 ) : (
-                  <div className="w-full h-full flex items-center justify-center text-xs text-muted-foreground">Sin portada de ejemplo</div>
+                  <div className="w-full h-full flex items-center justify-center p-3 text-center text-xs text-muted-foreground">
+                    {sample ? sample.title : 'Sin juego de ejemplo'}
+                  </div>
                 )}
                 {/* Rule-of-thirds guides */}
                 <div className="absolute inset-0 pointer-events-none opacity-40"
@@ -199,6 +202,14 @@ function EditorModal({ slug, name, initialWidth, initialHeight, onClose, onApply
               className="w-full max-w-xs rounded-md border border-border bg-secondary px-3 py-1.5 text-sm text-foreground"
             />
             {sample && <div className="text-xs text-foreground/80 truncate max-w-xs">{sample.title}</div>}
+            {samples.length === 0 && (
+              <p className="max-w-xs text-center text-xs text-muted-foreground">Esta plataforma no tiene juegos todavía: la medida se ajusta igual.</p>
+            )}
+            {samples.length > 0 && !samples.some(g => g.coverPath) && (
+              <p className="max-w-xs text-center text-xs text-muted-foreground">
+                Ninguno de sus juegos tiene portada todavía. La medida se ajusta igual; cuando el lote de metadatos le ponga portadas, se verá la real.
+              </p>
+            )}
             {samples.length > 0 && (
               <div className="flex flex-wrap justify-center gap-1.5">
                 {samples.map(s => (
@@ -210,8 +221,10 @@ function EditorModal({ slug, name, initialWidth, initialHeight, onClose, onApply
                     title={s.title}
                     aria-label={s.title}
                   >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={s.coverPath ?? ''} alt="" className="w-full h-full object-cover" />
+                    {s.coverPath
+                      // eslint-disable-next-line @next/next/no-img-element
+                      ? <img src={s.coverPath} alt="" className="w-full h-full object-cover" />
+                      : <span className="flex h-full w-full items-center justify-center bg-secondary text-[9px] font-bold text-muted-foreground">{s.title.charAt(0).toUpperCase()}</span>}
                   </button>
                 ))}
               </div>
