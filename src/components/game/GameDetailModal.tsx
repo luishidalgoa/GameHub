@@ -33,9 +33,11 @@ interface Props {
   onClose: () => void
   /** The grid's region filter; the full game page opens on this region. */
   region?: string
+  /** The grid view the modal was opened from: the editor's «volver» goes back here. */
+  returnTo?: string
 }
 
-export function GameDetailModal({ gameId, onClose, region }: Props) {
+export function GameDetailModal({ gameId, onClose, region, returnTo }: Props) {
   const t = useTranslations('GameDetail')
   const [game, setGame] = useState<Game | null>(null)
   const [loading, setLoading] = useState(true)
@@ -174,7 +176,7 @@ export function GameDetailModal({ gameId, onClose, region }: Props) {
                 </Link>
                 {auth?.admin && (
                   <Link
-                    href={`/admin/games/${game.id}`}
+                    href={`/admin/games/${game.id}${returnTo ? `?volver=${encodeURIComponent(returnTo)}` : ''}`}
                     className="flex items-center gap-1.5 px-3 py-2 text-sm rounded-md bg-secondary hover:bg-accent transition-colors touch-manipulation"
                   >
                     <Pencil className="w-3.5 h-3.5" />
@@ -200,7 +202,7 @@ export function GameDetailModal({ gameId, onClose, region }: Props) {
         ) : game ? (
           <div className="flex-1 p-4 sm:p-6">
             {/* Top section: cover + meta, over the banner of the panel. */}
-            <div className="flex gap-6 mb-6">
+            <div className="relative z-10 flex gap-6 mb-6">
               {/* Cover */}
               <div className="flex-shrink-0 w-36">
                 <div
@@ -295,7 +297,7 @@ export function GameDetailModal({ gameId, onClose, region }: Props) {
             {/* Description */}
             {game.description && (
               <div className="mb-6">
-                <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-2">{t('description')}</h4>
+                <h4 className="text-sm font-semibold text-foreground/70 uppercase tracking-wider mb-2">{t('description')}</h4>
                 <p className="text-sm text-foreground/80 leading-relaxed line-clamp-6">{game.description}</p>
               </div>
             )}
@@ -303,7 +305,7 @@ export function GameDetailModal({ gameId, onClose, region }: Props) {
             {/* Trailer */}
             {game.trailerUrl && (
               <div className="mb-6">
-                <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-2">{t('trailer')}</h4>
+                <h4 className="text-sm font-semibold text-foreground/70 uppercase tracking-wider mb-2">{t('trailer')}</h4>
                 <YouTubeEmbed url={game.trailerUrl} watchLabel={t('watchTrailer')} className="aspect-video rounded-lg overflow-hidden" />
               </div>
             )}
@@ -311,7 +313,7 @@ export function GameDetailModal({ gameId, onClose, region }: Props) {
             {/* Screenshots */}
             {screenshots.length > 0 && (
               <div className="mb-6">
-                <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-2">Screenshots</h4>
+                <h4 className="text-sm font-semibold text-foreground/70 uppercase tracking-wider mb-2">Screenshots</h4>
                 <ScreenshotCarousel screenshots={screenshots} />
               </div>
             )}
@@ -319,7 +321,7 @@ export function GameDetailModal({ gameId, onClose, region }: Props) {
             {/* Custom notes */}
             {game.customNotes && (
               <div className="mb-6">
-                <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-2">{t('notes')}</h4>
+                <h4 className="text-sm font-semibold text-foreground/70 uppercase tracking-wider mb-2">{t('notes')}</h4>
                 <p className="text-sm text-foreground/70 leading-relaxed whitespace-pre-line">{game.customNotes}</p>
               </div>
             )}
@@ -331,7 +333,7 @@ export function GameDetailModal({ gameId, onClose, region }: Props) {
             {game.dlcs && game.dlcs.filter((d) => d.type === 'update').length > 0 && (
               <div className="mb-6">
                 <div className="flex items-center gap-2 mb-2">
-                  <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
+                  <h4 className="text-sm font-semibold text-foreground/70 uppercase tracking-wider">
                     {t('updates', { count: game.dlcs.filter((d) => d.type === 'update').length })}
                   </h4>
                   <BulkDownloadButton gameId={game.id} type="update" count={game.dlcs.filter(d => d.type === 'update').length} />
@@ -365,7 +367,7 @@ export function GameDetailModal({ gameId, onClose, region }: Props) {
             {game.dlcs && game.dlcs.filter((d) => d.type === 'dlc').length > 0 && (
               <div className="mb-6">
                 <div className="flex items-center gap-2 mb-2">
-                  <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
+                  <h4 className="text-sm font-semibold text-foreground/70 uppercase tracking-wider">
                     {t('dlc', { count: game.dlcs.filter((d) => d.type === 'dlc').length })}
                   </h4>
                   <BulkDownloadButton gameId={game.id} type="dlc" count={game.dlcs.filter(d => d.type === 'dlc').length} />
@@ -390,7 +392,7 @@ export function GameDetailModal({ gameId, onClose, region }: Props) {
             {game.dlcs && game.dlcs.filter((d) => d.type === 'mod').length > 0 && (
               <div className="mb-6">
                 <div className="flex items-center gap-2 mb-2">
-                  <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
+                  <h4 className="text-sm font-semibold text-foreground/70 uppercase tracking-wider">
                     Mods ({game.dlcs.filter((d) => d.type === 'mod').length})
                   </h4>
                   <BulkDownloadButton gameId={game.id} type="mod" count={game.dlcs.filter(d => d.type === 'mod').length} />
@@ -428,7 +430,7 @@ function MetaRow({ icon, label, value }: { icon: React.ReactNode; label: string;
   return (
     <div className="flex items-start gap-2">
       <span className="text-muted-foreground flex-shrink-0 mt-0.5">{icon}</span>
-      <span className="text-muted-foreground w-28 flex-shrink-0">{label}</span>
+      <span className="text-foreground/70 w-28 flex-shrink-0">{label}</span>
       <span className="text-foreground/90 flex-1">{value}</span>
     </div>
   )

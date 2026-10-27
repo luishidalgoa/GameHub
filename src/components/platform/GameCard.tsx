@@ -21,6 +21,8 @@ interface Props {
   platformSlug?: string
   /** When set, the card fades+slides in with a staggered delay by this index. */
   animateIndex?: number
+  /** The grid view this card is in (path + filters): the editor's «volver» goes back here. */
+  returnTo?: string
 }
 
 export function GameCard({
@@ -32,6 +34,7 @@ export function GameCard({
   thumbnailHeight = 300,
   platformSlug,
   animateIndex,
+  returnTo,
 }: Props) {
   const cover = game.coverPath ?? game.coverUrl
   const [imgLoaded, setImgLoaded] = useState(false)
@@ -125,7 +128,7 @@ export function GameCard({
             )}
             {isAdmin && (
               <a
-                href={`/admin/games/${game.id}`}
+                href={`/admin/games/${game.id}${returnTo ? `?volver=${encodeURIComponent(returnTo)}` : ''}`}
                 onClick={(e) => e.stopPropagation()}
                 className="p-2 rounded-md bg-white/10 text-white/70 hover:bg-white/20 hover:text-white transition-colors"
                 aria-label="Edit game"

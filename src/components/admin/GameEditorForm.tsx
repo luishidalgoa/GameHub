@@ -30,9 +30,11 @@ interface Props {
   game: Game
   thumbnailWidth?: number
   thumbnailHeight?: number
+  /** Where «volver» goes when the editor was opened from a list. Without it, the browser's history. */
+  returnTo?: string | null
 }
 
-export function GameEditorForm({ game, thumbnailWidth = 200, thumbnailHeight = 300 }: Props) {
+export function GameEditorForm({ game, thumbnailWidth = 200, thumbnailHeight = 300, returnTo = null }: Props) {
   const router = useRouter()
   const t = useTranslations('GameEditor')
   const [section, setSection] = useState<Section>('datos')
@@ -174,7 +176,7 @@ export function GameEditorForm({ game, thumbnailWidth = 200, thumbnailHeight = 3
       <div className="flex flex-wrap items-center justify-between gap-4 mb-8">
         <div className="flex items-center gap-3">
           <button
-            onClick={() => router.back()}
+            onClick={() => (returnTo ? router.push(returnTo) : router.back())}
             className="p-2 rounded-md hover:bg-accent transition-colors text-muted-foreground"
           >
             <ArrowLeft className="w-5 h-5" />

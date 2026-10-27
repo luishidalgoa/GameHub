@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { db } from '@/lib/db'
 import { GameEditorForm } from '@/components/admin/GameEditorForm'
+import { safeReturnPath } from '@/lib/games/grid-query'
 
 export const dynamic = 'force-dynamic'
 
@@ -13,7 +14,8 @@ interface Props {
 
 export default async function AdminGameEditorPage({ params, searchParams }: Props) {
   // Solo se vuelve a una pagina de administracion: el parametro viene de la URL.
-  const back = typeof searchParams?.volver === 'string' && searchParams.volver.startsWith('/admin/games') ? searchParams.volver : null
+  // Vuelve a la vista desde la que se abrió (grilla de plataforma o lista de administración).
+  const back = safeReturnPath(searchParams?.volver)
   const id = parseInt(params.id, 10)
   const game = await db.game.findUnique({
     where: { id },
@@ -32,8 +34,9 @@ export default async function AdminGameEditorPage({ params, searchParams }: Prop
           ← Volver a la lista
         </Link>
       )}
-      <GameEditorForm 
+      <GameEditorForm
         game={gameData}
+        returnTo={back}
         thumbnailWidth={game.platform.thumbnailWidth}
         thumbnailHeight={game.platform.thumbnailHeight}
       />

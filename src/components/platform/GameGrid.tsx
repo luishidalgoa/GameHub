@@ -3,6 +3,8 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import useSWRInfinite from 'swr/infinite'
 import { useTranslations } from 'next-intl'
+import { usePathname, useSearchParams } from 'next/navigation'
+import { gridFiltersFromQuery, gridFiltersToQuery } from '@/lib/games/grid-query'
 import { GameCard, SkeletonCard } from './GameCard'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { GameDetailModal } from '@/components/game/GameDetailModal'
@@ -62,15 +64,28 @@ export function GameGrid({
   const t = useTranslations('GameGrid')
 
   // ── Filter state ─────────────────────────────────────────────────────────────
-  const [search,    setSearch]   = useState('')
-  const [sort,      setSort]     = useState<SortKey>('title')
-  const [favOnly,   setFavOnly]  = useState(false)
-  const [onlineOnly, setOnlineOnly] = useState(false)
-  const [origin, setOrigin] = useState<'' | 'local' | 'torrent'>('')
-  const [region,    setRegion]   = useState('')
-  const [genre,     setGenre]    = useState('')
-  const [minRating, setMinRating] = useState('')
+  // The filters start from the URL and are written back to it (see below), so the
+  // view survives a trip to the editor and the browser's back button.
+  const pathname = usePathname()
+  const initial = useRef(gridFiltersFromQuery(useSearchParams())).current
+  const [search,    setSearch]   = useState(initial.search)
+  const [sort,      setSort]     = useState<SortKey>(initial.sort)
+  const [favOnly,   setFavOnly]  = useState(initial.favOnly)
+  const [onlineOnly, setOnlineOnly] = useState(initial.onlineOnly)
+  const [origin, setOrigin] = useState<'' | 'local' | 'torrent' | 'lot'>(initial.origin)
+  const [region,    setRegion]   = useState(initial.region)
+  const [genre,     setGenre]    = useState(initial.genre)
+  const [minRating, setMinRating] = useState(initial.minRating)
   const [selectedId, setSelectedId] = useState<number | null>(null)
+
+  // This view's address: the editor and the modal return to it.
+  const query = gridFiltersToQuery({ search, sort, favOnly, onlineOnly, origin, region, genre, minRating })
+  const returnTo = query ? `${pathname}?${query}` : pathname
+  useEffect(() => {
+    if (window.location.pathname + window.location.search === returnTo) return
+    // replaceState, not pushState: changing a filter must not add a history entry.
+    window.history.replaceState(window.history.state, '', returnTo)
+  }, [returnTo])
 
   // Debounce search so we don't fire a request on every keystroke
   const [debouncedSearch, setDebouncedSearch] = useState('')
@@ -103,10 +118,9 @@ export function GameGrid({
     return `/api/games?${p}`
   }, [platformSlug, sort, debouncedSearch, favOnly, onlineOnly, origin, region, genre, minRating])
 
-  // Restore the saved page count on mount (only for the unfiltered default view —
-  // a saved scroll position is meaningless against a different filter/search).
+  // Restore the saved page count on mount, for this exact view (filters included).
   const savedState = useRef<ScrollState | null>(
-    typeof window !== 'undefined' ? readScrollState(platformSlug) : null,
+    typeof window !== 'undefined' ? readScrollState(returnTo) : null,
   )
   const initialSize = savedState.current && savedState.current.size > 1
     ? savedState.current.size
@@ -145,16 +159,14 @@ export function GameGrid({
   }, [hasMore, isValidating, setSize])
 
   // ── Scroll restoration (return-from-editor) ────────────────────────────────────
-  // Track whether filters are at their default — only then is a saved scroll
-  // position meaningful (a search/region filter changes what's on screen).
-  const filtersActive = Boolean(debouncedSearch) || favOnly || onlineOnly || Boolean(origin) || Boolean(region) || Boolean(genre) || Boolean(minRating) || sort !== 'title'
-
+  // The position is kept per view (filters included): a saved position only means
+  // something for the same list, and each filter combination is its own list.
   // Once the saved number of pages has loaded, restore the scroll position (once).
   const didRestore = useRef(false)
   useEffect(() => {
     if (didRestore.current) return
     const saved = savedState.current
-    if (!saved || filtersActive) { didRestore.current = true; return }
+    if (!saved) { didRestore.current = true; return }
     // Wait until enough pages have actually arrived to make the page tall enough.
     if ((data?.length ?? 0) < saved.size) return
     didRestore.current = true
@@ -162,12 +174,11 @@ export function GameGrid({
     requestAnimationFrame(() => requestAnimationFrame(() => {
       window.scrollTo(0, saved.y)
     }))
-  }, [data, filtersActive])
+  }, [data])
 
   // Continuously remember where we are + how many pages are loaded, so a later
   // navigation away (e.g. opening the editor) can be restored on return.
   useEffect(() => {
-    if (filtersActive) return   // don't persist a filtered view as the default
     let raf = 0
     const save = () => {
       if (raf) return
@@ -175,7 +186,7 @@ export function GameGrid({
         raf = 0
         try {
           sessionStorage.setItem(
-            scrollStateKey(platformSlug),
+            scrollStateKey(returnTo),
             JSON.stringify({ size: data?.length ?? 1, y: window.scrollY } satisfies ScrollState),
           )
         } catch { /* ignore quota */ }
@@ -187,7 +198,7 @@ export function GameGrid({
       if (raf) cancelAnimationFrame(raf)
       save()
     }
-  }, [platformSlug, data, filtersActive])
+  }, [returnTo, data])
 
   // ── Favorite toggle ───────────────────────────────────────────────────────────
   const handleToggleFavorite = useCallback(async (id: number, current: boolean) => {
@@ -304,7 +315,7 @@ export function GameGrid({
 
           <select
             value={origin}
-            onChange={e => setOrigin(e.target.value as '' | 'local' | 'torrent')}
+            onChange={e => setOrigin(e.target.value as '' | 'local' | 'torrent' | 'lot')}
             className={`w-full sm:w-auto min-w-0 sm:flex-none bg-secondary border rounded-md px-3 py-2.5 sm:py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring touch-manipulation transition-colors ${
               origin ? 'border-primary/60 text-foreground' : 'border-border text-muted-foreground'
             }`}
@@ -312,6 +323,7 @@ export function GameGrid({
             <option value="">{t('originAll')}</option>
             <option value="local">{t('originDirect')}</option>
             <option value="torrent">{t('originTorrent')}</option>
+            <option value="lot">{t('originLot')}</option>
           </select>
 
           {/* Loaded / total counter */}
@@ -338,6 +350,7 @@ export function GameGrid({
             thumbnailWidth={thumbnailWidth}
             thumbnailHeight={thumbnailHeight}
             platformSlug={platformSlug}
+            returnTo={returnTo}
             // Staggered entrance ONLY for the first page; later pages (infinite
             // scroll) appear immediately so scrolling never feels delayed.
             animateIndex={i < PAGE_SIZE ? i : undefined}
@@ -370,6 +383,7 @@ export function GameGrid({
           gameId={selectedId}
           onClose={() => setSelectedId(null)}
           region={region}
+          returnTo={returnTo}
         />
       )}
     </div>
