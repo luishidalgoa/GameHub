@@ -3,6 +3,8 @@ import { db } from '@/lib/db'
 import { deletePlatformDeep, renamePlatformSlug } from '@/lib/platforms/maintenance'
 import { adminGuard } from '@/lib/admin-guard'
 import { isAdminSession } from '@/lib/auth'
+import { parseSourceConfigs, sourceConfigError, type SourceConfig } from '@/lib/external/source-types'
+import { refreshTorrentGames } from '@/lib/external/torrents'
 
 export const dynamic = 'force-dynamic'
 
@@ -46,9 +48,34 @@ export async function POST(req: Request) {
 // dropped: the id and the slug are handled separately below (#87).
 const PLATFORM_EDITABLE = [
   'name', 'scanPath', 'extensions', 'scanMode', 'thumbnailWidth', 'thumbnailHeight', 'sortOrder', 'scanDlc',
-  'enabled', 'iconPath', 'emulators', 'onlineProviders', 'emulatorName', 'emulatorUrl',
+  'enabled', 'iconPath', 'emulators', 'onlineProviders', 'torrentSources', 'emulatorName', 'emulatorUrl',
   'providerCover', 'providerInfo', 'providerDescription', 'providerScreenshots',
 ] as const
+
+/** Valida las fuentes de torrents de una plataforma y devuelve su forma normalizada para guardar. */
+async function checkTorrentSources(platformId: number, input: unknown): Promise<{ value: string | null; keys: string[]; active: string[] } | { error: string }> {
+  // The settings form sends the list as JSON text; accept that and the plain array.
+  let raw: unknown = input
+  if (typeof input === 'string') {
+    try { raw = JSON.parse(input) } catch { return { error: 'las fuentes de torrents tienen que ser una lista' } }
+  }
+  if (raw === null) return { value: null, keys: [], active: [] }
+  if (!Array.isArray(raw)) return { error: 'las fuentes de torrents tienen que ser una lista' }
+  const list: SourceConfig[] = []
+  for (const c of raw as Partial<SourceConfig>[]) {
+    if (typeof c !== 'object' || c === null) return { error: 'cada fuente tiene que ser un objeto' }
+    const err = sourceConfigError(c)
+    if (err) return { error: `fuente «${c.key ?? '?'}»: ${err}` }
+    list.push({ key: c.key!, type: c.type!, url: c.url!, enabled: c.enabled! })
+  }
+  const keys = list.map(c => c.key)
+  if (new Set(keys).size !== keys.length) return { error: 'hay claves de fuente repetidas' }
+  const others = await db.platform.findMany({ where: { id: { not: platformId }, torrentSources: { not: null } }, select: { torrentSources: true } })
+  const taken = new Set(others.flatMap(p => parseSourceConfigs(p.torrentSources).map(s => s.key)))
+  const clash = keys.find(k => taken.has(k))
+  if (clash) return { error: `la clave «${clash}» ya la usa otra plataforma` }
+  return { value: JSON.stringify(list), keys, active: list.filter(c => c.enabled).map(c => c.key) }
+}
 
 export async function PATCH(req: Request) {
   const denied = await adminGuard()
@@ -57,6 +84,18 @@ export async function PATCH(req: Request) {
   const body = await req.json()
   const { id, slug, ...rest } = body
   const data = Object.fromEntries(Object.entries(rest).filter(([k]) => (PLATFORM_EDITABLE as readonly string[]).includes(k)))
+  if ('torrentSources' in data) {
+    const checked = await checkTorrentSources(id, data.torrentSources)
+    if ('error' in checked) return NextResponse.json({ error: checked.error }, { status: 400 })
+    data.torrentSources = checked.value
+    const prev = await db.platform.findUnique({ where: { id }, select: { torrentSources: true } })
+    const before = parseSourceConfigs(prev?.torrentSources)
+    const removed = before.map(s => s.key).filter(k => !checked.keys.includes(k))
+    const activeBefore = before.filter(s => s.enabled).map(s => s.key).join('|')
+    if (removed.length || activeBefore !== checked.active.join('|')) {
+      await refreshTorrentGames(id, removed, checked.active)
+    }
+  }
 
   // Renaming the slug is NOT a plain field update: cover object keys in MinIO and
   // the launchbox_platform_map are keyed by slug, so it needs migration. Route it

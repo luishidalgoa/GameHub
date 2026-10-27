@@ -730,6 +730,18 @@ export function SettingsForm({ platforms: initial, metadataChains, families, ori
           ))}
         </nav>
         <div className="min-w-0 space-y-8">
+          {/* Where you are: the group and the section open in the menu. */}
+          <nav aria-label="Ubicación" className="text-xs text-muted-foreground">
+            <ol className="flex flex-wrap items-center gap-1.5">
+              <li>Ajustes</li>
+              <li aria-hidden="true">›</li>
+              <li>{SCOPE_GROUPS.find(g => g.items.some(i => i.id === scope))?.label}</li>
+              <li aria-hidden="true">›</li>
+              <li aria-current="page" className="font-medium text-foreground">
+                {SCOPE_GROUPS.flatMap(g => g.items).find(i => i.id === scope)?.label}
+              </li>
+            </ol>
+          </nav>
 
       {scope === 'plataformas' && (
         <SectionFrame
