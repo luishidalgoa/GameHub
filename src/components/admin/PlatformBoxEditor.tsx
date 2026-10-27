@@ -72,24 +72,32 @@ function EditorModal({ slug, name, initialWidth, initialHeight, onClose, onApply
   const [h, setH] = useState(clamp(initialHeight))
   const [locked, setLocked] = useState(false)
   const [samples, setSamples] = useState<SampleGame[]>([])
+  const [query, setQuery] = useState('')
   const [sample, setSample] = useState<SampleGame | null>(null)
   const original = useRef({ w: clamp(initialWidth), h: clamp(initialHeight) })
   const drag = useRef<{ handle: Handle; x: number; y: number; w: number; h: number; frameW: number; frameH: number } | null>(null)
 
-  // Sample covers of this platform, so the frame is judged against real art.
+  // Reference covers of this platform: a search for a game (debounced), or the first ones.
   useEffect(() => {
     let alive = true
-    fetch(`/api/games?platform=${encodeURIComponent(slug)}&pageSize=24&sort=title`)
-      .then(r => (r.ok ? r.json() : { games: [] }))
-      .then((data: { games: SampleGame[] }) => {
-        if (!alive) return
-        const withCover = data.games.filter(g => g.coverPath)
-        setSamples(withCover.slice(0, 8))
-        setSample(withCover[0] ?? null)
-      })
-      .catch(() => { /* no samples: the frame still works */ })
-    return () => { alive = false }
-  }, [slug])
+    const q = query.trim()
+    const url = `/api/games?platform=${encodeURIComponent(slug)}&pageSize=${q ? 24 : 12}&sort=title${q ? `&search=${encodeURIComponent(q)}` : ''}`
+    const timer = setTimeout(() => {
+      fetch(url)
+        .then(r => (r.ok ? r.json() : { games: [] }))
+        .then((data: { games: SampleGame[] }) => {
+          if (!alive) return
+          const withCover = data.games.filter(g => g.coverPath)
+          setSamples(withCover)
+          // A new search picks its first match; the initial list keeps the current choice.
+          if (q || !sample) setSample(withCover[0] ?? null)
+        })
+        .catch(() => { /* no covers: the frame still works */ })
+    }, q ? 300 : 0)
+    return () => { alive = false; clearTimeout(timer) }
+    // `sample` is read only to keep a choice when the list reloads without a search.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slug, query])
 
   // Escape closes.
   useEffect(() => {
@@ -183,6 +191,14 @@ function EditorModal({ slug, name, initialWidth, initialHeight, onClose, onApply
             <div className="text-xs text-muted-foreground">
               Proporción {ratio.toFixed(2)} · original {(original.current.w / original.current.h).toFixed(2)}
             </div>
+            <input
+              type="search"
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+              placeholder="Buscar juego de referencia…"
+              className="w-full max-w-xs rounded-md border border-border bg-secondary px-3 py-1.5 text-sm text-foreground"
+            />
+            {sample && <div className="text-xs text-foreground/80 truncate max-w-xs">{sample.title}</div>}
             {samples.length > 0 && (
               <div className="flex flex-wrap justify-center gap-1.5">
                 {samples.map(s => (
@@ -192,6 +208,7 @@ function EditorModal({ slug, name, initialWidth, initialHeight, onClose, onApply
                     onClick={() => setSample(s)}
                     className={`h-14 w-10 overflow-hidden rounded border ${sample?.id === s.id ? 'border-primary' : 'border-border'}`}
                     title={s.title}
+                    aria-label={s.title}
                   >
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={s.coverPath ?? ''} alt="" className="w-full h-full object-cover" />
