@@ -366,6 +366,8 @@ async function runMetadataBatchInner(opts: {
           altHeight: game.platform.altThumbnailHeight,
         },
         diagnostics:  diag,
+        // A game without a ficha that no provider matched gets no cover: the libretro box it would keep has no ficha behind it.
+        coverWithoutMatch: game.metadataFetchedAt != null,
         title:        game.title,
         platformSlug: game.platform.slug,
         fileName:     game.fileName,

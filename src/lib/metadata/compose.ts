@@ -103,6 +103,10 @@ export interface GatherInput {
   rawgApiKey?: string
   /** Minimum confidence for the primary match to be accepted. */
   threshold?: number
+  /** False: a game no provider matched gets no cover, the libretro box is not kept alone.
+   *  Default true (the single-game fetch keeps it). The batch turns it off: without a ficha
+   *  there is no game behind that box. */
+  coverWithoutMatch?: boolean
   /** Delay (ms) between a provider's search and its detail fetch, to avoid
    *  rate-limiting (LaunchBox throttles bursts). Default 600ms. */
   paceMs?: number
@@ -233,6 +237,7 @@ export async function gatherMetadata(input: GatherInput): Promise<ComposedMetada
   // otherwise, and "no_match" on a game whose box is sitting right there is a
   // poor answer.
   if (!lb && !rawg && !nin && (storeDown || lbDown || rawgDown)) throw new StoreUnavailableError()
+  if (!lb && !rawg && !nin && input.coverWithoutMatch === false) return null
   if (!lb && !rawg && !nin) {
     // Only the libretro box can stand alone here: it is matched on the file name.
     const box = await chooseCover({
