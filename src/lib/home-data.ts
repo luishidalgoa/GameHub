@@ -338,6 +338,26 @@ export async function getCollection(kind: CollectionKind, page: number): Promise
   return { games: await toTiles(ordered.slice(skip, skip + COLLECTION_PAGE)), total: ordered.length }
 }
 
+/** The visible games whose title contains the search, as the grids draw them, one page at a time. */
+export async function searchGames(term: string, page: number): Promise<Collection> {
+  const where = { ...libraryGameWhere(), title: { contains: term } }
+  const skip = (Math.max(1, page) - 1) * COLLECTION_PAGE
+  const [rows, total] = await Promise.all([
+    db.game.findMany({ where, orderBy: [{ sortTitle: 'asc' }, { id: 'asc' }], skip, take: COLLECTION_PAGE, select: TILE_SELECT }),
+    db.game.count({ where }),
+  ])
+  return { games: await toTiles(rows), total }
+}
+
+/** The enabled platforms whose name contains the search, in the order the sidebar lists them. */
+export async function searchPlatforms(term: string): Promise<{ slug: string; name: string; iconPath: string | null }[]> {
+  return db.platform.findMany({
+    where: { enabled: true, name: { contains: term } },
+    orderBy: { sortOrder: 'asc' },
+    select: { slug: true, name: true, iconPath: true },
+  })
+}
+
 /** Every publisher with enough rated games, with the art of its tile. */
 export async function getPublisherIndex(limit = 60): Promise<PublisherTileData[]> {
   return publisherTiles(await rankedPublishers(limit))

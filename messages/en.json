@@ -44,6 +44,11 @@
     "friendsTitle": "Play with friends",
     "kickerFriends": "Online",
     "kickerReleases": "Releases",
+    "searchKicker": "Search",
+    "searchTitle": "Results for “{term}”",
+    "searchEmpty": "Type the title of a game.",
+    "searchNoResults": "No game has “{term}” in its title.",
+    "searchPlatforms": "Platforms",
     "releasesTitle": "Recent releases"
   },
   "Platform": {

@@ -44,6 +44,11 @@
     "friendsTitle": "Juega con amigos",
     "kickerFriends": "En línea",
     "kickerReleases": "Estrenos",
+    "searchKicker": "Búsqueda",
+    "searchTitle": "Resultados para «{term}»",
+    "searchEmpty": "Escribe el título de un juego.",
+    "searchNoResults": "Ningún juego tiene «{term}» en el título.",
+    "searchPlatforms": "Plataformas",
     "releasesTitle": "Lanzamientos recientes"
   },
   "Platform": {

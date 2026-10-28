@@ -62,6 +62,15 @@ export function TopBar({ onMenuClick }: Props) {
     setMobileSearchOpen(false)
   }
 
+  // The full results page: every game whose title has the search, not only the first eight.
+  const openResults = () => {
+    const term = query.trim()
+    if (!term) return
+    router.push(`/buscar?q=${encodeURIComponent(term)}`)
+    setOpen(false)
+    setMobileSearchOpen(false)
+  }
+
   return (
     <>
       {/* Full-screen tint sweep: always mounted above the screen, it slides down over 0.75s while results are open. No backdrop blur: it cost half the frame rate. */}
@@ -95,6 +104,7 @@ export function TopBar({ onMenuClick }: Props) {
             onFocus={() => setOpen(true)}
             onBlur={() => setTimeout(() => setOpen(false), 150)}
             onChange={(e) => { setQuery(e.target.value); setOpen(true) }}
+            onKeyDown={(e) => { if (e.key === 'Enter') openResults() }}
             className="w-full h-10 bg-secondary/70 border border-border rounded-xl pl-11 pr-10 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
           />
           {query && (
@@ -114,7 +124,8 @@ export function TopBar({ onMenuClick }: Props) {
               {data.games.length === 0 ? (
                 <p className="px-2.5 py-3 text-sm text-muted-foreground">No results</p>
               ) : (
-                data.games.map((g: Sugerencia) => (
+                <>
+                {data.games.map((g: Sugerencia) => (
                   <button
                     key={g.id}
                     role="option"
@@ -141,7 +152,14 @@ export function TopBar({ onMenuClick }: Props) {
                       </span>
                     </span>
                   </button>
-                ))
+                ))}
+                <button
+                  onMouseDown={openResults}
+                  className="mt-0.5 w-full rounded-[10px] px-2.5 py-2.5 text-left text-sm font-medium text-primary transition-colors hover:bg-white/[0.07]"
+                >
+                  All results for “{query.trim()}” →
+                </button>
+                </>
               )}
             </div>
           )}
@@ -169,6 +187,7 @@ export function TopBar({ onMenuClick }: Props) {
               placeholder="Search games…"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') openResults() }}
               className="flex-1 bg-transparent text-sm placeholder:text-muted-foreground focus:outline-none"
               autoFocus
             />
