@@ -114,13 +114,25 @@ describe('the best cover for the platform', () => {
     expect(probed).toEqual(['https://lb/box.jpg'])
   })
 
-  it('a cover key ranks box, then size, then main box, then how small', () => {
+  it('a cover key ranks box, then size, then how small', () => {
     expect(coverKey(600, 900, BOX)[0]).toBe(1)
     expect(coverKey(1920, 1080, BOX)[0]).toBe(0)
     expect(coverKey(600, 900, BOX)[1]).toBe(1)
     expect(coverKey(300, 450, BOX)[1]).toBe(0)
-    expect(coverKey(512, 512, SATURN)[2]).toBe(0)
-    expect(coverKey(600, 900, SATURN)[2]).toBe(1)
+  })
+
+  it('a secondary box big enough ranks the same as a main box big enough', () => {
+    expect(coverKey(512, 512, SATURN)).toEqual(coverKey(600, 900, SATURN))
+  })
+
+  it('a secondary-box cover big enough beats a main-box one from a later source', async () => {
+    const cover = await chooseCover({
+      chain: ['libretro', 'launchbox'],
+      urls: from({ libretro: 'https://retro/square.png', launchbox: 'https://lb/box.jpg' }),
+      box: SATURN,
+      probe: sized({ 'https://retro/square.png': [512, 512], 'https://lb/box.jpg': [600, 900] }),
+    })
+    expect(cover?.source).toBe('libretro')
   })
 })
 
@@ -137,6 +149,11 @@ describe('a pass keeps the cover the game has when it is as good', () => {
 
   it('a box replaces a banner, which is art', () => {
     expect(keepsCurrentCover({ width: 1920, height: 1080 }, { width: 200, height: 300 }, BOXES)).toBe(false)
+  })
+
+  it('a good secondary-box cover is kept against a good main-box one', () => {
+    const SATURN = { width: 200, height: 300, altWidth: 200, altHeight: 200 }
+    expect(keepsCurrentCover({ width: 512, height: 512 }, { width: 600, height: 900 }, SATURN)).toBe(true)
   })
 
   it('an equally good cover does not churn: the current one stays', () => {

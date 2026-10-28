@@ -10,11 +10,11 @@ export { COVER_MIN_SCALE }
 //   1. the cover is a box: the platform's main box or its secondary one. Art (a banner, a
 //      logo) is never preferred over a box, whatever its size.
 //   2. the cover is big enough for its box (COVER_MIN_SCALE times the box, on each side).
-//   3. the main box before the secondary one.
-//   4. among covers that are still too small, the largest.
+//   3. among covers that are still too small, the largest.
 //
-// Ties keep the earlier source of the chain. A cover that is already the best possible
-// (a main box, big enough) ends the walk: no later source can beat it, so it is not downloaded.
+// The main and the secondary box count the same: a secondary-box cover big enough is kept
+// against a main-box one. Ties keep the earlier source of the chain. A box big enough is the
+// best there is, so it ends the walk: no later source can beat it, so it is not downloaded.
 
 const DEFAULT_BOX = { width: 200, height: 300 }
 
@@ -65,14 +65,13 @@ export function coverFit(width: number, height: number, box: PlatformCoverBox): 
 
 /**
  * How well a cover fits a platform, as a list to compare in order (see the header above):
- * [is a box, is big enough, is the main box, how small it is when it is not big enough].
- * Higher is better.
+ * [is a box, is big enough, how small it is when it is not big enough]. Higher is better.
  */
 export function coverKey(width: number, height: number, box: PlatformCoverBox): number[] {
   const fit = coverFit(width, height, box)
   const scale = width && height ? coverScale(width, height, boxOf(fit, box)) : 0
   const big = scale >= 1
-  return [fit === 'none' ? 0 : 1, big ? 1 : 0, fit === 'main' ? 1 : 0, big ? 0 : scale]
+  return [fit === 'none' ? 0 : 1, big ? 1 : 0, big ? 0 : scale]
 }
 
 /** The box a cover is judged against: its own shape's box (the secondary one for an alternate cover), else the main box. */
@@ -127,8 +126,8 @@ export async function chooseCover(input: CoverChoiceInput): Promise<CoverCandida
       height: image.height,
       scale: coverScale(image.width, image.height, boxOf(coverFit(image.width, image.height, box), box)),
     }
-    // A main box big enough is the best there is: a later source cannot beat it.
-    if (key[0] === 1 && key[1] === 1 && key[2] === 1) return candidate
+    // A box big enough, main or secondary, is the best there is: a later source cannot beat it.
+    if (key[0] === 1 && key[1] === 1) return candidate
     if (!best || isBetterCover(key, best.key)) best = { candidate, key }
   }
   return best?.candidate ?? null
