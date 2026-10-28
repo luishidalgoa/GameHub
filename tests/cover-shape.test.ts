@@ -4,7 +4,7 @@ import sharp from 'sharp'
 vi.mock('@/lib/db', () => ({ db: {} }))
 vi.mock('@/lib/s3', () => ({ uploadCoverToS3: vi.fn() }))
 
-import { isBoxRatio, boxFitOf, boxRatioOf, altBoxRatiosOf, noBoxForPlatform, noBoxWhereByPlatform, DEFAULT_BOX_RATIO } from '@/lib/cover-shape'
+import { isBoxRatio, boxFitOf, boxRatioOf, altBoxRatiosOf, frameRatioOf, noBoxForPlatform, noBoxWhereByPlatform, DEFAULT_BOX_RATIO } from '@/lib/cover-shape'
 import { coverQualityOf } from '@/lib/metadata/field-quality'
 import { processCover, trimTransparent } from '@/lib/covers'
 
@@ -71,6 +71,23 @@ describe('secondary box of a platform', () => {
   it('a square cover is a secondary box when the platform has one, not art', () => {
     expect(boxFitOf(1, standard, square)).toBe('alt')
     expect(isBoxRatio(1, standard, square)).toBe(true)
+  })
+
+  it('a square cover takes the square frame, so the card keeps its shape', () => {
+    expect(frameRatioOf(1, standard, square)).toBe(1)
+  })
+
+  it('a secondary box taller than the platform box is capped at the platform box', () => {
+    const tallSecondary = altBoxRatiosOf(200, 400)   // 0.5, taller than the 2:3 platform box
+    expect(frameRatioOf(0.5, standard, tallSecondary)).toBe(standard)
+  })
+
+  it('a cover of the main box takes the platform frame', () => {
+    expect(frameRatioOf(0.67, standard, square)).toBe(standard)
+  })
+
+  it('art takes the platform frame too, not the secondary one', () => {
+    expect(frameRatioOf(16 / 9, standard, square)).toBe(standard)
   })
 
   it('a square cover stays art on a platform without a secondary box', () => {

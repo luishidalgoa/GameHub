@@ -8,7 +8,7 @@ import { RatingPill } from '@/components/shared/RatingPill'
 import { OnlineBadge } from '@/components/shared/OnlineBadge'
 import { TorrentBadge } from '@/components/shared/TorrentBadge'
 import { getPlatformIdentity } from '@/lib/platform-identity'
-import { boxFitOf } from '@/lib/cover-shape'
+import { boxFitOf, frameRatioOf } from '@/lib/cover-shape'
 import type { GameListItem } from '@/types/game'
 
 interface Props {
@@ -50,6 +50,10 @@ export function GameCard({
   const showArt = game.coverRatio != null && fit === 'none'
   // An official alternate box is kept whole: it sits inside the card, never cropped.
   const wholeCover = fit === 'alt'
+  // The frame takes that cover's own shape, so the card shrinks to it instead of leaving bands.
+  const frameAspect = wholeCover
+    ? String(frameRatioOf(game.coverRatio, boxRatio, alternates))
+    : `${thumbnailWidth}/${thumbnailHeight}`
   const artSource = game.backdrop ?? cover
   const [imgLoaded, setImgLoaded] = useState(false)
   const [favPop, setFavPop] = useState(false)
@@ -84,7 +88,7 @@ export function GameCard({
     >
       {/* Cover */}
       <div
-        style={{ aspectRatio: `${thumbnailWidth}/${thumbnailHeight}` }}
+        style={{ aspectRatio: frameAspect }}
         className="relative bg-secondary overflow-hidden"
       >
         {showArt ? (

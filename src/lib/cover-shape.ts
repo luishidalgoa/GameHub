@@ -60,6 +60,21 @@ export function boxFitOf(
   return alternates.some(a => withinBox(ratio, a)) ? 'alt' : 'none'
 }
 
+/**
+ * The proportion a cover's frame takes in a grid. A cover of a secondary box takes that
+ * box's shape, so the card adapts to it, but never gets taller than the platform's own box
+ * (the platform's assigned size is the limit). Any other cover takes the platform's box.
+ */
+export function frameRatioOf(
+  ratio: number | null | undefined,
+  boxRatio: number = DEFAULT_BOX_RATIO,
+  alternates: readonly number[] = [],
+): number {
+  if (boxFitOf(ratio, boxRatio, alternates) !== 'alt') return boxRatio
+  const secondary = alternates.find(a => boxFitOf(ratio, a) === 'main') ?? boxRatio
+  return Math.max(secondary, boxRatio)
+}
+
 /** True when a stored cover has the proportion of the platform's box, or of one of its alternates. */
 export function isBoxRatio(
   ratio: number | null | undefined,
