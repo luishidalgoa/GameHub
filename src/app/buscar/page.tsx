@@ -28,7 +28,6 @@ export default async function SearchPage({ searchParams }: {
     <ExploreShell
       kicker={t('searchKicker')}
       title={term ? t('searchTitle', { term }) : t('searchEmpty')}
-      backLabel={t('title')}
     >
       {platforms.length > 0 && (
         <section className="mb-10">

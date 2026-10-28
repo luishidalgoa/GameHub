@@ -20,7 +20,7 @@ export default async function ExplorePage({ params, searchParams }: {
   if (kind === 'editoras') {
     const publishers = await getPublisherIndex()
     return (
-      <ExploreShell kicker={t('publishersKicker')} title={t('publishersTitle')} backLabel={t('title')}>
+      <ExploreShell kicker={t('publishersKicker')} title={t('publishersTitle')}>
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6">
           {publishers.map(p => (
             <PublisherTile key={p.key} publisher={p} href={`/explorar/editora/${encodeURIComponent(p.key)}`}
@@ -46,7 +46,7 @@ export default async function ExplorePage({ params, searchParams }: {
   }[kind as CollectionKind]
 
   return (
-    <ExploreShell kicker={heading.kicker} title={heading.title} backLabel={t('title')}>
+    <ExploreShell kicker={heading.kicker} title={heading.title}>
       <Masonry>
         {groupByTitle(games).map(g => <GridTile key={g.game.id} group={g} />)}
       </Masonry>

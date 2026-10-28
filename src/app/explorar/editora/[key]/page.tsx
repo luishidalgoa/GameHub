@@ -14,7 +14,7 @@ export default async function PublisherPage({ params }: { params: { key: string 
   if (!found) notFound()
 
   return (
-    <ExploreShell kicker={t('publishersKicker')} title={found.name} backLabel={t('title')}>
+    <ExploreShell kicker={t('publishersKicker')} title={found.name}>
       <Masonry>
         {groupByTitle(found.games).map(g => <GridTile key={g.game.id} group={g} />)}
       </Masonry>
