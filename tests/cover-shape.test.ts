@@ -4,7 +4,8 @@ import sharp from 'sharp'
 vi.mock('@/lib/db', () => ({ db: {} }))
 vi.mock('@/lib/s3', () => ({ uploadCoverToS3: vi.fn() }))
 
-import { isBoxRatio, boxRatioOf, noBoxForPlatform, noBoxWhereByPlatform, DEFAULT_BOX_RATIO } from '@/lib/cover-shape'
+import { isBoxRatio, boxFitOf, boxRatioOf, altBoxRatiosOf, noBoxForPlatform, noBoxWhereByPlatform, DEFAULT_BOX_RATIO } from '@/lib/cover-shape'
+import { coverQualityOf } from '@/lib/metadata/field-quality'
 import { processCover, trimTransparent } from '@/lib/covers'
 
 // A solid colour image of the given size, as a PNG buffer.
@@ -56,13 +57,58 @@ describe('each platform judges its own box', () => {
   })
 })
 
+describe('official alternate boxes', () => {
+  const standard = boxRatioOf(200, 300)    // 0.67
+  const saturnSquare = altBoxRatiosOf('saturn')
+
+  it('Saturn has its square box as an alternate, other platforms have none', () => {
+    expect(saturnSquare).toEqual([1])
+    expect(altBoxRatiosOf('ps2')).toEqual([])
+    expect(altBoxRatiosOf(null)).toEqual([])
+  })
+
+  it('a square cover is an alternate box on Saturn, not art', () => {
+    expect(boxFitOf(1, standard, saturnSquare)).toBe('alt')
+    expect(isBoxRatio(1, standard, saturnSquare)).toBe(true)
+  })
+
+  it('a square cover stays art on a platform without that alternate', () => {
+    expect(boxFitOf(1, standard, [])).toBe('none')
+  })
+
+  it('the main box still wins, and a banner is still art on Saturn', () => {
+    expect(boxFitOf(0.67, standard, saturnSquare)).toBe('main')
+    expect(boxFitOf(16 / 9, standard, saturnSquare)).toBe('none')
+  })
+
+  it('a Saturn square with a 512 px picture is a good cover against its own box', () => {
+    const saturn = { slug: 'saturn', thumbnailWidth: 200, thumbnailHeight: 300 }
+    const square = { coverPath: 'x.webp', coverUrl: null, coverWidth: 512, coverHeight: 512, description: null, screenshotPaths: null, platform: saturn }
+    expect(coverQualityOf(square)).toBe('good')
+  })
+
+  it('a 2:3 Saturn cover is still judged against the main box', () => {
+    const saturn = { slug: 'saturn', thumbnailWidth: 200, thumbnailHeight: 300 }
+    const tall = { coverPath: 'x.webp', coverUrl: null, coverWidth: 300, coverHeight: 450, description: null, screenshotPaths: null, platform: saturn }
+    expect(coverQualityOf(tall)).toBe('small')
+  })
+})
+
 describe('the no-box filter', () => {
   it('for one platform catches games with no cover, no ratio, or a ratio outside its box', () => {
     const where = noBoxForPlatform(boxRatioOf(350, 300)) as { OR: Array<Record<string, unknown>> }
     expect(where.OR).toContainEqual({ coverPath: null })
     expect(where.OR).toContainEqual({ coverRatio: null })
-    expect(where.OR.some(c => c.coverRatio != null && typeof c.coverRatio === 'object' && 'lt' in (c.coverRatio as object))).toBe(true)
-    expect(where.OR.some(c => c.coverRatio != null && typeof c.coverRatio === 'object' && 'gt' in (c.coverRatio as object))).toBe(true)
+    const outside = where.OR.find(c => 'AND' in c) as { AND: Array<{ OR: Array<Record<string, unknown>> }> }
+    expect(outside.AND).toHaveLength(1)
+    expect(outside.AND[0].OR).toContainEqual({ coverRatio: { lt: expect.any(Number) } })
+    expect(outside.AND[0].OR).toContainEqual({ coverRatio: { gt: expect.any(Number) } })
+  })
+
+  it('a platform with an alternate box keeps a cover of that box out of the filter', () => {
+    const where = noBoxForPlatform(boxRatioOf(200, 300), altBoxRatiosOf('saturn')) as { OR: Array<{ AND?: unknown[] }> }
+    const outside = where.OR.find(c => 'AND' in c) as { AND: unknown[] }
+    expect(outside.AND).toHaveLength(2)
   })
 
   it('across platforms, each platform uses its own bounds', () => {

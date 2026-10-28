@@ -5,7 +5,7 @@ import { getClientIp } from '@/lib/tracker'
 import { resolveCoverPath } from '@/lib/s3'
 import { onlineGameIds, onlineIdsIn } from '@/lib/online/flags'
 import { libraryGameWhere, NO_SCORE } from '@/lib/library'
-import { noBoxWhereByPlatform, boxRatioOf } from '@/lib/cover-shape'
+import { noBoxWhereByPlatform, boxRatioOf, altBoxRatiosOf } from '@/lib/cover-shape'
 import { backdropUrl } from '@/lib/tile-art'
 
 export const dynamic = 'force-dynamic'
@@ -14,11 +14,12 @@ export const dynamic = 'force-dynamic'
 async function noBoxClause(platformSlug?: string) {
   const platforms = await db.platform.findMany({
     where: platformSlug ? { slug: platformSlug } : {},
-    select: { id: true, thumbnailWidth: true, thumbnailHeight: true },
+    select: { id: true, slug: true, thumbnailWidth: true, thumbnailHeight: true },
   })
   return noBoxWhereByPlatform(platforms.map(p => ({
     platformId: p.id,
     boxRatio: boxRatioOf(p.thumbnailWidth, p.thumbnailHeight),
+    alternates: altBoxRatiosOf(p.slug),
   })))
 }
 

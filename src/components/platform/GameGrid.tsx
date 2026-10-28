@@ -5,7 +5,7 @@ import useSWRInfinite from 'swr/infinite'
 import { useTranslations } from 'next-intl'
 import { usePathname, useSearchParams } from 'next/navigation'
 import { gridFiltersFromQuery, gridFiltersToQuery } from '@/lib/games/grid-query'
-import { boxRatioOf } from '@/lib/cover-shape'
+import { altBoxRatiosOf, boxRatioOf } from '@/lib/cover-shape'
 import { GameCard, SkeletonCard } from './GameCard'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { GameDetailModal } from '@/components/game/GameDetailModal'
@@ -80,8 +80,9 @@ export function GameGrid({
   const [minRating, setMinRating] = useState(initial.minRating)
   const [selectedId, setSelectedId] = useState<number | null>(null)
 
-  // The platform's own card proportion: a cover is a box only at this shape.
+  // The platform's own card proportion: a cover is a box only at this shape, or at one of its official alternates.
   const boxRatio = boxRatioOf(thumbnailWidth, thumbnailHeight)
+  const alternates = altBoxRatiosOf(platformSlug)
 
   // This view's address: the editor and the modal return to it.
   const query = gridFiltersToQuery({ search, sort, favOnly, onlineOnly, origin, region, genre, minRating, noBox })
@@ -371,6 +372,7 @@ export function GameGrid({
             platformSlug={platformSlug}
             returnTo={returnTo}
             boxRatio={boxRatio}
+            alternates={alternates}
             // Staggered entrance ONLY for the first page; later pages (infinite
             // scroll) appear immediately so scrolling never feels delayed.
             animateIndex={i < PAGE_SIZE ? i : undefined}

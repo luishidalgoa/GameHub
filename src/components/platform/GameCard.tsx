@@ -8,7 +8,7 @@ import { RatingPill } from '@/components/shared/RatingPill'
 import { OnlineBadge } from '@/components/shared/OnlineBadge'
 import { TorrentBadge } from '@/components/shared/TorrentBadge'
 import { getPlatformIdentity } from '@/lib/platform-identity'
-import { isBoxRatio } from '@/lib/cover-shape'
+import { boxFitOf } from '@/lib/cover-shape'
 import type { GameListItem } from '@/types/game'
 
 interface Props {
@@ -26,6 +26,8 @@ interface Props {
   returnTo?: string
   /** The platform's own box proportion (width / height): what a box looks like here. */
   boxRatio?: number
+  /** The platform's official alternate box proportions (a Saturn square): kept whole, not cropped. */
+  alternates?: number[]
 }
 
 export function GameCard({
@@ -39,11 +41,15 @@ export function GameCard({
   animateIndex,
   returnTo,
   boxRatio,
+  alternates,
 }: Props) {
   const cover = game.coverPath ?? game.coverUrl
-  // A measured cover that is not a box (a banner, a square, a logo) is shown as art:
+  // A measured cover that is not a box (a banner, a logo) is shown as art:
   // its blurred backdrop fills the card and the logo sits on top, instead of a box with bands.
-  const showArt = game.coverRatio != null && !isBoxRatio(game.coverRatio, boxRatio)
+  const fit = boxFitOf(game.coverRatio, boxRatio, alternates)
+  const showArt = game.coverRatio != null && fit === 'none'
+  // An official alternate box is kept whole: it sits inside the card, never cropped.
+  const wholeCover = fit === 'alt'
   const artSource = game.backdrop ?? cover
   const [imgLoaded, setImgLoaded] = useState(false)
   const [favPop, setFavPop] = useState(false)
@@ -125,7 +131,8 @@ export function GameCard({
               alt={game.title}
               fill
               className={cn(
-                'object-cover transition-opacity duration-500',
+                wholeCover ? 'object-contain' : 'object-cover',
+                'transition-opacity duration-500',
                 imgLoaded ? 'opacity-100' : 'opacity-0',
               )}
               sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 16vw"

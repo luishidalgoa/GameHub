@@ -1,3 +1,4 @@
+import { ALT_BOX_SIZES, boxFitOf, boxRatioOf } from '@/lib/cover-shape'
 import { COVER_MIN_SCALE, type ProviderChains } from './chains'
 import type { BatchField } from './scope'
 import type { MetadataSources } from './sources'
@@ -32,7 +33,7 @@ export interface QualityGame {
   coverHeight: number | null
   description: string | null
   screenshotPaths: string | null
-  platform: { thumbnailWidth: number; thumbnailHeight: number }
+  platform: { slug?: string; thumbnailWidth: number; thumbnailHeight: number }
 }
 
 export type CoverQuality = 'good' | 'small' | 'unmeasured' | 'missing'
@@ -49,11 +50,21 @@ export function coverScaleOf(
   return Math.min(width / w, height / h)
 }
 
-/** How good a game's cover is, against the platform box at this minimum scale. */
+/**
+ * How good a game's cover is, at this minimum scale. A cover of one of the platform's official
+ * alternate boxes (a Saturn square) is judged against that box, not the main one.
+ */
 export function coverQualityOf(game: QualityGame, minScale: number = COVER_MIN_SCALE): CoverQuality {
   if (!game.coverPath && !game.coverUrl) return 'missing'
   if (game.coverWidth == null || game.coverHeight == null) return 'unmeasured'
-  return coverScaleOf(game.coverWidth, game.coverHeight, game.platform, minScale) < 1 ? 'small' : 'good'
+  const main = { thumbnailWidth: game.platform.thumbnailWidth, thumbnailHeight: game.platform.thumbnailHeight }
+  const ratio = game.coverWidth / game.coverHeight
+  const mainRatio = boxRatioOf(main.thumbnailWidth, main.thumbnailHeight)
+  const alt = boxFitOf(ratio, mainRatio) === 'main'
+    ? undefined
+    : ALT_BOX_SIZES[game.platform.slug ?? '']?.find(b => boxFitOf(ratio, b.width / b.height) === 'main')
+  const box = alt ? { thumbnailWidth: alt.width, thumbnailHeight: alt.height } : main
+  return coverScaleOf(game.coverWidth, game.coverHeight, box, minScale) < 1 ? 'small' : 'good'
 }
 
 function screenshotCount(json: string | null): number {
