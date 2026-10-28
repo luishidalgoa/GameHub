@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { chooseCover, coverScale, COVER_MIN_SCALE } from '@/lib/metadata/cover-choice'
+import { chooseCover, coverScale, coverKey, keepsCurrentCover, COVER_MIN_SCALE } from '@/lib/metadata/cover-choice'
 import { optionsFor } from '@/lib/metadata/chains'
 
 // The image of each candidate: its size, so the test decides the quality without a download.
@@ -73,5 +73,78 @@ describe('the cover chain', () => {
   it('Nintendo covers are an option for Switch only', () => {
     expect(optionsFor('cover', 'switch')).toContain('nintendo')
     expect(optionsFor('cover', 'xbox-360')).not.toContain('nintendo')
+  })
+})
+
+describe('the best cover for the platform', () => {
+  const SATURN = { width: 200, height: 300, altWidth: 200, altHeight: 200 }
+
+  it('a box beats art, whatever the size of the art', async () => {
+    const cover = await chooseCover({
+      chain: ['launchbox', 'libretro'],
+      urls: from({ launchbox: 'https://lb/banner.jpg', libretro: 'https://retro/box.png' }),
+      box: BOX,
+      probe: sized({ 'https://lb/banner.jpg': [1920, 1080], 'https://retro/box.png': [200, 300] }),
+    })
+    expect(cover?.source).toBe('libretro')
+  })
+
+  it('a big secondary-box cover beats a small main-box one', async () => {
+    const cover = await chooseCover({
+      chain: ['libretro', 'launchbox'],
+      urls: from({ libretro: 'https://retro/box.png', launchbox: 'https://lb/square.png' }),
+      box: SATURN,
+      probe: sized({ 'https://retro/box.png': [200, 300], 'https://lb/square.png': [512, 512] }),
+    })
+    expect(cover?.source).toBe('launchbox')
+  })
+
+  it('a main-box cover big enough is kept without asking the later sources', async () => {
+    const probed: string[] = []
+    const cover = await chooseCover({
+      chain: ['launchbox', 'steamgriddb'],
+      urls: from({ launchbox: 'https://lb/box.jpg', steamgriddb: 'https://sgdb/grid.png' }),
+      box: BOX,
+      probe: async (url) => {
+        probed.push(url)
+        return sized({ 'https://lb/box.jpg': [600, 900], 'https://sgdb/grid.png': [600, 900] })(url)
+      },
+    })
+    expect(cover?.source).toBe('launchbox')
+    expect(probed).toEqual(['https://lb/box.jpg'])
+  })
+
+  it('a cover key ranks box, then size, then main box, then how small', () => {
+    expect(coverKey(600, 900, BOX)[0]).toBe(1)
+    expect(coverKey(1920, 1080, BOX)[0]).toBe(0)
+    expect(coverKey(600, 900, BOX)[1]).toBe(1)
+    expect(coverKey(300, 450, BOX)[1]).toBe(0)
+    expect(coverKey(512, 512, SATURN)[2]).toBe(0)
+    expect(coverKey(600, 900, SATURN)[2]).toBe(1)
+  })
+})
+
+describe('a pass keeps the cover the game has when it is as good', () => {
+  const BOXES = { width: 200, height: 300 }
+
+  it('a worse new cover does not replace a good one', () => {
+    expect(keepsCurrentCover({ width: 600, height: 900 }, { width: 300, height: 450 }, BOXES)).toBe(true)
+  })
+
+  it('a better new cover replaces the current one', () => {
+    expect(keepsCurrentCover({ width: 300, height: 450 }, { width: 600, height: 900 }, BOXES)).toBe(false)
+  })
+
+  it('a box replaces a banner, which is art', () => {
+    expect(keepsCurrentCover({ width: 1920, height: 1080 }, { width: 200, height: 300 }, BOXES)).toBe(false)
+  })
+
+  it('an equally good cover does not churn: the current one stays', () => {
+    expect(keepsCurrentCover({ width: 600, height: 900 }, { width: 600, height: 900 }, BOXES)).toBe(true)
+  })
+
+  it('a cover whose size is not measured cannot be compared: the new one wins', () => {
+    expect(keepsCurrentCover({ width: null, height: null }, { width: 600, height: 900 }, BOXES)).toBe(false)
+    expect(keepsCurrentCover({ width: 600, height: 900 }, { width: undefined, height: undefined }, BOXES)).toBe(false)
   })
 })

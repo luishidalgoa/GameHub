@@ -7,7 +7,7 @@ import { calcTitleConfidence, calcConfidence, AUTO_THRESHOLD } from './scoring'
 import { LAUNCHBOX_PLATFORM_NAMES } from './launchbox'
 import type { ProviderMatrix } from './matrix'
 import type { CoverSource } from './chains'
-import { chooseCover } from './cover-choice'
+import { chooseCover, type PlatformCoverBox } from './cover-choice'
 import type { LaunchBoxImage } from './launchbox'
 import type { MetadataResult } from './provider'
 import { isLaunchBoxUnmapped, type MatchDiagnostics } from './no-match'
@@ -29,6 +29,9 @@ export interface ComposedMetadata {
   coverUrl?: string
   /** The cover's bytes, read while the chain chose it: stored from these, not downloaded again. */
   coverBuffer?: Buffer
+  /** The size of the chosen cover, in pixels, when its image was read. */
+  coverWidth?: number
+  coverHeight?: number
   /** LaunchBox id of the matched game, kept so later lookups skip the title search. */
   launchboxId?: number
   /** Screenshot/extra image URLs. */
@@ -94,7 +97,7 @@ export interface GatherInput {
   rawgId?: number | null
   matrix: ProviderMatrix
   /** The platform's box size, in pixels: a cover is judged against it (cover-choice.ts). */
-  coverBox?: { width: number; height: number }
+  coverBox?: PlatformCoverBox
   /** False when the pass will not write the cover: the cover chain is not asked at all. Default true. */
   coverWanted?: boolean
   rawgApiKey?: string
@@ -244,6 +247,8 @@ export async function gatherMetadata(input: GatherInput): Promise<ComposedMetada
       images: [],
       coverUrl: box.coverUrl,
       coverBuffer: box.buffer,
+      coverWidth: box.width,
+      coverHeight: box.height,
       sources: { cover: 'libretro' },
       confidence: 0,
     }
@@ -290,6 +295,8 @@ export async function gatherMetadata(input: GatherInput): Promise<ComposedMetada
   })
   const coverUrl = cover?.coverUrl
   const coverBuffer = cover?.buffer
+  const coverWidth = cover?.width
+  const coverHeight = cover?.height
   if (cover) sources.cover = cover.source
 
   // ── SCREENSHOTS ──
@@ -323,6 +330,8 @@ export async function gatherMetadata(input: GatherInput): Promise<ComposedMetada
     esrb: info?.esrb,
     coverUrl,
     coverBuffer,
+    coverWidth,
+    coverHeight,
     screenshots,
     images: lb?.images ?? [],
     sources,

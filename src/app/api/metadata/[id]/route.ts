@@ -120,7 +120,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       launchboxId:  game.launchboxId,
       rawgId:       game.rawgId,
       matrix,
-      coverBox:     { width: game.platform.thumbnailWidth, height: game.platform.thumbnailHeight },
+      coverBox:     { width: game.platform.thumbnailWidth, height: game.platform.thumbnailHeight, altWidth: game.platform.altThumbnailWidth, altHeight: game.platform.altThumbnailHeight },
       rawgApiKey:   await rawgKey(),
     })
   } catch (err) {
@@ -231,7 +231,7 @@ async function applyManualPick(
   // image is a screenshot (see cover-choice.ts).
   // The LaunchBox box the admin picked is its own cover. Otherwise the platform's cover chain
   // decides, judged against the platform's box size.
-  const boxSize = await db.platform.findUnique({ where: { slug: platformSlug }, select: { thumbnailWidth: true, thumbnailHeight: true } })
+  const boxSize = await db.platform.findUnique({ where: { slug: platformSlug }, select: { thumbnailWidth: true, thumbnailHeight: true, altThumbnailWidth: true, altThumbnailHeight: true } })
   const cover = source === 'launchbox' && meta.coverUrl
     ? { coverUrl: meta.coverUrl, source, buffer: undefined }
     : await gatherMetadata({
@@ -240,7 +240,7 @@ async function applyManualPick(
         fileName:     row?.fileName ?? undefined,
         retroSystem:  libretroSystemFor(platformSlug, row ?? {}),
         matrix:       await getProviderMatrix(platformSlug),
-        coverBox:     boxSize ? { width: boxSize.thumbnailWidth, height: boxSize.thumbnailHeight } : undefined,
+        coverBox:     boxSize ? { width: boxSize.thumbnailWidth, height: boxSize.thumbnailHeight, altWidth: boxSize.altThumbnailWidth, altHeight: boxSize.altThumbnailHeight } : undefined,
       })
         .then(g => (g?.coverUrl && g.sources.cover ? { coverUrl: g.coverUrl, source: g.sources.cover, buffer: g.coverBuffer } : null))
         .catch(() => null)

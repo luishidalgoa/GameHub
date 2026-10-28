@@ -9,6 +9,7 @@ import { searchYouTubeTrailer, YouTubeApiError } from '@/lib/youtube'
 import { AUTO_THRESHOLD } from './scoring'
 import { getProviderMatrix, type ProviderMatrix } from './matrix'
 import { gatherMetadata } from './compose'
+import { keepsCurrentCover } from './cover-choice'
 import { libretroSystemFor } from './libretro'
 import { consoleSlugFor } from './platform-console'
 import { applyMetadata, textPatch, type TextField } from './apply'
@@ -356,9 +357,14 @@ async function runMetadataBatchInner(opts: {
       // The cover is asked only when this pass will write it: the box is the platform's own size.
       const coverWanted = coversOn && !(respectPinned && parseMetadataSources(game.metadataSources).coverManual === true)
         && (mode !== 'fill' || !game.coverPath)
-      const meta = await gatherMetadata({
+      let meta = await gatherMetadata({
         coverWanted,
-        coverBox: { width: game.platform.thumbnailWidth, height: game.platform.thumbnailHeight },
+        coverBox: {
+          width: game.platform.thumbnailWidth,
+          height: game.platform.thumbnailHeight,
+          altWidth: game.platform.altThumbnailWidth,
+          altHeight: game.platform.altThumbnailHeight,
+        },
         diagnostics:  diag,
         title:        game.title,
         platformSlug: game.platform.slug,
@@ -396,6 +402,20 @@ async function runMetadataBatchInner(opts: {
       // A cover the owner picked by hand survives every automated pass while respectPinned
       // is on (the default). Off, a pass may replace it.
       const coverLocked = respectPinned && prevSourcesAll.coverManual === true
+
+      // A pass replaces the cover only with a better one: when the game's cover is as good
+      // as the new candidate (by shape and size, see cover-choice.ts), the candidate is dropped
+      // and the cover stays. The match itself is not affected.
+      let coverKept = false
+      if (meta.coverUrl && (game.coverPath || game.coverUrl) && keepsCurrentCover(
+        { width: game.coverWidth, height: game.coverHeight },
+        { width: meta.coverWidth, height: meta.coverHeight },
+        { width: game.platform.thumbnailWidth, height: game.platform.thumbnailHeight, altWidth: game.platform.altThumbnailWidth, altHeight: game.platform.altThumbnailHeight },
+      )) {
+        const { cover: _cover, ...sourcesWithoutCover } = meta.sources
+        meta = { ...meta, coverUrl: undefined, coverBuffer: undefined, coverWidth: undefined, coverHeight: undefined, sources: sourcesWithoutCover }
+        coverKept = true
+      }
 
       // Cover: only (re)download when overwriting, or when the local file is missing (fill).
       let coverPath: string | undefined
@@ -487,7 +507,7 @@ async function runMetadataBatchInner(opts: {
       const prevSources: MetadataSources = fillOnly
         ? prevSourcesAll
         : {
-            ...(!want('cover') && { cover: prevSourcesAll.cover, coverManual: prevSourcesAll.coverManual }),
+            ...((!want('cover') || coverKept) && { cover: prevSourcesAll.cover, coverManual: prevSourcesAll.coverManual }),
             ...(!want('screenshots') && { screenshots: prevSourcesAll.screenshots }),
           }
       // Only attribute sources for fields we actually wrote.
