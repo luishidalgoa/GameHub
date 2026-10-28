@@ -894,29 +894,23 @@ export function SettingsForm({ initialSection = '', platforms: initial, metadata
                         onApply={(w, h) => { updateField(p.id, 'thumbnailWidth', w); updateField(p.id, 'thumbnailHeight', h) }}
                       />
 
-                      {/* A second official shape of the covers (Switch's second format): empty means none. */}
+                      {/* A second official shape of the covers (Switch's second format), drawn in the viewer. None means none. */}
                       <div className="space-y-1.5">
                         <div className="text-xs font-medium text-muted-foreground">Forma secundaria de carátula (opcional)</div>
-                        <div className="grid grid-cols-2 gap-3">
-                          <input
-                            id={`atw-${p.id}`}
-                            type="number" min="50" max="800" placeholder="ancho"
-                            aria-label="Ancho de la forma secundaria"
-                            value={p.altThumbnailWidth ?? ''}
-                            onChange={(e) => updateField(p.id, 'altThumbnailWidth', e.target.value === '' ? null : parseInt(e.target.value))}
-                            className="w-full rounded-md border border-border bg-secondary px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                          />
-                          <input
-                            id={`ath-${p.id}`}
-                            type="number" min="50" max="800" placeholder="alto"
-                            aria-label="Alto de la forma secundaria"
-                            value={p.altThumbnailHeight ?? ''}
-                            onChange={(e) => updateField(p.id, 'altThumbnailHeight', e.target.value === '' ? null : parseInt(e.target.value))}
-                            className="w-full rounded-md border border-border bg-secondary px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                          />
-                        </div>
+                        <PlatformBoxEditor
+                          secondary
+                          slug={p.slug}
+                          name={p.name}
+                          width={p.altThumbnailWidth ?? 200}
+                          height={p.altThumbnailHeight ?? 200}
+                          label={p.altThumbnailWidth && p.altThumbnailHeight
+                            ? `Forma secundaria: ${p.altThumbnailWidth}×${p.altThumbnailHeight} · ajustar`
+                            : 'Elegir forma secundaria visualmente'}
+                          onApply={(w, h) => { updateField(p.id, 'altThumbnailWidth', w); updateField(p.id, 'altThumbnailHeight', h) }}
+                          onClear={() => { updateField(p.id, 'altThumbnailWidth', null); updateField(p.id, 'altThumbnailHeight', null) }}
+                        />
                         <p className="text-xs text-muted-foreground">
-                          Otra medida oficial de las carátulas de esta plataforma (p. ej. 200×200 en Saturn). Las que tengan esa forma se ven enteras en la rejilla, sin recortar. Vacío: no tiene.
+                          Otra forma oficial de las carátulas de esta plataforma (p. ej. cuadrada en Saturn). Las que la tengan se ven enteras en la rejilla, sin recortar. Sin forma: no tiene.
                         </p>
                       </div>
 

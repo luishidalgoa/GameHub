@@ -29,11 +29,17 @@ interface Props {
   width: number
   height: number
   onApply: (width: number, height: number) => void
+  /** Draws the platform's secondary shape instead of its main box. Only proportions are set there, no typed pixels. */
+  secondary?: boolean
+  /** The button's text. */
+  label?: string
+  /** Removes the secondary shape. Shown in the viewer only when given. */
+  onClear?: () => void
 }
 
 const clamp = (v: number) => Math.min(MAX, Math.max(MIN, Math.round(v)))
 
-export function PlatformBoxEditor({ slug, name, width, height, onApply }: Props) {
+export function PlatformBoxEditor({ slug, name, width, height, onApply, secondary = false, label, onClear }: Props) {
   const [open, setOpen] = useState(false)
   return (
     <>
@@ -42,7 +48,7 @@ export function PlatformBoxEditor({ slug, name, width, height, onApply }: Props)
         onClick={() => setOpen(true)}
         className="w-full rounded-md border border-border bg-secondary px-3 py-2 text-sm hover:bg-accent transition-colors"
       >
-        Ajustar medidas visualmente
+        {label ?? 'Ajustar medidas visualmente'}
       </button>
       {open && (
         <EditorModal
@@ -50,8 +56,10 @@ export function PlatformBoxEditor({ slug, name, width, height, onApply }: Props)
           name={name}
           initialWidth={width}
           initialHeight={height}
+          secondary={secondary}
           onClose={() => setOpen(false)}
           onApply={(w, h) => { onApply(w, h); setOpen(false) }}
+          onClear={onClear ? () => { onClear(); setOpen(false) } : undefined}
         />
       )}
     </>
@@ -60,13 +68,15 @@ export function PlatformBoxEditor({ slug, name, width, height, onApply }: Props)
 
 interface SampleGame { id: number; title: string; coverPath: string | null }
 
-function EditorModal({ slug, name, initialWidth, initialHeight, onClose, onApply }: {
+function EditorModal({ slug, name, initialWidth, initialHeight, secondary, onClose, onApply, onClear }: {
   slug: string
   name: string
   initialWidth: number
   initialHeight: number
+  secondary: boolean
   onClose: () => void
   onApply: (w: number, h: number) => void
+  onClear?: () => void
 }) {
   const [w, setW] = useState(clamp(initialWidth))
   const [h, setH] = useState(clamp(initialHeight))
@@ -160,9 +170,11 @@ function EditorModal({ slug, name, initialWidth, initialHeight, onClose, onApply
       >
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h3 className="font-semibold">Medidas de carátula · {name}</h3>
+            <h3 className="font-semibold">{secondary ? 'Forma secundaria' : 'Medidas de carátula'} · {name}</h3>
             <p className="text-xs text-muted-foreground mt-1">
-              Arrastra los tiradores para cambiar el ancho, el alto o los dos. La tarjeta muestra el centro de la imagen dentro del marco.
+              {secondary
+                ? 'Dibuja la otra forma oficial de las carátulas: las que la tengan se verán enteras en la rejilla, sin recortar.'
+                : 'Arrastra los tiradores para cambiar el ancho, el alto o los dos. La tarjeta muestra el centro de la imagen dentro del marco.'}
             </p>
           </div>
           <button type="button" onClick={onClose} className="p-1 rounded hover:bg-accent text-muted-foreground" aria-label="Cerrar">
@@ -233,20 +245,23 @@ function EditorModal({ slug, name, initialWidth, initialHeight, onClose, onApply
 
           {/* Exact measures and presets */}
           <div className="space-y-3 md:w-56">
-            <div className="grid grid-cols-2 gap-2">
-              <label className="space-y-1 text-xs text-muted-foreground">
-                Ancho (px)
-                <input type="number" min={MIN} max={MAX} value={w}
-                  onChange={e => setW(clamp(Number(e.target.value) || MIN))}
-                  className="w-full rounded-md border border-border bg-secondary px-2 py-1.5 text-sm text-foreground" />
-              </label>
-              <label className="space-y-1 text-xs text-muted-foreground">
-                Alto (px)
-                <input type="number" min={MIN} max={MAX} value={h}
-                  onChange={e => setH(clamp(Number(e.target.value) || MIN))}
-                  className="w-full rounded-md border border-border bg-secondary px-2 py-1.5 text-sm text-foreground" />
-              </label>
-            </div>
+            {/* The main box keeps its typed measures; a secondary shape is drawn, not typed. */}
+            {!secondary && (
+              <div className="grid grid-cols-2 gap-2">
+                <label className="space-y-1 text-xs text-muted-foreground">
+                  Ancho (px)
+                  <input type="number" min={MIN} max={MAX} value={w}
+                    onChange={e => setW(clamp(Number(e.target.value) || MIN))}
+                    className="w-full rounded-md border border-border bg-secondary px-2 py-1.5 text-sm text-foreground" />
+                </label>
+                <label className="space-y-1 text-xs text-muted-foreground">
+                  Alto (px)
+                  <input type="number" min={MIN} max={MAX} value={h}
+                    onChange={e => setH(clamp(Number(e.target.value) || MIN))}
+                    className="w-full rounded-md border border-border bg-secondary px-2 py-1.5 text-sm text-foreground" />
+                </label>
+              </div>
+            )}
 
             <button type="button" onClick={() => setLocked(v => !v)}
               className="w-full inline-flex items-center justify-center gap-2 rounded-md border border-border bg-secondary px-3 py-1.5 text-sm">
@@ -273,6 +288,11 @@ function EditorModal({ slug, name, initialWidth, initialHeight, onClose, onApply
         </div>
 
         <div className="flex justify-end gap-2 pt-2 border-t border-border">
+          {onClear && (
+            <button type="button" onClick={onClear} className="mr-auto rounded-md border border-border px-4 py-2 text-sm text-muted-foreground hover:bg-accent">
+              Quitar forma secundaria
+            </button>
+          )}
           <button type="button" onClick={onClose} className="rounded-md border border-border px-4 py-2 text-sm hover:bg-accent">
             Cancelar
           </button>
