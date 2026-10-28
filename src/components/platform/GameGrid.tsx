@@ -6,7 +6,6 @@ import { useTranslations } from 'next-intl'
 import { usePathname, useSearchParams } from 'next/navigation'
 import { gridFiltersFromQuery, gridFiltersToQuery } from '@/lib/games/grid-query'
 import { altBoxRatiosOf, boxRatioOf } from '@/lib/cover-shape'
-import { Masonry } from '@/components/home/Masonry'
 import { GameCard, SkeletonCard } from './GameCard'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { GameDetailModal } from '@/components/game/GameDetailModal'
@@ -364,10 +363,11 @@ export function GameGrid({
       )}
 
       {/* Grid */}
-      {/* Masonry, as in /explorar: each card keeps the shape of its cover, so a secondary-box cover is not stretched into a tall card. */}
-      <Masonry>
+      {/* A plain grid, rows aligned to the top: each card keeps the shape of its cover, and a card
+          never moves when more games load below. CSS columns (Masonry) would rebalance on every append. */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2 sm:gap-4 items-start">
         {games.map((g, i) => (
-          <div key={g.id} className="mb-4 break-inside-avoid">
+          <div key={g.id}>
             <GameCard
               game={g}
               onSelect={setSelectedId}
@@ -388,14 +388,14 @@ export function GameGrid({
 
         {/* Skeleton cards — initial load or appending more */}
         {Array.from({ length: skeletonCount }).map((_, i) => (
-          <div key={`sk-${i}`} className="mb-4 break-inside-avoid">
+          <div key={`sk-${i}`}>
             <SkeletonCard
               thumbnailWidth={thumbnailWidth}
               thumbnailHeight={thumbnailHeight}
             />
           </div>
         ))}
-      </Masonry>
+      </div>
 
       {/* Sentinel div — IntersectionObserver triggers next page here */}
       <div ref={sentinelRef} className="h-2 mt-4" />
