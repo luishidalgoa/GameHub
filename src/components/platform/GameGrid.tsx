@@ -44,6 +44,8 @@ interface Props {
   isAdmin?:       boolean
   thumbnailWidth?:  number
   thumbnailHeight?: number
+  altThumbnailWidth?:  number | null
+  altThumbnailHeight?: number | null
   totalCount:     number
   regions:        string[]
   genres:         string[]
@@ -58,6 +60,8 @@ export function GameGrid({
   isAdmin       = false,
   thumbnailWidth  = 200,
   thumbnailHeight = 300,
+  altThumbnailWidth,
+  altThumbnailHeight,
   totalCount,
   regions,
   genres,
@@ -80,9 +84,9 @@ export function GameGrid({
   const [minRating, setMinRating] = useState(initial.minRating)
   const [selectedId, setSelectedId] = useState<number | null>(null)
 
-  // The platform's own card proportion: a cover is a box only at this shape, or at one of its official alternates.
+  // The platform's own card proportion: a cover is a box only at this shape, or at its secondary shape.
   const boxRatio = boxRatioOf(thumbnailWidth, thumbnailHeight)
-  const alternates = altBoxRatiosOf(platformSlug)
+  const alternates = altBoxRatiosOf(altThumbnailWidth, altThumbnailHeight)
 
   // This view's address: the editor and the modal return to it.
   const query = gridFiltersToQuery({ search, sort, favOnly, onlineOnly, origin, region, genre, minRating, noBox })

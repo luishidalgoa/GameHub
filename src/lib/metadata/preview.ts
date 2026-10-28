@@ -87,7 +87,7 @@ async function judgedCount(
       select: {
         coverPath: true, coverUrl: true, coverWidth: true, coverHeight: true,
         description: true, screenshotPaths: true, metadataSources: true,
-        platform: { select: { slug: true, thumbnailWidth: true, thumbnailHeight: true } },
+        platform: { select: { slug: true, thumbnailWidth: true, thumbnailHeight: true, altThumbnailWidth: true, altThumbnailHeight: true } },
       },
     })
     if (mode === 'wrong-provider') {

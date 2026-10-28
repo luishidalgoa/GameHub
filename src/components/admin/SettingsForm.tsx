@@ -211,6 +211,8 @@ interface Platform {
   sortOrder: number
   thumbnailWidth?: number
   thumbnailHeight?: number
+  altThumbnailWidth?: number | null
+  altThumbnailHeight?: number | null
   scanDlc: boolean
   // null / '' = hereda del ajuste global. Ver lib/metadata/matrix.ts
   providerCover?: string | null
@@ -517,7 +519,7 @@ export function SettingsForm({ initialSection = '', platforms: initial, metadata
   // Folder picker: { platformId: -1 } means "new platform" form
   const [folderPicker, setFolderPicker] = useState<{ platformId: number; pathIndex: number } | null>(null)
 
-  function updateField(id: number, field: string, value: string | number | boolean) {
+  function updateField(id: number, field: string, value: string | number | boolean | null) {
     setPlatforms((prev) => prev.map((p) => (p.id === id ? { ...p, [field]: value } : p)))
   }
 
@@ -581,6 +583,8 @@ export function SettingsForm({ initialSection = '', platforms: initial, metadata
                 scanMode:        p.scanMode,
                 thumbnailWidth:  p.thumbnailWidth ?? 200,
                 thumbnailHeight: p.thumbnailHeight ?? 300,
+                altThumbnailWidth:  p.altThumbnailWidth ?? null,
+                altThumbnailHeight: p.altThumbnailHeight ?? null,
                 scanDlc:         p.scanDlc,
                 emulators:       serializeEmulators(getEmu(p.id)),
                 onlineProviders: serializeOnlineConfigs(getOnline(p.id)),
@@ -889,6 +893,32 @@ export function SettingsForm({ initialSection = '', platforms: initial, metadata
                         height={p.thumbnailHeight ?? 300}
                         onApply={(w, h) => { updateField(p.id, 'thumbnailWidth', w); updateField(p.id, 'thumbnailHeight', h) }}
                       />
+
+                      {/* A second official shape of the covers (Switch's second format): empty means none. */}
+                      <div className="space-y-1.5">
+                        <div className="text-xs font-medium text-muted-foreground">Forma secundaria de carátula (opcional)</div>
+                        <div className="grid grid-cols-2 gap-3">
+                          <input
+                            id={`atw-${p.id}`}
+                            type="number" min="50" max="800" placeholder="ancho"
+                            aria-label="Ancho de la forma secundaria"
+                            value={p.altThumbnailWidth ?? ''}
+                            onChange={(e) => updateField(p.id, 'altThumbnailWidth', e.target.value === '' ? null : parseInt(e.target.value))}
+                            className="w-full rounded-md border border-border bg-secondary px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                          />
+                          <input
+                            id={`ath-${p.id}`}
+                            type="number" min="50" max="800" placeholder="alto"
+                            aria-label="Alto de la forma secundaria"
+                            value={p.altThumbnailHeight ?? ''}
+                            onChange={(e) => updateField(p.id, 'altThumbnailHeight', e.target.value === '' ? null : parseInt(e.target.value))}
+                            className="w-full rounded-md border border-border bg-secondary px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                          />
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          Otra medida oficial de las carátulas de esta plataforma (p. ej. 200×200 en Saturn). Las que tengan esa forma se ven enteras en la rejilla, sin recortar. Vacío: no tiene.
+                        </p>
+                      </div>
 
                       <ToggleSwitch
                         label={t('scanDlcLabel')}

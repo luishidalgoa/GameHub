@@ -23,6 +23,10 @@ model Platform {
   enabled          Boolean  @default(true)
   thumbnailWidth   Int      @default(200)
   thumbnailHeight  Int      @default(300)
+  // Forma secundaria de carátula (otra medida oficial, p. ej. cuadrada en Saturn). Null: no tiene.
+  // Una carátula de esa forma es caja: se muestra entera, sin recortar.
+  altThumbnailWidth  Int?
+  altThumbnailHeight Int?
   scanDlc          Boolean  @default(false)
   emulatorName     String?  // deprecated — kept as fallback, superseded by `emulators`
   emulatorUrl      String?  // deprecated — kept as fallback, superseded by `emulators`

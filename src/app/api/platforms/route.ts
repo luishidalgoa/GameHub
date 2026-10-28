@@ -47,8 +47,8 @@ export async function POST(req: Request) {
 // The fields an admin may change on a platform. Anything else in the body is
 // dropped: the id and the slug are handled separately below (#87).
 const PLATFORM_EDITABLE = [
-  'name', 'scanPath', 'extensions', 'scanMode', 'thumbnailWidth', 'thumbnailHeight', 'sortOrder', 'scanDlc',
-  'enabled', 'iconPath', 'emulators', 'onlineProviders', 'torrentSources', 'emulatorName', 'emulatorUrl',
+  'name', 'scanPath', 'extensions', 'scanMode', 'thumbnailWidth', 'thumbnailHeight', 'altThumbnailWidth', 'altThumbnailHeight',
+  'sortOrder', 'scanDlc', 'enabled', 'iconPath', 'emulators', 'onlineProviders', 'torrentSources', 'emulatorName', 'emulatorUrl',
 ] as const
 
 /** Valida las fuentes de torrents de una plataforma y devuelve su forma normalizada para guardar. */
@@ -83,6 +83,13 @@ export async function PATCH(req: Request) {
   const body = await req.json()
   const { id, slug, ...rest } = body
   const data = Object.fromEntries(Object.entries(rest).filter(([k]) => (PLATFORM_EDITABLE as readonly string[]).includes(k)))
+  // The secondary box is a size, or none: an empty or non-positive value clears it.
+  for (const k of ['altThumbnailWidth', 'altThumbnailHeight'] as const) {
+    if (k in data) {
+      const n = Number(data[k])
+      data[k] = n > 0 ? Math.round(n) : null
+    }
+  }
   if ('torrentSources' in data) {
     const checked = await checkTorrentSources(id, data.torrentSources)
     if ('error' in checked) return NextResponse.json({ error: checked.error }, { status: 400 })

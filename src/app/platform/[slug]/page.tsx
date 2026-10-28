@@ -136,6 +136,8 @@ export default async function PlatformPage({ params }: Props) {
         isAdmin={isAdmin}
         thumbnailWidth={platform.thumbnailWidth}
         thumbnailHeight={platform.thumbnailHeight}
+        altThumbnailWidth={platform.altThumbnailWidth}
+        altThumbnailHeight={platform.altThumbnailHeight}
         totalCount={totalCount}
         regions={regions}
         genres={genres}

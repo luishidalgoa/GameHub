@@ -11,15 +11,6 @@ export const BOX_TOLERANCE = 0.15
 /** Proportion used when a platform has no usable size: the common 2:3 box. */
 export const DEFAULT_BOX_RATIO = 2 / 3
 
-/**
- * Official boxes a platform came in besides its main one, each with the size it stands for.
- * Saturn released its covers in more than one format (by region): a square one is an
- * official box, so it is kept whole in the card instead of being shown as art or cropped.
- */
-export const ALT_BOX_SIZES: Record<string, Array<{ width: number; height: number }>> = {
-  saturn: [{ width: 200, height: 200 }],
-}
-
 /** The proportion a platform's cards are cut to, from its stored size. */
 export function boxRatioOf(
   thumbnailWidth: number | null | undefined,
@@ -30,9 +21,19 @@ export function boxRatioOf(
     : DEFAULT_BOX_RATIO
 }
 
-/** The proportions of a platform's alternate boxes, in the order of ALT_BOX_SIZES. */
-export function altBoxRatiosOf(slug: string | null | undefined): number[] {
-  return (slug ? ALT_BOX_SIZES[slug] ?? [] : []).map(b => b.width / b.height)
+/**
+ * The proportion of a platform's secondary box (its altThumbnailWidth/altThumbnailHeight), as a
+ * list for the alternates below. Some platforms came in a second official format (Saturn's
+ * square covers, by region): a cover of that shape is a box too, kept whole instead of cropped.
+ * Empty when the platform has no secondary box.
+ */
+export function altBoxRatiosOf(
+  altThumbnailWidth: number | null | undefined,
+  altThumbnailHeight: number | null | undefined,
+): number[] {
+  return altThumbnailWidth && altThumbnailHeight && altThumbnailWidth > 0 && altThumbnailHeight > 0
+    ? [altThumbnailWidth / altThumbnailHeight]
+    : []
 }
 
 /** The proportions a cover may have and still be a box for a platform. */

@@ -57,39 +57,46 @@ describe('each platform judges its own box', () => {
   })
 })
 
-describe('official alternate boxes', () => {
+describe('secondary box of a platform', () => {
   const standard = boxRatioOf(200, 300)    // 0.67
-  const saturnSquare = altBoxRatiosOf('saturn')
+  const square = altBoxRatiosOf(200, 200)  // [1]
 
-  it('Saturn has its square box as an alternate, other platforms have none', () => {
-    expect(saturnSquare).toEqual([1])
-    expect(altBoxRatiosOf('ps2')).toEqual([])
-    expect(altBoxRatiosOf(null)).toEqual([])
+  it('a platform with a secondary size has it as an alternate, one without has none', () => {
+    expect(square).toEqual([1])
+    expect(altBoxRatiosOf(null, null)).toEqual([])
+    expect(altBoxRatiosOf(200, null)).toEqual([])
+    expect(altBoxRatiosOf(0, 200)).toEqual([])
   })
 
-  it('a square cover is an alternate box on Saturn, not art', () => {
-    expect(boxFitOf(1, standard, saturnSquare)).toBe('alt')
-    expect(isBoxRatio(1, standard, saturnSquare)).toBe(true)
+  it('a square cover is a secondary box when the platform has one, not art', () => {
+    expect(boxFitOf(1, standard, square)).toBe('alt')
+    expect(isBoxRatio(1, standard, square)).toBe(true)
   })
 
-  it('a square cover stays art on a platform without that alternate', () => {
-    expect(boxFitOf(1, standard, [])).toBe('none')
+  it('a square cover stays art on a platform without a secondary box', () => {
+    expect(boxFitOf(1, standard, altBoxRatiosOf(null, null))).toBe('none')
   })
 
-  it('the main box still wins, and a banner is still art on Saturn', () => {
-    expect(boxFitOf(0.67, standard, saturnSquare)).toBe('main')
-    expect(boxFitOf(16 / 9, standard, saturnSquare)).toBe('none')
+  it('the main box still wins, and a banner is still art', () => {
+    expect(boxFitOf(0.67, standard, square)).toBe('main')
+    expect(boxFitOf(16 / 9, standard, square)).toBe('none')
   })
 
-  it('a Saturn square with a 512 px picture is a good cover against its own box', () => {
-    const saturn = { slug: 'saturn', thumbnailWidth: 200, thumbnailHeight: 300 }
-    const square = { coverPath: 'x.webp', coverUrl: null, coverWidth: 512, coverHeight: 512, description: null, screenshotPaths: null, platform: saturn }
-    expect(coverQualityOf(square)).toBe('good')
+  it('a square cover with a 512 px picture is a good cover against its own box', () => {
+    const platform = { thumbnailWidth: 200, thumbnailHeight: 300, altThumbnailWidth: 200, altThumbnailHeight: 200 }
+    const squareCover = { coverPath: 'x.webp', coverUrl: null, coverWidth: 512, coverHeight: 512, description: null, screenshotPaths: null, platform }
+    expect(coverQualityOf(squareCover)).toBe('good')
   })
 
-  it('a 2:3 Saturn cover is still judged against the main box', () => {
-    const saturn = { slug: 'saturn', thumbnailWidth: 200, thumbnailHeight: 300 }
-    const tall = { coverPath: 'x.webp', coverUrl: null, coverWidth: 300, coverHeight: 450, description: null, screenshotPaths: null, platform: saturn }
+  it('a square cover is small when it is smaller than the secondary box allows', () => {
+    const platform = { thumbnailWidth: 200, thumbnailHeight: 300, altThumbnailWidth: 200, altThumbnailHeight: 200 }
+    const squareCover = { coverPath: 'x.webp', coverUrl: null, coverWidth: 300, coverHeight: 300, description: null, screenshotPaths: null, platform }
+    expect(coverQualityOf(squareCover)).toBe('small')
+  })
+
+  it('a 2:3 cover is still judged against the main box', () => {
+    const platform = { thumbnailWidth: 200, thumbnailHeight: 300, altThumbnailWidth: 200, altThumbnailHeight: 200 }
+    const tall = { coverPath: 'x.webp', coverUrl: null, coverWidth: 300, coverHeight: 450, description: null, screenshotPaths: null, platform }
     expect(coverQualityOf(tall)).toBe('small')
   })
 })
@@ -105,8 +112,8 @@ describe('the no-box filter', () => {
     expect(outside.AND[0].OR).toContainEqual({ coverRatio: { gt: expect.any(Number) } })
   })
 
-  it('a platform with an alternate box keeps a cover of that box out of the filter', () => {
-    const where = noBoxForPlatform(boxRatioOf(200, 300), altBoxRatiosOf('saturn')) as { OR: Array<{ AND?: unknown[] }> }
+  it('a platform with a secondary box keeps a cover of that box out of the filter', () => {
+    const where = noBoxForPlatform(boxRatioOf(200, 300), altBoxRatiosOf(200, 200)) as { OR: Array<{ AND?: unknown[] }> }
     const outside = where.OR.find(c => 'AND' in c) as { AND: unknown[] }
     expect(outside.AND).toHaveLength(2)
   })

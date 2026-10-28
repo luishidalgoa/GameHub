@@ -10,6 +10,8 @@ export interface Platform {
   enabled: boolean
   thumbnailWidth: number
   thumbnailHeight: number
+  altThumbnailWidth?: number | null
+  altThumbnailHeight?: number | null
   _count?: { games: number }
   createdAt: Date | string
   updatedAt: Date | string

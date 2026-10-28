@@ -14,12 +14,12 @@ export const dynamic = 'force-dynamic'
 async function noBoxClause(platformSlug?: string) {
   const platforms = await db.platform.findMany({
     where: platformSlug ? { slug: platformSlug } : {},
-    select: { id: true, slug: true, thumbnailWidth: true, thumbnailHeight: true },
+    select: { id: true, thumbnailWidth: true, thumbnailHeight: true, altThumbnailWidth: true, altThumbnailHeight: true },
   })
   return noBoxWhereByPlatform(platforms.map(p => ({
     platformId: p.id,
     boxRatio: boxRatioOf(p.thumbnailWidth, p.thumbnailHeight),
-    alternates: altBoxRatiosOf(p.slug),
+    alternates: altBoxRatiosOf(p.altThumbnailWidth, p.altThumbnailHeight),
   })))
 }
 
