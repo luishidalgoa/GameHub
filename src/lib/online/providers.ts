@@ -1,4 +1,4 @@
-import { parseNextendoTitles } from './nextendo'
+import { NEXTENDO_CATALOG_URL, parseNextendoCatalog } from './nextendo'
 import { fetchText } from './fetch'
 import { loadPretendoTitles } from './pretendo'
 
@@ -34,8 +34,7 @@ export const ONLINE_SOURCES: OnlineSource[] = [
     label: 'Nextendo Network',
     url: 'https://github.com/NextendoNetwork',
     platforms: ['switch'],
-    load: () => fetchText('https://raw.githubusercontent.com/NextendoNetwork/citron-nextendo/HEAD/src/common/nextendo_compatible_titles.h')
-      .then(parseNextendoTitles),
+    load: () => fetchText(NEXTENDO_CATALOG_URL).then(text => parseNextendoCatalog(text)),
   },
   {
     // Pretendo no publica una lista de compatibilidad: su herramienta nex-viewer tiene un

@@ -1,28 +1,52 @@
 import { describe, expect, it } from 'vitest'
-import { parseNextendoTitles } from '@/lib/online/nextendo'
+import { generateKeyPairSync, sign } from 'node:crypto'
+import { parseNextendoCatalog } from '@/lib/online/nextendo'
 import { comparableNames, normalizeGameTitle, parseOnlineProviders } from '@/lib/online/providers'
 import { parsePretendoTitle, toBase3dsTitleId } from '@/lib/online/pretendo'
 
-describe('parseNextendoTitles', () => {
-  it('reads each title with its Title ID, required version and name', () => {
-    const text = [
-      '        {0x0100152000022000, "4.0.1"},  // Mario Kart 8 Deluxe',
-      '        {0x0100F8F0000A2000, "5.5.2"},  // Splatoon 2 (EU)',
-      '    static const x = 1;',
-    ].join('\n')
-    expect(parseNextendoTitles(text)).toEqual([
-      { titleId: '0100152000022000', status: 'compatible', requiredVersion: '4.0.1', name: 'Mario Kart 8 Deluxe' },
-      { titleId: '0100F8F0000A2000', status: 'compatible', requiredVersion: '5.5.2', name: 'Splatoon 2 (EU)' },
+describe('parseNextendoCatalog', () => {
+  // Un par de claves de prueba: la prueba firma con la privada y verifica con la pública.
+  const { privateKey, publicKey } = generateKeyPairSync('ed25519')
+  const publicB64 = (publicKey.export({ format: 'der', type: 'spki' }) as Buffer).subarray(-32).toString('base64')
+
+  function envelope(doc: unknown, key = privateKey): string {
+    const payload = Buffer.from(JSON.stringify(doc), 'utf8')
+    const signature = sign(null, payload, key)
+    return JSON.stringify({ key_id: 'catalog-key-1', payload: payload.toString('base64'), signature: signature.toString('base64') })
+  }
+
+  const doc = {
+    document_type: 'game_catalog',
+    schema_version: 1,
+    revision: 16,
+    expires_at: '2099-01-01T00:00:00Z',
+    games: [
+      { title_ids: ['01003fb00c5a8000'], name: 'Super Kirby Clash', enabled: true, versions: { policy: 'exact', accepted: ['1.0.1'], recommended: '1.0.1' } },
+      { title_ids: ['01006a800016e000'], name: 'Super Smash Bros. Ultimate', enabled: false, versions: { policy: 'exact', recommended: '13.0.5' } },
+      { title_ids: ['0100b0c013912000'], name: 'Among Us', enabled: true, versions: { policy: 'any' } },
+    ],
+  }
+
+  it('reads each enabled game with its Title ID, recommended version and name', async () => {
+    expect(await parseNextendoCatalog(envelope(doc), { publicKey: publicB64 })).toEqual([
+      { titleId: '01003FB00C5A8000', status: 'compatible', requiredVersion: '1.0.1', name: 'Super Kirby Clash' },
+      { titleId: '0100B0C013912000', status: 'compatible', requiredVersion: null, name: 'Among Us' },
     ])
   })
 
-  it('keeps an entry without a name and skips lines that are not entries', () => {
-    const out = parseNextendoTitles('{0x01006a800016e000, "13.0.5"},\n// comentario sin entrada')
-    expect(out).toEqual([{ titleId: '01006A800016E000', status: 'compatible', requiredVersion: '13.0.5', name: null }])
+  it('rejects a catalog signed with another key', async () => {
+    const other = generateKeyPairSync('ed25519').privateKey
+    await expect(parseNextendoCatalog(envelope(doc, other), { publicKey: publicB64 })).rejects.toThrow('firma')
   })
 
-  it('returns nothing for a file without the table', () => {
-    expect(parseNextendoTitles('<html>not a table</html>')).toEqual([])
+  it('rejects an expired catalog and a document of another type', async () => {
+    const expired = { ...doc, expires_at: '2020-01-01T00:00:00Z' }
+    await expect(parseNextendoCatalog(envelope(expired), { publicKey: publicB64 })).rejects.toThrow('caducado')
+    await expect(parseNextendoCatalog(envelope({ ...doc, document_type: 'other' }), { publicKey: publicB64 })).rejects.toThrow('otro tipo')
+  })
+
+  it('rejects a response that is not a signed envelope', async () => {
+    await expect(parseNextendoCatalog('<html>not a catalog</html>', { publicKey: publicB64 })).rejects.toThrow()
   })
 })
 
