@@ -88,10 +88,12 @@ function consoleOfFile(fileName: string): string | null {
 /**
  * Identidad de un juego sin Title ID. En Game Boy el mismo título existe en GB, GBC y GBA y no es el
  * mismo juego: GB y GBC llevan su consola en la identidad; GBA conserva la de siempre.
+ * Un nombre corto (p. ej. «16t») cuenta igual que uno largo: sus variantes de un mismo archivo
+ * torrent son una sola fila por plataforma. Solo un nombre vacío cae en la identidad del topic.
  */
-function identityOf(e: { titleId: string | null; titleKey: string; source: string; sourceKey: string }): string {
+export function identityOf(e: { titleId: string | null; titleKey: string; source: string; sourceKey: string }): string {
   if (e.titleId) return `id:${e.titleId}`
-  if (e.titleKey.length >= 4) {
+  if (e.titleKey.length > 0) {
     const console = consoleOfSource(e.source)
     return `key:${console && console !== 'gba' ? `${console}:` : ''}${e.titleKey}`
   }
@@ -186,11 +188,15 @@ async function reconcileTorrentGames(platformId: number, syncedAt: Date, order: 
   }
 
   const identityByTopic = new Map<string, string>()
+  // Las filas y la lista negra guardadas antes con la identidad por topic (`topic:<fuente>:<id>`)
+  // pasan a la identidad actual de su entrada: así no se liberan y se vuelven a crear.
+  const identityByLegacy = new Map<string, string>()
   const byIdentity = new Map<string, ExtRow[]>()
   const localIdentities = new Set<string>()
   for (const e of ext) {
     const identity = identityOf(e)
     identityByTopic.set(`${e.source}|${e.sourceKey}`, identity)
+    identityByLegacy.set(`topic:${e.source}:${e.sourceKey}`, identity)
     if (e.gameId !== null) {
       localIdentities.add(identity)
       continue
@@ -201,7 +207,7 @@ async function reconcileTorrentGames(platformId: number, syncedAt: Date, order: 
   // Lo que el usuario quitó no vuelve a crearse, aunque el catálogo siga trayéndolo:
   // así una purga de la papelera no hace reaparecer los juegos ocultos.
   const blacklisted = await db.torrentBlacklist.findMany({ where: { platformId }, select: { identity: true, source: true } })
-  for (const { identity } of blacklisted) byIdentity.delete(identity)
+  for (const { identity } of blacklisted) byIdentity.delete(identityByLegacy.get(identity) ?? identity)
   // Las claves de la lista negra se conservan en las filas ocultas: el cementerio las usa para no mostrarlas.
   const blockedKeys = new Set(blacklisted.flatMap(b => (b.source ? [`torrent:${b.source}:${b.identity}`] : [])))
   for (const list of byIdentity.values()) {
@@ -222,7 +228,9 @@ async function reconcileTorrentGames(platformId: number, syncedAt: Date, order: 
   for (const g of games) {
     const parsed = g.externalKey ? parseTorrentKey(g.externalKey) : null
     if (!parsed) continue
-    const identity = 'identity' in parsed ? parsed.identity : identityByTopic.get(`${parsed.source}|${parsed.topic}`)
+    const identity = 'identity' in parsed
+      ? (identityByLegacy.get(parsed.identity) ?? parsed.identity)
+      : identityByTopic.get(`${parsed.source}|${parsed.topic}`)
     if (!identity || !byIdentity.has(identity) || ownerByIdentity.has(identity)) continue
     ownerByIdentity.set(identity, g)
     ownerSource.set(g.id, parsed.source)
