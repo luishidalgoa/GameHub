@@ -58,6 +58,10 @@ export async function PUT(req: Request) {
     // The shop caches this one for a few seconds; drop it so a new password takes
     // effect on the next request instead of after the TTL.
     if ('shop_password' in body) invalidateShopPasswordCache()
+    // A new YouTube key gets a fresh try: the off-switch of the old key does not carry over.
+    if ('youtube_api_key' in body || 'google_search_api_key' in body) {
+      await db.setting.deleteMany({ where: { key: 'youtube_off_until' } })
+    }
     return NextResponse.json({ ok: true })
   } catch (err) {
     // Surface the real cause (e.g. "attempt to write a readonly database") instead

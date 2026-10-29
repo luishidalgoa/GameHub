@@ -28,6 +28,6 @@ describe('caída de LaunchBox', () => {
 
   it('nombra LaunchBox y no la tienda de Nintendo', async () => {
     await expect(gatherMetadata({ title: 'Samurai Warrior', platformSlug: 'switch', matrix }))
-      .rejects.toThrow('LaunchBox no responde')
+      .rejects.toThrow('LaunchBox no responde: fetch timeout')
   })
 })

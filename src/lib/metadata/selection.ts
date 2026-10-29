@@ -49,6 +49,8 @@ export interface SelectionOptions {
   resumeAfterId?:   number
   /** 'missing' also takes games that already have metadata but no trailer. */
   backfillTrailers: boolean
+  /** The YouTube API is off: the trailer is not a gap, so no pass selects games for it. */
+  trailersOff?:     boolean
   popularityRedo:   boolean
   now:              Date
 }
@@ -59,7 +61,7 @@ export interface SelectionOptions {
  * pass, as in the admin's counts.
  */
 export function selectionWhere(o: SelectionOptions): Prisma.GameWhereInput | null {
-  const fields = o.fields
+  const fields = o.trailersOff ? o.fields.filter(f => f !== 'trailer') : o.fields
   if (fields.length === 0) return null
 
   const trailers = fields.includes('trailer') && o.backfillTrailers

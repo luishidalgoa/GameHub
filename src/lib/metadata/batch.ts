@@ -5,7 +5,7 @@ import { noMatchRetryAt } from './retry'
 import { downloadAndCacheCover, saveCoverFromBuffer } from '@/lib/covers'
 import { getRawgProvider } from './rawg'
 import { scoreForGame } from './one-score'
-import { searchYouTubeTrailer, YouTubeApiError } from '@/lib/youtube'
+import { searchYouTubeTrailer, YouTubeApiError, markYoutubeOff, youtubeIsOff } from '@/lib/youtube'
 import { AUTO_THRESHOLD } from './scoring'
 import { getProviderMatrix, type ProviderMatrix } from './matrix'
 import { gatherMetadata } from './compose'
@@ -186,9 +186,11 @@ async function runMetadataBatchInner(opts: {
 
   // Resume: only games after the cursor (ordered by id, see below). Nothing to write
   // selects nothing, and the run ends at once.
+  // While the YouTube API is off (see markYoutubeOff), no game is selected for its trailer.
+  const youtubeOff = await youtubeIsOff()
   const where = selectionWhere({
     mode, fields: [...passFields], platformSlug, resumeAfterId,
-    backfillTrailers, popularityRedo, now: new Date(),
+    backfillTrailers, trailersOff: youtubeOff, popularityRedo, now: new Date(),
   })
   // Ordered by id so the resume cursor (id > resumeAfterId) is monotonic.
   let games = where ? await db.game.findMany({ where, include: { platform: true }, orderBy: { id: 'asc' } }) : []
@@ -216,8 +218,8 @@ async function runMetadataBatchInner(opts: {
 
   let applied = 0, skipped = 0, failed = 0
   // Once the YouTube API errors (quota / bad key / network), stop searching
-  // trailers for the rest of the run instead of failing every game.
-  let youtubeDisabled = false
+  // trailers for the rest of the run, and for a day after it (markYoutubeOff).
+  let youtubeDisabled = youtubeOff
 
   for (let i = 0; i < games.length; i++) {
     if (signal.aborted) break
@@ -337,6 +339,8 @@ async function runMetadataBatchInner(opts: {
       } catch (err) {
         if (err instanceof YouTubeApiError) {
           youtubeDisabled = true
+          // Only an answer from the API (quota, key, disabled) is kept for a day; a timeout is retried next run.
+          if (err.httpStatus != null) await markYoutubeOff().catch(() => {})
           skipped++
           emit({ type: 'skipped', gameId: game.id, title: game.title, reason: 'youtube_error', processed, total, applied, skipped, failed })
         } else {
@@ -438,7 +442,10 @@ async function runMetadataBatchInner(opts: {
           const url = await searchYouTubeTrailer(meta.title)
           if (url) { trailerUrl = url; trailerFound = true }
         } catch (err) {
-          if (err instanceof YouTubeApiError) youtubeDisabled = true
+          if (err instanceof YouTubeApiError) {
+            youtubeDisabled = true
+            if (err.httpStatus != null) await markYoutubeOff().catch(() => {})
+          }
         }
         await delay(rateMs)
         if (signal.aborted) break

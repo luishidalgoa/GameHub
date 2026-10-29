@@ -8,6 +8,7 @@ import { cachedAggregate } from '@/lib/aggregate-cache'
 import { coverQualityOf, lowQualityFields, wrongProvenanceFields } from './field-quality'
 import { getProviderMatrix } from './matrix'
 import { parseMetadataSources } from './sources'
+import { youtubeIsOff } from '@/lib/youtube'
 
 export type { BatchMode } from './scope'
 
@@ -41,11 +42,12 @@ export async function previewBatch(mode: BatchMode, opts: PreviewOptions = {}): 
   const withScores = opts.withScores ?? true
   // Trailers are on in a run unless the caller turns them off, and the job does not.
   const fields = runFields(mode, opts.fields, { withTrailers: true, withScores })
+  const trailersOff = await youtubeIsOff()
   const skippedUnfindable = await db.game.count({ where: { ...libraryGameWhere(opts.platformSlug), ...UNFINDABLE } })
 
   // A quality or provenance pass is judged game by game, with the same rules the run uses.
   if (mode === 'quality' || mode === 'wrong-provider') {
-    const where = selectionWhere({ mode, fields, platformSlug: opts.platformSlug, backfillTrailers: true, popularityRedo: false, now: new Date() })
+    const where = selectionWhere({ mode, fields, platformSlug: opts.platformSlug, backfillTrailers: true, trailersOff, popularityRedo: false, now: new Date() })
     const judged = where ? await judgedCount(mode, fields, where, opts.coverMinScale) : { games: 0 }
     return { mode, games: judged.games, breakdown: judged.breakdown, skippedUnfindable }
   }
@@ -54,6 +56,7 @@ export async function previewBatch(mode: BatchMode, opts: PreviewOptions = {}): 
     mode, fields,
     platformSlug:    opts.platformSlug,
     backfillTrailers: true,
+    trailersOff,
     popularityRedo:  opts.popularityRedo ?? false,
     now:             new Date(),
   })
@@ -63,7 +66,7 @@ export async function previewBatch(mode: BatchMode, opts: PreviewOptions = {}): 
   if (mode !== 'fill') return { mode, games, skippedUnfindable }
 
   let empty = 0
-  for (const gap of gapClausesFor(fields)) {
+  for (const gap of gapClausesFor(trailersOff ? fields.filter(f => f !== 'trailer') : fields)) {
     empty += await db.game.count({ where: { AND: [where, gap] } })
   }
   return { mode, games, fields: empty, skippedUnfindable }

@@ -117,6 +117,9 @@ export interface GatherInput {
 
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms))
 
+/** The message of a provider failure, for the batch log. */
+const errorText = (err: unknown): string => (err instanceof Error ? err.message : String(err))
+
 /**
  * Fetch & compose metadata for one game. Returns null when no provider produced
  * a confident-enough match for the fields that need a game match.
@@ -141,6 +144,7 @@ export async function gatherMetadata(input: GatherInput): Promise<ComposedMetada
   let lbConfidence = 0
   // LaunchBox no respondió (red, tiempo de espera): no es «sin coincidencia».
   let lbDown = false
+  let lbError = ''
   if (needsLaunchBox) {
     try {
       const provider = await getLaunchBoxProvider(platformSlug)
@@ -169,7 +173,7 @@ export async function gatherMetadata(input: GatherInput): Promise<ComposedMetada
           lb = (detail as LaunchBoxGame) ?? null
         }
       }
-    } catch { lbDown = true /* LaunchBox failures are non-fatal here; if nothing else matches, the game is retried later */ }
+    } catch (err) { lbDown = true; lbError = errorText(err) /* LaunchBox failures are non-fatal here; if nothing else matches, the game is retried later */ }
   }
 
   // ── Resolve RAWG match + detail ──
@@ -178,6 +182,7 @@ export async function gatherMetadata(input: GatherInput): Promise<ComposedMetada
   let rawgProvider: RawgProvider | null = null
   // RAWG no respondió: igual que LaunchBox, no es «sin coincidencia».
   let rawgDown = false
+  let rawgError = ''
   if (needsRawg) {
     try {
       rawgProvider = getRawgProvider(rawgApiKey)
@@ -195,7 +200,7 @@ export async function gatherMetadata(input: GatherInput): Promise<ComposedMetada
           rawg = await rawgProvider.fetchById(match.result.id)
         }
       }
-    } catch { rawgDown = true /* RAWG failure non-fatal here; if nothing else matches, the game is retried later */ }
+    } catch (err) { rawgDown = true; rawgError = errorText(err) /* RAWG failure non-fatal here; if nothing else matches, the game is retried later */ }
   }
 
   // Switch: la tienda oficial de Nintendo va antes que RAWG para la ficha y la portada.
@@ -237,8 +242,13 @@ export async function gatherMetadata(input: GatherInput): Promise<ComposedMetada
   // otherwise, and "no_match" on a game whose box is sitting right there is a
   // poor answer.
   // Name the source that failed: the store, LaunchBox or RAWG, whichever is down.
-  const downSource = storeDown ? 'La tienda de Nintendo' : lbDown ? 'LaunchBox' : rawgDown ? 'RAWG' : null
-  if (!lb && !rawg && !nin && downSource) throw new StoreUnavailableError(`${downSource} no responde`)
+  const down = storeDown ? { source: 'La tienda de Nintendo', error: '' }
+    : lbDown ? { source: 'LaunchBox', error: lbError }
+    : rawgDown ? { source: 'RAWG', error: rawgError }
+    : null
+  if (!lb && !rawg && !nin && down) {
+    throw new StoreUnavailableError(`${down.source} no responde${down.error ? `: ${down.error}` : ''}`)
+  }
   if (!lb && !rawg && !nin && input.coverWithoutMatch === false) return null
   if (!lb && !rawg && !nin) {
     // Only the libretro box can stand alone here: it is matched on the file name.
