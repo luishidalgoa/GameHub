@@ -147,3 +147,88 @@ export function downloadKindLabel(kind: string): string {
     default: return kind
   }
 }
+
+/** Sin bytes durante este tiempo, una descarga cortada deja de ser «en pausa». */
+export const PAUSED_AFTER_MS = 30 * 60 * 1000
+
+/** Un intento de descarga tal como se guarda: una petición que empieza en byte 0 y sus reanudaciones. */
+export interface AttemptRecord {
+  id: number
+  /** Identidad de la descarga: cliente, juego, complemento y archivo. */
+  key: string
+  fileSize: number
+  bytesSent: number
+  /** Posición más lejana del archivo. Las filas anteriores a esa medida usan los bytes enviados. */
+  position: number
+  startedAt: number
+  /** Null si el intento no ha enviado todavía ningún byte. */
+  lastByteAt: number | null
+  /** El cliente terminó la petición. Las descargas de la cola no miden bytes y solo tienen esta marca. */
+  completed: boolean
+  /** Sin bytes medidos: la fila viene de una descarga que no pasa por el contador. */
+  untracked: boolean
+}
+
+export type DownloadState = 'active' | 'complete' | 'paused' | 'cut'
+
+export interface DownloadGroup {
+  key: string
+  /** Id del intento más reciente: de él salen el título y el tipo. */
+  latestId: number
+  attempts: number
+  fileSize: number
+  bytesSent: number
+  position: number
+  startedAt: number
+  lastByteAt: number
+  /** Segundos que cada intento estuvo transfiriendo (sin las pausas entre intentos). */
+  transferSeconds: number
+  state: DownloadState
+}
+
+/** La posición que cuenta para una fila: la medida, o los bytes enviados si la fila es anterior a ella. */
+export function positionOf(frontier: number, bytesSent: number): number {
+  return frontier > 0 ? frontier : bytesSent
+}
+
+/**
+ * Une los intentos de una misma descarga y decide su estado. Activa si algún intento recibe
+ * bytes; completa si la posición más lejana llega al final del archivo; en pausa si lleva
+ * menos de PAUSED_AFTER_MS sin bytes; cortada en otro caso.
+ */
+export function groupAttempts(rows: AttemptRecord[], now: number): DownloadGroup[] {
+  const byKey = new Map<string, AttemptRecord[]>()
+  for (const r of rows) byKey.set(r.key, [...(byKey.get(r.key) ?? []), r])
+
+  const groups: DownloadGroup[] = []
+  for (const [key, attempts] of byKey) {
+    const sorted = [...attempts].sort((a, b) => b.startedAt - a.startedAt)
+    const latest = sorted[0]
+    const lastByteAt = Math.max(...attempts.map(a => a.lastByteAt ?? a.startedAt))
+    const fileSize = Math.max(...attempts.map(a => a.fileSize))
+    // Una descarga sin contador que el cliente dio por terminada cuenta como entera.
+    const position = Math.max(...attempts.map(a =>
+      a.untracked && a.completed ? a.fileSize : a.position))
+    const transferSeconds = attempts.reduce(
+      (sum, a) => sum + Math.max(0, (a.lastByteAt ?? a.startedAt) - a.startedAt) / 1000, 0)
+    const idle = now - lastByteAt
+    let state: DownloadState
+    if (idle <= IDLE_AFTER_MS) state = 'active'
+    else if (position >= fileSize) state = 'complete'
+    else if (idle < PAUSED_AFTER_MS) state = 'paused'
+    else state = 'cut'
+    groups.push({
+      key,
+      latestId: latest.id,
+      attempts: attempts.length,
+      fileSize,
+      bytesSent: attempts.reduce((sum, a) => sum + a.bytesSent, 0),
+      position,
+      startedAt: Math.min(...attempts.map(a => a.startedAt)),
+      lastByteAt,
+      transferSeconds,
+      state,
+    })
+  }
+  return groups.sort((a, b) => b.lastByteAt - a.lastByteAt)
+}

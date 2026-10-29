@@ -87,6 +87,14 @@ interface DownloadRow {
   etaSeconds: number | null
   averageBps: number
   complete: boolean
+  /** Estado de la descarga en el resumen: completa, en pausa o cortada. */
+  state?: 'complete' | 'paused' | 'cut'
+  /** Intentos que forman la descarga (una pausa y su reanudación son dos intentos). */
+  attempts?: number
+  /** Posición más lejana del archivo enviada. */
+  position?: number
+  /** Segundos de transferencia, sin las pausas entre intentos. */
+  transferSeconds?: number
   startedAt: string
   lastByteAt: string
 }
@@ -262,6 +270,17 @@ function percentOf(progress: number): number {
   return progress >= 1 ? 100 : Math.floor(progress * 100)
 }
 
+/** Etiqueta del estado en el resumen. Sin estado (filas de versiones anteriores) se usa el indicador de completa. */
+function summaryLabel(d: DownloadRow): string {
+  const state = d.state ?? (d.complete ? 'complete' : 'cut')
+  return state === 'complete' ? 'Completa' : state === 'paused' ? 'En pausa' : 'Cortada'
+}
+
+function summaryTone(d: DownloadRow): string {
+  const state = d.state ?? (d.complete ? 'complete' : 'cut')
+  return state === 'complete' ? 'text-green-400' : state === 'paused' ? 'text-sky-400' : 'text-amber-400'
+}
+
 /** Segundos como «2 h 05 min», «4 min 10 s» o «32 s». */
 function formatDuration(seconds: number): string {
   const s = Math.max(0, Math.round(seconds))
@@ -335,9 +354,12 @@ function DownloadMonitor({ active, finished }: { active: DownloadRow[]; finished
                         {downloadKindLabel(d.kind)}{d.dlcTitle ? ` · ${d.dlcTitle}` : ''}
                       </span>
                     </td>
-                    <td className={`py-2 pr-3 ${d.complete ? 'text-green-400' : 'text-amber-400'}`}>{d.complete ? 'Completa' : 'Cortada'}</td>
-                    <td className="py-2 pr-3 tabular-nums">{formatBytes(d.bytesSent)} de {formatBytes(d.fileSize)}</td>
-                    <td className="py-2 pr-3 tabular-nums">{formatDuration((new Date(d.lastByteAt).getTime() - new Date(d.startedAt).getTime()) / 1000)}</td>
+                    <td className={`py-2 pr-3 ${summaryTone(d)}`}>
+                      {summaryLabel(d)}
+                      {d.attempts && d.attempts > 1 ? <span className="block text-xs text-muted-foreground">{d.attempts} intentos</span> : null}
+                    </td>
+                    <td className="py-2 pr-3 tabular-nums">{formatBytes(d.position ?? d.bytesSent)} de {formatBytes(d.fileSize)}</td>
+                    <td className="py-2 pr-3 tabular-nums">{formatDuration(d.transferSeconds ?? (new Date(d.lastByteAt).getTime() - new Date(d.startedAt).getTime()) / 1000)}</td>
                     <td className="py-2 tabular-nums">{formatRate(d.averageBps)}</td>
                   </tr>
                 ))}

@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getRateLimitAlerts, parseUaDetail } from '@/lib/tracker'
 import { adminGuard } from '@/lib/admin-guard'
-import { downloadKindOf, downloadProgress, errorPercent, IDLE_AFTER_MS, measureSpeed, type SpeedSample } from '@/lib/traffic-stats'
+import { downloadKindOf, downloadProgress, errorPercent, groupAttempts, IDLE_AFTER_MS, measureSpeed, positionOf, type AttemptRecord, type SpeedSample } from '@/lib/traffic-stats'
 
 export const dynamic = 'force-dynamic'
 
@@ -11,7 +11,7 @@ const ERRORS_WINDOW_MS = 60 * 60 * 1000
 const DAY_MS = 24 * 60 * 60 * 1000
 
 const downloadSelect = {
-  id: true, gameId: true, dlcId: true, dlcType: true, fileName: true, fileSize: true, bytesSent: true, frontier: true,
+  id: true, ip: true, gameId: true, dlcId: true, dlcType: true, fileName: true, fileSize: true, bytesSent: true, frontier: true, completed: true,
   lastByteAt: true, startedAt: true, client: true, clientVersion: true,
   game: { select: { title: true } },
 } as const
@@ -19,7 +19,7 @@ const downloadSelect = {
 /** Una descarga con su progreso, velocidad y tiempo restante, lista para la pantalla. */
 type DownloadRecord = {
   id: number; gameId: number; dlcId: number | null; dlcType: string | null; fileName: string; fileSize: bigint
-  bytesSent: bigint; frontier: bigint; lastByteAt: Date | null; startedAt: Date
+  ip: string; bytesSent: bigint; frontier: bigint; completed: boolean; lastByteAt: Date | null; startedAt: Date
   client: string | null; clientVersion: string | null; game: { title: string }
 }
 
@@ -82,7 +82,7 @@ export async function GET() {
   const idleBefore = new Date(now - IDLE_AFTER_MS)
   const dayAgo = new Date(now - DAY_MS)
 
-  const [activeNow, requests1h, errors1h, recentRequests, recentSearches, rateLimitAlerts, activeRows, finishedRows] = await Promise.all([
+  const [activeNow, requests1h, errors1h, recentRequests, recentSearches, rateLimitAlerts, activeRows, windowRows] = await Promise.all([
     db.requestLog.findMany({
       where: { ts: { gte: activeSince } },
       select: { ip: true },
@@ -116,10 +116,17 @@ export async function GET() {
     }),
 
     // Descargas que se pararon en las últimas 24 h: resumen de las que acabaron o se cortaron.
+    // Intentos de las últimas 24 h con actividad o terminados: se agrupan por descarga abajo.
+    // Los más recientes primero, así el límite no corta las descargas que siguen en curso.
     db.downloadLog.findMany({
-      where: { lastByteAt: { gte: dayAgo, lt: idleBefore }, bytesSent: { gt: BigInt(0) } },
+      where: {
+        AND: [
+          { OR: [{ lastByteAt: { gte: dayAgo } }, { lastByteAt: null, startedAt: { gte: dayAgo } }] },
+          { OR: [{ bytesSent: { gt: BigInt(0) } }, { completed: true }] },
+        ],
+      },
       orderBy: { lastByteAt: 'desc' },
-      take: 30,
+      take: 500,
       select: downloadSelect,
     }),
   ])
@@ -135,7 +142,46 @@ export async function GET() {
     }
   })
 
-  const dlcTitles = await dlcTitlesFor([...activeRows, ...finishedRows])
+  // Las activas van siempre al agrupado, aunque el límite de la ventana las hubiera dejado fuera.
+  const attemptRows = [...new Map([...activeRows, ...windowRows].map((r) => [r.id, r])).values()]
+  const dlcTitles = await dlcTitlesFor(attemptRows)
+
+  // Un intento se identifica por su IP, juego, complemento y archivo; las reanudaciones
+  // y las pausas de una misma descarga caen en el mismo grupo.
+  const attemptKey = (r: DownloadRecord) => `${r.ip}|${r.gameId}|${r.dlcId ?? ''}|${r.fileName}`
+  const recordById = new Map(attemptRows.map((r) => [r.id, r]))
+  const records: AttemptRecord[] = attemptRows.map((r) => ({
+    id: r.id,
+    key: attemptKey(r),
+    fileSize: Number(r.fileSize),
+    bytesSent: Number(r.bytesSent),
+    position: positionOf(Number(r.frontier), Number(r.bytesSent)),
+    startedAt: r.startedAt.getTime(),
+    lastByteAt: r.lastByteAt ? r.lastByteAt.getTime() : null,
+    completed: r.completed,
+    untracked: Number(r.bytesSent) === 0 && Number(r.frontier) === 0,
+  }))
+  const finishedDownloads = groupAttempts(records, now)
+    .filter((g) => g.state !== 'active')
+    .slice(0, 30)
+    .map((g) => {
+      const row = toDownloadRow(recordById.get(g.latestId)!, now, dlcTitles)
+      const transfer = Math.max(0.001, g.transferSeconds)
+      return {
+        ...row,
+        state: g.state,
+        attempts: g.attempts,
+        fileSize: g.fileSize,
+        bytesSent: g.bytesSent,
+        position: g.position,
+        progress: Math.min(1, g.position / Math.max(1, g.fileSize)),
+        complete: g.state === 'complete',
+        transferSeconds: Math.round(g.transferSeconds),
+        averageBps: Math.round(g.bytesSent / transfer),
+        startedAt: new Date(g.startedAt).toISOString(),
+        lastByteAt: new Date(g.lastByteAt).toISOString(),
+      }
+    })
 
   return NextResponse.json({
     activeNow: activeNow.length,
@@ -146,6 +192,6 @@ export async function GET() {
     recentSearches: recentSearches.map((s) => ({ ...s, ts: s.ts.toISOString() })),
     rateLimitAlerts,
     activeDownloads: activeRows.map((r) => toDownloadRow(r, now, dlcTitles)),
-    finishedDownloads: finishedRows.map((r) => toDownloadRow(r, now, dlcTitles)),
+    finishedDownloads,
   })
 }
