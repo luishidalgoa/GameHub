@@ -66,6 +66,26 @@ interface LiveData {
   }>
   recentSearches: Array<{ id: number; query: string; results: number; ts: string }>
   rateLimitAlerts: Array<{ ip: string; count: number; window: string }>
+  activeDownloads: DownloadRow[]
+  finishedDownloads: DownloadRow[]
+}
+
+/** Una descarga con su progreso, velocidad y tiempo restante, tal como la sirve /live. */
+interface DownloadRow {
+  id: number
+  title: string
+  fileName: string
+  client: string | null
+  clientVersion: string | null
+  fileSize: number
+  bytesSent: number
+  progress: number
+  bytesPerSecond: number
+  etaSeconds: number | null
+  averageBps: number
+  complete: boolean
+  startedAt: string
+  lastByteAt: string
 }
 
 type View = 'resumen' | 'descargas' | 'seguridad'
@@ -234,12 +254,97 @@ function ResumenView({ data, live }: { data: TrafficData; live: LiveData | undef
   )
 }
 
-function DescargasView({ data }: { data: TrafficData }) {
+/** Porcentaje a mostrar: una descarga incompleta nunca llega a 100 % por redondeo. */
+function percentOf(progress: number): number {
+  return progress >= 1 ? 100 : Math.floor(progress * 100)
+}
+
+/** Segundos como «2 h 05 min», «4 min 10 s» o «32 s». */
+function formatDuration(seconds: number): string {
+  const s = Math.max(0, Math.round(seconds))
+  if (s >= 3600) return `${Math.floor(s / 3600)} h ${String(Math.floor((s % 3600) / 60)).padStart(2, '0')} min`
+  if (s >= 60) return `${Math.floor(s / 60)} min ${String(s % 60).padStart(2, '0')} s`
+  return `${s} s`
+}
+
+function formatRate(bytesPerSecond: number): string {
+  return `${formatBytes(Math.round(bytesPerSecond))}/s`
+}
+
+/** Descargas en curso, con barra de progreso, y las que se pararon en las últimas 24 h. */
+function DownloadMonitor({ active, finished }: { active: DownloadRow[]; finished: DownloadRow[] }) {
+  return (
+    <div className="space-y-4">
+      <Panel title="Descargas en curso" note="Bytes enviados por el servidor. Se actualiza cada 3 s. Una descarga sin bytes durante 1 min sale de esta lista.">
+        {active.length === 0 ? (
+          <Empty>Ninguna descarga en curso.</Empty>
+        ) : (
+          <ul className="space-y-4">
+            {active.map((d) => (
+              <li key={d.id} className="space-y-1.5">
+                <div className="flex flex-wrap items-baseline justify-between gap-2 text-sm">
+                  <span className="font-medium truncate">{d.title}</span>
+                  <span className="text-xs text-muted-foreground tabular-nums">
+                    {d.client ?? 'Cliente desconocido'}{d.clientVersion ? ` ${d.clientVersion}` : ''}
+                  </span>
+                </div>
+                <div role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={percentOf(d.progress)}
+                  className="h-2 rounded-full bg-muted overflow-hidden">
+                  <div className="h-full bg-primary transition-all duration-700" style={{ width: `${percentOf(d.progress)}%` }} />
+                </div>
+                <div className="flex flex-wrap justify-between gap-2 text-xs text-muted-foreground tabular-nums">
+                  <span>{formatBytes(d.bytesSent)} de {formatBytes(d.fileSize)} · {percentOf(d.progress)} %</span>
+                  <span>{d.bytesPerSecond > 0 ? formatRate(d.bytesPerSecond) : 'parada'}
+                    {d.etaSeconds !== null ? ` · quedan ${formatDuration(d.etaSeconds)}` : ''}</span>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Panel>
+
+      <Panel title="Resumen de las últimas 24 h" note="Descargas que ya no reciben bytes. Completa si llegó al final del archivo; si no, se cortó.">
+        {finished.length === 0 ? (
+          <Empty>Sin descargas terminadas en las últimas 24 h.</Empty>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="text-xs text-muted-foreground text-left">
+                <tr>
+                  <th className="py-2 pr-3 font-medium">Juego</th>
+                  <th className="py-2 pr-3 font-medium">Estado</th>
+                  <th className="py-2 pr-3 font-medium tabular-nums">Enviado</th>
+                  <th className="py-2 pr-3 font-medium tabular-nums">Duración</th>
+                  <th className="py-2 font-medium tabular-nums">Velocidad media</th>
+                </tr>
+              </thead>
+              <tbody>
+                {finished.map((d) => (
+                  <tr key={d.id} className="border-t border-border">
+                    <td className="py-2 pr-3 truncate max-w-[16rem]">{d.title}</td>
+                    <td className={`py-2 pr-3 ${d.complete ? 'text-green-400' : 'text-amber-400'}`}>{d.complete ? 'Completa' : 'Cortada'}</td>
+                    <td className="py-2 pr-3 tabular-nums">{formatBytes(d.bytesSent)} de {formatBytes(d.fileSize)}</td>
+                    <td className="py-2 pr-3 tabular-nums">{formatDuration((new Date(d.lastByteAt).getTime() - new Date(d.startedAt).getTime()) / 1000)}</td>
+                    <td className="py-2 tabular-nums">{formatRate(d.averageBps)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Panel>
+    </div>
+  )
+}
+
+function DescargasView({ data, live }: { data: TrafficData; live: LiveData | undefined }) {
   const { downloads } = data
   const hasGames = downloads.topGames.length > 0
 
   return (
     <div className="space-y-6">
+      <DownloadMonitor active={live?.activeDownloads ?? []} finished={live?.finishedDownloads ?? []} />
+
       <p className="text-xs text-muted-foreground">
         Últimos 30 días. Cada fila de descarga es un tramo, una petición de un fragmento del archivo, no una sesión
         completa. Hasta que exista el modelo de sesiones, las cifras cuentan tramos.
@@ -496,7 +601,7 @@ export default function TrafficPage() {
       </div>
 
       {view === 'resumen' && <ResumenView data={data} live={live} />}
-      {view === 'descargas' && <DescargasView data={data} />}
+      {view === 'descargas' && <DescargasView data={data} live={live} />}
       {view === 'seguridad' && <SeguridadView data={data} live={live} />}
     </div>
   )

@@ -48,3 +48,52 @@ export function countByDay(dates: Date[], starts: Date[], since: Date | null): A
     return dates.filter((d) => d >= start && d < end).length
   })
 }
+
+/** Sin bytes durante este tiempo, una descarga cuenta como parada: su velocidad es 0. */
+export const STALLED_AFTER_MS = 10 * 1000
+
+/** Sin bytes durante este tiempo, una descarga sale de «activas» y pasa al resumen. */
+export const IDLE_AFTER_MS = 60 * 1000
+
+export interface DownloadProgressInput {
+  bytesSent: number
+  fileSize: number
+  /** Velocidad del último tramo guardado, en bytes por segundo. */
+  speedBps: number | null
+  /** Último byte enviado, en ms. */
+  lastByteAt: number
+  /** Inicio del intento, en ms. */
+  startedAt: number
+  now: number
+}
+
+export interface DownloadProgress {
+  /** 0 a 1. */
+  progress: number
+  /** Velocidad ahora: 0 si lleva parada más de STALLED_AFTER_MS. */
+  bytesPerSecond: number
+  /** Segundos que faltan a la velocidad de ahora, o null si no hay velocidad. */
+  etaSeconds: number | null
+  /** Velocidad media del intento desde su inicio, en bytes por segundo. */
+  averageBps: number
+  complete: boolean
+}
+
+/** Progreso, velocidad y tiempo restante de una descarga. Pura: se prueba sin base de datos. */
+export function downloadProgress(d: DownloadProgressInput): DownloadProgress {
+  const fileSize = Math.max(1, d.fileSize)
+  const progress = Math.min(1, d.bytesSent / fileSize)
+  const stalled = d.now - d.lastByteAt > STALLED_AFTER_MS
+  const bytesPerSecond = stalled ? 0 : (d.speedBps ?? 0)
+  const remaining = Math.max(0, fileSize - d.bytesSent)
+  const etaSeconds = bytesPerSecond > 0 ? Math.round(remaining / bytesPerSecond) : null
+  // Un milisegundo de mínimo: la media de una descarga corta debe coincidir con la medida en vivo.
+  const elapsedS = Math.max(0.001, (d.lastByteAt - d.startedAt) / 1000)
+  return {
+    progress,
+    bytesPerSecond,
+    etaSeconds,
+    averageBps: Math.round(d.bytesSent / elapsedS),
+    complete: d.bytesSent >= d.fileSize,
+  }
+}

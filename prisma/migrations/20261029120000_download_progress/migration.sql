@@ -1,0 +1,4 @@
+-- AlterTable
+ALTER TABLE "DownloadLog" ADD COLUMN "bytesSent" BIGINT NOT NULL DEFAULT 0;
+ALTER TABLE "DownloadLog" ADD COLUMN "lastByteAt" DATETIME;
+ALTER TABLE "DownloadLog" ADD COLUMN "speedBps" INTEGER;

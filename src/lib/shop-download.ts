@@ -11,7 +11,8 @@ import path from 'path'
 import { createFileWebStream } from '@/lib/stream'
 import { paceDownloadBody } from '@/lib/download-limit'
 import { contentDispositionAttachment, parseByteRange } from '@/lib/http'
-import { logDownloadComplete, logDownloadStart } from '@/lib/traffic'
+import { findOpenAttempt, logDownloadComplete, logDownloadStart, trackDownloadBody } from '@/lib/traffic'
+import { getClientIp } from '@/lib/tracker'
 
 export interface ShopDownloadTarget {
   filePath: string
@@ -55,7 +56,9 @@ export async function serveShopFile(
   // multi-GB file in many ranges, and a row per range would bury the traffic
   // panel. Only the request that starts at byte 0 is recorded, so a resumed
   // transfer doesn't count twice either.
-  const shouldLog = range === null || range.start === 0
+  // Next responde a HEAD con este mismo GET: un HEAD no es una descarga, no crea fila ni cuenta bytes.
+  const isHead = req.method === 'HEAD'
+  const shouldLog = !isHead && (range === null || range.start === 0)
   const logId = shouldLog
     ? await logDownloadStart({
         req,
@@ -71,9 +74,19 @@ export async function serveShopFile(
   // single-range client is the whole file and for a chunking one is a floor.
   const onEnd = logId !== null ? () => { void logDownloadComplete(logId).catch(() => {}) } : undefined
 
+  // Los bytes de cualquier tramo cuentan para el intento: el que abrió la fila o, en los
+  // tramos en paralelo, el más reciente del mismo cliente, juego y archivo.
+  const attemptId = isHead ? null : logId ?? await findOpenAttempt({
+    ip:       getClientIp(req),
+    gameId:   target.gameId,
+    dlcId:    target.dlcId,
+    fileName,
+  }).catch(() => null)
+  const tracked = (body: ReadableStream<Uint8Array>) => attemptId === null ? body : trackDownloadBody(body, attemptId)
+
   if (range) {
     const { start, end } = range
-    const body = await paceDownloadBody(req, createFileWebStream(target.filePath, { start, end }, { onEnd }))
+    const body = tracked(await paceDownloadBody(req, createFileWebStream(target.filePath, { start, end }, { onEnd })))
     return new NextResponse(body, {
       status: 206,
       headers: {
@@ -84,7 +97,7 @@ export async function serveShopFile(
     })
   }
 
-  const body = await paceDownloadBody(req, createFileWebStream(target.filePath, undefined, { onEnd }))
+  const body = tracked(await paceDownloadBody(req, createFileWebStream(target.filePath, undefined, { onEnd })))
   return new NextResponse(body, {
     status: 200,
     headers: { ...baseHeaders, 'Content-Length': String(fileSize) },

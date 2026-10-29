@@ -359,6 +359,11 @@ model DownloadLog {
   startedAt  DateTime  @default(now())
   finishedAt DateTime?
   completed  Boolean   @default(false)
+  // Progreso medido en el servidor: bytes enviados de todas las peticiones de este intento,
+  // el instante del ultimo byte y la velocidad del ultimo tramo, en bytes por segundo.
+  bytesSent   BigInt   @default(0)
+  lastByteAt  DateTime?
+  speedBps    Int?
 
   @@index([gameId])
   @@index([startedAt])
