@@ -79,16 +79,12 @@ export async function findOpenAttempt(opts: {
   return rows.find(r => r.bytesSent < r.fileSize)?.id ?? null
 }
 
-/** Guarda un tramo de progreso en el intento: bytes sumados, último byte y velocidad. */
-export async function recordProgress(logId: number, flush: MeterFlush): Promise<void> {
-  await db.downloadLog.update({
-    where: { id: logId },
-    data: {
-      bytesSent: { increment: BigInt(flush.bytes) },
-      lastByteAt: new Date(flush.at),
-      speedBps: flush.bytesPerSecond,
-    },
-  })
+/**
+ * Guarda un tramo de progreso: bytes sumados, último byte, y la posición más lejana del archivo.
+ * La posición sube sola (MAX): una pieza repetida o un tramo viejo no la hace retroceder.
+ */
+export async function recordProgress(logId: number, flush: MeterFlush, position: number): Promise<void> {
+  await db.$executeRaw`UPDATE "DownloadLog" SET "bytesSent" = "bytesSent" + ${flush.bytes}, "lastByteAt" = ${flush.at}, "frontier" = MAX("frontier", ${position}) WHERE "id" = ${logId}`
 }
 
 /**
@@ -99,14 +95,20 @@ export async function recordProgress(logId: number, flush: MeterFlush): Promise<
  *
  * Son bytes en el cable: una pieza que el cliente pide otra vez se cuenta dos veces.
  */
-export function trackDownloadBody(body: ReadableStream<Uint8Array>, logId: number): ReadableStream<Uint8Array> {
+export function trackDownloadBody(
+  body: ReadableStream<Uint8Array>,
+  logId: number,
+  startOffset: number,
+): ReadableStream<Uint8Array> {
   let unsaved = 0
+  let sent = 0
   let queue: Promise<void> = Promise.resolve()
   const save = (flush: MeterFlush) => {
+    const position = startOffset + sent
     queue = queue.then(async () => {
       const bytes = unsaved + flush.bytes
       try {
-        await recordProgress(logId, { ...flush, bytes })
+        await recordProgress(logId, { ...flush, bytes }, position)
         unsaved = 0
       } catch {
         unsaved = bytes
@@ -134,6 +136,7 @@ export function trackDownloadBody(body: ReadableStream<Uint8Array>, logId: numbe
         const piece = pending.subarray(0, take)
         pending = take < pending.byteLength ? pending.subarray(take) : null
         controller.enqueue(piece)
+        sent += piece.byteLength
         meter.add(piece.byteLength, Date.now())
       },
       cancel(reason) {

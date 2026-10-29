@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getRateLimitAlerts, parseUaDetail } from '@/lib/tracker'
 import { adminGuard } from '@/lib/admin-guard'
-import { downloadProgress, errorPercent, IDLE_AFTER_MS } from '@/lib/traffic-stats'
+import { downloadKindOf, downloadProgress, errorPercent, IDLE_AFTER_MS, measureSpeed, type SpeedSample } from '@/lib/traffic-stats'
 
 export const dynamic = 'force-dynamic'
 
@@ -11,26 +11,54 @@ const ERRORS_WINDOW_MS = 60 * 60 * 1000
 const DAY_MS = 24 * 60 * 60 * 1000
 
 const downloadSelect = {
-  id: true, gameId: true, fileName: true, fileSize: true, bytesSent: true, speedBps: true,
+  id: true, gameId: true, dlcId: true, dlcType: true, fileName: true, fileSize: true, bytesSent: true, frontier: true,
   lastByteAt: true, startedAt: true, client: true, clientVersion: true,
   game: { select: { title: true } },
 } as const
 
 /** Una descarga con su progreso, velocidad y tiempo restante, lista para la pantalla. */
-function toDownloadRow(r: {
-  id: number; gameId: number; fileName: string; fileSize: bigint; bytesSent: bigint; speedBps: number | null
-  lastByteAt: Date | null; startedAt: Date; client: string | null; clientVersion: string | null
-  game: { title: string }
-}, now: number) {
+type DownloadRecord = {
+  id: number; gameId: number; dlcId: number | null; dlcType: string | null; fileName: string; fileSize: bigint
+  bytesSent: bigint; frontier: bigint; lastByteAt: Date | null; startedAt: Date
+  client: string | null; clientVersion: string | null; game: { title: string }
+}
+
+/** Nombre de los DLC, actualizaciones y mods de las filas: el título del fichero si lo tiene, si no el nombre. */
+async function dlcTitlesFor(rows: DownloadRecord[]): Promise<Map<number, string>> {
+  const ids = [...new Set(rows.map((r) => r.dlcId).filter((id): id is number => id !== null))]
+  if (ids.length === 0) return new Map()
+  const dlcs = await db.gameDlc.findMany({ where: { id: { in: ids } }, select: { id: true, title: true, fileName: true } })
+  return new Map(dlcs.map((d) => [d.id, d.title ?? d.fileName]))
+}
+
+/** Última lectura de bytes por descarga: la velocidad sale de dos lecturas, no del último tramo. */
+const speedSamples = new Map<number, SpeedSample>()
+
+/** Velocidad de una descarga medida desde la lectura anterior de esta misma pantalla. */
+function speedOf(id: number, bytesSent: number, now: number): number {
+  const sample = measureSpeed(speedSamples.get(id), bytesSent, now)
+  speedSamples.set(id, sample)
+  // Las descargas que llevan una hora sin movimiento salen de la memoria.
+  if (speedSamples.size > 500) {
+    for (const [key, s] of speedSamples) if (now - s.at > 60 * 60 * 1000) speedSamples.delete(key)
+  }
+  return sample.bytesPerSecond
+}
+
+function toDownloadRow(r: DownloadRecord, now: number, dlcTitles: Map<number, string>) {
   const lastByteAt = (r.lastByteAt ?? r.startedAt).getTime()
+  const bytesSent = Number(r.bytesSent)
   const p = downloadProgress({
-    bytesSent: Number(r.bytesSent), fileSize: Number(r.fileSize), speedBps: r.speedBps,
+    bytesSent, position: Number(r.frontier), fileSize: Number(r.fileSize),
+    bytesPerSecond: speedOf(r.id, bytesSent, now),
     lastByteAt, startedAt: r.startedAt.getTime(), now,
   })
   return {
     id: r.id,
     gameId: r.gameId,
     title: r.game.title,
+    kind: downloadKindOf(r.dlcId, r.dlcType),
+    dlcTitle: r.dlcId === null ? null : (dlcTitles.get(r.dlcId) ?? null),
     fileName: r.fileName,
     client: r.client,
     clientVersion: r.clientVersion,
@@ -107,6 +135,8 @@ export async function GET() {
     }
   })
 
+  const dlcTitles = await dlcTitlesFor([...activeRows, ...finishedRows])
+
   return NextResponse.json({
     activeNow: activeNow.length,
     requests1h,
@@ -115,7 +145,7 @@ export async function GET() {
     recentRequests: enrichedRequests,
     recentSearches: recentSearches.map((s) => ({ ...s, ts: s.ts.toISOString() })),
     rateLimitAlerts,
-    activeDownloads: activeRows.map((r) => toDownloadRow(r, now)),
-    finishedDownloads: finishedRows.map((r) => toDownloadRow(r, now)),
+    activeDownloads: activeRows.map((r) => toDownloadRow(r, now, dlcTitles)),
+    finishedDownloads: finishedRows.map((r) => toDownloadRow(r, now, dlcTitles)),
   })
 }

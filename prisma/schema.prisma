@@ -362,8 +362,11 @@ model DownloadLog {
   // Progreso medido en el servidor: bytes enviados de todas las peticiones de este intento,
   // el instante del ultimo byte y la velocidad del ultimo tramo, en bytes por segundo.
   bytesSent   BigInt   @default(0)
+  // Posición más lejana del archivo que se ha enviado (byte final + 1). Un intento que se reanuda
+  // en el 78 % empieza aquí, no en cero: el progreso sale de esta cifra.
+  frontier    BigInt   @default(0)
   lastByteAt  DateTime?
-  speedBps    Int?
+  speedBps    Int?                  // ya no se escribe: la velocidad se mide entre dos lecturas
 
   @@index([gameId])
   @@index([startedAt])

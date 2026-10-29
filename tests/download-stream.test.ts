@@ -37,7 +37,7 @@ describe('velocidad acotada', () => {
 
 describe('media de una descarga corta', () => {
   it('coincide con la medida en vivo cuando dura menos de un segundo', () => {
-    const p = downloadProgress({ bytesSent: 3_000_000, fileSize: 3_000_000, speedBps: null, lastByteAt: 300, startedAt: 0, now: 300 })
+    const p = downloadProgress({ bytesSent: 3_000_000, position: 3_000_000, fileSize: 3_000_000, bytesPerSecond: 0, lastByteAt: 300, startedAt: 0, now: 300 })
     expect(p.averageBps).toBe(10_000_000)
   })
 })
@@ -45,7 +45,7 @@ describe('media de una descarga corta', () => {
 describe('trackDownloadBody', () => {
   it('entrega el cuerpo sin cambios', async () => {
     const piece = new Uint8Array(200_000)
-    const total = await drain(trackDownloadBody(bodyOf(piece, piece), 1))
+    const total = await drain(trackDownloadBody(bodyOf(piece, piece), 1, 0))
     expect(total).toBe(400_000)
   })
 })

@@ -56,10 +56,13 @@ export const STALLED_AFTER_MS = 10 * 1000
 export const IDLE_AFTER_MS = 60 * 1000
 
 export interface DownloadProgressInput {
+  /** Bytes que han salido hacia el cliente, todas las peticiones (puede contar repetidos). */
   bytesSent: number
+  /** Posición más lejana del archivo enviada: lo que cuenta para el progreso. */
+  position: number
   fileSize: number
-  /** Velocidad del último tramo guardado, en bytes por segundo. */
-  speedBps: number | null
+  /** Velocidad medida entre dos lecturas, en bytes por segundo. */
+  bytesPerSecond: number
   /** Último byte enviado, en ms. */
   lastByteAt: number
   /** Inicio del intento, en ms. */
@@ -68,7 +71,7 @@ export interface DownloadProgressInput {
 }
 
 export interface DownloadProgress {
-  /** 0 a 1. */
+  /** 0 a 1, según la posición del archivo. */
   progress: number
   /** Velocidad ahora: 0 si lleva parada más de STALLED_AFTER_MS. */
   bytesPerSecond: number
@@ -82,10 +85,10 @@ export interface DownloadProgress {
 /** Progreso, velocidad y tiempo restante de una descarga. Pura: se prueba sin base de datos. */
 export function downloadProgress(d: DownloadProgressInput): DownloadProgress {
   const fileSize = Math.max(1, d.fileSize)
-  const progress = Math.min(1, d.bytesSent / fileSize)
+  const progress = Math.min(1, d.position / fileSize)
   const stalled = d.now - d.lastByteAt > STALLED_AFTER_MS
-  const bytesPerSecond = stalled ? 0 : (d.speedBps ?? 0)
-  const remaining = Math.max(0, fileSize - d.bytesSent)
+  const bytesPerSecond = stalled ? 0 : Math.max(0, d.bytesPerSecond)
+  const remaining = Math.max(0, fileSize - d.position)
   const etaSeconds = bytesPerSecond > 0 ? Math.round(remaining / bytesPerSecond) : null
   // Un milisegundo de mínimo: la media de una descarga corta debe coincidir con la medida en vivo.
   const elapsedS = Math.max(0.001, (d.lastByteAt - d.startedAt) / 1000)
@@ -94,6 +97,53 @@ export function downloadProgress(d: DownloadProgressInput): DownloadProgress {
     bytesPerSecond,
     etaSeconds,
     averageBps: Math.round(d.bytesSent / elapsedS),
-    complete: d.bytesSent >= d.fileSize,
+    complete: d.position >= d.fileSize,
+  }
+}
+
+/** Una lectura de bytes enviados en un instante, y la velocidad medida hasta la anterior. */
+export interface SpeedSample {
+  bytes: number
+  at: number
+  bytesPerSecond: number
+}
+
+/** Lecturas más cercanas que esto no sirven para medir: se conserva la anterior. */
+const MIN_SPEED_WINDOW_MS = 1000
+
+/**
+ * Velocidad entre dos lecturas: bytes enviados desde la anterior dividido por el tiempo que pasó.
+ * Mide lo que sale de verdad, sin importar cómo se reparten los tramos ni cuántas peticiones
+ * en paralelo hay. Sin lectura anterior, o si pasó menos de un segundo, devuelve la anterior.
+ */
+export function measureSpeed(prev: SpeedSample | undefined, bytes: number, now: number): SpeedSample {
+  if (!prev) return { bytes, at: now, bytesPerSecond: 0 }
+  const elapsed = now - prev.at
+  if (elapsed < MIN_SPEED_WINDOW_MS) return prev
+  return {
+    bytes,
+    at: now,
+    bytesPerSecond: Math.max(0, (bytes - prev.bytes) / (elapsed / 1000)),
+  }
+}
+
+/**
+ * Qué se descarga: el juego base (sin dlcId) o el tipo del complemento: dlc, update, mod o region.
+ * Un tipo desconocido se devuelve tal cual, para no esconder una descarga nueva.
+ */
+export function downloadKindOf(dlcId: number | null, dlcType: string | null): string {
+  if (dlcId === null) return 'base'
+  return dlcType ?? 'dlc'
+}
+
+/** Nombre en pantalla del tipo de descarga. */
+export function downloadKindLabel(kind: string): string {
+  switch (kind) {
+    case 'base': return 'Juego base'
+    case 'dlc': return 'DLC'
+    case 'update': return 'Actualización'
+    case 'mod': return 'Mod'
+    case 'region': return 'Edición regional'
+    default: return kind
   }
 }

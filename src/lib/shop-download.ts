@@ -82,11 +82,13 @@ export async function serveShopFile(
     dlcId:    target.dlcId,
     fileName,
   }).catch(() => null)
-  const tracked = (body: ReadableStream<Uint8Array>) => attemptId === null ? body : trackDownloadBody(body, attemptId)
+  // Cada petición cuenta desde su propio desplazamiento: una reanudación en el 78 % empieza en el 78 %.
+  const tracked = (body: ReadableStream<Uint8Array>, offset: number) =>
+    attemptId === null ? body : trackDownloadBody(body, attemptId, offset)
 
   if (range) {
     const { start, end } = range
-    const body = tracked(await paceDownloadBody(req, createFileWebStream(target.filePath, { start, end }, { onEnd })))
+    const body = tracked(await paceDownloadBody(req, createFileWebStream(target.filePath, { start, end }, { onEnd })), start)
     return new NextResponse(body, {
       status: 206,
       headers: {
@@ -97,7 +99,7 @@ export async function serveShopFile(
     })
   }
 
-  const body = tracked(await paceDownloadBody(req, createFileWebStream(target.filePath, undefined, { onEnd })))
+  const body = tracked(await paceDownloadBody(req, createFileWebStream(target.filePath, undefined, { onEnd })), 0)
   return new NextResponse(body, {
     status: 200,
     headers: { ...baseHeaders, 'Content-Length': String(fileSize) },

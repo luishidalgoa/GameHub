@@ -5,6 +5,7 @@ import useSWR from 'swr'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LabelList } from 'recharts'
 import { AlertTriangle, Shield } from 'lucide-react'
 import { formatBytes } from '@/lib/utils'
+import { downloadKindLabel } from '@/lib/traffic-stats'
 
 // Los identificadores son estables; lo que se ensena no tiene por que serlo.
 // Tinfoil y CyberFoil se quedan: hay descargas archivadas con esos clientes.
@@ -74,6 +75,8 @@ interface LiveData {
 interface DownloadRow {
   id: number
   title: string
+  kind: string
+  dlcTitle: string | null
   fileName: string
   client: string | null
   clientVersion: string | null
@@ -283,7 +286,12 @@ function DownloadMonitor({ active, finished }: { active: DownloadRow[]; finished
             {active.map((d) => (
               <li key={d.id} className="space-y-1.5">
                 <div className="flex flex-wrap items-baseline justify-between gap-2 text-sm">
-                  <span className="font-medium truncate">{d.title}</span>
+                  <span className="min-w-0">
+                    <span className="font-medium truncate block">{d.title}</span>
+                    <span className="text-xs text-muted-foreground truncate block">
+                      {downloadKindLabel(d.kind)}{d.dlcTitle ? ` · ${d.dlcTitle}` : ''}
+                    </span>
+                  </span>
                   <span className="text-xs text-muted-foreground tabular-nums">
                     {d.client ?? 'Cliente desconocido'}{d.clientVersion ? ` ${d.clientVersion}` : ''}
                   </span>
@@ -321,7 +329,12 @@ function DownloadMonitor({ active, finished }: { active: DownloadRow[]; finished
               <tbody>
                 {finished.map((d) => (
                   <tr key={d.id} className="border-t border-border">
-                    <td className="py-2 pr-3 truncate max-w-[16rem]">{d.title}</td>
+                    <td className="py-2 pr-3 truncate max-w-[16rem]">
+                      {d.title}
+                      <span className="block text-xs text-muted-foreground">
+                        {downloadKindLabel(d.kind)}{d.dlcTitle ? ` · ${d.dlcTitle}` : ''}
+                      </span>
+                    </td>
                     <td className={`py-2 pr-3 ${d.complete ? 'text-green-400' : 'text-amber-400'}`}>{d.complete ? 'Completa' : 'Cortada'}</td>
                     <td className="py-2 pr-3 tabular-nums">{formatBytes(d.bytesSent)} de {formatBytes(d.fileSize)}</td>
                     <td className="py-2 pr-3 tabular-nums">{formatDuration((new Date(d.lastByteAt).getTime() - new Date(d.startedAt).getTime()) / 1000)}</td>
