@@ -73,7 +73,7 @@ function bestMatch(
  * than parking it as no_match for two weeks.
  */
 export class StoreUnavailableError extends Error {
-  constructor(message = 'La tienda de Nintendo no responde') {
+  constructor(message = 'Una fuente de metadatos no responde') {
     super(message)
     this.name = 'StoreUnavailableError'
   }
@@ -236,7 +236,9 @@ export async function gatherMetadata(input: GatherInput): Promise<ComposedMetada
   // a game LaunchBox and RAWG have never heard of gets no second chance
   // otherwise, and "no_match" on a game whose box is sitting right there is a
   // poor answer.
-  if (!lb && !rawg && !nin && (storeDown || lbDown || rawgDown)) throw new StoreUnavailableError()
+  // Name the source that failed: the store, LaunchBox or RAWG, whichever is down.
+  const downSource = storeDown ? 'La tienda de Nintendo' : lbDown ? 'LaunchBox' : rawgDown ? 'RAWG' : null
+  if (!lb && !rawg && !nin && downSource) throw new StoreUnavailableError(`${downSource} no responde`)
   if (!lb && !rawg && !nin && input.coverWithoutMatch === false) return null
   if (!lb && !rawg && !nin) {
     // Only the libretro box can stand alone here: it is matched on the file name.

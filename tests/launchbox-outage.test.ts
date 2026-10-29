@@ -25,4 +25,9 @@ describe('caída de LaunchBox', () => {
     await expect(gatherMetadata({ title: 'Samurai Warrior', platformSlug: 'switch', matrix }))
       .rejects.toBeInstanceOf(StoreUnavailableError)
   })
+
+  it('nombra LaunchBox y no la tienda de Nintendo', async () => {
+    await expect(gatherMetadata({ title: 'Samurai Warrior', platformSlug: 'switch', matrix }))
+      .rejects.toThrow('LaunchBox no responde')
+  })
 })
