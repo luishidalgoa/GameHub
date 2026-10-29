@@ -295,6 +295,8 @@
     "maxDownloadsHint": "Recommended: 1–3 for a home server.",
     "downloadSpeedLimit": "Download speed limit (KiB/s)",
     "downloadSpeedLimitHint": "0 = no limit. Applies to downloads from browsers; GameHubNX is not limited.",
+    "minClientVersion": "Minimum GameHubNX version",
+    "minClientVersionHint": "Empty = nobody is forced. With a version (e.g. 1.1.0), consoles on an older version cannot download until they update.",
     "nginxConfig": "nginx rate limiting config ↓",
     "browseFolder": "Browse…",
     "scanDlcLabel": "Detect Updates & DLC (Title ID)",

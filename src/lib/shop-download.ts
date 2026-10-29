@@ -13,6 +13,7 @@ import { paceDownloadBody } from '@/lib/download-limit'
 import { contentDispositionAttachment, parseByteRange } from '@/lib/http'
 import { findOpenAttempt, logDownloadComplete, logDownloadStart, trackDownloadBody } from '@/lib/traffic'
 import { getClientIp } from '@/lib/tracker'
+import { requiredClientVersion } from '@/lib/client-gate'
 
 export interface ShopDownloadTarget {
   filePath: string
@@ -27,6 +28,11 @@ export async function serveShopFile(
   req: Request,
   target: ShopDownloadTarget,
 ): Promise<NextResponse> {
+  // Versión mínima de GameHubNX: apagada hasta que el ajuste la fije (ver client-gate.ts).
+  const minimum = await requiredClientVersion(req)
+  if (minimum !== null)
+    return NextResponse.json({ error: 'client_outdated', minVersion: minimum }, { status: 426 })
+
   let fileSize: number
   try {
     const st = await fsp.stat(target.filePath)

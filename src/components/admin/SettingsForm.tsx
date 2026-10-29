@@ -444,6 +444,7 @@ export function SettingsForm({ initialSection = '', platforms: initial, metadata
   const [youtubeKey,    setYoutubeKey]    = useState(settings['youtube_api_key']           ?? '')
   const [maxDownloads,  setMaxDownloads]  = useState(settings['max_concurrent_downloads'] ?? '1')
   const [downloadLimit, setDownloadLimit] = useState(settings['download_limit_kib_per_s'] ?? '0')
+  const [minClientVersion, setMinClientVersion] = useState(settings['min_client_version'] ?? '')
 
 
   // S3 / MinIO
@@ -478,7 +479,7 @@ export function SettingsForm({ initialSection = '', platforms: initial, metadata
     claves:      { rawg_api_key: rawgKey, google_search_api_key: googleApiKey, steamgriddb_key: sgdbKey, youtube_api_key: youtubeKey },
     proveedores: {},
     s3:          { s3_endpoint_interno: s3Internal, s3_endpoint_publico: s3Public, s3_access_key: s3AccessKey, s3_secret_key: s3SecretKey, s3_bucket_name: s3Bucket, s3_region: s3Region },
-    cola:        { max_concurrent_downloads: maxDownloads, download_limit_kib_per_s: downloadLimit },
+    cola:        { max_concurrent_downloads: maxDownloads, download_limit_kib_per_s: downloadLimit, min_client_version: minClientVersion },
     tienda:      { shop_password: shopPassword },
     app:         { app_url: appUrl },
   }
@@ -658,6 +659,7 @@ export function SettingsForm({ initialSection = '', platforms: initial, metadata
       case 'cola':
         setMaxDownloads(settings['max_concurrent_downloads'] ?? '1')
         setDownloadLimit(settings['download_limit_kib_per_s'] ?? '0')
+        setMinClientVersion(settings['min_client_version'] ?? '')
         break
       case 'tienda':
         setShopPassword(settings['shop_password'] ?? '')
@@ -1503,6 +1505,16 @@ export function SettingsForm({ initialSection = '', platforms: initial, metadata
             className="w-24 bg-secondary border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
           />
           <p className="text-xs text-muted-foreground mt-1.5">{t('downloadSpeedLimitHint')}</p>
+        </div>
+        <div className="mt-5">
+          <label className="block text-sm font-medium mb-1.5">{t('minClientVersion')}</label>
+          <input
+            type="text" placeholder="1.1.0"
+            value={minClientVersion}
+            onChange={(e) => setMinClientVersion(e.target.value.trim())}
+            className="w-32 bg-secondary border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+          />
+          <p className="text-xs text-muted-foreground mt-1.5">{t('minClientVersionHint')}</p>
         </div>
       </div>
         </SectionFrame>

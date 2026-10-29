@@ -295,6 +295,8 @@
     "maxDownloadsHint": "Recomendado: 1–3 para un servidor doméstico.",
     "downloadSpeedLimit": "Límite de velocidad de descarga (KiB/s)",
     "downloadSpeedLimitHint": "0 = sin límite. Aplica a las descargas desde la web y a los navegadores; GameHubNX no está limitada.",
+    "minClientVersion": "Versión mínima de GameHubNX",
+    "minClientVersionHint": "Vacío = no obliga a nadie. Con una versión (p. ej. 1.1.0), las consolas con una versión anterior no pueden descargar hasta actualizar.",
     "nginxConfig": "configuración de límite de tasa nginx ↓",
     "browseFolder": "Explorar…",
     "scanDlcLabel": "Detectar Updates y DLCs (Title ID)",
