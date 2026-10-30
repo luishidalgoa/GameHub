@@ -5,6 +5,7 @@ import { BrandMark } from '@/components/shared/BrandMark'
 import { useState, FormEvent } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Lock, Loader2, Eye, EyeOff } from 'lucide-react'
+import { AdminButton } from '@/components/admin/AdminButton'
 
 function LoginForm() {
   const router = useRouter()
@@ -77,14 +78,16 @@ function LoginForm() {
         </div>
       )}
 
-      <button
+      <AdminButton
+        variant="primary"
+        size="md"
         type="submit"
         disabled={loading || !password}
-        className="w-full flex items-center justify-center gap-2 py-2.5 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        className="w-full disabled:opacity-50"
       >
         {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Lock className="w-4 h-4" />}
         {loading ? 'Verifying…' : 'Sign in'}
-      </button>
+      </AdminButton>
     </form>
   )
 }

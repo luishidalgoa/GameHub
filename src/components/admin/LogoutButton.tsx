@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation'
 import { LogOut } from 'lucide-react'
+import { AdminButton } from '@/components/admin/AdminButton'
 
 export function LogoutButton() {
   const router = useRouter()
@@ -13,12 +14,9 @@ export function LogoutButton() {
   }
 
   return (
-    <button
-      onClick={handleLogout}
-      className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-accent rounded-md transition-colors"
-    >
+    <AdminButton variant="ghost" size="sm" onClick={handleLogout}>
       <LogOut className="w-3.5 h-3.5" />
       Sign out
-    </button>
+    </AdminButton>
   )
 }

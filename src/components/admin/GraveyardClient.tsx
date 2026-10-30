@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useTranslations } from 'next-intl'
 import { Trash2, AlertTriangle, RefreshCw, ChevronDown, ChevronUp, CheckCircle2, XCircle, AlertCircle } from 'lucide-react'
+import { AdminButton } from '@/components/admin/AdminButton'
 
 interface RecoverDetail {
   graveyardId: number
@@ -34,14 +35,16 @@ export function DeleteGameButton({ id, onDeleted }: { id: number; onDeleted?: ()
   }
 
   return (
-    <button
+    <AdminButton
+      variant="ghost"
+      size="sm"
       onClick={handleDelete}
       disabled={loading}
       title={t('deleteTitle')}
-      className="p-1.5 rounded-md text-muted-foreground hover:text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-40"
+      className="hover:text-red-400 hover:bg-red-500/10"
     >
       <Trash2 className="w-3.5 h-3.5" />
-    </button>
+    </AdminButton>
   )
 }
 
@@ -57,13 +60,14 @@ export function PurgeAllButton({ count }: { count: number }) {
 
   if (!confirmed) {
     return (
-      <button
+      <AdminButton
+        variant="danger"
+        size="md"
         onClick={() => setConfirmed(true)}
-        className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md border border-red-700/40 text-red-400 hover:bg-red-500/10 transition-colors"
       >
         <Trash2 className="w-3.5 h-3.5" />
         {t('purgeAll')}
-      </button>
+      </AdminButton>
     )
   }
 
@@ -71,7 +75,10 @@ export function PurgeAllButton({ count }: { count: number }) {
     <div className="flex items-center gap-2 px-3 py-1.5 bg-red-950/40 border border-red-700/50 rounded-md text-sm">
       <AlertTriangle className="w-3.5 h-3.5 text-red-400 shrink-0" />
       <span className="text-red-300">{t('purgeConfirm', { count })}</span>
-      <button
+      <AdminButton
+        variant="danger"
+        size="sm"
+        className="ml-1"
         onClick={() => {
           setLoading(true)
           fetch('/api/admin/graveyard', {
@@ -86,17 +93,17 @@ export function PurgeAllButton({ count }: { count: number }) {
             .finally(() => setLoading(false))
         }}
         disabled={loading}
-        className="ml-1 px-2 py-0.5 text-xs font-medium bg-red-700 hover:bg-red-600 text-white rounded transition-colors disabled:opacity-50"
       >
         {loading ? t('deleting') : t('purgeYes')}
-      </button>
-      <button
+      </AdminButton>
+      <AdminButton
+        variant="secondary"
+        size="sm"
         onClick={() => setConfirmed(false)}
         disabled={loading}
-        className="px-2 py-0.5 text-xs text-muted-foreground hover:text-foreground rounded transition-colors"
       >
         {t('cancel')}
-      </button>
+      </AdminButton>
     </div>
   )
 }
@@ -156,19 +163,22 @@ export function RecoverMetadataButton({ count }: { count: number }) {
               {result.notFound > 0 && <span className="text-zinc-500 ml-2">{result.notFound} not matched</span>}
             </span>
           </div>
-          <button
+          <AdminButton
+            variant="ghost"
+            size="sm"
             onClick={() => setLogsOpen((v) => !v)}
-            className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
           >
             {logsOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
             {logsOpen ? 'Hide log' : 'Show log'}
-          </button>
-          <button
+          </AdminButton>
+          <AdminButton
+            variant="ghost"
+            size="sm"
             onClick={() => { setResult(null); setLogsOpen(false) }}
-            className="text-xs text-muted-foreground hover:text-foreground transition-colors ml-auto"
+            className="ml-auto"
           >
             ✕ dismiss
-          </button>
+          </AdminButton>
         </div>
 
         {/* Detail log */}
@@ -204,13 +214,14 @@ export function RecoverMetadataButton({ count }: { count: number }) {
   }
 
   return (
-    <button
+    <AdminButton
+      variant="primary"
+      size="md"
       onClick={handleRecover}
       disabled={loading}
-      className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md border border-green-700/40 text-green-400 hover:bg-green-500/10 transition-colors disabled:opacity-50"
     >
       <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
       {loading ? (t('recovering') || 'Recovering...') : (t('recoverMetadata') || 'Recover Metadata')}
-    </button>
+    </AdminButton>
   )
 }

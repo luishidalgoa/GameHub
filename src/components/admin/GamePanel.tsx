@@ -11,6 +11,7 @@ import { RegionSelect } from './RegionSelect'
 import { parseFeaturedOrder } from '@/lib/featured-order'
 import { FeaturedSlotField } from './FeaturedSlotField'
 import { mutate } from 'swr'
+import { AdminButton } from '@/components/admin/AdminButton'
 
 export interface PanelGame {
   id: number
@@ -221,9 +222,9 @@ export function GamePanel({ game, percent, missing, closeHref, imagesHref, prevH
           </fieldset>
 
           <div className="flex items-center gap-3 pt-2">
-            <button type="submit" disabled={saving} className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-60">
+            <AdminButton variant="primary" type="submit" disabled={saving}>
               {saving ? 'Guardando…' : 'Guardar'}
-            </button>
+            </AdminButton>
             <span role="status" aria-live="polite" className={`text-sm ${status?.ok ? 'text-emerald-400' : 'text-rose-300'}`}>{status?.text ?? ''}</span>
           </div>
         </form>

@@ -11,6 +11,7 @@ import {
   Heart, Plus, Trash2, Loader2, Coffee, Bitcoin, TrendingUp, Calendar,
   Webhook, Copy, Check, X, Target,
 } from 'lucide-react'
+import { AdminButton } from '@/components/admin/AdminButton'
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
@@ -161,18 +162,20 @@ export default function DonationsPage() {
           <p className="text-muted-foreground text-sm mt-0.5">{t('subtitle')}</p>
         </div>
         <div className="flex gap-2">
-          <button
+          <AdminButton
+            variant="secondary"
+            size="md"
             onClick={() => setShowWebhook((v) => !v)}
-            className="flex items-center gap-2 px-3 py-1.5 text-sm border border-border rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
           >
             <Webhook className="w-3.5 h-3.5" /> {t('kofiWebhook')}
-          </button>
-          <button
+          </AdminButton>
+          <AdminButton
+            variant="secondary"
+            size="md"
             onClick={() => setShowAdd(true)}
-            className="flex items-center gap-2 px-4 py-1.5 text-sm bg-primary text-primary-foreground rounded-md font-medium hover:bg-primary/90 transition-colors"
           >
             <Plus className="w-4 h-4" /> {t('addDonation')}
-          </button>
+          </AdminButton>
         </div>
       </div>
 
@@ -206,13 +209,14 @@ export default function DonationsPage() {
               <code className="flex-1 bg-secondary border border-border rounded-md px-3 py-2 text-xs font-mono text-muted-foreground truncate">
                 {typeof window !== 'undefined' ? `${window.location.origin}/api/webhooks/kofi` : '/api/webhooks/kofi'}
               </code>
-              <button
+              <AdminButton
+                variant="ghost"
+                size="sm"
                 onClick={copyWebhookUrl}
                 aria-label="Copiar la URL del webhook"
-                className="p-2 rounded-md border border-border text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
               >
                 {copied ? <Check className="w-3.5 h-3.5 text-green-400" /> : <Copy className="w-3.5 h-3.5" />}
-              </button>
+              </AdminButton>
             </div>
           </div>
           <div>
@@ -227,13 +231,14 @@ export default function DonationsPage() {
                 placeholder={t('webhookTokenPlaceholder')}
                 className="flex-1 bg-secondary border border-border rounded-md px-3 py-2 text-sm font-mono placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
               />
-              <button
+              <AdminButton
+                variant="primary"
+                size="md"
                 onClick={saveToken}
                 disabled={savingToken || !webhookToken}
-                className="px-3 py-2 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-40 transition-colors"
               >
                 {savingToken ? <Loader2 className="w-4 h-4 animate-spin" /> : tokenSaved ? <Check className="w-4 h-4 text-green-400" /> : t('save')}
-              </button>
+              </AdminButton>
             </div>
           </div>
         </div>
@@ -331,14 +336,16 @@ export default function DonationsPage() {
                         </span>
                       </td>
                       <td className="px-4 py-3 text-right">
-                        <button
+                        <AdminButton
+                          variant="ghost"
+                          size="sm"
                           onClick={() => del(d.id)}
                           disabled={deleting === d.id}
                           aria-label="Eliminar esta donación"
-                          className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-red-950/30 hover:text-red-400 disabled:opacity-40"
+                          className="hover:bg-red-950/30 hover:text-red-400"
                         >
                           {deleting === d.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
-                        </button>
+                        </AdminButton>
                       </td>
                     </tr>
                   ))}
@@ -490,21 +497,23 @@ export default function DonationsPage() {
                 />
               </label>
               <div className="flex gap-2 pt-2">
-                <button
+                <AdminButton
+                  variant="primary"
+                  size="md"
                   type="submit"
                   disabled={saving || !form.amount}
-                  className="flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-40"
                 >
                   {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
                   {saving ? t('saving') : t('add')}
-                </button>
-                <button
+                </AdminButton>
+                <AdminButton
+                  variant="secondary"
+                  size="md"
                   type="button"
                   onClick={() => { setShowAdd(false); setForm(emptyForm) }}
-                  className="rounded-md border border-border px-4 py-2 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
                 >
                   {t('cancel')}
-                </button>
+                </AdminButton>
               </div>
             </form>
           </aside>

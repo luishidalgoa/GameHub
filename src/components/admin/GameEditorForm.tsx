@@ -11,6 +11,7 @@ import { MetadataFetchButton } from './MetadataFetchButton'
 import { ScoreField } from './ScoreField'
 import { TrailerField } from './TrailerField'
 import { RegionSelect } from './RegionSelect'
+import { AdminButton } from '@/components/admin/AdminButton'
 import { parseExternalLinks, type ExternalLinkItem } from '@/components/game/ExternalLinks'
 import { YouTubeEmbed } from '@/components/shared/YouTubeEmbed'
 import { toast } from '@/components/shared/Toaster'
@@ -189,14 +190,10 @@ export function GameEditorForm({ game, thumbnailWidth = 200, thumbnailHeight = 3
 
         <div className="flex items-center gap-3">
           <MetadataFetchButton gameId={game.id} onApplied={handleMetadataApplied} />
-          <button
-            onClick={save}
-            disabled={saving}
-            className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:bg-primary/90 disabled:opacity-50 transition-colors"
-          >
+          <AdminButton variant="primary" size="md" onClick={save} disabled={saving}>
             {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
             {saved ? t('saved') : saving ? t('saving') : t('saveChanges')}
-          </button>
+          </AdminButton>
         </div>
       </div>
 
@@ -375,14 +372,10 @@ export function GameEditorForm({ game, thumbnailWidth = 200, thumbnailHeight = 3
                 <Link2 className="w-4 h-4 text-muted-foreground" />
                 {t('externalLinks')}
               </p>
-              <button
-                type="button"
-                onClick={addLink}
-                className="flex items-center gap-1 px-2.5 py-1 text-xs rounded-md bg-secondary border border-border hover:bg-accent transition-colors text-muted-foreground hover:text-foreground"
-              >
+              <AdminButton variant="ghost" size="sm" type="button" onClick={addLink}>
                 <Plus className="w-3.5 h-3.5" />
                 {t('addLink')}
-              </button>
+              </AdminButton>
             </div>
 
             {links.length === 0 ? (
@@ -403,14 +396,9 @@ export function GameEditorForm({ game, thumbnailWidth = 200, thumbnailHeight = 3
                           placeholder={t('linkTitlePlaceholder')}
                           className="flex-1 bg-secondary border border-border rounded-md px-2.5 py-1.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
                         />
-                        <button
-                          type="button"
-                          onClick={() => removeLink(i)}
-                          className="p-1.5 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
-                          aria-label="Remove link"
-                        >
+                        <AdminButton variant="danger" size="sm" type="button" onClick={() => removeLink(i)} className="px-1.5" aria-label="Remove link">
                           <Trash2 className="w-4 h-4" />
-                        </button>
+                        </AdminButton>
                       </div>
                       <input
                         value={link.url}
@@ -495,15 +483,10 @@ export function GameEditorForm({ game, thumbnailWidth = 200, thumbnailHeight = 3
                   .map((g) => (
                     <div key={g.id} className="flex items-center gap-2 bg-secondary rounded-md px-2.5 py-1.5">
                       <span className="flex-1 truncate text-xs">{g.title}</span>
-                      <button
-                        type="button"
-                        onClick={() => absorbGame(g.id, g.title)}
-                        disabled={merging}
-                        className="flex items-center gap-1 px-2 py-1 text-xs rounded bg-primary/15 text-primary hover:bg-primary/25 disabled:opacity-50 transition-colors flex-shrink-0"
-                      >
+                      <AdminButton variant="danger" size="sm" type="button" onClick={() => absorbGame(g.id, g.title)} disabled={merging} className="flex-shrink-0">
                         <GitMerge className="w-3 h-3" />
                         {t('mergeAbsorb')}
-                      </button>
+                      </AdminButton>
                     </div>
                   ))}
               </div>

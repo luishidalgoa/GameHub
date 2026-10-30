@@ -7,6 +7,7 @@ import useSWR from 'swr'
 import type { Platform } from '@/types/platform'
 import type { ScanPreview } from '@/lib/scanner/preview'
 import { ScanLogsTable } from './ScanLogsTable'
+import { AdminButton } from '@/components/admin/AdminButton'
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
@@ -262,32 +263,37 @@ export function ScanPanel() {
             <option value="both">Ambos</option>
           </select>
 
-          <button
+          <AdminButton
+            variant="secondary"
+            size="md"
             onClick={runPreview}
             disabled={scanning || previewing || scanMode === 'torrent'}
-            className="flex items-center justify-center gap-2 px-4 py-2 bg-secondary text-foreground hover:bg-secondary/80 disabled:opacity-50 disabled:cursor-not-allowed rounded-md text-sm font-medium transition-colors"
           >
             {previewing ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Eye className="w-4 h-4" />}
             {previewing ? t('previewLoading') : t('previewButton')}
-          </button>
+          </AdminButton>
 
           {scanning ? (
-            <button
+            <AdminButton
+              variant="danger"
+              size="md"
               onClick={stopScan}
               disabled={stopping}
-              className="flex items-center justify-center gap-2 px-4 py-2 bg-destructive text-destructive-foreground hover:bg-destructive/90 disabled:opacity-50 disabled:cursor-not-allowed rounded-md text-sm font-medium transition-colors flex-1 min-w-[120px] xl:flex-none"
+              className="flex-1 min-w-[120px] xl:flex-none"
             >
               {stopping ? <RefreshCw className="w-4 h-4 animate-spin" /> : <StopCircle className="w-4 h-4" />}
               {stopping ? t('stopping') : t('stop')}
-            </button>
+            </AdminButton>
           ) : (
-            <button
+            <AdminButton
+              variant="primary"
+              size="md"
               onClick={startScan}
-              className="flex items-center justify-center gap-2 px-4 py-2 bg-primary text-primary-foreground hover:bg-primary/90 rounded-md text-sm font-medium transition-colors flex-1 min-w-[120px] xl:flex-none"
+              className="flex-1 min-w-[120px] xl:flex-none"
             >
               <Play className="w-4 h-4" />
               {t('runScan')}
-            </button>
+            </AdminButton>
           )}
         </div>
       </div>
@@ -369,12 +375,14 @@ export function ScanPanel() {
               <p className="text-sm font-medium">{t('previewTitle')}</p>
               <p className="text-xs text-muted-foreground mt-0.5">{t('previewNote')}</p>
             </div>
-            <button
+            <AdminButton
+              variant="ghost"
+              size="sm"
               onClick={() => { setPreview(null); setPreviewError(false) }}
-              className="text-xs text-muted-foreground hover:text-foreground flex-shrink-0"
+              className="flex-shrink-0"
             >
               {t('previewClose')}
-            </button>
+            </AdminButton>
           </div>
 
           {previewError && <p className="text-sm text-destructive">{t('previewFailed')}</p>}

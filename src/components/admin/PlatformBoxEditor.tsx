@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { X, Lock, Unlock } from 'lucide-react'
+import { AdminButton } from '@/components/admin/AdminButton'
 
 // Visual editor for a platform's card proportion. The frame is the card: the grid
 // shows the middle of a cover inside it (object-cover), so dragging its edges shows
@@ -43,13 +44,9 @@ export function PlatformBoxEditor({ slug, name, width, height, onApply, secondar
   const [open, setOpen] = useState(false)
   return (
     <>
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="w-full rounded-md border border-border bg-secondary px-3 py-2 text-sm hover:bg-accent transition-colors"
-      >
+      <AdminButton variant="secondary" size="md" type="button" className="w-full" onClick={() => setOpen(true)}>
         {label ?? 'Ajustar medidas visualmente'}
-      </button>
+      </AdminButton>
       {open && (
         <EditorModal
           slug={slug}
@@ -273,15 +270,13 @@ function EditorModal({ slug, name, initialWidth, initialHeight, secondary, onClo
               <div className="text-xs text-muted-foreground">Proporciones</div>
               <div className="flex flex-wrap gap-1.5">
                 {PRESETS.map(p => (
-                  <button key={p.label} type="button" onClick={() => { setW(p.w); setH(p.h) }}
-                    className="rounded border border-border bg-secondary px-2 py-1 text-xs hover:bg-accent">
+                  <AdminButton key={p.label} variant="ghost" size="sm" type="button" onClick={() => { setW(p.w); setH(p.h) }}>
                     {p.label}
-                  </button>
+                  </AdminButton>
                 ))}
-                <button type="button" onClick={() => { setW(original.current.w); setH(original.current.h) }}
-                  className="rounded border border-border bg-secondary px-2 py-1 text-xs hover:bg-accent">
+                <AdminButton variant="ghost" size="sm" type="button" onClick={() => { setW(original.current.w); setH(original.current.h) }}>
                   Original
-                </button>
+                </AdminButton>
               </div>
             </div>
           </div>
@@ -289,17 +284,16 @@ function EditorModal({ slug, name, initialWidth, initialHeight, secondary, onClo
 
         <div className="flex justify-end gap-2 pt-2 border-t border-border">
           {onClear && (
-            <button type="button" onClick={onClear} className="mr-auto rounded-md border border-border px-4 py-2 text-sm text-muted-foreground hover:bg-accent">
+            <AdminButton variant="danger" size="md" type="button" onClick={onClear} className="mr-auto">
               Quitar forma secundaria
-            </button>
+            </AdminButton>
           )}
-          <button type="button" onClick={onClose} className="rounded-md border border-border px-4 py-2 text-sm hover:bg-accent">
+          <AdminButton variant="secondary" size="md" type="button" onClick={onClose}>
             Cancelar
-          </button>
-          <button type="button" onClick={() => onApply(w, h)}
-            className="rounded-md bg-primary px-4 py-2 text-sm text-primary-foreground hover:opacity-90">
+          </AdminButton>
+          <AdminButton variant="primary" size="md" type="button" onClick={() => onApply(w, h)}>
             Aplicar a {name}
-          </button>
+          </AdminButton>
         </div>
       </div>
     </div>

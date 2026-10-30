@@ -1,6 +1,7 @@
 import { db } from '@/lib/db'
 import { ArtJobPanel } from '@/components/admin/ArtJobPanel'
 import { ArtGameList } from '@/components/admin/ArtGameList'
+import { AdminButton } from '@/components/admin/AdminButton'
 import Link from 'next/link'
 import { purgeExpiredManualArt } from '@/lib/art-manual'
 import { ART_KINDS, artTitle, artKindOf } from '@/lib/art-catalog'
@@ -153,7 +154,7 @@ export default async function AdminArtPage({ searchParams }: { searchParams: Rec
               {platforms.map(p => <option key={p.name} value={p.name}>{p.name}</option>)}
             </select>
           </label>
-          <button type="submit" className="px-3 py-2 rounded-md text-sm font-medium bg-violet-600 hover:bg-violet-500 text-white">Aplicar</button>
+          <AdminButton variant="primary" type="submit">Aplicar</AdminButton>
         </form>
 
         {/* Keyed by the filter, so a new filter starts again from the first page. */}

@@ -7,6 +7,7 @@ import { BACKDROP_LABEL, BACKDROP_STYLES, DEFAULT_TEMPLATE, TEMPLATE_LABEL, TILE
 import { PublisherTileFace, type TileElement } from '@/components/home/PublisherTileFace'
 import type { PublisherTileData } from '@/lib/home-data'
 import type { Place, PublisherLayout } from '@/lib/publisher-art'
+import { AdminButton } from '@/components/admin/AdminButton'
 
 interface Row {
   key: string
@@ -153,15 +154,15 @@ export function PublisherArtPanel() {
       </div>
 
       <div className="flex flex-wrap gap-2">
-        <button type="button" onClick={() => findLogos(false)} disabled={running} className={`${btn} bg-primary text-primary-foreground border-transparent hover:bg-primary/90`}>
+        <AdminButton variant="primary" size="md" type="button" onClick={() => findLogos(false)} disabled={running}>
           {running ? 'Buscando logos…' : 'Buscar logos'}
-        </button>
-        <button type="button" onClick={() => findLogos(true)} disabled={running} className={btn}>
+        </AdminButton>
+        <AdminButton variant="secondary" size="md" type="button" onClick={() => findLogos(true)} disabled={running}>
           Repetir todos
-        </button>
-        <button type="button" onClick={() => many.current?.click()} className={btn}>
+        </AdminButton>
+        <AdminButton variant="secondary" size="md" type="button" onClick={() => many.current?.click()}>
           Subir varios personajes
-        </button>
+        </AdminButton>
       </div>
       {note && <p role="status" className="text-sm text-amber-400">{note}</p>}
       <input ref={many} type="file" multiple accept="image/png,image/webp" className="hidden" tabIndex={-1} aria-hidden="true"
@@ -186,9 +187,9 @@ export function PublisherArtPanel() {
                 <p className="truncate font-medium">{r.name}</p>
                 <p className="text-sm text-muted-foreground">{r.games} juegos · {status}</p>
               </div>
-              <button type="button" onClick={e => openEditor(r, e.currentTarget)} aria-label={`Editar la tesela de ${r.name}`} className={btn}>
+              <AdminButton variant="secondary" size="sm" type="button" onClick={e => openEditor(r, e.currentTarget)} aria-label={`Editar la tesela de ${r.name}`}>
                 Editar
-              </button>
+              </AdminButton>
             </li>
           )
         })}
@@ -419,7 +420,7 @@ function PublisherEditDialog({ row, busy, onClose, onTemplate, onBackdrop, onPla
               <h2 id={title} tabIndex={-1} className="truncate text-lg font-semibold outline-none">{row.name}</h2>
               <p className="text-sm text-muted-foreground">{row.games} juegos</p>
             </div>
-            <button type="button" onClick={onClose} className={btn}>Cerrar</button>
+            <AdminButton variant="secondary" size="md" type="button" onClick={onClose}>Cerrar</AdminButton>
           </div>
 
           <fieldset className="flex flex-col gap-2">
@@ -488,9 +489,9 @@ function PublisherEditDialog({ row, busy, onClose, onTemplate, onBackdrop, onPla
               <p className="text-sm text-muted-foreground">Esta editora no tiene logo todavía.</p>
             )}
             <div>
-              <button type="button" disabled={busy} onClick={onUploadLogo} className={btn}>
+              <AdminButton variant="secondary" size="md" type="button" disabled={busy} onClick={onUploadLogo}>
                 {logo ? 'Cambiar logo' : 'Subir logo'}
-              </button>
+              </AdminButton>
             </div>
           </fieldset>
 
@@ -498,11 +499,11 @@ function PublisherEditDialog({ row, busy, onClose, onTemplate, onBackdrop, onPla
             <legend className="mb-1 text-sm font-medium">Personaje</legend>
             <p className="text-sm text-muted-foreground">{character ? 'Tiene personaje.' : 'Sin personaje: el logo va grande en el centro.'}</p>
             <div className="flex flex-wrap gap-2">
-              <button type="button" disabled={busy} onClick={onUploadCharacter} className={btn}>
+              <AdminButton variant="secondary" size="md" type="button" disabled={busy} onClick={onUploadCharacter}>
                 {character ? 'Cambiar personaje' : 'Subir personaje'}
-              </button>
+              </AdminButton>
               {character && (
-                <button type="button" disabled={busy} onClick={onRemoveCharacter} className={btn}>Quitar personaje</button>
+                <AdminButton variant="danger" size="md" type="button" disabled={busy} onClick={onRemoveCharacter}>Quitar personaje</AdminButton>
               )}
             </div>
           </fieldset>

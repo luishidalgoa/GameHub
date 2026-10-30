@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useTranslations } from 'next-intl'
 import { Save, Loader2, Heart, Coffee, Bitcoin, Target } from 'lucide-react'
+import { AdminButton } from '@/components/admin/AdminButton'
 
 interface Props {
   initial: {
@@ -51,14 +52,10 @@ export function DonationSettingsForm({ initial }: Props) {
           <Heart className="w-4 h-4 text-red-400" />
           <h3 className="font-semibold">{t('title')}</h3>
         </div>
-        <button
-          onClick={save}
-          disabled={saving}
-          className="flex items-center gap-2 px-3 py-1.5 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:bg-primary/90 disabled:opacity-50 transition-colors"
-        >
+        <AdminButton variant="primary" onClick={save} disabled={saving}>
           {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
           {saved ? t('saved') : saving ? t('saving') : t('save')}
-        </button>
+        </AdminButton>
       </div>
       <p className="text-sm text-muted-foreground mb-5">{t('description')}</p>
 

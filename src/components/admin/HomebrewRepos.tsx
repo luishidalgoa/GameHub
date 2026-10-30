@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import useSWR, { mutate } from 'swr'
 import { ChevronDown, ChevronUp, ExternalLink, Loader2, Plus, Trash2 } from 'lucide-react'
+import { AdminButton } from '@/components/admin/AdminButton'
 
 interface RepoEntry {
   repo: string
@@ -87,14 +88,16 @@ export function HomebrewRepos() {
           aria-label="Repo de GitHub a añadir"
           className="flex-1 min-w-0 bg-secondary border border-border rounded-md px-3 py-2 text-sm font-mono placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
         />
-        <button
+        <AdminButton
+          variant="primary"
+          size="md"
           type="submit"
           disabled={busy !== null || !draft.trim()}
-          className="flex items-center gap-1.5 rounded-md border border-border px-3 py-2 text-sm hover:bg-accent disabled:opacity-40"
+          className="disabled:opacity-40"
         >
           {busy === 'add' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
           Añadir
-        </button>
+        </AdminButton>
       </form>
 
       {message && (
@@ -133,15 +136,17 @@ export function HomebrewRepos() {
                   <a href={r.url} target="_blank" rel="noopener noreferrer" aria-label={`Abrir ${r.repo} en GitHub`} className="text-muted-foreground hover:text-foreground">
                     <ExternalLink className="h-3.5 w-3.5" />
                   </a>
-                  <button
+                  <AdminButton
+                    variant="danger"
+                    size="sm"
                     type="button"
                     onClick={() => void remove(r.repo)}
                     disabled={busy !== null}
                     aria-label={`Quitar ${r.repo}`}
-                    className="rounded p-1.5 text-muted-foreground hover:bg-red-950/30 hover:text-red-400 disabled:opacity-40"
+                    className="disabled:opacity-40"
                   >
                     {busy === r.repo ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
-                  </button>
+                  </AdminButton>
                 </div>
                 {expanded && count !== undefined && (
                   <ul className="mt-2 space-y-1 pl-2 text-xs">

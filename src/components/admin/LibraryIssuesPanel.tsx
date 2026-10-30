@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { AlertTriangle, FileX, Loader2, PackagePlus, RefreshCw, ShieldCheck } from 'lucide-react'
+import { AdminButton } from '@/components/admin/AdminButton'
 
 type Kind = 'update' | 'dlc' | 'unreadable'
 
@@ -79,16 +80,12 @@ export function LibraryIssuesPanel() {
             así que tarda.
           </p>
         </div>
-        <button
-          onClick={run}
-          disabled={running}
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-secondary hover:bg-secondary/80 disabled:opacity-50 text-sm font-medium whitespace-nowrap"
-        >
+        <AdminButton variant="secondary" onClick={run} disabled={running} className="whitespace-nowrap">
           {running
             ? <Loader2 className="w-4 h-4 animate-spin" />
             : <RefreshCw className="w-4 h-4" />}
           Comprobar
-        </button>
+        </AdminButton>
       </div>
 
       {error && <p className="mt-4 text-sm text-rose-400">{error}</p>}

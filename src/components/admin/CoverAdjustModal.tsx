@@ -3,6 +3,7 @@
 import { useRef, useState, useEffect } from 'react'
 import { X, Check, RotateCcw } from 'lucide-react'
 import type { CoverFrame } from '@/lib/cover-frame'
+import { AdminButton } from '@/components/admin/AdminButton'
 
 interface Props {
   src: string
@@ -229,20 +230,20 @@ export function CoverAdjustModal({ src, onSave, onClose, initialFrame, thumbnail
 
         {/* Actions */}
         <div className="flex gap-2 px-4 py-4">
-          <button
-            type="button" onClick={reset} disabled={!loaded || corsError}
-            className="flex items-center gap-1.5 px-3 py-2 text-sm bg-secondary border border-border rounded-md hover:bg-accent transition-colors disabled:opacity-40"
+          <AdminButton
+            variant="danger" size="md" type="button" onClick={reset} disabled={!loaded || corsError}
+            className="gap-1.5 disabled:opacity-40"
           >
             <RotateCcw className="w-3.5 h-3.5" />
             Reset
-          </button>
-          <button
-            type="button" onClick={apply} disabled={!loaded || corsError}
-            className="flex-1 flex items-center justify-center gap-2 px-4 py-2 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors disabled:opacity-40"
+          </AdminButton>
+          <AdminButton
+            variant="primary" size="md" type="button" onClick={apply} disabled={!loaded || corsError}
+            className="flex-1 disabled:opacity-40"
           >
             <Check className="w-4 h-4" />
             Apply
-          </button>
+          </AdminButton>
         </div>
 
         <canvas ref={canvasRef} className="hidden" />

@@ -5,6 +5,7 @@ import useSWR from 'swr'
 import { useTranslations } from 'next-intl'
 import { Upload, Link2, Trash2, Check, ChevronLeft, ChevronRight, Loader2, RefreshCw } from 'lucide-react'
 import { CoverUploader } from './CoverUploader'
+import { AdminButton } from '@/components/admin/AdminButton'
 import { toast } from '@/components/shared/Toaster'
 import type { GameArt, ArtImage, ShotEntry } from '@/lib/game-art'
 import { artTitle, slotOf, type ArtCategory } from '@/lib/art-catalog'
@@ -27,11 +28,6 @@ async function call<T = unknown>(url: string, init?: RequestInit): Promise<T> {
   if (!res.ok) throw new Error(data.error ?? res.statusText)
   return data as T
 }
-
-const btn = 'inline-flex items-center gap-2 px-3.5 py-2 rounded-md text-sm transition-colors disabled:opacity-50'
-const btnPrimary = `${btn} bg-primary text-primary-foreground font-medium hover:bg-primary/90`
-const btnSecondary = `${btn} bg-secondary border border-border hover:bg-accent`
-const btnDanger = `${btn} border border-destructive/40 text-destructive hover:bg-destructive/10`
 
 interface Props {
   gameId: number
@@ -173,10 +169,10 @@ export function GameImagesPanel({ gameId, gameTitle, platformSlug, coverPath, co
       {panel && (
         <div className="flex items-center justify-between gap-3">
           <p className="text-sm text-muted-foreground">{t('imgPanelHint')}</p>
-          <button type="button" className={btnPrimary} disabled={busy !== null} onClick={() => void fill()}>
+          <AdminButton type="button" variant="primary" size="md" disabled={busy !== null} onClick={() => void fill()}>
             {busy === 'fill' ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
             {t('imgFill')}
-          </button>
+          </AdminButton>
         </div>
       )}
 
@@ -331,20 +327,20 @@ function SlotPanel({ slot, art, images, busy, base, label, onRelease, run, offer
 
         <div className="flex flex-wrap gap-2.5">
           {!panel && (
-            <button type="button" className={btnPrimary} disabled={busy !== null} onClick={() => fileRef.current?.click()}>
+            <AdminButton type="button" variant="primary" size="md" disabled={busy !== null} onClick={() => fileRef.current?.click()}>
               {busy === `upload-${slot}` ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
               {t('imgUpload')}
-            </button>
+            </AdminButton>
           )}
           {!panel && (
-            <button type="button" className={btnSecondary} disabled={busy !== null} onClick={() => setLinkOpen(o => !o)}>
+            <AdminButton type="button" variant="secondary" size="md" disabled={busy !== null} onClick={() => setLinkOpen(o => !o)}>
               <Link2 className="w-4 h-4" />{t('imgPasteLink')}
-            </button>
+            </AdminButton>
           )}
           {canRemove && activeImage && (
-            <button type="button" className={btnDanger} disabled={busy !== null} onClick={() => void remove(activeImage)}>
+            <AdminButton type="button" variant="danger" size="md" disabled={busy !== null} onClick={() => void remove(activeImage)}>
               <Trash2 className="w-4 h-4" />{t('imgRemove')}
-            </button>
+            </AdminButton>
           )}
           {!panel && (
             <input
@@ -368,7 +364,7 @@ function SlotPanel({ slot, art, images, busy, base, label, onRelease, run, offer
               className="flex-1 bg-secondary border border-border rounded-md px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
               autoFocus
             />
-            <button type="submit" className={btnSecondary} disabled={busy !== null || !link.trim()}>{t('imgDownload')}</button>
+            <AdminButton type="submit" variant="primary" size="md" disabled={busy !== null || !link.trim()}>{t('imgDownload')}</AdminButton>
           </form>
         )}
 
@@ -441,7 +437,7 @@ function Library({ title, images, activeId, busy, onUse, onRemove, extra }: {
                   {img.manual ? t('imgSourceManual') : 'LaunchBox'}{img.width && img.height ? ` · ${img.width} × ${img.height}` : ''}{img.region ? ` · ${img.region}` : ''}
                 </span>
                 {onRemove && (
-                  <button type="button" onClick={() => onRemove(img)} disabled={busy !== null} className="text-destructive hover:underline flex-shrink-0">{t('imgRemove')}</button>
+                  <AdminButton type="button" variant="danger" size="sm" onClick={() => onRemove(img)} disabled={busy !== null} className="flex-shrink-0">{t('imgRemove')}</AdminButton>
                 )}
               </div>
             </div>
@@ -525,15 +521,15 @@ function ScreenshotsPanel({ art, base, gameId, busy, run, offerUndo, onCover, pa
     <div className="space-y-5">
       <div className="flex flex-wrap items-center gap-2.5">
         {!panel && (
-          <button type="button" className={btnPrimary} disabled={busy !== null} onClick={() => fileRef.current?.click()}>
+          <AdminButton type="button" variant="primary" size="md" disabled={busy !== null} onClick={() => fileRef.current?.click()}>
             {busy === 'add-shots' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
             {t('imgAddShots')}
-          </button>
+          </AdminButton>
         )}
         {!panel && (
-          <button type="button" className={btnSecondary} disabled={busy !== null} onClick={() => setLinksOpen(o => !o)}>
+          <AdminButton type="button" variant="secondary" size="md" disabled={busy !== null} onClick={() => setLinksOpen(o => !o)}>
             <Link2 className="w-4 h-4" />{t('imgPasteLinks')}
-          </button>
+          </AdminButton>
         )}
         {!panel && (
           <input
@@ -567,7 +563,7 @@ function ScreenshotsPanel({ art, base, gameId, busy, run, offerUndo, onCover, pa
             className="w-full bg-secondary border border-border rounded-md px-3 py-2 text-sm font-mono placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring resize-y"
             autoFocus
           />
-          <button type="submit" className={btnSecondary} disabled={busy !== null || !links.trim()}>{t('imgDownload')}</button>
+          <AdminButton type="submit" variant="primary" size="md" disabled={busy !== null || !links.trim()}>{t('imgDownload')}</AdminButton>
         </form>
       )}
 
@@ -593,12 +589,12 @@ function ScreenshotsPanel({ art, base, gameId, busy, run, offerUndo, onCover, pa
                 </span>
               </div>
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px]">
-                <button type="button" onClick={() => void asBanner(s, i)} disabled={busy !== null} className="text-primary hover:underline">{t('imgUseAsBanner')}</button>
-                <button type="button" onClick={() => void asCover(s, i)} disabled={busy !== null} className="text-primary hover:underline">{t('imgUseAsCover')}</button>
+                <AdminButton type="button" variant="ghost" size="sm" onClick={() => void asBanner(s, i)} disabled={busy !== null}>{t('imgUseAsBanner')}</AdminButton>
+                <AdminButton type="button" variant="ghost" size="sm" onClick={() => void asCover(s, i)} disabled={busy !== null}>{t('imgUseAsCover')}</AdminButton>
                 <span className="ml-auto flex items-center gap-1">
-                  <button type="button" aria-label={t('imgMoveBack')} disabled={busy !== null || i === 0} onClick={() => reorder(i, i - 1)} className="p-1 rounded hover:bg-accent disabled:opacity-30"><ChevronLeft className="w-4 h-4" /></button>
-                  <button type="button" aria-label={t('imgMoveForward')} disabled={busy !== null || i === shots.length - 1} onClick={() => reorder(i, i + 1)} className="p-1 rounded hover:bg-accent disabled:opacity-30"><ChevronRight className="w-4 h-4" /></button>
-                  <button type="button" onClick={() => void remove(i)} disabled={busy !== null} className="ml-1 text-destructive hover:underline">{t('imgRemove')}</button>
+                  <AdminButton type="button" variant="ghost" size="sm" aria-label={t('imgMoveBack')} disabled={busy !== null || i === 0} onClick={() => reorder(i, i - 1)}><ChevronLeft className="w-4 h-4" /></AdminButton>
+                  <AdminButton type="button" variant="ghost" size="sm" aria-label={t('imgMoveForward')} disabled={busy !== null || i === shots.length - 1} onClick={() => reorder(i, i + 1)}><ChevronRight className="w-4 h-4" /></AdminButton>
+                  <AdminButton type="button" variant="danger" size="sm" onClick={() => void remove(i)} disabled={busy !== null} className="ml-1">{t('imgRemove')}</AdminButton>
                 </span>
               </div>
             </li>
@@ -638,14 +634,16 @@ function ReferencePanel({ images, hint, busy, onRemove }: {
                 </a>
                 <div className="flex justify-between gap-2 text-xs text-muted-foreground">
                   <span className="truncate">{img.region ? `${img.region} · ` : ''}{img.width && img.height ? `${img.width} × ${img.height}` : ''}</span>
-                  <button
+                  <AdminButton
                     type="button"
+                    variant="danger"
+                    size="sm"
                     onClick={() => onRemove(img, artTitle(kind))}
                     disabled={busy !== null}
-                    className="text-destructive hover:underline flex-shrink-0"
+                    className="flex-shrink-0"
                   >
                     {t('imgRemove')}
-                  </button>
+                  </AdminButton>
                 </div>
               </li>
             ))}

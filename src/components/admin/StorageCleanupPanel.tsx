@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { Archive, RefreshCw, Trash2 } from 'lucide-react'
+import { AdminButton } from '@/components/admin/AdminButton'
 
 // What cleanupStorage reports (src/lib/storage-cleanup.ts).
 interface CleanupReport {
@@ -65,23 +66,27 @@ export function StorageCleanupPanel() {
       </div>
 
       <div className="flex flex-wrap gap-2">
-        <button
+        <AdminButton
+          variant="secondary"
+          size="md"
           onClick={() => run(true)}
           disabled={busy !== null}
-          className="flex items-center gap-2 px-4 py-2 bg-secondary hover:bg-secondary/80 disabled:opacity-50 rounded-md text-sm font-medium transition-colors"
+          className="disabled:opacity-50"
         >
           {busy === 'simulate' ? <RefreshCw className="w-4 h-4 animate-spin" /> : null}
           Simular limpieza
-        </button>
+        </AdminButton>
         {report && report.dryRun && report.orphans > 0 && (
-          <button
+          <AdminButton
+            variant="danger"
+            size="md"
             onClick={clean}
             disabled={busy !== null}
-            className="flex items-center gap-2 px-4 py-2 bg-destructive text-destructive-foreground hover:bg-destructive/90 disabled:opacity-50 rounded-md text-sm font-medium transition-colors"
+            className="disabled:opacity-50"
           >
             {busy === 'clean' ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
             Limpiar {report.orphans} objetos
-          </button>
+          </AdminButton>
         )}
       </div>
 

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { GameImagesPanel } from './GameImagesPanel'
 import { useInfinitePages } from './useInfinitePages'
+import { AdminButton } from '@/components/admin/AdminButton'
 
 export interface ArtGameRow {
   id: number
@@ -50,14 +51,16 @@ export function ArtGameList({ query, emptyText }: { query: string; emptyText: st
                 {r.missing === 'fanart' ? 'falta fondo' : 'falta logo'}
               </span>
               <span className="w-28 shrink-0 text-right text-xs text-muted-foreground truncate">{r.platform}</span>
-              <button
+              <AdminButton
+                variant="ghost"
+                size="sm"
                 type="button"
                 onClick={() => setOpenId(r.id)}
                 aria-label={`Editar arte de ${r.title}`}
-                className="px-2.5 py-1 rounded-md text-xs bg-secondary hover:bg-secondary/80 flex-shrink-0"
+                className="flex-shrink-0"
               >
                 Editar arte
-              </button>
+              </AdminButton>
             </li>
           ))}
         </ul>

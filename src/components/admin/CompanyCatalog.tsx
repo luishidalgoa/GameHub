@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { RefreshCw, X } from 'lucide-react'
+import { AdminButton } from '@/components/admin/AdminButton'
 
 export interface CompanyRow { id: number; name: string; games: number; total: number; parentId: number | null }
 
@@ -255,7 +256,7 @@ function CompanyPanel({ company, companies, onClose }: { company: CompanyRow; co
           {detail?.parent ? (
             <div className="flex items-center justify-between gap-3 text-sm">
               <span>{detail.parent.name}</span>
-              <button type="button" disabled={busy} onClick={() => owner([company.id], null, `«${company.name}» ya no pertenece a «${detail.parent?.name}».`)} className="px-2.5 py-1 rounded-md text-xs bg-secondary hover:bg-secondary/80 disabled:opacity-60">Quitar</button>
+              <AdminButton variant="danger" size="sm" type="button" disabled={busy} onClick={() => owner([company.id], null, `«${company.name}» ya no pertenece a «${detail.parent?.name}».`)}>Quitar</AdminButton>
             </div>
           ) : (
             <p className="text-xs text-muted-foreground">Es una editora independiente.</p>
@@ -270,7 +271,7 @@ function CompanyPanel({ company, companies, onClose }: { company: CompanyRow; co
               <li key={s.id} className="flex items-center gap-3 py-1.5 text-sm">
                 <span className="min-w-0 flex-1 truncate">{s.name}</span>
                 <span className="text-xs text-muted-foreground tabular-nums">{juegos(s.games)}</span>
-                <button type="button" disabled={busy} onClick={() => owner([s.id], null, `«${s.name}» ya no es sub-editora.`)} className="px-2 py-1 rounded-md text-xs bg-secondary hover:bg-secondary/80 disabled:opacity-60">Quitar</button>
+                <AdminButton variant="danger" size="sm" type="button" disabled={busy} onClick={() => owner([s.id], null, `«${s.name}» ya no es sub-editora.`)}>Quitar</AdminButton>
               </li>
             ))}
           </ul>
@@ -315,12 +316,12 @@ function CompanyPanel({ company, companies, onClose }: { company: CompanyRow; co
           </ul>
           {picked.length > 0 && (
             <div className="flex flex-wrap gap-2">
-              <button type="button" disabled={busy} onClick={() => merge(picked, company)} className="px-3 py-1.5 rounded-md text-xs font-medium bg-violet-600 hover:bg-violet-500 text-white disabled:opacity-60">
+              <AdminButton variant="danger" size="sm" type="button" disabled={busy} onClick={() => merge(picked, company)}>
                 Fusionar {picked.length} aquí
-              </button>
-              <button type="button" disabled={busy} onClick={() => owner(picked.map(c => c.id), company.id, `${picked.length} pasan a ser sub-editoras de «${company.name}».`)} className="px-3 py-1.5 rounded-md text-xs bg-secondary hover:bg-secondary/80 disabled:opacity-60">
+              </AdminButton>
+              <AdminButton variant="secondary" size="sm" type="button" disabled={busy} onClick={() => owner(picked.map(c => c.id), company.id, `${picked.length} pasan a ser sub-editoras de «${company.name}».`)}>
                 Hacer {picked.length} {picked.length === 1 ? 'sub-editora' : 'sub-editoras'} de aquí
-              </button>
+              </AdminButton>
             </div>
           )}
           <p className="text-xs text-muted-foreground">Para que esta sea sub-editora de otra, ábrela desde esa otra.</p>

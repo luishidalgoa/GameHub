@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useTranslations } from 'next-intl'
 import { ChevronDown, Loader2, Search } from 'lucide-react'
+import { AdminButton } from '@/components/admin/AdminButton'
 
 interface TrailerResult {
   videoId: string
@@ -58,14 +59,16 @@ export function TrailerField({ gameTitle, value, inputClassName, onChange }: Pro
           className={inputClassName}
           placeholder="https://youtube.com/watch?v=…"
         />
-        <button
+        <AdminButton
+          variant="secondary"
+          size="md"
           type="button"
           onClick={() => setOpen(!open)}
-          className="flex items-center gap-1 whitespace-nowrap rounded-md border border-border bg-secondary px-3 py-2 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+          className="whitespace-nowrap"
         >
           <Search className="h-4 w-4" />
           <ChevronDown className="h-3 w-3" />
-        </button>
+        </AdminButton>
       </div>
 
       {open && (
@@ -79,14 +82,15 @@ export function TrailerField({ gameTitle, value, inputClassName, onChange }: Pro
               className="flex-1 rounded-md border border-border bg-secondary px-3 py-1.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
               autoFocus
             />
-            <button
+            <AdminButton
+              variant="primary"
+              size="sm"
               type="button"
               onClick={() => search(query)}
               disabled={searching}
-              className="rounded-md bg-red-600 px-3 py-1.5 text-sm text-white transition-colors hover:bg-red-500 disabled:opacity-50"
             >
               {searching ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Search className="h-3.5 w-3.5" />}
-            </button>
+            </AdminButton>
           </div>
 
           <div className="max-h-80 overflow-y-auto p-2">

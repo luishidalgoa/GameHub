@@ -9,6 +9,7 @@ import { type PanelGame } from '@/components/admin/GamePanel'
 import { AdminGameTable, type AdminTablePanel } from '@/components/admin/AdminGameTable'
 import { FileJson, FileSpreadsheet } from 'lucide-react'
 import { LIBRARY_SORT_DEFAULT, LIBRARY_SORT_KEYS, type LibrarySortKey } from '@/lib/games/list'
+import { AdminButton } from '@/components/admin/AdminButton'
 
 export const dynamic = 'force-dynamic'
 
@@ -190,11 +191,11 @@ export default async function AdminGamesPage({ searchParams }: { searchParams: R
               </div>
               <div className="flex items-center justify-between gap-2 border-t border-border pt-3">
                 <Link href="/admin/games" className="text-sm text-violet-300 underline">Quitar todos</Link>
-                <button type="submit" className="rounded-md bg-primary px-4 py-1.5 text-sm font-medium text-primary-foreground">Aplicar</button>
+                <AdminButton variant="primary" size="md" type="submit">Aplicar</AdminButton>
               </div>
             </div>
           </details>
-          <button type="submit" className="rounded-md bg-secondary px-3 py-1.5 text-sm hover:bg-accent">Buscar</button>
+          <AdminButton variant="primary" size="md" type="submit">Buscar</AdminButton>
         </div>
       </form>
 

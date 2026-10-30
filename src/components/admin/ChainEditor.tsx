@@ -3,6 +3,7 @@
 import { Fragment, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
+import { AdminButton } from '@/components/admin/AdminButton'
 import { CHAIN_FIELDS, COVER_MIN_SCALE, optionsFor, type ChainField, type ChainOrigin, type ProviderChains } from '@/lib/metadata/chains'
 
 // The chains of sources, edited as a flow: each kind of data starts at the game and asks
@@ -153,13 +154,13 @@ function ChainBlock({ scope, title, description, initial, origin }: {
             <span role="status" className={cn('text-xs', message.ok ? 'text-emerald-400' : 'text-destructive')}>{message.text}</span>
           )}
           {scope.kind === 'platform' && scope.hasOwn && (
-            <button type="button" onClick={reset} disabled={saving} className="rounded-md border border-border px-3 py-1.5 text-xs hover:bg-accent disabled:opacity-50">
+            <AdminButton variant="danger" size="sm" type="button" onClick={reset} disabled={saving}>
               Usar la de por defecto
-            </button>
+            </AdminButton>
           )}
-          <button type="button" onClick={save} disabled={saving || !dirty} className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-40">
+          <AdminButton variant="primary" size="sm" type="button" onClick={save} disabled={saving || !dirty}>
             {saving ? 'Guardando…' : 'Guardar cadena'}
-          </button>
+          </AdminButton>
         </div>
       </div>
 
@@ -301,9 +302,9 @@ function Lane({ slug, field, chain, origin, onChange }: {
               <p className="text-xs font-medium">{open === 'new' ? 'Elige la fuente que se añade al final' : `Fuente ${(open as number) + 1}: ${SOURCE_COPY[openSource ?? '']?.name ?? ''}`}</p>
               {open !== 'new' && (
                 <div className="flex gap-1.5">
-                  <button type="button" disabled={open === 0} onClick={() => move(open as number, (open as number) - 1)} className="rounded border border-border px-2 py-1 text-xs hover:bg-accent disabled:opacity-40">Subir</button>
-                  <button type="button" disabled={open === chain.length - 1} onClick={() => move(open as number, (open as number) + 1)} className="rounded border border-border px-2 py-1 text-xs hover:bg-accent disabled:opacity-40">Bajar</button>
-                  <button type="button" onClick={() => remove(open as number)} className="rounded border border-border px-2 py-1 text-xs text-destructive hover:bg-destructive/10">Quitar</button>
+                  <AdminButton variant="ghost" size="sm" type="button" disabled={open === 0} onClick={() => move(open as number, (open as number) - 1)}>Subir</AdminButton>
+                  <AdminButton variant="ghost" size="sm" type="button" disabled={open === chain.length - 1} onClick={() => move(open as number, (open as number) + 1)}>Bajar</AdminButton>
+                  <AdminButton variant="danger" size="sm" type="button" onClick={() => remove(open as number)}>Quitar</AdminButton>
                 </div>
               )}
             </div>

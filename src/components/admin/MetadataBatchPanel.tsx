@@ -8,6 +8,7 @@ import {
   effectiveFields, fieldCategory, fieldHint, fieldLabel, fieldSubgroup, reachOf, runFields,
   type BatchField, type BatchMode, type FieldScope, type Reach,
 } from '@/lib/metadata/scope'
+import { AdminButton } from '@/components/admin/AdminButton'
 
 const AUTO_THRESHOLD   = 68
 const REVIEW_THRESHOLD = 40
@@ -555,14 +556,15 @@ export function MetadataBatchPanel({ platforms = [] }: { platforms?: PlatformOpt
                 <p className="text-[11px] text-muted-foreground">
                   Medir es leer el tamaño real de cada portada ya guardada, sin volver a pedirla a los proveedores. Hasta medirla, una portada cuenta como baja calidad.
                 </p>
-                <button
+                <AdminButton
+                  variant="ghost"
+                  size="sm"
                   type="button"
                   onClick={measure}
                   disabled={measuring || running || measureLeft === 0}
-                  className="rounded-md border border-border px-3 py-1.5 text-xs hover:bg-accent disabled:opacity-40"
                 >
                   {measuring ? 'Midiendo…' : 'Medir portadas'}
-                </button>
+                </AdminButton>
               </div>
             )}
             <div className="mt-3 flex items-baseline justify-between gap-3 rounded-md bg-secondary px-3 py-2">
@@ -575,20 +577,24 @@ export function MetadataBatchPanel({ platforms = [] }: { platforms?: PlatformOpt
           </OptionsMenu>
 
           {running ? (
-            <button
+            <AdminButton
+              variant="danger"
+              size="md"
               onClick={stop}
-              className="flex-1 min-w-[120px] xl:flex-none rounded-md bg-destructive px-4 py-2 text-sm text-destructive-foreground transition-colors hover:bg-destructive/90"
+              className="flex-1 min-w-[120px] xl:flex-none"
             >
               {t('stop')}
-            </button>
+            </AdminButton>
           ) : (
-            <button
+            <AdminButton
+              variant="primary"
+              size="md"
               onClick={start}
               disabled={starting || selected.length === 0}
-              className="flex-1 min-w-[120px] xl:flex-none rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
+              className="flex-1 min-w-[120px] xl:flex-none"
             >
               {starting ? 'Iniciando…' : job && job.status !== 'running' ? t('runAgain') : t('start')}
-            </button>
+            </AdminButton>
           )}
         </div>
       </div>

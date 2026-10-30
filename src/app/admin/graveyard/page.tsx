@@ -2,6 +2,7 @@ import { getTranslations } from 'next-intl/server'
 import { db } from '@/lib/db'
 import { PurgeAllButton, RecoverMetadataButton } from '@/components/admin/GraveyardClient'
 import { AdminGameTable } from '@/components/admin/AdminGameTable'
+import { AdminButton } from '@/components/admin/AdminButton'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { Ghost } from 'lucide-react'
 import { nextSort, parseSort, sortParams } from '@/lib/admin-sort'
@@ -71,12 +72,9 @@ export default async function GraveyardPage({ searchParams }: Props) {
             <option key={p.slug} value={p.slug}>{p.name}</option>
           ))}
         </select>
-        <button
-          type="submit"
-          className="px-4 py-1.5 text-sm rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
-        >
+        <AdminButton variant="primary" type="submit">
           {t('filter')}
-        </button>
+        </AdminButton>
       </form>
 
       {totalMissing === 0 ? (

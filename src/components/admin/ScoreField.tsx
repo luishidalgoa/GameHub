@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useTranslations } from 'next-intl'
 import { Loader2, Search } from 'lucide-react'
 import { SCORE_SOURCE_LABEL, type ScoreCandidate } from '@/lib/metadata/score-candidates'
+import { AdminButton } from '@/components/admin/AdminButton'
 
 interface Props {
   gameId: number
@@ -90,24 +91,28 @@ export function ScoreField({ gameId, gameTitle, value, inputClassName, onChange 
           max="100"
           placeholder="0–100"
         />
-        <button
+        <AdminButton
+          variant="primary"
+          size="md"
           type="button"
           onClick={search}
           disabled={searching}
-          className="flex items-center gap-1.5 whitespace-nowrap rounded-md border border-border bg-secondary px-3 py-2 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
+          className="whitespace-nowrap"
         >
           {searching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
           {t('searchScore')}
-        </button>
-        <button
+        </AdminButton>
+        <AdminButton
+          variant="secondary"
+          size="md"
           type="button"
           onClick={() => { setManualOpen((open) => !open); setManualError('') }}
           aria-expanded={manualOpen}
-          className="flex items-center gap-1.5 whitespace-nowrap rounded-md border border-border bg-secondary px-3 py-2 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+          className="whitespace-nowrap"
         >
           <Search className="h-4 w-4" />
           Buscar a mano
-        </button>
+        </AdminButton>
         {message && <span className="text-xs text-muted-foreground">{message}</span>}
       </div>
 
@@ -122,15 +127,17 @@ export function ScoreField({ gameId, gameTitle, value, inputClassName, onChange 
               className={`${inputClassName} flex-1`}
               autoFocus
             />
-            <button
+            <AdminButton
+              variant="primary"
+              size="md"
               type="button"
               onClick={searchManual}
               disabled={manualLoading || !query.trim()}
-              className="flex items-center gap-1.5 whitespace-nowrap rounded-md bg-primary px-3 py-2 text-sm text-primary-foreground disabled:opacity-50"
+              className="whitespace-nowrap"
             >
               {manualLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
               Buscar
-            </button>
+            </AdminButton>
           </div>
 
           {manualError && <p className="text-xs text-destructive">{manualError}</p>}

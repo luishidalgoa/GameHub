@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { useTranslations } from 'next-intl'
 import { Save, Loader2, Plus, Trash2, ChevronDown, ChevronUp, FolderPlus, X, FolderOpen, Wifi, CheckCircle2, XCircle, AlertCircle, Pencil, Check } from 'lucide-react'
+import { AdminButton } from '@/components/admin/AdminButton'
 import { FolderPickerModal } from './FolderPickerModal'
 import { DonationSettingsForm } from './DonationSettingsForm'
 import { HomebrewRepos } from './HomebrewRepos'
@@ -60,13 +61,14 @@ function PathEditor({
     <div className="space-y-1.5">
       <div className="flex items-center justify-between">
         <span className="text-xs text-muted-foreground font-medium">{t('scanPaths')}</span>
-        <button
+        <AdminButton
           type="button"
+          variant="ghost"
+          size="sm"
           onClick={() => onChange([...paths, ''])}
-          className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
         >
           <FolderPlus className="w-3.5 h-3.5" /> {t('addPath')}
-        </button>
+        </AdminButton>
       </div>
       {paths.length === 0 && (
         <p className="text-xs text-amber-500/80 italic">{t('noPaths')}</p>
@@ -84,14 +86,16 @@ function PathEditor({
             placeholder={`e.g. /mnt/F/${slug.toUpperCase()}/Games`}
             className="flex-1 min-w-0 bg-secondary border border-border rounded-md px-3 py-1.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-ring"
           />
-          <button
+          <AdminButton
             type="button"
+            variant="secondary"
+            size="sm"
             onClick={() => onBrowse(platformId, idx)}
-            className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-accent transition-colors flex-shrink-0"
+            className="flex-shrink-0"
             title={t('browseFolder')}
           >
             <FolderOpen className="w-3.5 h-3.5" />
-          </button>
+          </AdminButton>
           <button
             type="button"
             onClick={() => onChange(paths.filter((_, i) => i !== idx))}
@@ -322,23 +326,25 @@ function SectionFrame({ dirty, saving, saved, error, onSave, onDiscard, children
           {dirty ? 'Hay cambios sin guardar en esta sección.' : 'Sin cambios pendientes.'}
         </span>
         <div className="flex gap-2">
-          <button
+          <AdminButton
             type="button"
+            variant="danger"
+            size="md"
             onClick={onDiscard}
             disabled={!dirty || saving}
-            className="rounded-md border border-border px-3.5 py-2 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-40"
           >
             Descartar
-          </button>
-          <button
+          </AdminButton>
+          <AdminButton
             type="button"
+            variant="primary"
+            size="md"
             onClick={onSave}
             disabled={!dirty || saving}
-            className="flex items-center gap-2 rounded-md bg-primary px-3.5 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-40"
           >
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
             {saved ? 'Guardado' : saving ? 'Guardando…' : 'Guardar sección'}
-          </button>
+          </AdminButton>
         </div>
       </div>
       {error && (
@@ -759,16 +765,17 @@ export function SettingsForm({ initialSection = '', platforms: initial, metadata
             <h3 className="font-semibold">{t('platforms')}</h3>
             <p className="text-sm text-muted-foreground">{t('platformsDesc')}</p>
           </div>
-          <button
+          <AdminButton
             type="button"
+            variant="secondary"
+            size="md"
             onClick={() => setAddOpen((o) => !o)}
             aria-expanded={addOpen}
-            className="flex items-center gap-1.5 rounded-md border border-border px-3 py-2 text-sm transition-colors hover:bg-accent"
           >
             <Plus className="h-4 w-4" />
             {t('addPlatform')}
             {addOpen ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-          </button>
+          </AdminButton>
         </div>
 
         <ul className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-card">
@@ -800,15 +807,16 @@ export function SettingsForm({ initialSection = '', platforms: initial, metadata
                   <span className={`rounded-full border px-2 py-0.5 text-[11px] ${p.scanDlc ? 'border-emerald-500/40 text-emerald-400' : 'border-border text-muted-foreground'}`}>
                     {p.scanDlc ? 'DLC on' : 'DLC off'}
                   </span>
-                  <button
+                  <AdminButton
                     type="button"
+                    variant="danger"
+                    size="sm"
                     onClick={() => deletePlatform(p.id)}
                     disabled={deleting === p.id}
                     aria-label={`${t('deletePlatform')}: ${p.name}`}
-                    className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-red-950/30 hover:text-red-400 disabled:opacity-40"
                   >
                     {deleting === p.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-                  </button>
+                  </AdminButton>
                 </div>
 
                 {open && (
@@ -933,14 +941,15 @@ export function SettingsForm({ initialSection = '', platforms: initial, metadata
                     <div className="space-y-2 lg:col-span-2">
                       <div className="flex items-center justify-between gap-2">
                         <h4 className="text-xs font-medium text-muted-foreground">Juego en línea</h4>
-                        <button
+                        <AdminButton
                           type="button"
+                          variant="secondary"
+                          size="sm"
                           onClick={syncOnline}
                           disabled={syncingOnline}
-                          className="rounded-md border border-border px-2.5 py-1 text-xs hover:bg-accent disabled:opacity-60"
                         >
                           {syncingOnline ? 'Sincronizando…' : 'Sincronizar ahora'}
-                        </button>
+                        </AdminButton>
                       </div>
                       {onlineNote && <p className="text-xs text-muted-foreground">{onlineNote}</p>}
                       {getOnline(p.id).map((c) => {
@@ -976,13 +985,14 @@ export function SettingsForm({ initialSection = '', platforms: initial, metadata
                     <div className="space-y-2 lg:col-span-2">
                       <div className="flex items-center justify-between gap-2">
                         <h4 className="text-xs font-medium text-muted-foreground">Fuentes de torrents</h4>
-                        <button
+                        <AdminButton
                           type="button"
+                          variant="ghost"
+                          size="sm"
                           onClick={() => addTorrent(p)}
-                          className="rounded-md border border-border px-2.5 py-1 text-xs hover:bg-accent"
                         >
                           Añadir fuente
-                        </button>
+                        </AdminButton>
                       </div>
                       {getTorrent(p.id).length === 0 && (
                         <p className="text-xs text-muted-foreground">Sin fuentes: esta plataforma no tiene torrents.</p>
@@ -1014,9 +1024,9 @@ export function SettingsForm({ initialSection = '', platforms: initial, metadata
                               className="rounded-md border border-border bg-secondary px-2 py-1 text-sm text-foreground lg:col-span-2"
                             />
                             <div className="flex flex-wrap items-center gap-2 lg:col-span-2">
-                              <button type="button" disabled={i === 0} onClick={() => moveTorrent(p.id, i, -1)} className="rounded-md border border-border px-2 py-0.5 text-xs hover:bg-accent disabled:opacity-40">Subir</button>
-                              <button type="button" disabled={i === all.length - 1} onClick={() => moveTorrent(p.id, i, 1)} className="rounded-md border border-border px-2 py-0.5 text-xs hover:bg-accent disabled:opacity-40">Bajar</button>
-                              <button type="button" onClick={() => removeTorrent(p.id, i)} className="rounded-md border border-border px-2 py-0.5 text-xs hover:bg-accent">Quitar</button>
+                              <AdminButton type="button" variant="ghost" size="sm" disabled={i === 0} onClick={() => moveTorrent(p.id, i, -1)}>Subir</AdminButton>
+                              <AdminButton type="button" variant="ghost" size="sm" disabled={i === all.length - 1} onClick={() => moveTorrent(p.id, i, 1)}>Bajar</AdminButton>
+                              <AdminButton type="button" variant="danger" size="sm" onClick={() => removeTorrent(p.id, i)}>Quitar</AdminButton>
                               {error && <span className="text-xs text-destructive">{error}</span>}
                             </div>
                           </div>
@@ -1085,15 +1095,16 @@ export function SettingsForm({ initialSection = '', platforms: initial, metadata
                             }}
                             className="w-44 rounded border border-border bg-secondary px-1.5 py-0.5 font-mono text-xs focus:outline-none focus:ring-2 focus:ring-ring"
                           />
-                          <button
+                          <AdminButton
                             type="button"
+                            variant="primary"
+                            size="sm"
                             onClick={() => commitRename(p.id)}
                             disabled={renameBusy}
-                            className="rounded p-1 text-green-500 hover:bg-green-950/30 disabled:opacity-40"
                             title={t('renameApply')}
                           >
                             {renameBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
-                          </button>
+                          </AdminButton>
                           <button
                             type="button"
                             onClick={cancelRename}
@@ -1105,15 +1116,17 @@ export function SettingsForm({ initialSection = '', platforms: initial, metadata
                           </button>
                         </span>
                       ) : (
-                        <button
+                        <AdminButton
                           type="button"
+                          variant="ghost"
+                          size="sm"
                           onClick={() => startRename(p.id, p.slug)}
-                          className="inline-flex items-center gap-1 font-mono text-muted-foreground/70 transition-colors hover:text-foreground"
+                          className="font-mono"
                           title={t('renameSlug')}
                         >
                           {p.slug}
                           <Pencil className="h-3 w-3 opacity-60" />
-                        </button>
+                        </AdminButton>
                       )}
                       <span>· {SCAN_MODES.find((m) => m.value === p.scanMode)?.desc}</span>
                     </div>
@@ -1205,15 +1218,16 @@ export function SettingsForm({ initialSection = '', platforms: initial, metadata
               </div>
             </div>
 
-            <button
+            <AdminButton
               type="button"
+              variant="primary"
+              size="md"
               onClick={addPlatform}
               disabled={adding || !newPlatform.slug || !newPlatform.name || !newPlatform.extensions}
-              className="flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-40"
             >
               {adding ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
               {adding ? t('addingPlatform') : t('addPlatform')}
-            </button>
+            </AdminButton>
           </div>
         )}
       </div>
@@ -1406,17 +1420,18 @@ export function SettingsForm({ initialSection = '', platforms: initial, metadata
         {/* ── MinIO connection test ──────────────────────────────────────── */}
         <div className="border-t border-border pt-4">
           <div className="flex items-center gap-3">
-            <button
+            <AdminButton
               type="button"
+              variant="secondary"
+              size="md"
               onClick={testS3}
               disabled={s3Testing}
-              className="flex items-center gap-2 px-4 py-2 bg-secondary border border-border rounded-md text-sm hover:bg-accent transition-colors disabled:opacity-50"
             >
               {s3Testing
                 ? <Loader2 className="w-4 h-4 animate-spin" />
                 : <Wifi className="w-4 h-4" />}
               {s3Testing ? 'Comprobando…' : 'Comprobar conexión MinIO'}
-            </button>
+            </AdminButton>
 
             {s3TestResult && !s3Testing && (
               <span className={`flex items-center gap-1.5 text-sm font-medium ${s3TestResult.ok ? 'text-green-400' : 'text-red-400'}`}>

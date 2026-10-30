@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useTranslations } from 'next-intl'
 import { Folder, ChevronRight, ArrowLeft, HardDrive, Loader2, X } from 'lucide-react'
+import { AdminButton } from '@/components/admin/AdminButton'
 
 interface FsEntry {
   name: string
@@ -161,19 +162,21 @@ export function FolderPickerModal({ onSelect, onClose }: Props) {
             {result?.path || '—'}
           </span>
           <div className="flex items-center gap-2 flex-shrink-0">
-            <button
+            <AdminButton
+              variant="secondary"
+              size="sm"
               onClick={onClose}
-              className="px-3 py-1.5 text-xs rounded-md bg-secondary hover:bg-accent transition-colors"
             >
               {t('cancel')}
-            </button>
-            <button
+            </AdminButton>
+            <AdminButton
+              variant="primary"
+              size="sm"
               onClick={() => result?.path && onSelect(result.path)}
               disabled={!result?.path}
-              className="px-3 py-1.5 text-xs rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
             >
               {t('select')}
-            </button>
+            </AdminButton>
           </div>
         </div>
       </div>

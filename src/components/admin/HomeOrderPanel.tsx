@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { ChevronDown, ChevronUp, GripVertical } from 'lucide-react'
 import type { HomeSection } from '@/lib/home-order'
+import { AdminButton } from '@/components/admin/AdminButton'
 
 export function HomeOrderPanel({ initial, labels }: { initial: HomeSection[]; labels: Record<HomeSection, string> }) {
   const [order, setOrder] = useState<HomeSection[]>(initial)
@@ -57,25 +58,27 @@ export function HomeOrderPanel({ initial, labels }: { initial: HomeSection[]; la
             <GripVertical className="w-4 h-4 text-muted-foreground" />
             <span className="w-6 text-xs text-muted-foreground tabular-nums">{i + 1}</span>
             <span className="flex-1 text-sm">{labels[key]}</span>
-            <button type="button" onClick={() => move(i, i - 1)} disabled={i === 0} aria-label="Subir" className="p-1 rounded hover:bg-accent disabled:opacity-30">
+            <AdminButton variant="ghost" size="sm" type="button" onClick={() => move(i, i - 1)} disabled={i === 0} aria-label="Subir" className="disabled:opacity-30">
               <ChevronUp className="w-4 h-4" />
-            </button>
-            <button type="button" onClick={() => move(i, i + 1)} disabled={i === order.length - 1} aria-label="Bajar" className="p-1 rounded hover:bg-accent disabled:opacity-30">
+            </AdminButton>
+            <AdminButton variant="ghost" size="sm" type="button" onClick={() => move(i, i + 1)} disabled={i === order.length - 1} aria-label="Bajar" className="disabled:opacity-30">
               <ChevronDown className="w-4 h-4" />
-            </button>
+            </AdminButton>
           </li>
         ))}
       </ol>
 
       <div className="flex items-center gap-3">
-        <button
+        <AdminButton
+          variant="primary"
+          size="md"
           type="button"
           onClick={save}
           disabled={saving}
-          className="px-4 py-2 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:opacity-50"
+          className="disabled:opacity-50"
         >
           {saving ? 'Guardando…' : 'Guardar orden'}
-        </button>
+        </AdminButton>
         {status && <span className="text-sm text-muted-foreground">{status}</span>}
       </div>
     </div>

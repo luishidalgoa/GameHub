@@ -6,6 +6,7 @@ import { useTranslations } from 'next-intl'
 import { Sparkles, X, Check, Loader2, Search } from 'lucide-react'
 import type { MetadataResult } from '@/lib/metadata/provider'
 import { PROVIDER_LABEL } from '@/lib/metadata/sources'
+import { AdminButton } from '@/components/admin/AdminButton'
 
 interface Props {
   gameId: number
@@ -157,15 +158,16 @@ export function MetadataFetchButton({ gameId, onApplied }: Props) {
           </span>
         </button>
         {/* Manual fallback */}
-        <button
+        <AdminButton
+          variant="secondary"
+          size="md"
           type="button"
           onClick={openManual}
-          className="flex items-center gap-1.5 px-3 py-2 bg-secondary border border-border hover:bg-accent text-muted-foreground hover:text-foreground rounded-md text-sm transition-colors"
           title={t('manualHint')}
         >
           <Search className="w-3.5 h-3.5" />
           {t('manual')}
-        </button>
+        </AdminButton>
       </div>
 
       {/* Provenance summary after a one-click fill */}
@@ -206,14 +208,15 @@ export function MetadataFetchButton({ gameId, onApplied }: Props) {
                   className="w-full pl-8 pr-3 py-1.5 text-sm bg-secondary border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary/40 placeholder:text-muted-foreground"
                 />
               </div>
-              <button
+              <AdminButton
+                variant="primary"
+                size="md"
                 type="submit"
                 disabled={loading || !manualQuery.trim()}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 transition-colors"
               >
                 <Search className="w-3.5 h-3.5" />
                 {t('search')}
-              </button>
+              </AdminButton>
             </form>
 
             {/* Provider selector — force which source serves the search (the

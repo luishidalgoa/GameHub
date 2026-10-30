@@ -7,6 +7,7 @@ import { SortHeader } from './SortHeader'
 import { GamePanel, type PanelGame } from './GamePanel'
 import { DeleteGameButton } from './GraveyardClient'
 import { FIELD_WEIGHTS, type FieldKey } from '@/lib/games/completeness'
+import { AdminButton } from '@/components/admin/AdminButton'
 import { formatBytes } from '@/lib/utils'
 import type { AdminGameRow } from '@/lib/games/list'
 
@@ -150,7 +151,7 @@ export function AdminGameTable({ variant, query, sort, sortLinks, panel = null }
                 <tr>
                   <td colSpan={colSpan} className="px-3 py-8 text-center text-sm text-destructive">
                     No se pudo cargar la lista.{' '}
-                    <button type="button" onClick={() => mutate()} className="underline hover:text-foreground">Reintentar</button>
+                    <AdminButton variant="ghost" size="sm" type="button" onClick={() => mutate()} className="underline">Reintentar</AdminButton>
                   </td>
                 </tr>
               )}

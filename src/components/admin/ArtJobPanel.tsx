@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { useTranslations } from 'next-intl'
 import { CATALOGUE_SINCE } from '@/lib/art-catalog'
 import { Loader2 } from 'lucide-react'
+import { AdminButton } from '@/components/admin/AdminButton'
 
 interface ArtJob {
   status: 'running' | 'done' | 'failed' | 'cancelled'
@@ -117,12 +118,12 @@ export function ArtJobPanel() {
 
       <div className="flex gap-2">
         {running ? (
-          <button onClick={cancel} className="px-3 py-1.5 text-sm rounded-md border border-border hover:bg-secondary">{t('cancel')}</button>
+          <AdminButton variant="danger" size="md" onClick={cancel}>{t('cancel')}</AdminButton>
         ) : (
           <>
-            <button onClick={() => start(false)} className="px-3 py-1.5 text-sm rounded-md bg-primary text-primary-foreground hover:opacity-90">{t('start')}</button>
-            <button onClick={() => start(false, CATALOGUE_SINCE)} className="px-3 py-1.5 text-sm rounded-md border border-border hover:bg-secondary">{t('fillMissing')}</button>
-            <button onClick={() => start(true)} className="px-3 py-1.5 text-sm rounded-md border border-border hover:bg-secondary">{t('redo')}</button>
+            <AdminButton variant="primary" size="md" onClick={() => start(false)}>{t('start')}</AdminButton>
+            <AdminButton variant="primary" size="md" onClick={() => start(false, CATALOGUE_SINCE)}>{t('fillMissing')}</AdminButton>
+            <AdminButton variant="secondary" size="md" onClick={() => start(true)}>{t('redo')}</AdminButton>
           </>
         )}
       </div>

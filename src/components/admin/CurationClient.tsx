@@ -6,6 +6,7 @@ import {
   AlertTriangle, Check, FileEdit, Loader2, Pencil, RotateCcw, X,
 } from 'lucide-react'
 import type { RenameProposal } from '@/lib/curation'
+import { AdminButton } from '@/components/admin/AdminButton'
 
 interface Row extends RenameProposal {
   /** What will actually be written — starts as the proposal, editable. */
@@ -146,14 +147,15 @@ export function CurationClient() {
                 </span>
               )}
             </div>
-            <button
+            <AdminButton
+              variant="primary"
+              size="md"
               onClick={apply}
               disabled={saving || acceptedCount === 0}
-              className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-40 rounded-md text-sm font-medium transition-colors"
             >
               {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileEdit className="w-4 h-4" />}
               {t('apply', { count: acceptedCount })}
-            </button>
+            </AdminButton>
           </div>
 
           {byPlatform.map(([platform, list]) => (
@@ -166,18 +168,20 @@ export function CurationClient() {
                   </span>
                 </h3>
                 <div className="flex items-center gap-2 text-xs">
-                  <button
+                  <AdminButton
+                    variant="ghost"
+                    size="sm"
                     onClick={() => setPlatform(platform, true)}
-                    className="px-2 py-1 rounded border border-border hover:bg-accent transition-colors"
                   >
                     {t('selectAll')}
-                  </button>
-                  <button
+                  </AdminButton>
+                  <AdminButton
+                    variant="ghost"
+                    size="sm"
                     onClick={() => setPlatform(platform, false)}
-                    className="px-2 py-1 rounded border border-border hover:bg-accent transition-colors"
                   >
                     {t('selectNone')}
-                  </button>
+                  </AdminButton>
                 </div>
               </div>
 
@@ -264,21 +268,25 @@ function RowView({
                   </>
                 )}
               </span>
-              <button
+              <AdminButton
+                variant="ghost"
+                size="sm"
                 onClick={onEdit}
                 title={t('edit')}
-                className="shrink-0 text-muted-foreground hover:text-foreground transition-colors"
+                className="shrink-0"
               >
                 <Pencil className="w-3.5 h-3.5" />
-              </button>
+              </AdminButton>
               {edited && (
-                <button
+                <AdminButton
+                  variant="ghost"
+                  size="sm"
                   onClick={onReset}
                   title={t('resetEdit')}
-                  className="shrink-0 text-muted-foreground hover:text-foreground transition-colors"
+                  className="shrink-0 hover:text-red-400 hover:bg-red-500/10"
                 >
                   <RotateCcw className="w-3.5 h-3.5" />
-                </button>
+                </AdminButton>
               )}
             </div>
           )}

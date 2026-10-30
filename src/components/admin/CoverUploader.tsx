@@ -6,6 +6,7 @@ import Image from 'next/image'
 import { useTranslations } from 'next-intl'
 import { Upload, Link as LinkIcon, Loader2, Crop, Search, ChevronDown, ChevronUp, ArrowLeft } from 'lucide-react'
 import { CoverAdjustModal } from './CoverAdjustModal'
+import { AdminButton } from '@/components/admin/AdminButton'
 import { resolveCoverPath } from '@/lib/cover-url'
 import { libretroSupports } from '@/lib/metadata/libretro'
 import type { FieldSource, MetadataSources } from '@/lib/metadata/sources'
@@ -372,14 +373,16 @@ export function CoverUploader({ gameId, gameTitle = '', platformSlug, currentCov
       />
 
       {preview && !loading && (
-        <button
+        <AdminButton
           type="button"
+          variant="secondary"
+          size="md"
           onClick={(e) => { e.stopPropagation(); setAdjusting(true) }}
-          className="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm bg-secondary border border-border rounded-md hover:bg-accent transition-colors text-muted-foreground hover:text-foreground"
+          className="w-full"
         >
           <Crop className="w-4 h-4" />
           {t('adjustCrop')}
-        </button>
+        </AdminButton>
       )}
 
       {/* URL input */}
@@ -395,14 +398,15 @@ export function CoverUploader({ gameId, gameTitle = '', platformSlug, currentCov
             className="w-full bg-secondary border border-border rounded-md pl-8 pr-3 py-1.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
           />
         </div>
-        <button
+        <AdminButton
           type="button"
+          variant="primary"
+          size="md"
           onClick={() => uploadFromUrl(urlInput.trim())}
           disabled={loading || !urlInput.trim()}
-          className="px-3 py-1.5 bg-secondary border border-border rounded-md text-sm hover:bg-accent transition-colors disabled:opacity-50"
         >
           {t('use')}
-        </button>
+        </AdminButton>
       </div>
 
       {/* Search panel */}
@@ -469,14 +473,15 @@ export function CoverUploader({ gameId, gameTitle = '', platformSlug, currentCov
                       placeholder={t('searchPlaceholder')}
                       className="flex-1 px-3 py-2 text-sm bg-background border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary/50"
                     />
-                    <button
+                    <AdminButton
                       type="button"
+                      variant="primary"
+                      size="md"
                       onClick={() => doLibretroSearch(libQuery)}
                       disabled={libSearching || !libQuery.trim()}
-                      className="px-3 py-2 text-sm rounded-md bg-primary text-primary-foreground disabled:opacity-50"
                     >
                       <Search className="w-4 h-4" />
-                    </button>
+                    </AdminButton>
                   </div>
 
                   {libError && <p className="text-xs text-destructive">{libError}</p>}
@@ -526,13 +531,14 @@ export function CoverUploader({ gameId, gameTitle = '', platformSlug, currentCov
                 <>
                   {lbSelected ? (
                     <div className="flex items-center gap-2">
-                      <button
+                      <AdminButton
                         type="button"
+                        variant="ghost"
+                        size="sm"
                         onClick={() => { setLbSelected(null); setLbCovers([]) }}
-                        className="p-1 rounded hover:bg-accent transition-colors text-muted-foreground hover:text-foreground"
                       >
                         <ArrowLeft className="w-3.5 h-3.5" />
-                      </button>
+                      </AdminButton>
                       <span className="text-xs font-medium text-foreground truncate">{lbSelected.name}</span>
                     </div>
                   ) : (
@@ -547,13 +553,14 @@ export function CoverUploader({ gameId, gameTitle = '', platformSlug, currentCov
                         placeholder={t('gameTitlePlaceholder')}
                         className="flex-1 bg-secondary border border-border rounded-md px-3 py-1.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
                       />
-                      <button
+                      <AdminButton
                         type="submit"
+                        variant="primary"
+                        size="md"
                         disabled={lbSearching || !lbQuery.trim()}
-                        className="px-3 py-1.5 bg-primary text-primary-foreground rounded-md text-sm hover:bg-primary/90 disabled:opacity-50 transition-colors"
                       >
                         {lbSearching ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Search className="w-3.5 h-3.5" />}
-                      </button>
+                      </AdminButton>
                     </form>
                   )}
 
@@ -638,13 +645,14 @@ export function CoverUploader({ gameId, gameTitle = '', platformSlug, currentCov
                   {/* Step 1 or step 2 header */}
                   {sgdbSelected ? (
                     <div className="flex items-center gap-2">
-                      <button
+                      <AdminButton
                         type="button"
+                        variant="ghost"
+                        size="sm"
                         onClick={() => { setSgdbSelected(null); setSgdbCovers([]) }}
-                        className="p-1 rounded hover:bg-accent transition-colors text-muted-foreground hover:text-foreground"
                       >
                         <ArrowLeft className="w-3.5 h-3.5" />
-                      </button>
+                      </AdminButton>
                       <span className="text-xs font-medium text-foreground truncate">{sgdbSelected.name}</span>
                     </div>
                   ) : (
@@ -659,13 +667,14 @@ export function CoverUploader({ gameId, gameTitle = '', platformSlug, currentCov
                         placeholder={t('gameTitlePlaceholder')}
                         className="flex-1 bg-secondary border border-border rounded-md px-3 py-1.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
                       />
-                      <button
+                      <AdminButton
                         type="submit"
+                        variant="primary"
+                        size="md"
                         disabled={sgdbSearching || !sgdbQuery.trim()}
-                        className="px-3 py-1.5 bg-primary text-primary-foreground rounded-md text-sm hover:bg-primary/90 disabled:opacity-50 transition-colors"
                       >
                         {sgdbSearching ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Search className="w-3.5 h-3.5" />}
-                      </button>
+                      </AdminButton>
                     </form>
                   )}
 
@@ -758,13 +767,14 @@ export function CoverUploader({ gameId, gameTitle = '', platformSlug, currentCov
                       placeholder="Game title…"
                       className="flex-1 bg-secondary border border-border rounded-md px-3 py-1.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
                     />
-                    <button
+                    <AdminButton
                       type="submit"
+                      variant="primary"
+                      size="md"
                       disabled={rawgSearching || !rawgQuery.trim()}
-                      className="px-3 py-1.5 bg-primary text-primary-foreground rounded-md text-sm hover:bg-primary/90 disabled:opacity-50 transition-colors"
                     >
                       {rawgSearching ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Search className="w-3.5 h-3.5" />}
-                    </button>
+                    </AdminButton>
                   </form>
 
                   {rawgSearching && (
