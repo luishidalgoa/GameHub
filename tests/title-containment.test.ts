@@ -24,4 +24,21 @@ describe('título contenido en el de la base de datos', () => {
     expect(calcTitleConfidence('Emily My Animal Shelter', 'Emily the Strange Strangerous', true))
       .toBeLessThan(AUTO_THRESHOLD)
   })
+
+  it('la editora delante del título no impide el emparejamiento', () => {
+    expect(calcTitleConfidence('DreamWorks Kung Fu Panda', 'Kung Fu Panda', true)).toBeGreaterThanOrEqual(AUTO_THRESHOLD)
+  })
+
+  it('una secuela con número no toma el título anterior, en ningún sentido', () => {
+    expect(calcTitleConfidence('Kung Fu Panda 2', 'Kung Fu Panda', true)).toBeLessThan(AUTO_THRESHOLD)
+    expect(calcTitleConfidence('Kung Fu Panda', 'Kung Fu Panda 2', true)).toBeLessThan(AUTO_THRESHOLD)
+  })
+
+  it('sin plataforma confirmada la editora delante no basta', () => {
+    expect(calcTitleConfidence('DreamWorks Kung Fu Panda', 'Kung Fu Panda', false)).toBeLessThan(AUTO_THRESHOLD)
+  })
+
+  it('los números romanos cuentan como números', () => {
+    expect(calcTitleConfidence('Final Fantasy VII', 'Final Fantasy 7', true)).toBeGreaterThanOrEqual(AUTO_THRESHOLD)
+  })
 })
