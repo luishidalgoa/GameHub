@@ -146,10 +146,10 @@ export function MetadataFetchButton({ gameId, onApplied }: Props) {
           type="button"
           onClick={fillNow}
           disabled={filling}
-          className="group flex items-center gap-3 pl-2 pr-4 py-2 rounded-lg bg-gradient-to-br from-violet-600 to-fuchsia-600 hover:from-violet-500 hover:to-fuchsia-500 disabled:opacity-60 text-white shadow-md shadow-violet-900/30 ring-1 ring-inset ring-white/10 transition-all"
+          className="group flex h-10 items-center gap-3 pl-1.5 pr-4 rounded-lg bg-gradient-to-br from-violet-600 to-fuchsia-600 hover:from-violet-500 hover:to-fuchsia-500 disabled:opacity-60 text-white shadow-md shadow-violet-900/30 ring-1 ring-inset ring-white/10 transition-all"
           title={t('buttonHint')}
         >
-          <span className="flex h-8 w-8 items-center justify-center rounded-md bg-white/15">
+          <span className="flex h-7 w-7 items-center justify-center rounded-md bg-white/15">
             {filling ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
           </span>
           <span className="flex flex-col items-start text-left leading-tight">

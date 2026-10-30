@@ -18,9 +18,10 @@ const VARIANTS: Record<AdminButtonVariant, string> = {
   ghost:     'text-muted-foreground hover:text-foreground hover:bg-accent',
 }
 
+// Fixed heights, so buttons in one row line up whatever their label is.
 const SIZES = {
-  sm: 'px-2.5 py-1 text-xs gap-1.5 rounded-md',
-  md: 'px-3.5 py-2 text-sm gap-2 rounded-lg',
+  sm: 'h-7 px-2.5 text-xs gap-1.5 rounded-md',
+  md: 'h-10 px-4 text-sm gap-2 rounded-lg',
 }
 
 export interface AdminButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
