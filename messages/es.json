@@ -698,7 +698,11 @@
     "networkError": "Error de red. Inténtalo de nuevo.",
     "requestFailed": "No se pudo completar la operación.",
     "searchFailed": "La búsqueda falló.",
-    "applyFailed": "No se pudo aplicar el resultado."
+    "applyFailed": "No se pudo aplicar el resultado.",
+    "buttonSub": "Busca en tus proveedores y rellena lo que falte",
+    "filling": "Buscando en los proveedores…",
+    "storeUnavailable": "Un proveedor no respondió (LaunchBox o RAWG). Inténtalo de nuevo en unos minutos.",
+    "noMatch": "Ningún proveedor encontró este juego. Prueba la búsqueda manual."
   },
   "CommandPalette": {
     "placeholder": "Buscar juegos o plataformas…",

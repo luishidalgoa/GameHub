@@ -698,7 +698,11 @@
     "networkError": "Network error. Try again.",
     "requestFailed": "The operation could not be completed.",
     "searchFailed": "Search failed.",
-    "applyFailed": "The result could not be applied."
+    "applyFailed": "The result could not be applied.",
+    "buttonSub": "Searches your providers and fills what is missing",
+    "filling": "Searching the providers…",
+    "storeUnavailable": "A provider did not respond (LaunchBox or RAWG). Try again in a few minutes.",
+    "noMatch": "No provider found this game. Try the manual search."
   },
   "CommandPalette": {
     "placeholder": "Search games or platforms…",

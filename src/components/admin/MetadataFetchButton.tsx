@@ -35,6 +35,13 @@ export function MetadataFetchButton({ gameId, onApplied }: Props) {
   const [usedQuery, setUsedQuery] = useState('')
   const [manualQuery, setManualQuery] = useState('')
 
+  // The server answers with machine codes; the admin reads a sentence, never a code.
+  const fillErrorText = (code?: string) => {
+    if (code === 'store_unavailable') return t('storeUnavailable')
+    if (code === 'No confident match found') return t('noMatch')
+    return t('requestFailed')
+  }
+
   // ── One-click: apply the provider matrix ──
   const fillNow = async () => {
     setFilling(true)
@@ -48,7 +55,7 @@ export function MetadataFetchButton({ gameId, onApplied }: Props) {
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) {
-        setTopError(data.error ?? t('requestFailed'))
+        setTopError(fillErrorText(data.error))
       } else {
         setSummary(data.sources ?? {})
         onApplied()
@@ -136,11 +143,16 @@ export function MetadataFetchButton({ gameId, onApplied }: Props) {
           type="button"
           onClick={fillNow}
           disabled={filling}
-          className="flex items-center gap-2 px-4 py-2 bg-violet-600 hover:bg-violet-500 disabled:opacity-60 text-white rounded-md text-sm font-medium transition-colors"
+          className="group flex items-center gap-3 pl-2 pr-4 py-2 rounded-lg bg-gradient-to-br from-violet-600 to-fuchsia-600 hover:from-violet-500 hover:to-fuchsia-500 disabled:opacity-60 text-white shadow-md shadow-violet-900/30 ring-1 ring-inset ring-white/10 transition-all"
           title={t('buttonHint')}
         >
-          {filling ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-          {t('button')}
+          <span className="flex h-8 w-8 items-center justify-center rounded-md bg-white/15">
+            {filling ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+          </span>
+          <span className="flex flex-col items-start text-left leading-tight">
+            <span className="text-sm font-semibold">{t('button')}</span>
+            <span className="text-[11px] text-white/70">{filling ? t('filling') : t('buttonSub')}</span>
+          </span>
         </button>
         {/* Manual fallback */}
         <button
@@ -160,7 +172,7 @@ export function MetadataFetchButton({ gameId, onApplied }: Props) {
           {t('appliedFrom')} {summaryLine(summary) || '—'}
         </p>
       )}
-      {topError && <p className="text-xs text-destructive">{topError}</p>}
+      {topError && <p className="text-xs text-destructive max-w-md text-right">{topError}</p>}
 
       {open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
