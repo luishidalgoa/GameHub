@@ -106,7 +106,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       applied = await applyManualPick(game.platform.slug, gameId, pickSource, pickId, game.trailerUrl)
     } catch (err) {
       if (err instanceof RawgAuthError) {
-        return NextResponse.json({ error: 'rawg_key_rejected', message: err.message }, { status: 503 })
+        return NextResponse.json({ error: err.quota ? 'rawg_quota' : 'rawg_key_rejected', message: err.message }, { status: 503 })
       }
       throw err
     }
@@ -136,7 +136,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       return NextResponse.json({ error: 'store_unavailable', message: err.message }, { status: 503 })
     }
     if (err instanceof RawgAuthError) {
-      return NextResponse.json({ error: 'rawg_key_rejected', message: err.message }, { status: 503 })
+      return NextResponse.json({ error: err.quota ? 'rawg_quota' : 'rawg_key_rejected', message: err.message }, { status: 503 })
     }
     throw err
   }

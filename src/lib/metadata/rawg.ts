@@ -5,19 +5,24 @@ import { providerFetch } from './http'
 const RAWG_BASE = 'https://api.rawg.io/api'
 
 /**
- * RAWG refused the API key (401/403). This is not an outage: every RAWG call fails the
- * same way until the key is changed, so it must not be read as "no match" nor retried
- * game by game.
+ * RAWG refused the request (401/403): the key is not valid, or the account is out of its
+ * monthly requests (RAWG answers both with 401). Either way every RAWG call fails the same
+ * way until that changes, so it must not be read as "no match" nor retried game by game.
  */
 export class RawgAuthError extends Error {
-  constructor(status: number) {
-    super(`RAWG rechazó la clave API (${status})`)
+  /** True when RAWG said the monthly request quota is used up, not that the key is wrong. */
+  readonly quota: boolean
+  constructor(status: number, quota = false) {
+    super(quota ? 'RAWG agotó la cuota mensual de peticiones' : `RAWG rechazó la clave API (${status})`)
     this.name = 'RawgAuthError'
+    this.quota = quota
   }
 }
 
-function rejectIfUnauthorized(res: Response): void {
-  if (res.status === 401 || res.status === 403) throw new RawgAuthError(res.status)
+async function rejectIfUnauthorized(res: Response): Promise<void> {
+  if (res.status !== 401 && res.status !== 403) return
+  const body = await res.text().catch(() => '')
+  throw new RawgAuthError(res.status, /limit/i.test(body))
 }
 
 // Map a GameHub platform slug → the platform SLUG RAWG uses (verified against
@@ -124,7 +129,7 @@ export class RawgProvider implements MetadataProvider {
     })
 
     const res = await providerFetch(`${RAWG_BASE}/games?${params}`)
-    rejectIfUnauthorized(res)
+    await rejectIfUnauthorized(res)
     if (!res.ok) throw new Error(`RAWG search failed: ${res.status}`)
 
     const data: RawgSearchResponse = await res.json()
@@ -162,7 +167,7 @@ export class RawgProvider implements MetadataProvider {
       search_precise: 'false',
     })
     const res = await providerFetch(`${RAWG_BASE}/games?${params}`)
-    rejectIfUnauthorized(res)
+    await rejectIfUnauthorized(res)
     if (!res.ok) throw new Error(`RAWG search failed: ${res.status}`)
     const data: RawgSearchResponse = await res.json()
     return data.results.map((g) => ({
@@ -182,7 +187,7 @@ export class RawgProvider implements MetadataProvider {
    */
   async fetchPopularity(id: number | string): Promise<RawgPopularityMetrics | null> {
     const res = await providerFetch(`${RAWG_BASE}/games/${id}?key=${this.apiKey}`)
-    rejectIfUnauthorized(res)
+    await rejectIfUnauthorized(res)
     if (!res.ok) return null
     const g: RawgGame = await res.json()
     return {
@@ -196,7 +201,7 @@ export class RawgProvider implements MetadataProvider {
   // Accepts either a numeric RAWG ID or a slug string (e.g. "pokemon-x")
   async fetchById(id: number | string): Promise<MetadataResult | null> {
     const res = await providerFetch(`${RAWG_BASE}/games/${id}?key=${this.apiKey}`)
-    rejectIfUnauthorized(res)
+    await rejectIfUnauthorized(res)
     if (!res.ok) return null
 
     const g: RawgGame = await res.json()

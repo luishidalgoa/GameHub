@@ -703,7 +703,8 @@
     "filling": "Searching the providers…",
     "storeUnavailable": "A provider did not respond (LaunchBox or RAWG). Try again in a few minutes.",
     "noMatch": "No provider found this game. Try the manual search.",
-    "rawgKeyRejected": "RAWG rejected the API key. Change it in settings and try again."
+    "rawgKeyRejected": "RAWG rejected the API key. Change it in settings and try again.",
+    "rawgQuota": "RAWG used up this month's requests. They renew on the date shown in your RAWG account."
   },
   "CommandPalette": {
     "placeholder": "Search games or platforms…",
