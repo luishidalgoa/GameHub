@@ -12,12 +12,8 @@ const rows = fixture as Row[]
 // test falla si aparece un caso que no esta aqui, o si uno de estos empieza a
 // emparejarse (hay que quitarlo de la lista).
 const KNOWN_GAPS: Record<string, string> = {
-  "Disney's Lilo & Stitch 2 (2004) (E) (M4).gba": 'subtitulo distinto en el proveedor',
-  'Rise of the Guardians (2012) (Europe) (En,Fr,De,Es,It).nds': 'subtitulo distinto en el proveedor',
   'SpiderMan Battle for New York (2006) (USA).nds': 'guion en el nombre del proveedor',
-  'Ripping Friends, The (2002) (U).gba': 'articulo al principio frente a al final',
   'Street Fighter 2 - The New Challengers (1992) (ESP).smc': 'subtitulo distinto en el proveedor',
-  'Brain_Age_Train_Your_Brain (2005).nds': 'guiones bajos en el nombre del fichero',
   'Sonic Colours (2010) (Europe) (En,Ja,Fr,De,Es,It).rvz': 'Colours frente a Colors',
   'James Pond 3 - Operation Starfish (1994) (ESP).sfc': 'el titulo guardado tiene un error de escritura (Starfi5h)',
   'Inazuma Eleven 2 - Tormenta de Fuego (2012).nds': 'titulo traducido en el proveedor',

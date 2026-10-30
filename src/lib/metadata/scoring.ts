@@ -39,16 +39,30 @@ export function jaccard(a: string, b: string): number {
 /**
  * Generic title-based confidence:
  *   title similarity (0–50) + exact-title bonus (+20) + platform bonus (+30)
+ *
+ * A candidate that carries every word of our title plus a subtitle or one more word
+ * ("FIFA Soccer 09" for "FIFA 09") is the same game when the platform agrees. Titles of
+ * one word are left out: "Mario" would take "Mario Kart" otherwise.
  */
 export function calcTitleConfidence(
   gameTitle: string,
   candidateTitle: string,
   platformMatched: boolean,
 ): number {
-  let score = jaccard(fileToTitle(gameTitle), candidateTitle) * 50
-  if (normalize(fileToTitle(gameTitle)) === normalize(candidateTitle)) score += 20
+  const ourTitle = fileToTitle(gameTitle)
+  let score = jaccard(ourTitle, candidateTitle) * 50
+  if (normalize(ourTitle) === normalize(candidateTitle)) score += 20
   if (platformMatched) score += 30
+  if (platformMatched && containsAllWords(ourTitle, candidateTitle)) score = Math.max(score, AUTO_THRESHOLD)
   return Math.min(100, Math.round(score))
+}
+
+/** True when the title has at least two words and every one of them appears in the candidate. */
+function containsAllWords(ourTitle: string, candidateTitle: string): boolean {
+  const ours = normalize(ourTitle).split(' ').filter(Boolean)
+  if (ours.length < 2) return false
+  const theirs = new Set(normalize(candidateTitle).split(' ').filter(Boolean))
+  return ours.every(w => theirs.has(w))
 }
 
 /**
