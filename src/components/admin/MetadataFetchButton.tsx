@@ -39,6 +39,7 @@ export function MetadataFetchButton({ gameId, onApplied }: Props) {
   const fillErrorText = (code?: string) => {
     if (code === 'store_unavailable') return t('storeUnavailable')
     if (code === 'No confident match found') return t('noMatch')
+    if (code === 'rawg_key_rejected') return t('rawgKeyRejected')
     return t('requestFailed')
   }
 

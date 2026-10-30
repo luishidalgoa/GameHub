@@ -4,6 +4,22 @@ import { providerFetch } from './http'
 
 const RAWG_BASE = 'https://api.rawg.io/api'
 
+/**
+ * RAWG refused the API key (401/403). This is not an outage: every RAWG call fails the
+ * same way until the key is changed, so it must not be read as "no match" nor retried
+ * game by game.
+ */
+export class RawgAuthError extends Error {
+  constructor(status: number) {
+    super(`RAWG rechazó la clave API (${status})`)
+    this.name = 'RawgAuthError'
+  }
+}
+
+function rejectIfUnauthorized(res: Response): void {
+  if (res.status === 401 || res.status === 403) throw new RawgAuthError(res.status)
+}
+
 // Map a GameHub platform slug → the platform SLUG RAWG uses (verified against
 // rawg.io/platforms). Slugs are stable and self-documenting, unlike the numeric
 // ids we used before (which were partly wrong and lacked SNES). Used by the
@@ -108,6 +124,7 @@ export class RawgProvider implements MetadataProvider {
     })
 
     const res = await providerFetch(`${RAWG_BASE}/games?${params}`)
+    rejectIfUnauthorized(res)
     if (!res.ok) throw new Error(`RAWG search failed: ${res.status}`)
 
     const data: RawgSearchResponse = await res.json()
@@ -145,6 +162,7 @@ export class RawgProvider implements MetadataProvider {
       search_precise: 'false',
     })
     const res = await providerFetch(`${RAWG_BASE}/games?${params}`)
+    rejectIfUnauthorized(res)
     if (!res.ok) throw new Error(`RAWG search failed: ${res.status}`)
     const data: RawgSearchResponse = await res.json()
     return data.results.map((g) => ({
@@ -164,6 +182,7 @@ export class RawgProvider implements MetadataProvider {
    */
   async fetchPopularity(id: number | string): Promise<RawgPopularityMetrics | null> {
     const res = await providerFetch(`${RAWG_BASE}/games/${id}?key=${this.apiKey}`)
+    rejectIfUnauthorized(res)
     if (!res.ok) return null
     const g: RawgGame = await res.json()
     return {
@@ -177,6 +196,7 @@ export class RawgProvider implements MetadataProvider {
   // Accepts either a numeric RAWG ID or a slug string (e.g. "pokemon-x")
   async fetchById(id: number | string): Promise<MetadataResult | null> {
     const res = await providerFetch(`${RAWG_BASE}/games/${id}?key=${this.apiKey}`)
+    rejectIfUnauthorized(res)
     if (!res.ok) return null
 
     const g: RawgGame = await res.json()

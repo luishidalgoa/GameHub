@@ -702,7 +702,8 @@
     "buttonSub": "Searches your providers and fills what is missing",
     "filling": "Searching the providers…",
     "storeUnavailable": "A provider did not respond (LaunchBox or RAWG). Try again in a few minutes.",
-    "noMatch": "No provider found this game. Try the manual search."
+    "noMatch": "No provider found this game. Try the manual search.",
+    "rawgKeyRejected": "RAWG rejected the API key. Change it in settings and try again."
   },
   "CommandPalette": {
     "placeholder": "Search games or platforms…",

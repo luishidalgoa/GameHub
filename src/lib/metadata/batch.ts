@@ -3,7 +3,7 @@ import { runAutomatic } from '@/lib/automatic'
 import { fillGameFacts } from './wikidata'
 import { noMatchRetryAt } from './retry'
 import { downloadAndCacheCover, saveCoverFromBuffer } from '@/lib/covers'
-import { getRawgProvider } from './rawg'
+import { getRawgProvider, RawgAuthError } from './rawg'
 import { scoreForGame } from './one-score'
 import { searchYouTubeTrailer, YouTubeApiError, markYoutubeOff, youtubeIsOff } from '@/lib/youtube'
 import { AUTO_THRESHOLD } from './scoring'
@@ -217,6 +217,9 @@ async function runMetadataBatchInner(opts: {
   emit({ type: 'start', total })
 
   let applied = 0, skipped = 0, failed = 0
+  // How many games the loop reached. A run that stops early (rejected key, abort) must not
+  // report the rest of the library as processed.
+  let attempted = 0
   // Once the YouTube API errors (quota / bad key / network), stop searching
   // trailers for the rest of the run, and for a day after it (markYoutubeOff).
   let youtubeDisabled = youtubeOff
@@ -226,6 +229,7 @@ async function runMetadataBatchInner(opts: {
 
     const game = games[i]
     const processed = i + 1
+    attempted = processed
     // This game's own fields, and the plan they give.
     ;({ want, inFicha, inImagenes, inScores, trailersOn, coversOn, scoresOn, factsOn, ownsIdentity, metaScope, artOnly, artKinds } = planFor(fieldsFor(game)))
 
@@ -273,6 +277,8 @@ async function runMetadataBatchInner(opts: {
       } catch (err) {
         failed++
         emit({ type: 'failed', gameId: game.id, title: game.title, reason: err instanceof Error ? err.message : 'unknown_error', processed, total, applied, skipped, failed })
+        // A rejected RAWG key: the run stops here, as in the metadata-mode catch below.
+        if (err instanceof RawgAuthError) break
       }
       continue
     }
@@ -613,6 +619,13 @@ async function runMetadataBatchInner(opts: {
     } catch (err) {
       failed++
       const reason = err instanceof Error ? err.message : 'unknown_error'
+      // A rejected RAWG key fails every game that needs RAWG the same way. Stop the run and leave
+      // this game as it is: no provider_error backoff and no no_match, so it is picked up again
+      // once the key is fixed.
+      if (err instanceof RawgAuthError) {
+        emit({ type: 'failed', gameId: game.id, title: game.title, reason, processed, total, applied, skipped, failed })
+        break
+      }
       // Provider error: wait 1, 2, 4... hours (at most a day) before the next try (#110).
       // The retry state belongs to the ficha, so a pass without it leaves the game as it is.
       if (inFicha) {
@@ -632,7 +645,7 @@ async function runMetadataBatchInner(opts: {
     }
   }
 
-  emit({ type: 'done', total, processed: Math.min(games.length, total), applied, skipped, failed })
+  emit({ type: 'done', total, processed: attempted, applied, skipped, failed })
 }
 
 /** The metadata batch is automatic work: it never overwrites what the owner set by hand. */

@@ -1,4 +1,4 @@
-import { getRawgProvider, RawgProvider } from './rawg'
+import { getRawgProvider, RawgAuthError, RawgProvider } from './rawg'
 import { getLaunchBoxProvider, getLaunchBoxPlatformName, type LaunchBoxGame } from './launchbox'
 import { searchStore, fetchStoreProduct } from './nintendo-store'
 import { fetchSteamGridDBCover } from './steamgriddb'
@@ -183,6 +183,8 @@ export async function gatherMetadata(input: GatherInput): Promise<ComposedMetada
   // RAWG no respondió: igual que LaunchBox, no es «sin coincidencia».
   let rawgDown = false
   let rawgError = ''
+  // RAWG refused the key: kept apart from an outage, see the check after the sources.
+  let rawgAuth: RawgAuthError | null = null
   if (needsRawg) {
     try {
       rawgProvider = getRawgProvider(rawgApiKey)
@@ -200,7 +202,11 @@ export async function gatherMetadata(input: GatherInput): Promise<ComposedMetada
           rawg = await rawgProvider.fetchById(match.result.id)
         }
       }
-    } catch (err) { rawgDown = true; rawgError = errorText(err) /* RAWG failure non-fatal here; if nothing else matches, the game is retried later */ }
+    } catch (err) {
+      // A rejected key is not an outage: it stops the run below, it is not a game to retry.
+      if (err instanceof RawgAuthError) rawgAuth = err
+      else { rawgDown = true; rawgError = errorText(err) /* RAWG failure non-fatal here; if nothing else matches, the game is retried later */ }
+    }
   }
 
   // Switch: la tienda oficial de Nintendo va antes que RAWG para la ficha y la portada.
@@ -246,6 +252,9 @@ export async function gatherMetadata(input: GatherInput): Promise<ComposedMetada
     : lbDown ? { source: 'LaunchBox', error: lbError }
     : rawgDown ? { source: 'RAWG', error: rawgError }
     : null
+  // With a rejected key every game that needs RAWG fails the same way. Throwing the key error
+  // (not a "no match" and not a retry) lets the batch stop and leave those games untouched.
+  if (!lb && !rawg && !nin && rawgAuth) throw rawgAuth
   if (!lb && !rawg && !nin && down) {
     throw new StoreUnavailableError(`${down.source} no responde${down.error ? `: ${down.error}` : ''}`)
   }

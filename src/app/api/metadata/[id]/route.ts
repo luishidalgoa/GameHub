@@ -2,7 +2,7 @@ import { parseMetadataSources } from '@/lib/metadata/sources'
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { adminGuard } from '@/lib/admin-guard'
-import { getRawgProvider } from '@/lib/metadata/rawg'
+import { getRawgProvider, RawgAuthError } from '@/lib/metadata/rawg'
 import { fileToTitle } from '@/lib/utils'
 import { getLaunchBoxProvider, fetchLaunchBoxGame } from '@/lib/metadata/launchbox'
 import { getProviderMatrix } from '@/lib/metadata/matrix'
@@ -101,7 +101,15 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 
   // ── Manual pick: apply exactly the chosen candidate ──
   if (pickSource && pickId != null) {
-    const applied = await applyManualPick(game.platform.slug, gameId, pickSource, pickId, game.trailerUrl)
+    let applied
+    try {
+      applied = await applyManualPick(game.platform.slug, gameId, pickSource, pickId, game.trailerUrl)
+    } catch (err) {
+      if (err instanceof RawgAuthError) {
+        return NextResponse.json({ error: 'rawg_key_rejected', message: err.message }, { status: 503 })
+      }
+      throw err
+    }
     if (!applied) return NextResponse.json({ error: 'Could not fetch that game' }, { status: 404 })
     return NextResponse.json(serializeBigInt(applied))
   }
@@ -126,6 +134,9 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   } catch (err) {
     if (err instanceof StoreUnavailableError) {
       return NextResponse.json({ error: 'store_unavailable', message: err.message }, { status: 503 })
+    }
+    if (err instanceof RawgAuthError) {
+      return NextResponse.json({ error: 'rawg_key_rejected', message: err.message }, { status: 503 })
     }
     throw err
   }
