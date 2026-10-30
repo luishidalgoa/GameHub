@@ -55,6 +55,11 @@ const delay = (ms: number) => new Promise(r => setTimeout(r, ms))
 
 // ── Main batch processor ──────────────────────────────────────────────────────
 
+/** True when some field of this platform's matrix asks RAWG. */
+function usesRawg(matrix: ProviderMatrix): boolean {
+  return Object.values(matrix.chains).some(chain => (chain as readonly string[]).includes('rawg'))
+}
+
 async function runMetadataBatchInner(opts: {
   emit:             (event: BatchEvent) => void
   signal:           AbortSignal
@@ -220,6 +225,9 @@ async function runMetadataBatchInner(opts: {
   // How many games the loop reached. A run that stops early (rejected key, abort) must not
   // report the rest of the library as processed.
   let attempted = 0
+  // Set when RAWG refuses (rejected key or spent monthly quota): the rest of the run goes on
+  // without it, and a game only RAWG could answer is left as it is.
+  let rawgOff = false
   // Once the YouTube API errors (quota / bad key / network), stop searching
   // trailers for the rest of the run, and for a day after it (markYoutubeOff).
   let youtubeDisabled = youtubeOff
@@ -385,9 +393,21 @@ async function runMetadataBatchInner(opts: {
         launchboxId:  game.launchboxId,
         matrix:       await matrixFor(game.platform.slug),
         rawgApiKey:   apiKey,
+        rawgOff,
         threshold:    AUTO_THRESHOLD,
       })
       const matchReason = classifyNoMatch(diag)
+      // RAWG refused while looking this game up: it is off for the rest of the run, even for
+      // games that LaunchBox answered, so no further RAWG request is spent.
+      if (diag.rawgRefused) rawgOff = true
+
+      // Nothing matched while RAWG is off, and RAWG was one of the sources for this platform:
+      // RAWG might have answered, so the game is left as it is and tried again in a later run.
+      if (!meta && rawgOff && usesRawg(await matrixFor(game.platform.slug))) {
+        skipped++
+        emit({ type: 'skipped', gameId: game.id, title: game.title, reason: 'rawg_unavailable', processed, total, applied, skipped, failed })
+        continue
+      }
 
       if (!meta) {
         // The no-match state describes the ficha, so a pass without it leaves the state alone.
@@ -617,15 +637,16 @@ async function runMetadataBatchInner(opts: {
       emit({ type: 'applied', gameId: game.id, title: game.title, matchedTitle: meta.title, confidence: meta.confidence, trailerFound, score: scoreData.rawgScore, processed, total, applied, skipped, failed })
 
     } catch (err) {
+      // A rejected RAWG key or a spent monthly quota (RAWG answers both with 401): RAWG is off for
+      // the rest of the run. This game is left as it is, with no backoff and no no_match.
+      if (err instanceof RawgAuthError) {
+        rawgOff = true
+        skipped++
+        emit({ type: 'skipped', gameId: game.id, title: game.title, reason: 'rawg_unavailable', processed, total, applied, skipped, failed })
+        continue
+      }
       failed++
       const reason = err instanceof Error ? err.message : 'unknown_error'
-      // A rejected RAWG key fails every game that needs RAWG the same way. Stop the run and leave
-      // this game as it is: no provider_error backoff and no no_match, so it is picked up again
-      // once the key is fixed.
-      if (err instanceof RawgAuthError) {
-        emit({ type: 'failed', gameId: game.id, title: game.title, reason, processed, total, applied, skipped, failed })
-        break
-      }
       // Provider error: wait 1, 2, 4... hours (at most a day) before the next try (#110).
       // The retry state belongs to the ficha, so a pass without it leaves the game as it is.
       if (inFicha) {

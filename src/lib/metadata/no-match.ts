@@ -15,10 +15,12 @@ export interface MatchDiagnostics {
   rawgCandidates: number
   /** The Nintendo store found the title (Switch only). */
   storeHit: boolean
+  /** RAWG refused the key or the monthly quota during this lookup. */
+  rawgRefused: boolean
 }
 
 export function emptyMatchDiagnostics(): MatchDiagnostics {
-  return { launchboxUnmapped: false, launchboxCandidates: 0, rawgCandidates: 0, storeHit: false }
+  return { launchboxUnmapped: false, launchboxCandidates: 0, rawgCandidates: 0, storeHit: false, rawgRefused: false }
 }
 
 /**

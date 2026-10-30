@@ -43,6 +43,12 @@ describe('RAWG rechaza la clave mientras LaunchBox no encuentra el juego', () =>
     expect(err).not.toBeInstanceOf(StoreUnavailableError)
   })
 
+  it('con RAWG apagado no lo pregunta y no lanza el error de clave', async () => {
+    rawgFailure.error = new RawgAuthError(401, true)
+    await expect(gatherMetadata({ title: 'Eindeloos Patience', platformSlug: 'nintendo-ds', matrix, rawgApiKey: 'k', rawgOff: true }))
+      .resolves.toBeNull()
+  })
+
   it('una caída de RAWG (500) sigue siendo un reintento', async () => {
     rawgFailure.error = new Error('RAWG search failed: 500')
     await expect(gatherMetadata({ title: 'Eindeloos Patience', platformSlug: 'nintendo-ds', matrix, rawgApiKey: 'k' }))

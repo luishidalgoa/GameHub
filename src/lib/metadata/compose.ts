@@ -101,6 +101,8 @@ export interface GatherInput {
   /** False when the pass will not write the cover: the cover chain is not asked at all. Default true. */
   coverWanted?: boolean
   rawgApiKey?: string
+  /** True once RAWG refused this run (key or monthly quota): it is not asked again. */
+  rawgOff?: boolean
   /** Minimum confidence for the primary match to be accepted. */
   threshold?: number
   /** False: a game no provider matched gets no cover, the libretro box is not kept alone.
@@ -137,7 +139,7 @@ export async function gatherMetadata(input: GatherInput): Promise<ComposedMetada
   // A RAWG id saved on the game is fetched even when the matrix does not use RAWG
   // as primary: it is the fallback for info, and without it a game LaunchBox does
   // not match would have no source at all.
-  const needsRawg = asked('rawg') || Boolean(rawgId)
+  const needsRawg = (asked('rawg') || Boolean(rawgId)) && !input.rawgOff
 
   // ── Resolve LaunchBox match + detail ──
   let lb: LaunchBoxGame | null = null
@@ -204,7 +206,10 @@ export async function gatherMetadata(input: GatherInput): Promise<ComposedMetada
       }
     } catch (err) {
       // A rejected key is not an outage: it stops the run below, it is not a game to retry.
-      if (err instanceof RawgAuthError) rawgAuth = err
+      if (err instanceof RawgAuthError) {
+        rawgAuth = err
+        if (diag) diag.rawgRefused = true
+      }
       else { rawgDown = true; rawgError = errorText(err) /* RAWG failure non-fatal here; if nothing else matches, the game is retried later */ }
     }
   }
