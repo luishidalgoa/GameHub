@@ -439,7 +439,11 @@ async function runMetadataBatchInner(opts: {
       // as the new candidate (by shape and size, see cover-choice.ts), the candidate is dropped
       // and the cover stays. The match itself is not affected.
       let coverKept = false
-      if (meta.coverUrl && (game.coverPath || game.coverUrl) && keepsCurrentCover(
+      // Quality and provenance passes judged the cover before downloading it: what they download is
+      // applied. Dropping it here left the correct provider's cover downloaded and never used, and the
+      // wrong one in place, so the next pass judged it again.
+      const judgedCover = mode === 'quality' || mode === 'wrong-provider'
+      if (!judgedCover && meta.coverUrl && (game.coverPath || game.coverUrl) && keepsCurrentCover(
         { width: game.coverWidth, height: game.coverHeight },
         { width: meta.coverWidth, height: meta.coverHeight },
         { width: game.platform.thumbnailWidth, height: game.platform.thumbnailHeight, altWidth: game.platform.altThumbnailWidth, altHeight: game.platform.altThumbnailHeight },
