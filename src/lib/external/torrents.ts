@@ -311,17 +311,29 @@ async function reconcileTorrentGames(platformId: number, syncedAt: Date, order: 
 }
 
 /**
- * Asigna variantOfId a las filas torrent de la plataforma según planVariantFold. Las filas no se
+ * Asigna variantOfId a las filas torrent de la plataforma según planVariantFold. Las bases pueden ser
+ * también juegos locales visibles, por su título limpio (sin etiquetas del fichero). Las filas no se
  * borran: quedan ocultas en la biblioteca y vuelven a verse si su base desaparece.
  */
 async function foldVariants(platformId: number) {
-  const rows = await db.game.findMany({
-    where: { platformId, source: 'torrent', splitFromId: null },
-    select: { id: true, fileName: true, variantOfId: true },
+  const games = await db.game.findMany({
+    where: {
+      platformId, splitFromId: null,
+      OR: [{ source: 'torrent' }, { source: 'local', isHidden: false }],
+    },
+    select: { id: true, fileName: true, source: true, variantOfId: true },
   })
-  const plan = planVariantFold(rows.map(r => ({ id: r.id, rawTitle: r.fileName })))
+  const plan = planVariantFold(games.map(g => ({
+    id: g.id,
+    rawTitle: g.source === 'local' ? fileToTitle(g.fileName) : g.fileName,
+  })))
+  const rows = games.filter(g => g.source === 'torrent')
+  const torrentIds = new Set(rows.map(r => r.id))
   const idsByBase = new Map<number, number[]>()
-  for (const [id, base] of plan) idsByBase.set(base, [...(idsByBase.get(base) ?? []), id])
+  for (const [id, base] of plan) {
+    if (!torrentIds.has(id)) continue
+    idsByBase.set(base, [...(idsByBase.get(base) ?? []), id])
+  }
   const writes: Prisma.PrismaPromise<unknown>[] = []
   for (const [base, ids] of idsByBase) {
     for (let i = 0; i < ids.length; i += CHUNK) {
