@@ -5,24 +5,27 @@ import { GridTile } from '@/components/home/GridTile'
 import { Masonry } from '@/components/home/Masonry'
 import { PlatformIcon } from '@/components/shared/PlatformIcon'
 import { groupByTitle } from '@/lib/game-groups'
-import { COLLECTION_PAGE, searchGames, searchPlatforms } from '@/lib/home-data'
+import { COLLECTION_PAGE, enabledPlatformChips, searchGames, searchPlatforms } from '@/lib/home-data'
 import { searchTerm } from '@/lib/search'
+import { PlatformChips } from '@/components/home/PlatformChips'
 
 export const dynamic = 'force-dynamic'
 
 /** The full results of the search box: the platforms it names, then every game whose title has the term. */
 export default async function SearchPage({ searchParams }: {
-  searchParams: { q?: string; page?: string }
+  searchParams: { q?: string; page?: string; platform?: string }
 }) {
   const t = await getTranslations('Home')
   const term = searchTerm(searchParams.q)
   const page = Math.max(1, parseInt(searchParams.page ?? '1', 10) || 1)
+  const platform = searchParams.platform ?? ''
 
-  const [{ games, total }, platforms] = term
-    ? await Promise.all([searchGames(term, page), searchPlatforms(term)])
-    : [{ games: [], total: 0 }, []]
+  const [{ games, total }, platforms, chips] = term
+    ? await Promise.all([searchGames(term, page, platform || undefined), searchPlatforms(term), enabledPlatformChips()])
+    : [{ games: [], total: 0 }, [], []]
   const pages = Math.max(1, Math.ceil(total / COLLECTION_PAGE))
-  const pageHref = (n: number) => `/buscar?q=${encodeURIComponent(term)}&page=${n}`
+  const search = (extra: string) => `/buscar?q=${encodeURIComponent(term)}${extra}`
+  const pageHref = (n: number) => search(`${platform ? `&platform=${platform}` : ''}&page=${n}`)
 
   return (
     <ExploreShell
@@ -46,6 +49,15 @@ export default async function SearchPage({ searchParams }: {
 
       {term && total === 0 && (
         <p className="text-sm text-white/55">{t('searchNoResults', { term })}</p>
+      )}
+
+      {term && (
+        <PlatformChips
+          platforms={chips}
+          active={platform}
+          hrefFor={slug => search(slug ? `&platform=${slug}` : '')}
+          allLabel={t('allPlatforms')}
+        />
       )}
 
       {total > 0 && (

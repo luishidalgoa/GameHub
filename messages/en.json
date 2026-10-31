@@ -49,6 +49,7 @@
     "searchEmpty": "Type the title of a game.",
     "searchNoResults": "No game has “{term}” in its title.",
     "searchPlatforms": "Platforms",
+    "allPlatforms": "All",
     "releasesTitle": "Recent releases"
   },
   "Platform": {

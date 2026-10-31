@@ -49,6 +49,7 @@
     "searchEmpty": "Escribe el título de un juego.",
     "searchNoResults": "Ningún juego tiene «{term}» en el título.",
     "searchPlatforms": "Plataformas",
+    "allPlatforms": "Todas",
     "releasesTitle": "Lanzamientos recientes"
   },
   "Platform": {

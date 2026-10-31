@@ -1,7 +1,8 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { getTranslations } from 'next-intl/server'
-import { COLLECTION_KINDS, COLLECTION_PAGE, getCollection, getPublisherIndex, type CollectionKind } from '@/lib/home-data'
+import { COLLECTION_KINDS, COLLECTION_PAGE, enabledPlatformChips, getCollection, getPublisherIndex, type CollectionKind } from '@/lib/home-data'
+import { PlatformChips } from '@/components/home/PlatformChips'
 import { ExploreShell } from '@/components/home/ExploreShell'
 import { GridTile } from '@/components/home/GridTile'
 import { Masonry } from '@/components/home/Masonry'
@@ -12,7 +13,7 @@ export const dynamic = 'force-dynamic'
 
 export default async function ExplorePage({ params, searchParams }: {
   params: { kind: string }
-  searchParams: { page?: string }
+  searchParams: { page?: string; platform?: string }
 }) {
   const t = await getTranslations('Home')
   const kind = params.kind
@@ -33,7 +34,12 @@ export default async function ExplorePage({ params, searchParams }: {
 
   if (!COLLECTION_KINDS.includes(kind as CollectionKind)) notFound()
   const page = Math.max(1, parseInt(searchParams.page ?? '1', 10) || 1)
-  const { games, total } = await getCollection(kind as CollectionKind, page)
+  const platform = searchParams.platform ?? ''
+  const [{ games, total }, chips] = await Promise.all([
+    getCollection(kind as CollectionKind, page, platform || undefined),
+    enabledPlatformChips(),
+  ])
+  const base = `/explorar/${kind}?${platform ? `platform=${platform}&` : ''}`
   const pages = Math.max(1, Math.ceil(total / COLLECTION_PAGE))
   if (page > pages) notFound()
 
@@ -47,14 +53,20 @@ export default async function ExplorePage({ params, searchParams }: {
 
   return (
     <ExploreShell kicker={heading.kicker} title={heading.title}>
+      <PlatformChips
+        platforms={chips}
+        active={platform}
+        hrefFor={slug => `/explorar/${kind}${slug ? `?platform=${slug}` : ''}`}
+        allLabel={t('allPlatforms')}
+      />
       <Masonry>
         {groupByTitle(games).map(g => <GridTile key={g.game.id} group={g} />)}
       </Masonry>
       {pages > 1 && (
         <nav className="mt-10 flex items-center justify-center gap-6 text-sm text-white/70">
-          {page > 1 && <Link href={`/explorar/${kind}?page=${page - 1}`} className="hover:text-white">← {page - 1}</Link>}
+          {page > 1 && <Link href={`${base}page=${page - 1}`} className="hover:text-white">← {page - 1}</Link>}
           <span className="tabular-nums text-white">{page} / {pages}</span>
-          {page < pages && <Link href={`/explorar/${kind}?page=${page + 1}`} className="hover:text-white">{page + 1} →</Link>}
+          {page < pages && <Link href={`${base}page=${page + 1}`} className="hover:text-white">{page + 1} →</Link>}
         </nav>
       )}
     </ExploreShell>

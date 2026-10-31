@@ -282,8 +282,8 @@ export interface Collection { games: TileGame[]; total: number }
 
 /** One page of a collection behind a rail's "show all" tile. Unlike the rails,
  *  it includes games without art: their tiles fall back to the box art. */
-export async function getCollection(kind: CollectionKind, page: number): Promise<Collection> {
-  const where = libraryGameWhere()
+export async function getCollection(kind: CollectionKind, page: number, platform?: string): Promise<Collection> {
+  const where = libraryGameWhere(platform)
   const skip = (Math.max(1, page) - 1) * COLLECTION_PAGE
 
   if (kind === 'nuevos') {
@@ -339,14 +339,21 @@ export async function getCollection(kind: CollectionKind, page: number): Promise
 }
 
 /** The visible games whose title contains the search, as the grids draw them, one page at a time. */
-export async function searchGames(term: string, page: number): Promise<Collection> {
-  const where = { ...libraryGameWhere(), title: { contains: term } }
+export async function searchGames(term: string, page: number, platform?: string): Promise<Collection> {
+  const where = { ...libraryGameWhere(platform), title: { contains: term } }
   const skip = (Math.max(1, page) - 1) * COLLECTION_PAGE
   const [rows, total] = await Promise.all([
     db.game.findMany({ where, orderBy: [{ sortTitle: 'asc' }, { id: 'asc' }], skip, take: COLLECTION_PAGE, select: TILE_SELECT }),
     db.game.count({ where }),
   ])
   return { games: await toTiles(rows), total }
+}
+
+/** Every enabled platform, in the order the sidebar lists them: the chips of a platform filter. */
+export async function enabledPlatformChips(): Promise<{ slug: string; name: string }[]> {
+  return db.platform.findMany({
+    where: { enabled: true }, orderBy: { sortOrder: 'asc' }, select: { slug: true, name: true },
+  })
 }
 
 /** The enabled platforms whose name contains the search, in the order the sidebar lists them. */
@@ -374,12 +381,12 @@ export async function getTilesByIds(ids: number[]): Promise<TileGame[]> {
 }
 
 /** The games of one publisher group, by the key the rankings use, best rated first. */
-export async function getPublisherGames(key: string): Promise<{ name: string; games: TileGame[] } | null> {
+export async function getPublisherGames(key: string, platform?: string): Promise<{ name: string; games: TileGame[] } | null> {
   const input = await publisherRankInput()
   const found = rankGroups(input.companies, input.totals, 0).find(p => p.key === key)
   if (!found) return null
   const games = await db.game.findMany({
-    where: { ...libraryGameWhere(), publisherCompanyId: { in: found.companyIds } },
+    where: { ...libraryGameWhere(platform), publisherCompanyId: { in: found.companyIds } },
     orderBy: [{ rawgScore: 'desc' }, { title: 'asc' }], take: 300, select: TILE_SELECT,
   })
   return { name: found.name, games: await toTiles(games) }

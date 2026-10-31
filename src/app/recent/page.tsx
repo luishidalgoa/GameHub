@@ -1,17 +1,25 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { Suspense, useEffect, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { useTranslations } from 'next-intl'
 import { History, Trash2 } from 'lucide-react'
 import { getRecentlyViewed, clearRecentlyViewed } from '@/lib/recently-viewed'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { Masonry } from '@/components/home/Masonry'
 import { GridTile } from '@/components/home/GridTile'
+import { PlatformChips } from '@/components/home/PlatformChips'
 import { groupByTitle } from '@/lib/game-groups'
 import type { TileGame } from '@/lib/home-data'
 
 export default function RecentPage() {
+  return <Suspense fallback={null}><RecentContent /></Suspense>
+}
+
+function RecentContent() {
   const t = useTranslations('Recent')
+  const tHome = useTranslations('Home')
+  const platform = useSearchParams().get('platform') ?? ''
   const [games, setGames] = useState<TileGame[] | null>(null)
 
   useEffect(() => {
@@ -67,9 +75,17 @@ export default function RecentPage() {
         />
       ) : (
         // The same grid as /explorar/nuevos: the masonry of glass tiles.
-        <Masonry>
-          {groupByTitle(games).map(g => <GridTile key={g.game.id} group={g} />)}
-        </Masonry>
+        <>
+          <PlatformChips
+            platforms={[...new Map(games.map(g => [g.platformSlug, { slug: g.platformSlug, name: g.platformName }])).values()]}
+            active={platform}
+            hrefFor={slug => `/recent${slug ? `?platform=${slug}` : ''}`}
+            allLabel={tHome('allPlatforms')}
+          />
+          <Masonry>
+            {groupByTitle(platform ? games.filter(g => g.platformSlug === platform) : games).map(g => <GridTile key={g.game.id} group={g} />)}
+          </Masonry>
+        </>
       )}
     </div>
   )
