@@ -65,26 +65,37 @@ export interface FoldGame extends FoldRow {
 }
 
 /**
- * Plegado completo: primero por nombre (planVariantFold) y después las filas torrent que comparten
- * ID de LaunchBox con una raíz visible van bajo ella. LaunchBox las trata como el mismo juego. La raíz
- * es la local si la hay, luego la que tiene portada, y por último la de id menor.
+ * Plegado completo, en tres pasos:
+ *  1. Por nombre (planVariantFold): «Juego - Extra» va bajo «Juego».
+ *  2. Por ID de LaunchBox: las filas torrent con el mismo ID que una raíz visible van bajo ella.
+ *  3. Por nombre exacto, para las filas sin ID de LaunchBox: las que se llaman igual van bajo una raíz.
+ * En cada grupo la raíz es la local si la hay, luego la que tiene portada, y por último la de id menor.
  */
 export function planFold(games: FoldGame[]): Map<number, number> {
   const named = planVariantFold(games)
   const parent = new Map(named)
-  const groups = new Map<number, FoldGame[]>()
+  const byLaunchBox = new Map<number, FoldGame[]>()
+  const byName = new Map<string, FoldGame[]>()
   for (const g of games) {
-    if (named.has(g.id) || g.launchboxId === null) continue
-    groups.set(g.launchboxId, [...(groups.get(g.launchboxId) ?? []), g])
-  }
-  for (const members of groups.values()) {
-    const visible = members.filter(m => !m.isHidden)
-    if (visible.length === 0) continue
-    const rank = (g: FoldGame) => (g.source === 'local' ? 0 : 2) + (g.hasCover ? 0 : 1)
-    const root = [...visible].sort((a, b) => rank(a) - rank(b) || a.id - b.id)[0]
-    for (const m of members) {
-      if (m.id !== root.id && m.source === 'torrent') parent.set(m.id, root.id)
+    if (named.has(g.id)) continue
+    if (g.launchboxId !== null) {
+      byLaunchBox.set(g.launchboxId, [...(byLaunchBox.get(g.launchboxId) ?? []), g])
+    } else {
+      const key = titleKey(decodeTitle(g.rawTitle))
+      if (key) byName.set(key, [...(byName.get(key) ?? []), g])
     }
   }
+  for (const members of [...byLaunchBox.values(), ...byName.values()]) groupUnder(members, parent)
   return resolveRoots(parent, games.length)
+}
+
+/** Pone cada torrent del grupo bajo su raíz: la visible mejor clasificada. Un grupo sin visibles no se toca. */
+function groupUnder(members: FoldGame[], parent: Map<number, number>) {
+  const visible = members.filter(m => !m.isHidden)
+  if (visible.length === 0) return
+  const rank = (g: FoldGame) => (g.source === 'local' ? 0 : 2) + (g.hasCover ? 0 : 1)
+  const root = [...visible].sort((a, b) => rank(a) - rank(b) || a.id - b.id)[0]
+  for (const m of members) {
+    if (m.id !== root.id && m.source === 'torrent') parent.set(m.id, root.id)
+  }
 }

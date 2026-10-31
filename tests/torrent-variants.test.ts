@@ -91,8 +91,30 @@ describe('mismo juego para LaunchBox', () => {
     expect(plan.size).toBe(0)
   })
 
-  it('sin ID de LaunchBox no se agrupa', () => {
-    const plan = planFold([game(1, { launchboxId: null }), game(2, { launchboxId: null })])
+  it('sin ID de LaunchBox, las filas con el mismo nombre van bajo la que tiene portada', () => {
+    const plan = planFold([
+      game(1, { rawTitle: 'The - Kosmos', launchboxId: null, hasCover: false }),
+      game(2, { rawTitle: 'The - Kosmos', launchboxId: null }),
+      game(3, { rawTitle: 'The - Kosmos', launchboxId: null, hasCover: false }),
+    ])
+    expect(plan.get(1)).toBe(2)
+    expect(plan.get(3)).toBe(2)
+    expect(plan.has(2)).toBe(false)
+  })
+
+  it('sin ID de LaunchBox, nombres distintos no se agrupan', () => {
+    const plan = planFold([
+      game(1, { rawTitle: 'Get Up', launchboxId: null }),
+      game(2, { rawTitle: 'Get Out There', launchboxId: null }),
+    ])
+    expect(plan.size).toBe(0)
+  })
+
+  it('sin ID de LaunchBox y sin visibles no se pliega nada', () => {
+    const plan = planFold([
+      game(1, { rawTitle: 'Get Up', launchboxId: null, isHidden: true }),
+      game(2, { rawTitle: 'Get Up', launchboxId: null, isHidden: true }),
+    ])
     expect(plan.size).toBe(0)
   })
 
