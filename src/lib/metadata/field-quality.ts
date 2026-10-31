@@ -101,13 +101,41 @@ export function lowQualityFields(game: QualityGame, asked: readonly BatchField[]
   })
 }
 
-/** The fields whose source is not one of the platform's chain for them: the provenance is wrong or missing. */
-export function wrongProvenanceFields(src: MetadataSources, asked: readonly BatchField[], chains: ProviderChains): BatchField[] {
+/** Whether the game has content in a field: the provenance check only judges fields that have some. */
+export function fieldHasContent(game: {
+  coverPath?: string | null; coverUrl?: string | null; description?: string | null; genre?: string | null
+  developer?: string | null; publisher?: string | null; releaseYear?: number | null; releaseDate?: unknown; screenshotPaths?: string | null
+}, field: BatchField): boolean {
+  switch (field) {
+    case 'cover': return !!(game.coverPath || game.coverUrl)
+    case 'screenshots': return screenshotCount(game.screenshotPaths ?? null) > 0
+    case 'description': return !!game.description?.trim()
+    case 'genre': return !!game.genre
+    case 'developer': return !!game.developer
+    case 'publisher': return !!game.publisher
+    case 'releaseYear': return game.releaseYear != null
+    case 'releaseDate': return game.releaseDate != null
+    default: return true
+  }
+}
+
+/**
+ * The fields whose source is not one of the platform's chain for them: the provenance is wrong or missing.
+ * A field the game has no content for (no screenshots, no genre) has nothing to be wrong about: its
+ * source is never recorded, so it is not flagged. Flagging it re-fetched the same empty field on every pass.
+ */
+export function wrongProvenanceFields(
+  src: MetadataSources,
+  asked: readonly BatchField[],
+  chains: ProviderChains,
+  hasContent: (field: BatchField) => boolean = () => true,
+): BatchField[] {
   // A source of the chain may answer: a fallback is by design. Nintendo's store is the Switch info fallback.
   const outside = (from: string | undefined, chain: readonly string[], extra: readonly string[] = []) =>
     chain.length > 0 && !(from && (chain.includes(from) || extra.includes(from)))
 
   return asked.filter(field => {
+    if (!hasContent(field)) return false
     switch (field) {
       case 'cover':
         // A hand-picked cover is a deliberate override, not a drift.

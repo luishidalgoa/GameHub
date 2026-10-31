@@ -18,7 +18,7 @@ import type { FieldSource } from './sources'
 import { parseMetadataSources, type MetadataSources } from './sources'
 import { hasMetadata, isRetryCandidate } from '@/lib/library'
 import { BATCH_FIELDS, FICHA_FIELDS, IMAGE_FIELDS, isArtField, runFields, type BatchField } from './scope'
-import { lowQualityFields, wrongProvenanceFields } from './field-quality'
+import { fieldHasContent, lowQualityFields, wrongProvenanceFields } from './field-quality'
 import { kindFromLaunchBox } from '@/lib/art-catalog'
 import { selectionWhere } from './selection'
 import { classifyNoMatch, emptyMatchDiagnostics, type NoMatchReason } from './no-match'
@@ -211,7 +211,7 @@ async function runMetadataBatchInner(opts: {
     if (mode === 'quality') return new Set(lowQualityFields(game, [...passFields], { coverMinScale }))
     if (mode === 'wrong-provider') {
       const chains = (matrixCache.get(game.platform.slug) ?? globalMatrix).chains
-      return new Set(wrongProvenanceFields(parseMetadataSources(game.metadataSources), [...passFields], chains))
+      return new Set(wrongProvenanceFields(parseMetadataSources(game.metadataSources), [...passFields], chains, f => fieldHasContent(game, f)))
     }
     return passFields
   }

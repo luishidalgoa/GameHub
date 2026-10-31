@@ -63,6 +63,15 @@ describe('a field whose source is outside the platform chain is wrong', () => {
     expect(wrongProvenanceFields({}, ['description'], { ...chains, description: [] })).toEqual([])
   })
 
+  it('a missing source is not wrong when the game has no content in that field', () => {
+    expect(wrongProvenanceFields({}, ['screenshots'], chains, () => false)).toEqual([])
+    expect(wrongProvenanceFields({}, ['screenshots'], chains, () => true)).toEqual(['screenshots'])
+  })
+
+  it('a field with content is still judged by its source', () => {
+    expect(wrongProvenanceFields({ cover: 'nintendo' }, ['cover'], chains, () => true)).toEqual(['cover'])
+  })
+
   it('a fact takes its own provenance, and Nintendo is the info fallback on Switch', () => {
     expect(wrongProvenanceFields({ facts: { genre: 'rawg' } }, ['genre'], { ...chains, info: ['launchbox'] })).toEqual(['genre'])
     expect(wrongProvenanceFields({ info: 'nintendo' }, ['releaseYear'], { ...chains, info: ['launchbox'] })).toEqual([])
