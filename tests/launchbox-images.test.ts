@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { parseLaunchBoxImages, parseNuxtImages } from '@/lib/metadata/launchbox'
+import { parseLaunchBoxImages, parseNuxtImages, pickCover } from '@/lib/metadata/launchbox'
 
 // Ficha real de LaunchBox (Doom II, GBA) guardada como fixture. La pagina muestra
 // miniaturas de 400 px; el estado de Nuxt nombra los originales.
@@ -39,5 +39,23 @@ describe('imagenes de LaunchBox en su tamano original', () => {
     const all = parseLaunchBoxImages(stripped)
     expect(all.length).toBeGreaterThan(5)
     expect(all.every(i => i.width === undefined)).toBe(true)
+  })
+})
+
+describe('pickCover: the cover among a game\'s LaunchBox images', () => {
+  it('takes the biggest front box, not the first one', () => {
+    expect(pickCover([
+      { url: 'small', type: 'Box - Front', width: 319, height: 305 },
+      { url: 'big', type: 'Box - Front', width: 670, height: 1100 },
+    ])).toBe('big')
+  })
+  it('keeps the page order when no size is known', () => {
+    expect(pickCover([{ url: 'a', type: 'Box - Front' }, { url: 'b', type: 'Box - Front' }])).toBe('a')
+  })
+  it('never picks a user fanart over the official box', () => {
+    expect(pickCover([
+      { url: 'fan', type: 'Fanart - Box - Front', width: 2000, height: 3000 },
+      { url: 'box', type: 'Box - Front' },
+    ])).toBe('box')
   })
 })

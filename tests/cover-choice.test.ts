@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { chooseCover, coverScale, coverKey, keepsCurrentCover, COVER_MIN_SCALE } from '@/lib/metadata/cover-choice'
+import { chooseCover, coverScale, coverKey, isBetterCover, keepsCurrentCover, COVER_MIN_SCALE } from '@/lib/metadata/cover-choice'
 import { optionsFor } from '@/lib/metadata/chains'
 
 // The image of each candidate: its size, so the test decides the quality without a download.
@@ -163,5 +163,15 @@ describe('a pass keeps the cover the game has when it is as good', () => {
   it('a cover whose size is not measured cannot be compared: the new one wins', () => {
     expect(keepsCurrentCover({ width: null, height: null }, { width: 600, height: 900 }, BOXES)).toBe(false)
     expect(keepsCurrentCover({ width: 600, height: 900 }, { width: undefined, height: undefined }, BOXES)).toBe(false)
+  })
+})
+
+describe('among covers big enough, the shape closest to the box wins', () => {
+  const SHAPE_BOX = { width: 300, height: 492 }   // a 0.61 box: both covers below are big enough
+  it('a 670x1100 box beats a 600x900 cover of the same box shape', () => {
+    expect(isBetterCover(coverKey(670, 1100, SHAPE_BOX), coverKey(600, 900, SHAPE_BOX))).toBe(true)
+  })
+  it('a big 600x900 cover is not kept when a 670x1100 box comes', () => {
+    expect(keepsCurrentCover({ width: 600, height: 900 }, { width: 670, height: 1100 }, SHAPE_BOX)).toBe(false)
   })
 })

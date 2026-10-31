@@ -380,6 +380,30 @@ export function parseNuxtImages(html: string): LaunchBoxImage[] {
 }
 
 /** Extract every LaunchBox CDN image: the originals from the page state, else the rendered <img> thumbnails. */
+/**
+ * The cover among a game's LaunchBox images: the official front box art, never a user-made fanart.
+ * Among the front boxes, the biggest one wins (a 319x305 thumbnail lost to a 670x1100 box before):
+ * with no sizes known, the first one in the page's order stands.
+ */
+export function pickCover(images: LaunchBoxImage[]): string | undefined {
+  const isFanart = (t: string) => /fanart/i.test(t)
+  const official = (re: RegExp) => images.filter(i => !isFanart(i.type) && re.test(i.type))
+  return (
+    biggest(official(/^box\s*-\s*front$/i))?.url ??
+    biggest(official(/box\s*-\s*front/i))?.url ??
+    biggest(official(/box\s*-\s*3d/i))?.url ??
+    images.find(i => /box\s*-\s*front/i.test(i.type))?.url ??   // fanart front as last resort
+    images[0]?.url
+  )
+}
+
+/** The largest of the images whose size is known; the first one when none is measured. */
+function biggest(list: LaunchBoxImage[]): LaunchBoxImage | undefined {
+  const sized = list.filter(i => i.width && i.height)
+  if (sized.length === 0) return list[0]
+  return sized.reduce((best, i) => (i.width! * i.height! > best.width! * best.height! ? i : best))
+}
+
 export function parseLaunchBoxImages(html: string): LaunchBoxImage[] {
   const fromState = parseNuxtImages(html)
   if (fromState.length > 0) return fromState
@@ -452,18 +476,7 @@ export function parseLaunchBoxDetail(html: string, id: number, slug?: string): L
     firstMatch(html, /<meta[^>]+content="([^"]*)"[^>]+name="description"/i)
 
   const images = parseLaunchBoxImages(html)
-  // Pick the cover, preferring the OFFICIAL front box art. "Fanart - Box - Front"
-  // is user-made art (often a different region's reproduction) and must never be
-  // chosen over the real box front — that was the cause of the wrong ~10% of
-  // auto-assigned covers. So we exclude any "Fanart" type from the box-front
-  // matches and only fall back to it as a last resort.
-  const isFanart = (t: string) => /fanart/i.test(t)
-  const cover =
-    images.find(i => !isFanart(i.type) && /^box\s*-\s*front$/i.test(i.type))?.url ??
-    images.find(i => !isFanart(i.type) && /box\s*-\s*front/i.test(i.type))?.url ??
-    images.find(i => !isFanart(i.type) && /box\s*-\s*3d/i.test(i.type))?.url ??
-    images.find(i => /box\s*-\s*front/i.test(i.type))?.url ??   // fanart front as last resort
-    images[0]?.url
+  const cover = pickCover(images)
   const screenshots = images.filter(i => /screenshot/i.test(i.type)).map(i => i.url)
 
   return {

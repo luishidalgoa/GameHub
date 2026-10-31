@@ -69,9 +69,15 @@ export function coverFit(width: number, height: number, box: PlatformCoverBox): 
  */
 export function coverKey(width: number, height: number, box: PlatformCoverBox): number[] {
   const fit = coverFit(width, height, box)
-  const scale = width && height ? coverScale(width, height, boxOf(fit, box)) : 0
+  const target = boxOf(fit, box)
+  const scale = width && height ? coverScale(width, height, target) : 0
   const big = scale >= 1
-  return [fit === 'none' ? 0 : 1, big ? 1 : 0, big ? 0 : scale]
+  // Among the big enough, the shape closest to the platform's box wins: a 670x1100 box beats a 600x900
+  // one on a box of the same shape, because the box art is the shape the console shows.
+  const shape = width && height && target.width && target.height
+    ? -Math.abs(Math.log((width / height) / (target.width / target.height)))
+    : 0
+  return [fit === 'none' ? 0 : 1, big ? 1 : 0, big ? shape : scale]
 }
 
 /** The box a cover is judged against: its own shape's box (the secondary one for an alternate cover), else the main box. */
