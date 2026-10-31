@@ -7,7 +7,7 @@ import { PlatformIcon } from '@/components/shared/PlatformIcon'
 import { groupByTitle } from '@/lib/game-groups'
 import { COLLECTION_PAGE, enabledPlatformChips, searchGames, searchPlatforms } from '@/lib/home-data'
 import { searchTerm } from '@/lib/search'
-import { PlatformChips } from '@/components/home/PlatformChips'
+import { PlatformSelect } from '@/components/home/PlatformSelect'
 
 export const dynamic = 'force-dynamic'
 
@@ -52,10 +52,10 @@ export default async function SearchPage({ searchParams }: {
       )}
 
       {term && (
-        <PlatformChips
+        <PlatformSelect
           platforms={chips}
           active={platform}
-          hrefFor={slug => search(slug ? `&platform=${slug}` : '')}
+          base={search('')}
           allLabel={t('allPlatforms')}
         />
       )}

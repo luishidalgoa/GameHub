@@ -8,7 +8,7 @@ import { getRecentlyViewed, clearRecentlyViewed } from '@/lib/recently-viewed'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { Masonry } from '@/components/home/Masonry'
 import { GridTile } from '@/components/home/GridTile'
-import { PlatformChips } from '@/components/home/PlatformChips'
+import { PlatformSelect } from '@/components/home/PlatformSelect'
 import { groupByTitle } from '@/lib/game-groups'
 import type { TileGame } from '@/lib/home-data'
 
@@ -76,10 +76,10 @@ function RecentContent() {
       ) : (
         // The same grid as /explorar/nuevos: the masonry of glass tiles.
         <>
-          <PlatformChips
+          <PlatformSelect
             platforms={[...new Map(games.map(g => [g.platformSlug, { slug: g.platformSlug, name: g.platformName }])).values()]}
             active={platform}
-            hrefFor={slug => `/recent${slug ? `?platform=${slug}` : ''}`}
+            base="/recent"
             allLabel={tHome('allPlatforms')}
           />
           <Masonry>

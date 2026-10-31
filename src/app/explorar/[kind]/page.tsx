@@ -2,7 +2,7 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { getTranslations } from 'next-intl/server'
 import { COLLECTION_KINDS, COLLECTION_PAGE, enabledPlatformChips, getCollection, getPublisherIndex, type CollectionKind } from '@/lib/home-data'
-import { PlatformChips } from '@/components/home/PlatformChips'
+import { PlatformSelect } from '@/components/home/PlatformSelect'
 import { ExploreShell } from '@/components/home/ExploreShell'
 import { GridTile } from '@/components/home/GridTile'
 import { Masonry } from '@/components/home/Masonry'
@@ -53,10 +53,10 @@ export default async function ExplorePage({ params, searchParams }: {
 
   return (
     <ExploreShell kicker={heading.kicker} title={heading.title}>
-      <PlatformChips
+      <PlatformSelect
         platforms={chips}
         active={platform}
-        hrefFor={slug => `/explorar/${kind}${slug ? `?platform=${slug}` : ''}`}
+        base={`/explorar/${kind}`}
         allLabel={t('allPlatforms')}
       />
       <Masonry>

@@ -4,7 +4,7 @@ import { enabledPlatformChips, getPublisherGames } from '@/lib/home-data'
 import { ExploreShell } from '@/components/home/ExploreShell'
 import { GridTile } from '@/components/home/GridTile'
 import { Masonry } from '@/components/home/Masonry'
-import { PlatformChips } from '@/components/home/PlatformChips'
+import { PlatformSelect } from '@/components/home/PlatformSelect'
 import { groupByTitle } from '@/lib/game-groups'
 
 export const dynamic = 'force-dynamic'
@@ -23,10 +23,10 @@ export default async function PublisherPage({ params, searchParams }: {
 
   return (
     <ExploreShell kicker={t('publishersKicker')} title={found.name}>
-      <PlatformChips
+      <PlatformSelect
         platforms={chips}
         active={platform}
-        hrefFor={slug => `/explorar/editora/${params.key}${slug ? `?platform=${slug}` : ''}`}
+        base={`/explorar/editora/${params.key}`}
         allLabel={t('allPlatforms')}
       />
       <Masonry>
