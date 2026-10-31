@@ -316,9 +316,10 @@ async function reconcileTorrentGames(platformId: number, syncedAt: Date, order: 
  * del fichero). Las filas no se borran: quedan ocultas en la biblioteca y vuelven a verse si su base desaparece.
  */
 async function foldVariants(platformId: number) {
+  // Las piezas de un lote dividido también entran: se agrupan por nombre como cualquier torrent.
   const games = await db.game.findMany({
     where: {
-      platformId, splitFromId: null,
+      platformId,
       OR: [{ source: 'torrent' }, { source: 'local', isHidden: false }],
     },
     select: {
