@@ -49,7 +49,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   // Identity and bookkeeping are the scanner's, not the editor's: a PATCH that
   // could rewrite filePath would point a game at any file on disk.
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const { platform, dlcs, createdAt, id: _id, platformId, filePath, fileName, fileSize, groupKey, lastSeenAt, sha256, ...data } = body
+  const { platform, dlcs, createdAt, id: _id, platformId, filePath, fileName, fileSize, groupKey, lastSeenAt, sha256, variantOfId, ...data } = body
   // Fields the owner releases back to the automatic flows (one by one, from the editor).
   const unlock: string[] = Array.isArray(body.unlock) ? body.unlock.filter((x: unknown): x is string => typeof x === 'string') : []
   delete data.unlock

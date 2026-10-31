@@ -164,6 +164,10 @@ model Game {
   isLot        Boolean   @default(false)
   // Juego obtenido al dividir un lote artificial: apunta al lote original (oculto).
   splitFromId  Int?
+  // Variante de otro juego del catálogo (edición, extra, traje): apunta a la fila base y no sale en la biblioteca.
+  variantOfId  Int?
+  variantOf    Game?     @relation("GameVariants", fields: [variantOfId], references: [id], onDelete: SetNull)
+  variants     Game[]    @relation("GameVariants")
   missingSince DateTime?
 
   // Home/game-page art, resolved from LaunchBox by priority (Banner, Fanart -
@@ -207,6 +211,7 @@ model Game {
   @@index([isFavorite])
   @@index([lastSeenAt])
   @@index([platformId, groupKey])
+  @@index([variantOfId])
   @@index([platformId, rawgAdded])
   @@index([platformId, rawgScore])
 }

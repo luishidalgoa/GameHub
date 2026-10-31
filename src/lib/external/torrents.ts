@@ -4,6 +4,7 @@ import { fileToTitle, toSortTitle } from '@/lib/utils'
 import { parseLocks } from '@/lib/manual-fields'
 import { extractSwitchTitleId } from '@/lib/scanner/titleid'
 import { titleKey } from './match'
+import { planVariantFold } from './variants'
 import { cleanSwitchTitle } from './title-clean'
 import { createProvider, type RawEntry } from './sources'
 import { parseSourceConfigs, type SourceConfig } from './source-types'
@@ -304,8 +305,40 @@ async function reconcileTorrentGames(platformId: number, syncedAt: Date, order: 
   }
   writes.push(...updates)
   for (let i = 0; i < writes.length; i += CHUNK) await db.$transaction(writes.slice(i, i + CHUNK))
+  await foldVariants(platformId, FOLDED_SOURCES)
 
   return { created: creates.length, updated, hidden: released.filter(g => !g.isHidden).length, unchanged: kept.size - updated }
+}
+
+/** Fuentes cuyas variantes se pliegan bajo su juego base (ver variants.ts). */
+const FOLDED_SOURCES = ['minerva-psvita']
+
+/**
+ * Asigna variantOfId a las filas de las fuentes indicadas según planVariantFold. Las filas no se
+ * borran: quedan ocultas en la biblioteca y vuelven a verse si su base desaparece.
+ */
+async function foldVariants(platformId: number, sources: string[]) {
+  const rows = await db.game.findMany({
+    where: {
+      platformId, source: 'torrent', splitFromId: null,
+      OR: sources.map(s => ({ externalKey: { startsWith: `torrent:${s}:` } })),
+    },
+    select: { id: true, fileName: true, variantOfId: true },
+  })
+  const plan = planVariantFold(rows.map(r => ({ id: r.id, rawTitle: r.fileName })))
+  const idsByBase = new Map<number, number[]>()
+  for (const [id, base] of plan) idsByBase.set(base, [...(idsByBase.get(base) ?? []), id])
+  const writes: Prisma.PrismaPromise<unknown>[] = []
+  for (const [base, ids] of idsByBase) {
+    for (let i = 0; i < ids.length; i += CHUNK) {
+      writes.push(db.game.updateMany({ where: { id: { in: ids.slice(i, i + CHUNK) } }, data: { variantOfId: base } }))
+    }
+  }
+  const unfolded = rows.filter(r => r.variantOfId !== null && !plan.has(r.id)).map(r => r.id)
+  for (let i = 0; i < unfolded.length; i += CHUNK) {
+    writes.push(db.game.updateMany({ where: { id: { in: unfolded.slice(i, i + CHUNK) } }, data: { variantOfId: null } }))
+  }
+  for (let i = 0; i < writes.length; i += CHUNK) await db.$transaction(writes.slice(i, i + CHUNK))
 }
 
 export interface SourceResult {

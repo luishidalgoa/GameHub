@@ -28,7 +28,7 @@ export default async function PlatformPage({ params }: Props) {
     isAdminSession(),
     db.platform.findUnique({
       where: { slug: params.slug },
-      include: { _count: { select: { games: { where: { isHidden: false } } } } },
+      include: { _count: { select: { games: { where: { isHidden: false, variantOfId: null } } } } },
     }),
   ])
 
@@ -38,12 +38,12 @@ export default async function PlatformPage({ params }: Props) {
   // region-variant editions, so every selectable region shows in the filter.
   const [regionRows, editionRegionRows] = await Promise.all([
     db.game.findMany({
-      where:    { platformId: platform.id, isHidden: false, region: { not: null } },
+      where:    { platformId: platform.id, isHidden: false, variantOfId: null, region: { not: null } },
       select:   { region: true },
       distinct: ['region'],
     }),
     db.gameDlc.findMany({
-      where:    { type: 'region', region: { not: null }, game: { platformId: platform.id, isHidden: false } },
+      where:    { type: 'region', region: { not: null }, game: { platformId: platform.id, isHidden: false, variantOfId: null } },
       select:   { region: true },
       distinct: ['region'],
     }),
@@ -54,7 +54,7 @@ export default async function PlatformPage({ params }: Props) {
 
   // Distinct genres on this platform (mirrors the regions query) for the filter.
   const genreRows = await db.game.findMany({
-    where:    { platformId: platform.id, isHidden: false, genre: { not: null } },
+    where:    { platformId: platform.id, isHidden: false, variantOfId: null, genre: { not: null } },
     select:   { genre: true },
     distinct: ['genre'],
     orderBy:  { genre: 'asc' },
@@ -67,7 +67,7 @@ export default async function PlatformPage({ params }: Props) {
   // Candidate set is pruned by the indexed (platformId, rawgAdded) filter; the
   // weighted score is computed in JS on a small pool and the top N kept.
   const recCandidates = await db.game.findMany({
-    where: { platformId: platform.id, isHidden: false, rawgAdded: { gte: MIN_ADDED } },
+    where: { platformId: platform.id, isHidden: false, variantOfId: null, rawgAdded: { gte: MIN_ADDED } },
     select: {
       id: true, title: true, coverPath: true, coverUrl: true, releaseYear: true,
       rawgAdded: true, rawgRating: true, rawgMetacritic: true, titleId: true, platformId: true,
@@ -91,7 +91,7 @@ export default async function PlatformPage({ params }: Props) {
   // ── Hidden gems: well-rated but not widely owned ────────────────────────────
   const gemRows = await db.game.findMany({
     where: {
-      platformId: platform.id, isHidden: false,
+      platformId: platform.id, isHidden: false, variantOfId: null,
       rawgAdded:  { gte: MIN_ADDED, lt: GEM_MAX_ADDED },
       rawgRating: { gte: GEM_MIN_RATING },
     },

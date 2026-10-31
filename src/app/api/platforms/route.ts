@@ -12,7 +12,7 @@ export async function GET() {
   const platforms = await db.platform.findMany({
     where: { enabled: true },
     orderBy: { sortOrder: 'asc' },
-    include: { _count: { select: { games: { where: { isHidden: false } } } } },
+    include: { _count: { select: { games: { where: { isHidden: false, variantOfId: null } } } } },
   })
   // scanPath is a path on the server's disk: only the admin sees it.
   if (await isAdminSession()) return NextResponse.json(platforms)

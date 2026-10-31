@@ -10,6 +10,8 @@ export const NO_SCORE = { rawgScore: null } as const
 export function libraryGameWhere(platformSlug?: string): Prisma.GameWhereInput {
   return {
     isHidden: false,
+    // Las variantes de un juego del catálogo se ven desde su base, no como filas propias.
+    variantOfId: null,
     platform: { enabled: true, ...(platformSlug ? { slug: platformSlug } : {}) },
   }
 }

@@ -36,7 +36,7 @@ export async function GET(req: Request) {
         id: true,
         name: true,
         slug: true,
-        _count: { select: { games: { where: { isHidden: false } } } },
+        _count: { select: { games: { where: { isHidden: false, variantOfId: null } } } },
       },
     }),
   ])
