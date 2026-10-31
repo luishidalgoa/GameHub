@@ -43,11 +43,48 @@ export function planVariantFold(rows: FoldRow[]): Map<number, number> {
       }
     }
   }
+  return resolveRoots(parent, rows.length)
+}
+
+/** Sube cada fila por su cadena de padres hasta la raíz. Las filas sin padre no entran en el mapa. */
+function resolveRoots(parent: Map<number, number>, size: number): Map<number, number> {
   const plan = new Map<number, number>()
-  for (const row of rows) {
-    let root = row.id
-    for (let hops = 0; parent.has(root) && hops < rows.length; hops++) root = parent.get(root)!
-    if (root !== row.id) plan.set(row.id, root)
+  for (const id of parent.keys()) {
+    let root = id
+    for (let hops = 0; parent.has(root) && hops < size; hops++) root = parent.get(root)!
+    if (root !== id) plan.set(id, root)
   }
   return plan
+}
+
+export interface FoldGame extends FoldRow {
+  source: string
+  isHidden: boolean
+  launchboxId: number | null
+  hasCover: boolean
+}
+
+/**
+ * Plegado completo: primero por nombre (planVariantFold) y después las filas torrent que comparten
+ * ID de LaunchBox con una raíz visible van bajo ella. LaunchBox las trata como el mismo juego. La raíz
+ * es la local si la hay, luego la que tiene portada, y por último la de id menor.
+ */
+export function planFold(games: FoldGame[]): Map<number, number> {
+  const named = planVariantFold(games)
+  const parent = new Map(named)
+  const groups = new Map<number, FoldGame[]>()
+  for (const g of games) {
+    if (named.has(g.id) || g.launchboxId === null) continue
+    groups.set(g.launchboxId, [...(groups.get(g.launchboxId) ?? []), g])
+  }
+  for (const members of groups.values()) {
+    const visible = members.filter(m => !m.isHidden)
+    if (visible.length === 0) continue
+    const rank = (g: FoldGame) => (g.source === 'local' ? 0 : 2) + (g.hasCover ? 0 : 1)
+    const root = [...visible].sort((a, b) => rank(a) - rank(b) || a.id - b.id)[0]
+    for (const m of members) {
+      if (m.id !== root.id && m.source === 'torrent') parent.set(m.id, root.id)
+    }
+  }
+  return resolveRoots(parent, games.length)
 }

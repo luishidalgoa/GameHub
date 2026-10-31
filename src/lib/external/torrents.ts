@@ -4,7 +4,7 @@ import { fileToTitle, toSortTitle } from '@/lib/utils'
 import { parseLocks } from '@/lib/manual-fields'
 import { extractSwitchTitleId } from '@/lib/scanner/titleid'
 import { titleKey } from './match'
-import { planVariantFold } from './variants'
+import { planFold } from './variants'
 import { cleanSwitchTitle } from './title-clean'
 import { createProvider, type RawEntry } from './sources'
 import { parseSourceConfigs, type SourceConfig } from './source-types'
@@ -311,9 +311,9 @@ async function reconcileTorrentGames(platformId: number, syncedAt: Date, order: 
 }
 
 /**
- * Asigna variantOfId a las filas torrent de la plataforma según planVariantFold. Las bases pueden ser
- * también juegos locales visibles, por su título limpio (sin etiquetas del fichero). Las filas no se
- * borran: quedan ocultas en la biblioteca y vuelven a verse si su base desaparece.
+ * Asigna variantOfId a las filas torrent de la plataforma según planFold: por nombre y por ID de
+ * LaunchBox. Las bases pueden ser también juegos locales visibles, por su título limpio (sin etiquetas
+ * del fichero). Las filas no se borran: quedan ocultas en la biblioteca y vuelven a verse si su base desaparece.
  */
 async function foldVariants(platformId: number) {
   const games = await db.game.findMany({
@@ -321,11 +321,18 @@ async function foldVariants(platformId: number) {
       platformId, splitFromId: null,
       OR: [{ source: 'torrent' }, { source: 'local', isHidden: false }],
     },
-    select: { id: true, fileName: true, source: true, variantOfId: true },
+    select: {
+      id: true, fileName: true, source: true, variantOfId: true, isHidden: true,
+      launchboxId: true, coverPath: true, coverUrl: true,
+    },
   })
-  const plan = planVariantFold(games.map(g => ({
+  const plan = planFold(games.map(g => ({
     id: g.id,
     rawTitle: g.source === 'local' ? fileToTitle(g.fileName) : g.fileName,
+    source: g.source,
+    isHidden: g.isHidden,
+    launchboxId: g.launchboxId,
+    hasCover: g.coverPath !== null || g.coverUrl !== null,
   })))
   const rows = games.filter(g => g.source === 'torrent')
   const torrentIds = new Set(rows.map(r => r.id))
