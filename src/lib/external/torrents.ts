@@ -305,24 +305,18 @@ async function reconcileTorrentGames(platformId: number, syncedAt: Date, order: 
   }
   writes.push(...updates)
   for (let i = 0; i < writes.length; i += CHUNK) await db.$transaction(writes.slice(i, i + CHUNK))
-  await foldVariants(platformId, FOLDED_SOURCES)
+  await foldVariants(platformId)
 
   return { created: creates.length, updated, hidden: released.filter(g => !g.isHidden).length, unchanged: kept.size - updated }
 }
 
-/** Fuentes cuyas variantes se pliegan bajo su juego base (ver variants.ts). */
-const FOLDED_SOURCES = ['minerva-psvita']
-
 /**
- * Asigna variantOfId a las filas de las fuentes indicadas según planVariantFold. Las filas no se
+ * Asigna variantOfId a las filas torrent de la plataforma según planVariantFold. Las filas no se
  * borran: quedan ocultas en la biblioteca y vuelven a verse si su base desaparece.
  */
-async function foldVariants(platformId: number, sources: string[]) {
+async function foldVariants(platformId: number) {
   const rows = await db.game.findMany({
-    where: {
-      platformId, source: 'torrent', splitFromId: null,
-      OR: sources.map(s => ({ externalKey: { startsWith: `torrent:${s}:` } })),
-    },
+    where: { platformId, source: 'torrent', splitFromId: null },
     select: { id: true, fileName: true, variantOfId: true },
   })
   const plan = planVariantFold(rows.map(r => ({ id: r.id, rawTitle: r.fileName })))
