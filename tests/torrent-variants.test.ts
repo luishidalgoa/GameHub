@@ -31,12 +31,26 @@ describe('plegado de variantes de un catálogo torrent', () => {
     expect(plan.size).toBe(0)
   })
 
-  it('un título con « - » no sirve de base', () => {
+  it('un título con « - » en su propio nombre sirve de base para sus variantes', () => {
+    const plan = planVariantFold([
+      { id: 1, rawTitle: 'Akiba&#39;s Trip - Undead &amp; Undressed' },
+      { id: 2, rawTitle: 'Akiba&#39;s Trip - Undead &amp; Undressed - Kati&#39;s Swimwear' },
+      { id: 3, rawTitle: 'Akiba&#39;s Trip - Undead &amp; Undressed - Prinny - Disgaea' },
+    ])
+    expect(plan.get(2)).toBe(1)
+    expect(plan.get(3)).toBe(1)
+    expect(plan.has(1)).toBe(false)
+  })
+
+  it('una variante de una variante sube hasta la raíz visible', () => {
     const plan = planVariantFold([
       { id: 1, rawTitle: 'Akiba\'s Beat - Butler Mizuki' },
       { id: 2, rawTitle: 'Akiba\'s Beat - Butler Mizuki - Extra' },
+      { id: 3, rawTitle: 'Akiba\'s Beat' },
     ])
-    expect(plan.size).toBe(0)
+    expect(plan.get(1)).toBe(3)
+    expect(plan.get(2)).toBe(3)
+    expect(plan.has(3)).toBe(false)
   })
 
   it('con dos bases del mismo nombre gana la de id menor', () => {
