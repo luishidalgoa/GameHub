@@ -148,7 +148,9 @@ export function wrongProvenanceFields(
       case 'developer':
       case 'publisher':
       case 'releaseYear':
-        return outside(src.facts?.[field] ?? src.info, chains.info, ['nintendo'])
+        // Wikidata fills these facts only when the providers left them empty: its answer is the
+        // last word, and flagging it re-selected the game on every pass (fillGameFacts in batch.ts).
+        return outside(src.facts?.[field] ?? src.info, chains.info, ['nintendo', 'wikidata'])
       case 'title':
       case 'releaseDate':
         return outside(src.info, chains.info, ['nintendo'])

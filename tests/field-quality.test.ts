@@ -68,6 +68,11 @@ describe('a field whose source is outside the platform chain is wrong', () => {
     expect(wrongProvenanceFields({}, ['screenshots'], chains, () => true)).toEqual(['screenshots'])
   })
 
+  it('a fact filled by Wikidata is the last word, not a drift', () => {
+    expect(wrongProvenanceFields({ facts: { genre: 'wikidata' } }, ['genre'], chains)).toEqual([])
+    expect(wrongProvenanceFields({ facts: { developer: 'wikidata' } }, ['developer'], chains)).toEqual([])
+  })
+
   it('a field with content is still judged by its source', () => {
     expect(wrongProvenanceFields({ cover: 'nintendo' }, ['cover'], chains, () => true)).toEqual(['cover'])
   })
