@@ -23,10 +23,10 @@ export function PlatformSelect({ platforms, active, base, allLabel }: {
     <select
       value={active}
       onChange={e => go(e.target.value)}
-      className="mb-6 h-9 rounded-md border border-white/10 bg-white/[0.06] px-3 text-sm text-white/80 focus:border-white/30 focus:outline-none"
+      className="mb-6 h-9 rounded-md border border-white/10 bg-white/[0.06] px-3 text-sm text-white/80 focus:border-white/30 focus:outline-none [color-scheme:dark]"
     >
-      <option value="">{allLabel}</option>
-      {platforms.map(p => <option key={p.slug} value={p.slug}>{p.name}</option>)}
+      <option value="" className="bg-neutral-900 text-white">{allLabel}</option>
+      {platforms.map(p => <option key={p.slug} value={p.slug} className="bg-neutral-900 text-white">{p.name}</option>)}
     </select>
   )
 }
