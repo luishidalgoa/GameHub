@@ -6,6 +6,12 @@ import type { MetadataResult } from './provider'
 //   >= AUTO_THRESHOLD → apply automatically; below it the match is not used
 export const AUTO_THRESHOLD   = 68
 
+// Number words are digits too: "Biohazard Zero" is LaunchBox's "Biohazard 0".
+const NUMBER_WORDS: Record<string, string> = {
+  zero: '0', one: '1', two: '2', three: '3', four: '4', five: '5',
+  six: '6', seven: '7', eight: '8', nine: '9', ten: '10',
+}
+
 const ROMAN: Record<string, string> = {
   i: '1', ii: '2', iii: '3', iv: '4', v: '5', vi: '6', vii: '7', viii: '8', ix: '9', x: '10',
   xi: '11', xii: '12', xiii: '13', xiv: '14', xv: '15', xvi: '16', xvii: '17', xviii: '18', xix: '19', xx: '20',
@@ -23,7 +29,7 @@ export function normalize(s: string): string {
     .trim()
     // "Final Fantasy VII" and "Final Fantasy 7" are the same game (#114).
     .split(' ')
-    .map(tok => ROMAN[tok] ?? tok)
+    .map(tok => ROMAN[tok] ?? NUMBER_WORDS[tok] ?? tok)
     .join(' ')
 }
 
@@ -34,6 +40,20 @@ export function jaccard(a: string, b: string): number {
   const intersection = [...setA].filter(t => setB.has(t)).length
   const union = new Set([...setA, ...setB]).size
   return union === 0 ? 0 : intersection / union
+}
+
+// A title's spaces and punctuation taken out, so the spelling that splits a word differently still matches.
+function compactOf(s: string): string {
+  return normalize(s).replace(/ /g, '')
+}
+
+// A complement's name after the game's: "Toukiden - Kiwami - Additional Task Set 5" is the game
+// "Toukiden - Kiwami". Only these words start a suffix, so a real subtitle is never cut.
+const ADDON_SUFFIX = /\s-\s(?:additional|dlc|expansion|costume|set\s+\d|pack\b|disc\b|accessory|bonus|theme|bgm|(?:streaming|haishin|delivery) event|kakuchou)\b.*$/i
+
+/** The game's own title: the complement suffix (if any) is taken off. */
+export function baseTitleOf(title: string): string {
+  return title.replace(ADDON_SUFFIX, '').trim() || title
 }
 
 /**
@@ -49,9 +69,13 @@ export function calcTitleConfidence(
   candidateTitle: string,
   platformMatched: boolean,
 ): number {
-  const ourTitle = fileToTitle(gameTitle)
-  let score = jaccard(ourTitle, candidateTitle) * 50
-  if (normalize(ourTitle) === normalize(candidateTitle)) score += 20
+  const ourTitle = baseTitleOf(fileToTitle(gameTitle))
+  // "Joukyuu-hen" and "Joukyuuhen", "Never Land" and "Neverland": the same title
+  // with the spaces and punctuation taken out. It scores as an exact title, since
+  // the words themselves do not line up.
+  const sameCompact = compactOf(ourTitle) === compactOf(candidateTitle)
+  let score = sameCompact ? 50 : jaccard(ourTitle, candidateTitle) * 50
+  if (sameCompact || normalize(ourTitle) === normalize(candidateTitle)) score += 20
   if (platformMatched) score += 30
   if (platformMatched && sameWordsSubset(ourTitle, candidateTitle)) score = Math.max(score, AUTO_THRESHOLD)
   // A sequel number at the end of a title ("Kung Fu Panda 2" against "Kung Fu Panda") makes a

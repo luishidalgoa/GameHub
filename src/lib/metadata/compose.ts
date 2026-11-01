@@ -3,6 +3,7 @@ import { getLaunchBoxProvider, getLaunchBoxPlatformName, type LaunchBoxGame } fr
 import { searchStore, fetchStoreProduct } from './nintendo-store'
 import { fetchSteamGridDBCover } from './steamgriddb'
 import { fetchLibretroCover } from './libretro'
+import { titleAliasOf } from './title-aliases'
 import { calcTitleConfidence, calcConfidence, AUTO_THRESHOLD } from './scoring'
 import { LAUNCHBOX_PLATFORM_NAMES } from './launchbox'
 import type { ProviderMatrix } from './matrix'
@@ -127,7 +128,9 @@ const errorText = (err: unknown): string => (err instanceof Error ? err.message 
  * a confident-enough match for the fields that need a game match.
  */
 export async function gatherMetadata(input: GatherInput): Promise<ComposedMetadata | null> {
-  const { title, platformSlug, fileName, launchboxId, rawgId, matrix, rawgApiKey, threshold = AUTO_THRESHOLD, paceMs = 600, diagnostics: diag } = input
+  const { platformSlug, fileName, launchboxId, rawgId, matrix, rawgApiKey, threshold = AUTO_THRESHOLD, paceMs = 600, diagnostics: diag } = input
+  // A localized title the providers only know by its English name (see title-aliases.ts).
+  const title = titleAliasOf(input.title)
   const retroSystem = input.retroSystem === undefined ? platformSlug : input.retroSystem
 
   // Every source a chain asks for: a provider is only fetched when some chain needs it.

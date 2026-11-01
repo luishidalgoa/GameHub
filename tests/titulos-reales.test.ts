@@ -12,7 +12,6 @@ const rows = fixture as Row[]
 // test falla si aparece un caso que no esta aqui, o si uno de estos empieza a
 // emparejarse (hay que quitarlo de la lista).
 const KNOWN_GAPS: Record<string, string> = {
-  'SpiderMan Battle for New York (2006) (USA).nds': 'guion en el nombre del proveedor',
   'Sonic Colours (2010) (Europe) (En,Ja,Fr,De,Es,It).rvz': 'Colours frente a Colors',
   'James Pond 3 - Operation Starfish (1994) (ESP).sfc': 'el titulo guardado tiene un error de escritura (Starfi5h)',
   'Inazuma Eleven 2 - Tormenta de Fuego (2012).nds': 'titulo traducido en el proveedor',
