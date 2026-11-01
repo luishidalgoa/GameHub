@@ -158,7 +158,18 @@ export function pageIsSameGame(html: string, title: string): boolean {
   const m = html.match(/<meta\s+property="og:title"\s+content="([^"]+)"/i)
   if (!m) return false
   const pageTitle = m[1].replace(/\s*[-|]\s*Metacritic.*$/i, '').replace(/\s+(Reviews|Critic Reviews).*$/i, '').trim()
-  return calcTitleConfidence(title, pageTitle, false) >= AUTO_THRESHOLD
+  return sameWords(title, pageTitle) || calcTitleConfidence(title, pageTitle, false) >= AUTO_THRESHOLD
+}
+
+/**
+ * The same words in any order: Metacritic writes "Blood Stone: 007" where the library has "007: Blood
+ * Stone". Word order alone scores too low for the threshold, so the same set of words is the same game.
+ */
+function sameWords(a: string, b: string): boolean {
+  const key = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ').trim().split(' ').filter(Boolean).sort().join(' ')
+  const ka = key(a)
+  return ka.length > 0 && ka === key(b)
 }
 
 /**
