@@ -1,11 +1,13 @@
 import Link from 'next/link'
 import { db } from '@/lib/db'
+import { graveyardWhere } from '@/lib/games/list'
 
 export const dynamic = 'force-dynamic'
 
 // Mantenimiento (#144): escáner y metadatos, integridad y cementerio, en un solo sitio.
 export default async function AdminMaintenancePage() {
-  const removed = await db.game.count({ where: { isHidden: true } })
+  // The same count the graveyard list shows: hidden games less the blacklisted ones.
+  const removed = await db.game.count({ where: await graveyardWhere({ search: '', platform: '' }) })
 
   const areas = [
     {
