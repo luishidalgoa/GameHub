@@ -61,14 +61,15 @@ export function parseGameFilters(p: RawParams): GameListFilters {
 export function gameListWhere(f: GameListFilters, boxes: Array<{ platformId: number; boxRatio: number }> = []): Prisma.GameWhereInput {
   const where: Prisma.GameWhereInput = {
     isHidden: f.state === 'hidden',
+    // As in libraryGameWhere: a variant (bonus, DLC) is read from its base game, not listed on its own.
+    variantOfId: null,
     platform: f.platform ? { slug: f.platform } : { enabled: true },
     ...(f.search && { title: { contains: f.search } }),
     ...(f.noScore && pendingWhere(NO_SCORE)),
     // "Sin portada" means neither a stored file nor a remote URL, the same test
     // the dashboard counts with.
     ...(f.noCover && pendingWhere(NO_COVER)),
-    // Same rows the dashboard counts: a variant (bonus, DLC) is read from its base game.
-    ...(f.noMeta && { ...pendingMetadataWhere(new Date()), variantOfId: null }),
+    ...(f.noMeta && pendingMetadataWhere(new Date())),
     ...(f.unfindable && UNFINDABLE),
     ...(f.region && { region: f.region }),
     ...(f.favorite && { isFavorite: true }),
