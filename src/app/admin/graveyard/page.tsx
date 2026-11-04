@@ -6,7 +6,7 @@ import { AdminButton } from '@/components/admin/AdminButton'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { Ghost } from 'lucide-react'
 import { nextSort, parseSort, sortParams } from '@/lib/admin-sort'
-import { GRAVEYARD_SORT_DEFAULT, GRAVEYARD_SORT_KEYS, type GraveyardSortKey } from '@/lib/games/list'
+import { GRAVEYARD_SORT_DEFAULT, GRAVEYARD_SORT_KEYS, graveyardWhere, type GraveyardSortKey } from '@/lib/games/list'
 
 export const dynamic = 'force-dynamic'
 
@@ -27,7 +27,7 @@ export default async function GraveyardPage({ searchParams }: Props) {
   const sortLinks = Object.fromEntries(GRAVEYARD_SORT_KEYS.map(k => [k, sortHref(k)])) as Record<string, string>
 
   const [totalMissing, platformList] = await Promise.all([
-    db.game.count({ where: { isHidden: true } }),
+    db.game.count({ where: await graveyardWhere({ search: '', platform: '' }) }),
     db.platform.findMany({ orderBy: { sortOrder: 'asc' } }),
   ])
 

@@ -4,12 +4,13 @@ import { ChevronRight, Tag } from 'lucide-react'
 import { AdminNav } from '@/components/admin/AdminNav'
 import { LogoutButton } from '@/components/admin/LogoutButton'
 import { db } from '@/lib/db'
+import { graveyardWhere } from '@/lib/games/list'
 import { getAppVersion, type AppVersionInfo } from '@/lib/version'
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const [t, missingCount] = await Promise.all([
     getTranslations('AdminLayout'),
-    db.game.count({ where: { isHidden: true } }),
+    db.game.count({ where: await graveyardWhere({ search: '', platform: '' }) }),
   ])
   const version = getAppVersion()
 
