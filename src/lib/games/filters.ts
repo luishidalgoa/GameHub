@@ -67,7 +67,8 @@ export function gameListWhere(f: GameListFilters, boxes: Array<{ platformId: num
     // "Sin portada" means neither a stored file nor a remote URL, the same test
     // the dashboard counts with.
     ...(f.noCover && pendingWhere(NO_COVER)),
-    ...(f.noMeta && pendingMetadataWhere(new Date())),
+    // Same rows the dashboard counts: a variant (bonus, DLC) is read from its base game.
+    ...(f.noMeta && { ...pendingMetadataWhere(new Date()), variantOfId: null }),
     ...(f.unfindable && UNFINDABLE),
     ...(f.region && { region: f.region }),
     ...(f.favorite && { isFavorite: true }),
