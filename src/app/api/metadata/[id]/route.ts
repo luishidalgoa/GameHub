@@ -312,6 +312,11 @@ async function applyManualPick(
       ...(coverPath  && { coverPath }),
       ...(trailerUrl && { trailerUrl }),
       metadataFetchedAt: new Date(),
+      // A pick is a ficha: the game leaves no_match/provider_error for good, as the batch does.
+      metadataStatus: 'matched',
+      metadataAttempts: 0,
+      metadataNextRetryAt: null,
+      metadataReason: null,
   } })
   return { ...updated, sources }
 }
