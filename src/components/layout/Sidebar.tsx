@@ -9,6 +9,7 @@ import { LayoutDashboard, Home, X, Heart, Shield, User, History } from 'lucide-r
 import { cn } from '@/lib/utils'
 import { LanguageSwitcher } from '@/components/shared/LanguageSwitcher'
 import { getPlatformIdentity } from '@/lib/platform-identity'
+import { familyOf, menuEntries, type PlatformFamily } from '@/lib/platform-family'
 import { PlatformIcon } from '@/components/shared/PlatformIcon'
 import type { Platform } from '@/types/platform'
 
@@ -29,6 +30,10 @@ export function Sidebar({ open, onClose }: Props) {
   const pathname = usePathname()
   const t = useTranslations('Sidebar')
   const { data: platforms } = useSWR<Platform[]>('/api/platforms', fetcher)
+  const { data: families } = useSWR<PlatformFamily[]>('/api/platform-families', fetcher)
+  const currentPlatform = pathname?.match(/^\/platform\/([^/]+)/)?.[1]
+  const currentFamily = currentPlatform && families ? familyOf(families, currentPlatform) : undefined
+  const platformMenuPath = currentFamily ? `/platform/${currentFamily.slug}` : pathname
   const { data: auth } = useSWR<{ admin: boolean }>('/api/auth/me', fetcher)
   const { data: ipData } = useSWR<{ isAdminIp: boolean }>('/api/auth/is-admin-ip', fetcher)
 
@@ -77,15 +82,16 @@ export function Sidebar({ open, onClose }: Props) {
             <p className={cn('text-xs text-muted-foreground font-semibold uppercase tracking-wider px-3 mb-1', RAIL_LABEL)}>
               {t('platforms')}
             </p>
-            {platforms.map((p) => (
+            {menuEntries(platforms, families ?? []).map((e) => (
               <NavItem
-                key={p.slug}
-                href={`/platform/${p.slug}`}
-                icon={<PlatformIcon slug={p.slug} iconPath={p.iconPath} size={18} />}
-                label={p.name}
-                badge={p._count?.games}
-                pathname={pathname}
-                activeColor={getPlatformIdentity(p.slug).accent}
+                key={e.key}
+                href={e.href}
+                icon={<PlatformIcon slug={e.iconSlug} iconPath={e.iconPath} size={16} />}
+                label={e.name}
+                badge={e.badge}
+                pathname={platformMenuPath}
+                activeColor={getPlatformIdentity(e.iconSlug).accent}
+                compact
                 onNavigate={onClose}
               />
             ))}
@@ -150,6 +156,7 @@ function NavItem({
   badge,
   pathname,
   activeColor = 'text-primary',
+  compact = false,
   onNavigate,
 }: {
   href: string
@@ -158,16 +165,18 @@ function NavItem({
   badge?: number
   pathname: string
   activeColor?: string
+  compact?: boolean
   onNavigate?: () => void
 }) {
-  const isActive = pathname === href || (href !== '/' && pathname.startsWith(href))
+  const isActive = pathname === href || (href !== '/' && pathname.startsWith(href + '/'))
 
   return (
     <Link
       href={href}
       onClick={onNavigate}
       className={cn(
-        'flex items-center gap-3 md:gap-0 md:group-hover/rail:gap-3 px-3 py-3 md:py-2 rounded-md text-sm transition-[gap,color,background-color] duration-200 group',
+        'flex items-center gap-3 md:gap-0 md:group-hover/rail:gap-3 px-3 rounded-md transition-[gap,color,background-color] duration-200 group',
+        compact ? 'py-1 text-xs' : 'py-3 md:py-2 text-sm',
         isActive
           ? `bg-accent ${activeColor} font-medium`
           : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'

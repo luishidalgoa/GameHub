@@ -19,6 +19,7 @@ Per-console configuration (edited in Admin → Settings).
 | `thumbnailWidth`, `thumbnailHeight` | cover aspect |
 | `emulators` | JSON `{ windows?, android?, ios? }` of `{ name, url }` (per-OS download links) |
 | `emulatorName`, `emulatorUrl` | **deprecated**, superseded by `emulators` |
+| `torrentSources` | JSON list `[{ key, type, url, enabled }]` of torrent sources, in priority order (see [torrents](../features/torrents.md)) |
 | `sortOrder`, `enabled`, `iconPath` | |
 
 ### `Game`

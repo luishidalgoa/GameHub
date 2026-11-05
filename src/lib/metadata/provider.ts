@@ -1,4 +1,4 @@
-export type MetadataSource = 'rawg' | 'launchbox'
+export type MetadataSource = 'rawg' | 'launchbox' | 'nintendo'
 
 export interface MetadataResult {
   /** Provider game id. RAWG and LaunchBox both use numeric ids. */

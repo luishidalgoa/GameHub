@@ -16,8 +16,9 @@ const SLIDE_MS = 9000
  * the title. It rotates through the games it is given and retints the page after
  * each one. Hovering or focusing it holds the current slide.
  */
-export function HeroStage({ games, orientations, labels }: {
+export function HeroStage({ games, modelFiles, orientations, labels }: {
   games: TileGame[]
+  modelFiles: Record<string, string>
   orientations: OrientationMap
   labels: { featured: string; view: string }
 }) {
@@ -38,7 +39,7 @@ export function HeroStage({ games, orientations, labels }: {
   }, [held, index, games.length])
 
   if (!game) return null
-  const base = consoleModelFor(game.platformSlug)
+  const base = consoleModelFor(game.platformSlug, modelFiles[game.platformSlug])
   const model = base && withOrientation(base, orientations)
   const meta = [game.genre, game.year, game.publisher].filter(Boolean).join('  ·  ')
 

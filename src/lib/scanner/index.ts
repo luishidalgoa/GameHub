@@ -353,8 +353,8 @@ export async function runScan(triggeredBy = 'manual', platformSlug?: string, job
 
   const platforms = await db.platform.findMany({
     where: platformSlug
-      ? { slug: platformSlug, enabled: true }
-      : { enabled: true },
+      ? { slug: platformSlug, enabled: true, scanPath: { not: '' } }
+      : { enabled: true, scanPath: { not: '' } },
     orderBy: { sortOrder: 'asc' },
   })
 

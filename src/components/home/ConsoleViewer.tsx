@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import type { ConsoleModel } from '@/lib/consoles'
+import type { ViewerModel } from '@/lib/consoles'
 import type { ConsoleHandle } from '@/lib/console-scene'
 
 /**
@@ -12,7 +12,7 @@ import type { ConsoleHandle } from '@/lib/console-scene'
  * three.js or the model. With no WebGL, or if the file fails, it renders nothing:
  * the page around it does not depend on it.
  */
-export function ConsoleViewer({ model, className }: { model: ConsoleModel; className?: string }) {
+export function ConsoleViewer({ model, className }: { model: ViewerModel; className?: string }) {
   const ref = useRef<HTMLDivElement>(null)
   const [state, setState] = useState<'idle' | 'ready' | 'failed'>('idle')
 

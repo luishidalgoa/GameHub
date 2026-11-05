@@ -60,3 +60,9 @@ and the source row is deleted.
 the auto-metadata pipeline events `auto_meta_start`, `auto_meta_progress`,
 `auto_meta_done`, and finally `pipeline_done`. The admin Scan panel renders these
 as a live log + progress bar.
+
+## Torrent-only platforms
+
+Platforms with an empty `scanPath` are skipped by the scan: they have no local
+files, only torrent sources. Their games come from the torrent sync, described in
+[torrents](torrents.md). The scan mode "Torrents" in the admin panel runs that sync.

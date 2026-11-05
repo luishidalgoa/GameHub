@@ -23,6 +23,8 @@ export interface ConsoleHandle {
   setBaseRotation(rotation: [number, number, number]): void
   /** true: the floating turn of the home page; false: hold still and orbit by dragging. */
   setSpin(on: boolean): void
+  /** The model from the front, as a square PNG with a transparent background. */
+  snapshot(px?: number): Promise<Blob>
 }
 
 export async function mountConsole(container: HTMLElement, opts: MountOptions): Promise<ConsoleHandle> {
@@ -171,6 +173,30 @@ export async function mountConsole(container: HTMLElement, opts: MountOptions): 
 
   return {
     setBaseRotation(r) { baseRotation = r; layout(); draw(0) },
+    snapshot(px = 512) {
+      const wasSpinning = spin
+      spin = false
+      cancelAnimationFrame(raf)
+      renderer.setPixelRatio(1)
+      renderer.setSize(px, px, false)
+      camera.aspect = 1
+      camera.position.set(0, 0.04, 4.1 * 1.2)
+      camera.lookAt(0, 0, 0)
+      camera.updateProjectionMatrix()
+      pivot.rotation.set(0, 0, 0)
+      pivot.position.y = 0
+      renderer.render(scene, camera)
+      return new Promise<Blob>((resolve, reject) => {
+        renderer.domElement.toBlob(blob => {
+          renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2))
+          spin = wasSpinning
+          resize()
+          sync()
+          if (blob) resolve(blob)
+          else reject(new Error('no se pudo generar la imagen'))
+        }, 'image/png')
+      })
+    },
     setSpin(on) { spin = on; sync() },
     dispose() {
       canvas.removeEventListener('pointerdown', down)

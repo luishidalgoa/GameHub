@@ -1,4 +1,7 @@
-import { notFound } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
+import { familyBySlug, familyOf } from '@/lib/platform-family'
+import { loadPlatformFamilies } from '@/lib/platform-family-store'
+import { FamilyChips } from '@/components/platform/FamilyChips'
 import { getTranslations } from 'next-intl/server'
 import { db } from '@/lib/db'
 import { resolveCoverPath } from '@/lib/s3'
@@ -23,16 +26,22 @@ export async function generateMetadata({ params }: Props) {
 }
 
 export default async function PlatformPage({ params }: Props) {
-  const [t, isAdmin, platform] = await Promise.all([
+  const [t, isAdmin, platform, families] = await Promise.all([
     getTranslations('Platform'),
     isAdminSession(),
     db.platform.findUnique({
       where: { slug: params.slug },
       include: { _count: { select: { games: { where: { isHidden: false, variantOfId: null } } } } },
     }),
+    loadPlatformFamilies(),
   ])
+  if (!platform) {
+    const group = familyBySlug(families, params.slug)
+    if (group) redirect(`/platform/${group.members[0].slug}`)
+  }
 
   if (!platform || !platform.enabled) notFound()
+  const family = familyOf(families, params.slug)
 
   // Cheap aggregation — unique region strings from primary games AND from
   // region-variant editions, so every selectable region shows in the filter.
@@ -111,6 +120,7 @@ export default async function PlatformPage({ params }: Props) {
   return (
     <div>
       <div className="mb-6">
+        {family && <FamilyChips family={family} current={params.slug} />}
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">{platform.name}</h1>
           <div className="flex flex-col items-start gap-2 sm:items-end">

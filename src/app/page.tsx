@@ -47,6 +47,8 @@ export default async function HomePage() {
     consoles: (
       <PlatformShowcase
         platforms={data.platforms}
+        modelFiles={data.modelFiles}
+        posterFiles={data.posterFiles}
         orientations={orientations}
         kicker={t('consolesKicker')}
         title={t('consolesTitle')}
@@ -74,7 +76,7 @@ export default async function HomePage() {
 
   return (
     <HomeStage>
-      <HeroStage games={data.hero} orientations={orientations} labels={{ featured: t('featured'), view: t('featuredView') }} />
+      <HeroStage games={data.hero} modelFiles={data.modelFiles} orientations={orientations} labels={{ featured: t('featured'), view: t('featuredView') }} />
 
       <div className="-mx-4 space-y-16 pb-16 pt-10 sm:-mx-6 sm:space-y-24 sm:pt-14">
         {order.map((key: HomeSection) => <Fragment key={key}>{sections[key]}</Fragment>)}

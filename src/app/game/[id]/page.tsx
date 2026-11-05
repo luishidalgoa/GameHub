@@ -19,7 +19,7 @@ import { BulkDownloadButton } from '@/components/shared/BulkDownloadButton'
 import { RatingPill } from '@/components/shared/RatingPill'
 import { OnlineBadge } from '@/components/shared/OnlineBadge'
 import { onlineGameIds } from '@/lib/online/flags'
-import { torrentMagnet } from '@/lib/external/magnet'
+import { gameMagnet } from '@/lib/external/magnet'
 import { RecordView } from '@/components/game/RecordView'
 import { ScreenshotGallery } from '@/components/game/ScreenshotGallery'
 import { ProceduralFill } from '@/components/game/ProceduralFill'
@@ -48,7 +48,7 @@ export default async function GamePage({ params, searchParams }: Props) {
 
   if (!game || (game.isHidden && !isAdmin)) notFound()
   const online = (await onlineGameIds([game])).has(game.id)
-  const magnet = game.source === 'torrent' ? await torrentMagnet(game.externalKey) : null
+  const magnet = game.source === 'torrent' ? await gameMagnet(game) : null
 
   // Screenshots: prefer the ones stored on the game (LaunchBox/RAWG saved by the
   // metadata job); fall back to a live RAWG fetch only when none are stored.

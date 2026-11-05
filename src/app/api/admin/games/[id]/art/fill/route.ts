@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { adminGuard } from '@/lib/admin-guard'
 import { db } from '@/lib/db'
 import { fetchGameArt } from '@/lib/art'
+import { libretroSystemFor } from '@/lib/metadata/libretro'
 import { runAutomatic } from '@/lib/automatic'
 
 export const dynamic = 'force-dynamic'
@@ -16,7 +17,7 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
   const id = parseInt(params.id, 10)
   const game = await db.game.findUnique({
     where: { id },
-    select: { id: true, title: true, fileName: true, launchboxId: true, platform: { select: { slug: true } } },
+    select: { id: true, title: true, fileName: true, filePath: true, externalKey: true, launchboxId: true, platform: { select: { slug: true } } },
   })
   if (!game) return NextResponse.json({ error: 'Game not found' }, { status: 404 })
 
@@ -26,6 +27,7 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
     fileName: game.fileName,
     launchboxId: game.launchboxId,
     platformSlug: game.platform.slug,
+    retroSystem: libretroSystemFor(game.platform.slug, game),
   }, 400))
   return NextResponse.json({ outcome })
 }

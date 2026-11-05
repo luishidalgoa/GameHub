@@ -5,6 +5,7 @@ export interface Platform {
   scanPath: string
   extensions: string
   iconPath: string | null
+  posterPath?: string | null
   scanMode: string
   sortOrder: number
   enabled: boolean

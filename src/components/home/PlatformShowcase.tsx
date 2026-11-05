@@ -1,53 +1,71 @@
 'use client'
 
-import Link from 'next/link'
+import { useEffect, useState } from 'react'
 import { useTranslations } from 'next-intl'
 import { consoleModelFor, withOrientation } from '@/lib/consoles'
 import type { OrientationMap } from '@/lib/console-orientation'
-import { ConsoleViewer } from './ConsoleViewer'
-import { Reveal } from './Reveal'
+import { WideRail } from './WideRail'
+import { PlatformTile } from './PlatformTile'
+
+/** Tiles that fit in one row at this window width, with the widths and gaps of the carousel. */
+function visibleInRow(): number {
+  const w = window.innerWidth
+  const tile = w >= 1280 ? 240 : w >= 640 ? 220 : Math.min(0.46 * w, 240)
+  const gutter = w >= 640 ? 48 : 32
+  const sidebar = w >= 768 ? 56 : 0
+  return Math.max(1, Math.floor((w - gutter - sidebar) / (tile + 16)))
+}
 
 /**
- * The platforms as columns, each with its console floating above the name. No
- * cards: the models stand on the page itself, lit by the current theme color.
- * A platform without a model shows its name alone.
+ * The consoles as a one-row carousel: the visible row plus three tiles, each with its live
+ * model. The rest is on the consoles page, linked from the last tile.
  */
-export function PlatformShowcase({ platforms, orientations, kicker, title }: {
-  platforms: { slug: string; name: string; games: number }[]
+export function PlatformShowcase({ platforms, modelFiles, posterFiles, orientations, kicker, title }: {
+  platforms: { slug: string; name: string; games: number; modelSlug: string }[]
+  modelFiles: Record<string, string>
+  posterFiles: Record<string, string>
   orientations: OrientationMap
   kicker: string
   title: string
 }) {
   const t = useTranslations('Home')
   const shown = platforms.filter(p => p.games > 0)
+  const [perRow, setPerRow] = useState(4)
+  useEffect(() => {
+    const measure = () => setPerRow(visibleInRow())
+    measure()
+    window.addEventListener('resize', measure)
+    return () => window.removeEventListener('resize', measure)
+  }, [])
   if (shown.length === 0) return null
+
+  const rendered = Math.min(perRow + 3, shown.length)
+  const more = rendered < shown.length
+
   return (
-    <Reveal as="section">
-      <div className="mb-2 px-4 sm:px-6">
-        <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.22em] art-kicker">{kicker}</p>
-        <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">{title}</h2>
-      </div>
-      <div className="flex flex-wrap justify-center gap-y-2 px-4 sm:px-6">
-        {shown.map((p, i) => {
-          const base = consoleModelFor(p.slug)
-          const model = base && withOrientation(base, orientations)
-          return (
-            <Reveal key={p.slug} index={i % 5} className="w-1/2 sm:w-1/3 lg:w-1/4 xl:w-1/5">
-              <Link href={`/platform/${p.slug}`} className="group relative block rounded-2xl pb-5 pt-2 outline-none focus-visible:ring-2 focus-visible:ring-white/70">
-                <div className="relative mx-auto aspect-square w-full max-w-[260px]">
-                  <div className="absolute inset-[18%] rounded-full opacity-0 blur-2xl transition-opacity duration-700 group-hover:opacity-70"
-                       style={{ background: 'radial-gradient(circle, var(--art-a), transparent 70%)' }} />
-                  {model && <ConsoleViewer model={model} className="absolute inset-0" />}
-                </div>
-                <div className="px-2 text-center">
-                  <p className="text-lg font-semibold tracking-tight transition-transform duration-500 group-hover:-translate-y-0.5">{p.name}</p>
-                  <p className="mt-0.5 text-sm text-white/50">{t('platformGames', { count: p.games })}</p>
-                </div>
-              </Link>
-            </Reveal>
-          )
-        })}
-      </div>
-    </Reveal>
+    <WideRail
+      kicker={kicker}
+      title={title}
+      href={more ? '/explorar/consolas' : undefined}
+      moreLabel={t('showAll')}
+      moreVariant="square"
+      itemClassName="w-[min(46vw,240px)] shrink-0 snap-start sm:w-[220px] xl:w-[240px]"
+    >
+      {shown.slice(0, rendered).map(p => {
+        const base = consoleModelFor(p.modelSlug, modelFiles[p.modelSlug])
+        const model = base && withOrientation(base, orientations)
+        return (
+          <PlatformTile
+            key={p.slug}
+            slug={p.slug}
+            name={p.name}
+            games={t('platformGames', { count: p.games })}
+            model={model}
+            poster={posterFiles[p.slug] ?? null}
+            live
+          />
+        )
+      })}
+    </WideRail>
   )
 }

@@ -5,18 +5,22 @@
  * are credited on /creditos; the Wii model is CC-BY-SA, so its adapted file is
  * shared under that same license.
  */
-export interface ConsoleModel {
+/** Lo que el visor necesita para mostrar un modelo: de fábrica o subido por el administrador. */
+export interface ViewerModel {
   slug: string
-  name: string
-  /** Public URL of the optimized GLB. */
+  /** URL del GLB. */
   file: string
+  /** Euler angles (radians) that stand the model upright with its front toward +Z. */
+  baseRotation?: [number, number, number]
+}
+
+export interface ConsoleModel extends ViewerModel {
+  name: string
   author: string
   authorUrl: string
   license: 'CC-BY-4.0' | 'CC-BY-SA-4.0'
   licenseUrl: string
   source: string
-  /** Euler angles (radians) that stand the model upright with its front toward +Z. */
-  baseRotation?: [number, number, number]
 }
 
 const BY = 'https://creativecommons.org/licenses/by/4.0/'
@@ -80,13 +84,18 @@ export const CONSOLE_MODELS: Record<string, ConsoleModel> = {
 }
 
 /** The model with the orientation the owner set in the editor, when there is one. */
-export function withOrientation(model: ConsoleModel, saved: Record<string, [number, number, number]>): ConsoleModel {
+export function withOrientation<T extends ViewerModel>(model: T, saved: Record<string, [number, number, number]>): T {
   const rotation = saved[model.slug]
   return rotation ? { ...model, baseRotation: rotation } : model
 }
 
-/** The model for a platform; the Vita ports platform shares the Vita's. */
-export function consoleModelFor(platformSlug: string): ConsoleModel | null {
+/**
+ * The model for a platform: the one uploaded for it when there is one, else the bundled one.
+ * The Vita ports platform shares the Vita's.
+ */
+export function consoleModelFor(platformSlug: string, uploadedFile?: string | null): ViewerModel | null {
+  if (uploadedFile) return { slug: platformSlug, file: uploadedFile }
   if (platformSlug === 'psvita-ports') return CONSOLE_MODELS.psvita
+  if (platformSlug === 'game-boy') return CONSOLE_MODELS.gba
   return CONSOLE_MODELS[platformSlug] ?? null
 }

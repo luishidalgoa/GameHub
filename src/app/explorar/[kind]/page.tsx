@@ -8,6 +8,10 @@ import { GridTile } from '@/components/home/GridTile'
 import { Masonry } from '@/components/home/Masonry'
 import { groupByTitle } from '@/lib/game-groups'
 import { PublisherTile } from '@/components/home/PublisherTile'
+import { ConsoleGrid } from '@/components/home/ConsoleGrid'
+import { getConsoleShelf } from '@/lib/home-data'
+import { consoleModelFor, withOrientation } from '@/lib/consoles'
+import { getOrientations } from '@/lib/console-orientation'
 
 export const dynamic = 'force-dynamic'
 
@@ -32,6 +36,25 @@ export default async function ExplorePage({ params, searchParams }: {
     )
   }
 
+  if (kind === 'consolas') {
+    const [shelf, orientations] = await Promise.all([getConsoleShelf(), getOrientations()])
+    const tiles = shelf.platforms.filter(p => p.games > 0).map(p => {
+      const base = consoleModelFor(p.modelSlug, shelf.modelFiles[p.modelSlug])
+      return {
+        slug: p.slug,
+        name: p.name,
+        games: t('platformGames', { count: p.games }),
+        model: base && withOrientation(base, orientations),
+        poster: shelf.posterFiles[p.slug] ?? null,
+      }
+    })
+    return (
+      <ExploreShell kicker={t('consolesKicker')} title={t('consolesTitle')}>
+        <ConsoleGrid tiles={tiles} />
+      </ExploreShell>
+    )
+  }
+
   if (!COLLECTION_KINDS.includes(kind as CollectionKind)) notFound()
   const page = Math.max(1, parseInt(searchParams.page ?? '1', 10) || 1)
   const platform = searchParams.platform ?? ''
@@ -39,8 +62,8 @@ export default async function ExplorePage({ params, searchParams }: {
     getCollection(kind as CollectionKind, page, platform || undefined),
     enabledPlatformChips(),
   ])
-  const base = `/explorar/${kind}?${platform ? `platform=${platform}&` : ''}`
   const pages = Math.max(1, Math.ceil(total / COLLECTION_PAGE))
+  const base = `/explorar/${kind}?${platform ? `platform=${platform}&` : ''}`
   if (page > pages) notFound()
 
   const heading = {

@@ -25,7 +25,7 @@ export const PROVIDER_LABEL: Record<string, string> = {
 }
 
 export type FieldSource =
-  | 'launchbox' | 'rawg' | 'steamgriddb' | 'libretro'
+  | 'launchbox' | 'rawg' | 'steamgriddb' | 'libretro' | 'nintendo'
   | 'wikidata'    // a fact (developer, publisher, year, genre) filled from Wikidata
   | 'upload'      // a file dropped, pasted or picked from disk
   | 'url'         // pasted image URL
@@ -52,7 +52,7 @@ export interface MetadataSources {
 
 /** Values `POST /api/covers` accepts as a cover origin. */
 export const COVER_SOURCES = [
-  'launchbox', 'rawg', 'steamgriddb', 'libretro', 'upload', 'url', 'screenshot',
+  'launchbox', 'rawg', 'steamgriddb', 'libretro', 'nintendo', 'upload', 'url', 'screenshot',
 ] as const
 
 export function isCoverSource(v: unknown): v is FieldSource {

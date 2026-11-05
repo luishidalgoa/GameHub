@@ -1,3 +1,6 @@
+import { collapseFamilies } from '@/lib/platform-family'
+import { loadPlatformFamilies } from '@/lib/platform-family-store'
+import { consoleModelFor } from '@/lib/consoles'
 import { db } from '@/lib/db'
 import { cachedAggregate } from '@/lib/aggregate-cache'
 import { libraryGameWhere } from '@/lib/library'
@@ -204,7 +207,11 @@ export interface HomeData {
   /** Lanzamientos recientes: por fecha de lanzamiento, no por fecha de añadido. */
   releases: TileGame[]
   publishers: PublisherTileData[]
-  platforms: { slug: string; name: string; games: number }[]
+  platforms: { slug: string; name: string; games: number; modelSlug: string }[]
+  /** URL del modelo 3D subido por el administrador, por slug de plataforma. */
+  modelFiles: Record<string, string>
+  /** Póster (PNG frontal) de cada consola, por slug de plataforma. */
+  posterFiles: Record<string, string>
   totalGames: number
 }
 
@@ -216,12 +223,8 @@ function friendsWhere<T extends object>(where: T) {
 export async function getHomeData(): Promise<HomeData> {
   const where = { ...libraryGameWhere(), ...WITH_ART }
 
-  const [platforms, recentRows, candidates, featuredRows, downloadCounts, topPublishers] = await Promise.all([
-    db.platform.findMany({
-      where: { enabled: true },
-      orderBy: { sortOrder: 'asc' },
-      select: { slug: true, name: true, _count: { select: { games: { where: { isHidden: false } } } } },
-    }),
+  const [shelf, recentRows, candidates, featuredRows, downloadCounts, topPublishers] = await Promise.all([
+    getConsoleShelf(),
     db.game.findMany({ where, orderBy: { createdAt: 'desc' }, take: RAIL_SIZE, select: TILE_SELECT }),
     db.game.findMany({
       where: { ...where, rawgAdded: { gte: MIN_ADDED } },
@@ -267,9 +270,39 @@ export async function getHomeData(): Promise<HomeData> {
   return {
     hero, featured, recent: await toTiles(recentRows), recommended, mostDownloaded, friends, releases,
     publishers: await publisherTiles(topPublishers),
-    platforms: platforms.map(p => ({ slug: p.slug, name: p.name, games: p._count.games })),
-    totalGames: platforms.reduce((n, p) => n + p._count.games, 0),
+    platforms: shelf.platforms,
+    totalGames: shelf.platforms.reduce((n, p) => n + p.games, 0),
+    modelFiles: shelf.modelFiles,
+    posterFiles: shelf.posterFiles,
   }
+}
+
+/**
+ * The consoles as the home and the consoles page show them: one entry per platform or
+ * family, with the model each one shows and the uploaded models by slug.
+ */
+export async function getConsoleShelf(): Promise<{
+  platforms: { slug: string; name: string; games: number; modelSlug: string }[]
+  modelFiles: Record<string, string>
+  posterFiles: Record<string, string>
+}> {
+  const [platforms, families] = await Promise.all([
+    db.platform.findMany({
+      where: { enabled: true },
+      orderBy: { sortOrder: 'asc' },
+      select: { slug: true, name: true, modelPath: true, posterPath: true, _count: { select: { games: { where: { isHidden: false } } } } },
+    }),
+    loadPlatformFamilies(),
+  ])
+  const modelFiles = Object.fromEntries(platforms.flatMap(p => (p.modelPath ? [[p.slug, resolveCoverPath(p.modelPath)!]] : [])))
+  const shelf = collapseFamilies(platforms.map(p => ({ slug: p.slug, name: p.name, games: p._count.games })), families).map(c => ({
+    slug: c.slug,
+    name: c.name,
+    games: c.games,
+    modelSlug: c.members.find(m => consoleModelFor(m, modelFiles[m])) ?? c.members[0],
+  }))
+  const posterFiles = Object.fromEntries(platforms.flatMap(p => (p.posterPath ? [[p.slug, resolveCoverPath(p.posterPath)!]] : [])))
+  return { platforms: shelf, modelFiles, posterFiles }
 }
 
 // ── "Show all" collections ─────────────────────────────────────────────────
