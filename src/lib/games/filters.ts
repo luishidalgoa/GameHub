@@ -67,8 +67,9 @@ export function gameListWhere(f: GameListFilters, boxes: Array<{ platformId: num
     ...(f.search && { title: { contains: f.search } }),
     ...(f.noScore && pendingWhere(NO_SCORE)),
     // "Sin portada" means neither a stored file nor a remote URL, the same test
-    // the dashboard counts with.
-    ...(f.noCover && pendingWhere(NO_COVER)),
+    // the dashboard counts with. Unfindable games count too: they lack a cover,
+    // and the row says so.
+    ...(f.noCover && NO_COVER),
     ...(f.noMeta && pendingMetadataWhere(new Date())),
     ...(f.unfindable && UNFINDABLE),
     ...(f.region && { region: f.region }),

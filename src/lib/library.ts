@@ -36,6 +36,11 @@ export const NOT_UNFINDABLE: Prisma.GameWhereInput = {
   ],
 }
 
+/** The same test as UNFINDABLE, on a loaded row: no source identified it. */
+export function isUnfindable(g: { artStatus: string | null; metadataStatus: string | null }): boolean {
+  return g.artStatus === 'no-match' && g.metadataStatus === 'no_match'
+}
+
 /** A pending list: games missing the given fields that some source can still fill. */
 export function pendingWhere(missing: Prisma.GameWhereInput): Prisma.GameWhereInput {
   return { AND: [missing, NOT_UNFINDABLE] }

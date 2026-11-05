@@ -286,7 +286,12 @@ function LibraryRow({ row: g, selected, checked, onToggle, onOpen }: {
         <input type="checkbox" aria-label={`Seleccionar ${g.title}`} checked={checked} onChange={onToggle} className="accent-violet-500" />
       </td>
       <td className="px-3 py-2"><Cover src={g.coverSrc} title={g.title} /></td>
-      <td className="max-w-xs px-3 py-2"><span className="block truncate font-medium">{g.title}</span></td>
+      <td className="max-w-xs px-3 py-2">
+        <span className="flex items-center gap-2">
+          <span className="block truncate font-medium">{g.title}</span>
+          {g.unfindable && <span title="Ninguna fuente lo identifica" className="shrink-0 rounded bg-secondary px-1.5 py-0.5 text-[10px] text-muted-foreground">No encontrado</span>}
+        </span>
+      </td>
       <td className="px-3 py-2 text-muted-foreground">{g.platformName}</td>
       <td className="px-3 py-2 text-muted-foreground tabular-nums">{g.releaseYear ?? '—'}</td>
       <td className="px-3 py-2 text-xs tabular-nums">

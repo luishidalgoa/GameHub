@@ -4,6 +4,7 @@ import { cachedAggregate } from '@/lib/aggregate-cache'
 import { gameListWhere, filterByCompleteness, type GameListFilters } from '@/lib/games/filters'
 import { completeness, type FieldKey } from '@/lib/games/completeness'
 import { platformBoxes } from '@/lib/games/platform-boxes'
+import { isUnfindable } from '@/lib/library'
 import { onlineGameIds } from '@/lib/online/flags'
 import { resolveCoverPath } from '@/lib/s3'
 import { sortRows, type SortDir, type SortState } from '@/lib/admin-sort'
@@ -46,6 +47,8 @@ export interface AdminGameRow {
   coverSrc: string | null
   percent: number
   missing: FieldKey[]
+  /** No source identified it: it counts as missing a cover, but is not pending work. */
+  unfindable: boolean
 }
 
 export interface AdminListPage {
@@ -73,6 +76,8 @@ const ROW_SELECT = {
   isHidden: true,
   coverPath: true,
   coverUrl: true,
+  artStatus: true,
+  metadataStatus: true,
   description: true,
   rawgScore: true,
   genre: true,
@@ -165,6 +170,7 @@ function toRow(g: RowRecord): AdminGameRow {
     coverSrc: resolveCoverPath(g.coverPath) ?? g.coverUrl ?? null,
     percent: c.percent,
     missing: c.missing,
+    unfindable: isUnfindable(g),
   }
 }
 

@@ -16,7 +16,7 @@ export default async function AdminPage() {
     getTranslations('Admin'),
     db.game.count({ where: libraryGameWhere() }),
     db.platform.count({ where: { enabled: true } }),
-    db.game.count({ where: { ...libraryGameWhere(), ...pendingWhere(NO_COVER) } }),
+    db.game.count({ where: { ...libraryGameWhere(), ...NO_COVER } }),
     db.game.count({ where: { AND: [libraryGameWhere(), noBoxWhereByPlatform(await platformBoxes())] } }),
     db.game.count({ where: { ...libraryGameWhere(), ...pendingMetadataWhere(new Date()) } }),
     // Sin ficha y con el reintento en el futuro: esperan su turno, no están pendientes.
