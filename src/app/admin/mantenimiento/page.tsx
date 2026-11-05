@@ -4,10 +4,13 @@ import { graveyardWhere } from '@/lib/games/list'
 
 export const dynamic = 'force-dynamic'
 
-// Mantenimiento (#144): escáner y metadatos, integridad y cementerio, en un solo sitio.
+// Mantenimiento (#144): escáner y metadatos, integridad, cementerio y lista negra, en un solo sitio.
 export default async function AdminMaintenancePage() {
   // The same count the graveyard list shows: hidden games less the blacklisted ones.
-  const removed = await db.game.count({ where: await graveyardWhere({ search: '', platform: '' }) })
+  const [removed, blacklisted] = await Promise.all([
+    db.game.count({ where: await graveyardWhere({ search: '', platform: '' }) }),
+    db.torrentBlacklist.count(),
+  ])
 
   const areas = [
     {
@@ -27,6 +30,12 @@ export default async function AdminMaintenancePage() {
       title: 'Cementerio',
       text: 'Juegos cuyo fichero ya no está. Recupéralos o archívalos.',
       badge: removed,
+    },
+    {
+      href: '/admin/blacklist',
+      title: 'Lista negra',
+      text: `Juegos de torrent que la sincronización no vuelve a traer: ${blacklisted.toLocaleString('es-ES')} entradas. Ver, buscar y quitar.`,
+      badge: 0,
     },
   ]
 

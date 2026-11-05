@@ -10,6 +10,7 @@ import { AdminGameTable, type AdminTablePanel } from '@/components/admin/AdminGa
 import { FileJson, FileSpreadsheet } from 'lucide-react'
 import { LIBRARY_SORT_DEFAULT, LIBRARY_SORT_KEYS, type LibrarySortKey } from '@/lib/games/list'
 import { AdminButton } from '@/components/admin/AdminButton'
+import { blacklistStateOf } from '@/lib/blacklist'
 
 export const dynamic = 'force-dynamic'
 
@@ -83,7 +84,8 @@ export default async function AdminGamesPage({ searchParams }: { searchParams: R
   const panelGame = Number.isInteger(panelId)
     ? await db.game.findUnique({ where: { id: panelId }, include: { platform: { select: { name: true } } } })
     : null
-  const panelData: PanelGame | null = panelGame && {
+  const panelBlacklist = panelGame ? await blacklistStateOf(panelGame) : null
+  const panelData: PanelGame | null = panelGame && panelBlacklist && {
     id: panelGame.id,
     title: panelGame.title,
     platformName: panelGame.platform.name,
@@ -104,7 +106,7 @@ export default async function AdminGamesPage({ searchParams }: { searchParams: R
     isFavorite: panelGame.isFavorite,
     isFeatured: panelGame.isFeatured,
     featuredOrder: panelGame.featuredOrder,
-    isHidden: panelGame.isHidden,
+    blacklist: panelBlacklist,
     metadataFetchedAt: panelGame.metadataFetchedAt ? panelGame.metadataFetchedAt.toISOString() : null,
   }
   const panelCompleteness = panelGame ? completeness(panelGame) : null

@@ -1,10 +1,11 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
-import Link from 'next/link'
+import { useEffect, useRef, useState, type KeyboardEvent, type MouseEvent } from 'react'
+import { useRouter } from 'next/navigation'
 import { useInfinitePages } from './useInfinitePages'
 import { SortHeader } from './SortHeader'
 import { GamePanel, type PanelGame } from './GamePanel'
+import { GameBulkBar } from './GameBulkBar'
 import { DeleteGameButton } from './GraveyardClient'
 import { FIELD_WEIGHTS, type FieldKey } from '@/lib/games/completeness'
 import { AdminButton } from '@/components/admin/AdminButton'
@@ -14,6 +15,8 @@ import type { AdminGameRow } from '@/lib/games/list'
 // The admin's game table, shared by the library and the graveyard. Rows arrive a page
 // at a time from the list API as the reader scrolls: the table never holds the whole
 // library, and a sort or filter change starts again from the first page.
+// In the library, a click anywhere on a row opens its panel, and the checkbox selects
+// rows for the bulk bar.
 
 const MISSING_NAME = Object.fromEntries(FIELD_WEIGHTS.map(f => [f.key, f.label])) as Record<FieldKey, string>
 
@@ -50,18 +53,23 @@ interface Props {
 }
 
 export function AdminGameTable({ variant, query, sort, sortLinks, panel = null }: Props) {
+  const router = useRouter()
   const endpoint = variant === 'library' ? '/api/admin/games/list' : '/api/admin/graveyard/list'
   const restoreKey = `admin-table:${variant}:${query}`
   // The position is restored once, on the first mount of this query: it reopens the
   // pages the reader had loaded, so the scroll lands where it was.
   const [saved] = useState(() => (typeof window === 'undefined' ? null : readSaved(restoreKey)))
   const restored = useRef(false)
+  const [selected, setSelected] = useState<Set<number>>(() => new Set())
 
   const { items, total, hasMore, loaded: data, isLoading, isValidating, failed, mutate, sentinelRef, size } = useInfinitePages<AdminGameRow>({
     url: endpoint,
     query,
     initialSize: saved?.size ?? 1,
   })
+
+  // A new filter or sort is a new list: the old selection does not apply to it.
+  useEffect(() => { setSelected(new Set()) }, [query])
 
   // Restore the scroll once the saved pages are in.
   useEffect(() => {
@@ -92,6 +100,20 @@ export function AdminGameTable({ variant, query, sort, sortLinks, panel = null }
   const panelRow = (id: number) => `/admin/games?${query}${query ? '&' : ''}panel=${id}`
   const prevHref = variant === 'library' && idx > 0 ? panelRow(items[idx - 1].id) : null
   const nextHref = variant === 'library' && idx >= 0 && idx < items.length - 1 ? panelRow(items[idx + 1].id) : null
+  const openPanel = (id: number) => router.push(panelRow(id), { scroll: false })
+
+  const toggle = (id: number) => setSelected(prev => {
+    const next = new Set(prev)
+    if (next.has(id)) next.delete(id); else next.add(id)
+    return next
+  })
+  const allLoadedChecked = items.length > 0 && items.every(r => selected.has(r.id))
+  const toggleAllLoaded = () => setSelected(prev => {
+    const next = new Set(prev)
+    if (allLoadedChecked) items.forEach(r => next.delete(r.id))
+    else items.forEach(r => next.add(r.id))
+    return next
+  })
 
   const cols = variant === 'library'
     ? [
@@ -111,7 +133,7 @@ export function AdminGameTable({ variant, query, sort, sortLinks, panel = null }
         { key: 'lastSeen', label: 'Visto por última vez' },
       ]
 
-  const colSpan = cols.length + 2
+  const colSpan = cols.length + 2 + (variant === 'library' ? 1 : 0)
   const showEmpty = data !== undefined && items.length === 0 && !hasMore
 
   return (
@@ -126,6 +148,18 @@ export function AdminGameTable({ variant, query, sort, sortLinks, panel = null }
           <table className="w-full min-w-[760px] text-sm">
             <thead className="border-b border-border text-left text-muted-foreground">
               <tr>
+                {variant === 'library' && (
+                  <th scope="col" className="w-10 px-3 py-3 font-medium">
+                    <input
+                      type="checkbox"
+                      aria-label="Seleccionar los juegos cargados"
+                      checked={allLoadedChecked}
+                      onChange={toggleAllLoaded}
+                      disabled={items.length === 0}
+                      className="accent-violet-500"
+                    />
+                  </th>
+                )}
                 <th scope="col" className="w-12 px-3 py-3 font-medium"><span className="sr-only">Portada</span></th>
                 {cols.map(c => (
                   <SortHeader
@@ -160,7 +194,16 @@ export function AdminGameTable({ variant, query, sort, sortLinks, panel = null }
               )}
               {items.map(g => (
                 variant === 'library'
-                  ? <LibraryRow key={g.id} row={g} selected={panel?.game.id === g.id} editHref={panelRow(g.id)} />
+                  ? (
+                    <LibraryRow
+                      key={g.id}
+                      row={g}
+                      selected={panel?.game.id === g.id}
+                      checked={selected.has(g.id)}
+                      onToggle={() => toggle(g.id)}
+                      onOpen={() => openPanel(g.id)}
+                    />
+                  )
                   : <GraveyardRow key={g.id} row={g} onDeleted={() => mutate()} />
               ))}
             </tbody>
@@ -174,6 +217,14 @@ export function AdminGameTable({ variant, query, sort, sortLinks, panel = null }
       )}
       {!hasMore && items.length > 0 && (
         <p className="py-4 text-center text-xs text-muted-foreground">Fin de la lista · {items.length.toLocaleString('es-ES')} de {(total ?? 0).toLocaleString('es-ES')}</p>
+      )}
+
+      {variant === 'library' && selected.size > 0 && (
+        <GameBulkBar
+          ids={[...selected]}
+          onDone={() => mutate()}
+          onClear={() => setSelected(new Set())}
+        />
       )}
 
       {panel && (
@@ -203,11 +254,37 @@ function Cover({ src, title, dim }: { src: string | null; title: string; dim?: b
   )
 }
 
-function LibraryRow({ row: g, selected, editHref }: { row: AdminGameRow; selected: boolean; editHref: string }) {
+// Clicks on the controls inside a row (checkbox, buttons, links) keep their own job;
+// a click anywhere else on the row opens the panel.
+const INTERACTIVE = 'input,button,a,label,select,textarea'
+
+function LibraryRow({ row: g, selected, checked, onToggle, onOpen }: {
+  row: AdminGameRow
+  selected: boolean
+  checked: boolean
+  onToggle: () => void
+  onOpen: () => void
+}) {
   const bar = g.percent >= 70 ? 'bg-emerald-400' : g.percent >= 40 ? 'bg-amber-400' : 'bg-rose-400'
   const missingNames = g.missing.map(k => MISSING_NAME[k])
+  const onClick = (e: MouseEvent<HTMLTableRowElement>) => {
+    if ((e.target as HTMLElement).closest(INTERACTIVE)) return
+    onOpen()
+  }
+  const onKeyDown = (e: KeyboardEvent<HTMLTableRowElement>) => {
+    if (e.key === 'Enter' && e.target === e.currentTarget) onOpen()
+  }
   return (
-    <tr aria-selected={selected} className={`border-b border-border/50 last:border-0 ${selected ? 'bg-primary/10' : 'hover:bg-accent/30'}`}>
+    <tr
+      tabIndex={0}
+      onClick={onClick}
+      onKeyDown={onKeyDown}
+      aria-selected={selected}
+      className={`cursor-pointer border-b border-border/50 last:border-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${selected ? 'bg-primary/10' : 'hover:bg-accent/30'}`}
+    >
+      <td className="px-3 py-2">
+        <input type="checkbox" aria-label={`Seleccionar ${g.title}`} checked={checked} onChange={onToggle} className="accent-violet-500" />
+      </td>
       <td className="px-3 py-2"><Cover src={g.coverSrc} title={g.title} /></td>
       <td className="max-w-xs px-3 py-2"><span className="block truncate font-medium">{g.title}</span></td>
       <td className="px-3 py-2 text-muted-foreground">{g.platformName}</td>
@@ -229,11 +306,7 @@ function LibraryRow({ row: g, selected, editHref }: { row: AdminGameRow; selecte
         {missingNames.length === 0 ? <span className="text-muted-foreground">—</span> : missingNames.slice(0, 3).join(', ') + (missingNames.length > 3 ? ` +${missingNames.length - 3}` : '')}
       </td>
       <td className="px-3 py-2 text-right text-muted-foreground tabular-nums">{formatBytes(g.fileSize)}</td>
-      <td className="px-3 py-2 text-right">
-        <Link href={editHref} scroll={false} aria-current={selected ? 'true' : undefined} className="inline-flex items-center rounded-md bg-secondary px-2.5 py-1 text-xs hover:bg-accent">
-          Editar
-        </Link>
-      </td>
+      <td className="px-3 py-2" />
     </tr>
   )
 }

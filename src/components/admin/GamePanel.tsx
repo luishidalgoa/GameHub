@@ -12,6 +12,8 @@ import { parseFeaturedOrder } from '@/lib/featured-order'
 import { FeaturedSlotField } from './FeaturedSlotField'
 import { mutate } from 'swr'
 import { AdminButton } from '@/components/admin/AdminButton'
+import type { BlacklistState } from '@/lib/blacklist'
+import { BlacklistControl } from './BlacklistControl'
 
 export interface PanelGame {
   id: number
@@ -34,7 +36,8 @@ export interface PanelGame {
   isFavorite: boolean
   isFeatured: boolean
   featuredOrder: number | null
-  isHidden: boolean
+  /** Lista negra: a torrent game that is listed, free to list, or a local file (not listable). */
+  blacklist: BlacklistState
   metadataFetchedAt: string | null
 }
 
@@ -61,7 +64,6 @@ function formFrom(game: PanelGame) {
     releaseYear: game.releaseYear === null ? '' : String(game.releaseYear),
     rawgScore: game.rawgScore === null ? '' : String(game.rawgScore),
     isFavorite: game.isFavorite, isFeatured: game.isFeatured, featuredOrder: game.featuredOrder != null ? String(game.featuredOrder) : '',
-    isHidden: game.isHidden,
   }
 }
 
@@ -123,7 +125,6 @@ export function GamePanel({ game, percent, missing, closeHref, imagesHref, prevH
         isFavorite: form.isFavorite,
         isFeatured: form.isFeatured,
         featuredOrder: parseFeaturedOrder(form.featuredOrder),
-        isHidden: form.isHidden,
       }),
     })
     setSaving(false)
@@ -218,8 +219,14 @@ export function GamePanel({ game, percent, missing, closeHref, imagesHref, prevH
               <span className="mb-1.5 block">Puesto en portada</span>
               <FeaturedSlotField gameId={game.id} value={form.featuredOrder} current={game.featuredOrder} featured={form.isFeatured} inputClassName={input} onChange={v => set('featuredOrder', v)} />
             </div>
-            <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.isHidden} onChange={e => set('isHidden', e.target.checked)} /> Oculto (cementerio)</label>
           </fieldset>
+
+          <BlacklistControl
+            key={game.id}
+            gameId={game.id}
+            initial={game.blacklist}
+            onChanged={() => { onSaved?.(); router.refresh() }}
+          />
 
           <div className="flex items-center gap-3 pt-2">
             <AdminButton variant="primary" type="submit" disabled={saving}>
