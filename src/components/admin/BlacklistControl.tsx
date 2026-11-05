@@ -42,9 +42,6 @@ export function BlacklistControl({ gameId, initial, onChanged }: Props) {
   return (
     <section aria-labelledby="lista-negra-panel" className="space-y-2 border-t border-border pt-5">
       <h3 id="lista-negra-panel" className="text-sm font-medium">Lista negra</h3>
-      {state === 'local' && (
-        <p className="text-xs text-muted-foreground">Es un fichero local: no tiene identidad de catálogo y no puede ir a la lista negra.</p>
-      )}
       {state === 'listed' && (
         <p className="text-xs text-muted-foreground">Está en la lista negra: la sincronización de torrents no lo vuelve a traer.</p>
       )}
@@ -60,11 +57,6 @@ export function BlacklistControl({ gameId, initial, onChanged }: Props) {
         {state === 'listed' && (
           <AdminButton variant="secondary" size="sm" type="button" disabled={busy} onClick={() => run('unblacklist')}>
             Quitar de la lista negra
-          </AdminButton>
-        )}
-        {state === 'local' && (
-          <AdminButton variant="secondary" size="sm" type="button" disabled>
-            No disponible
           </AdminButton>
         )}
         <span role="status" aria-live="polite" className="text-xs text-muted-foreground">{busy ? 'Guardando…' : text}</span>

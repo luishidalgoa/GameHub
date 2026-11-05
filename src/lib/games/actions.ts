@@ -35,6 +35,26 @@ export const GAME_ACTIONS = {
     takes: 'games',
     run: async ids => ({ updated: (await db.game.updateMany({ where: { id: { in: ids } }, data: { isFavorite: false } })).count }),
   },
+  // Hidden by hand (the cementerio). A game the scanner lost stays hidden on showing:
+  // its file is still missing, and the scanner sets that state, not the admin.
+  hide: {
+    takes: 'games',
+    run: async ids => ({ hidden: (await db.game.updateMany({ where: { id: { in: ids } }, data: { isHidden: true, userHidden: true } })).count }),
+  },
+  unhide: {
+    takes: 'games',
+    run: async ids => {
+      const shown = await db.game.updateMany({
+        where: { id: { in: ids }, missingSince: null },
+        data: { isHidden: false, userHidden: false },
+      })
+      const stillMissing = await db.game.updateMany({
+        where: { id: { in: ids }, missingSince: { not: null } },
+        data: { userHidden: false },
+      })
+      return { shown: shown.count, stillMissing: stillMissing.count }
+    },
+  },
 } satisfies Record<string, GameAction>
 
 export type GameActionName = keyof typeof GAME_ACTIONS

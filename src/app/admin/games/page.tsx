@@ -107,6 +107,7 @@ export default async function AdminGamesPage({ searchParams }: { searchParams: R
     isFeatured: panelGame.isFeatured,
     featuredOrder: panelGame.featuredOrder,
     blacklist: panelBlacklist,
+    isHidden: panelGame.isHidden,
     metadataFetchedAt: panelGame.metadataFetchedAt ? panelGame.metadataFetchedAt.toISOString() : null,
   }
   const panelCompleteness = panelGame ? completeness(panelGame) : null

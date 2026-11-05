@@ -14,6 +14,7 @@ import { mutate } from 'swr'
 import { AdminButton } from '@/components/admin/AdminButton'
 import type { BlacklistState } from '@/lib/blacklist'
 import { BlacklistControl } from './BlacklistControl'
+import { VisibilityControl } from './VisibilityControl'
 
 export interface PanelGame {
   id: number
@@ -38,6 +39,8 @@ export interface PanelGame {
   featuredOrder: number | null
   /** Lista negra: a torrent game that is listed, free to list, or a local file (not listable). */
   blacklist: BlacklistState
+  /** Hidden by the admin or by the scanner (missing file). Local files hide by hand here. */
+  isHidden: boolean
   metadataFetchedAt: string | null
 }
 
@@ -221,12 +224,23 @@ export function GamePanel({ game, percent, missing, closeHref, imagesHref, prevH
             </div>
           </fieldset>
 
-          <BlacklistControl
-            key={game.id}
-            gameId={game.id}
-            initial={game.blacklist}
-            onChanged={() => { onSaved?.(); router.refresh() }}
-          />
+          {game.blacklist === 'local'
+            ? (
+              <VisibilityControl
+                key={game.id}
+                gameId={game.id}
+                initialHidden={game.isHidden}
+                onChanged={() => { onSaved?.(); router.refresh() }}
+              />
+            )
+            : (
+              <BlacklistControl
+                key={game.id}
+                gameId={game.id}
+                initial={game.blacklist}
+                onChanged={() => { onSaved?.(); router.refresh() }}
+              />
+            )}
 
           <div className="flex items-center gap-3 pt-2">
             <AdminButton variant="primary" type="submit" disabled={saving}>
