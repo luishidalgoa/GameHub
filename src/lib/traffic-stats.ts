@@ -191,6 +191,48 @@ export function positionOf(frontier: number, bytesSent: number): number {
   return frontier > 0 ? frontier : bytesSent
 }
 
+/** Una fila de DownloadLog con lo necesario para agrupar sus intentos. */
+export interface AttemptRow {
+  id: number
+  gameId: number
+  ip: string
+  dlcId: number | null
+  fileName: string
+  fileSize: bigint | number
+  bytesSent: bigint | number
+  frontier: bigint | number
+  completed: boolean
+  startedAt: Date
+  lastByteAt: Date | null
+}
+
+/**
+ * Descargas completas por juego. Un juego que se para y se reanuda, o que el cliente reintenta,
+ * son varios intentos de una misma descarga: cuenta una vez, cuando llega al final del archivo.
+ */
+export function completedDownloadsByGame(rows: AttemptRow[], now: number): Map<number, number> {
+  const records: AttemptRecord[] = rows.map(r => ({
+    id: r.id,
+    key: `${r.ip}|${r.gameId}|${r.dlcId ?? ''}|${r.fileName}`,
+    fileSize: Number(r.fileSize),
+    bytesSent: Number(r.bytesSent),
+    position: positionOf(Number(r.frontier), Number(r.bytesSent)),
+    startedAt: r.startedAt.getTime(),
+    lastByteAt: r.lastByteAt ? r.lastByteAt.getTime() : null,
+    completed: r.completed,
+    untracked: Number(r.bytesSent) === 0 && Number(r.frontier) === 0,
+  }))
+  const gameOf = new Map(rows.map(r => [r.id, r.gameId]))
+  const counts = new Map<number, number>()
+  for (const group of groupAttempts(records, now)) {
+    if (group.position < group.fileSize) continue
+    const gameId = gameOf.get(group.latestId)
+    if (gameId === undefined) continue
+    counts.set(gameId, (counts.get(gameId) ?? 0) + 1)
+  }
+  return counts
+}
+
 /**
  * Une los intentos de una misma descarga y decide su estado. Activa si algún intento recibe
  * bytes; completa si la posición más lejana llega al final del archivo; en pausa si lleva

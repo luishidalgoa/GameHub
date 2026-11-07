@@ -53,3 +53,31 @@ describe('clientSummary', () => {
     expect(summary.headers).toEqual({ 'user-agent': 'GameHubNX/1.17.0', 'accept-language': 'es-ES' })
   })
 })
+
+describe('a declared device id identifies the console', () => {
+  it('two consoles behind the same IP and User-Agent are told apart by their device id', () => {
+    const base = {
+      ip: '192.168.0.16',
+      headers: { 'user-agent': 'GameHubNX/1.18.1' },
+      detected: { client: 'gamehubnx', clientVersion: '1.18.1', device: 'console', browser: 'Other' },
+      os: { os: 'Nintendo', osVersion: '', deviceModel: 'Switch' },
+      route: 'shop', gameId: 1, dlcId: null, dlcType: null, fileName: 'a.nsz', fileSize: 1, range: null,
+      at: new Date('2026-11-07T10:00:00Z'),
+    }
+    const a = clientSummary({ ...base, deviceId: '62a35e0c-b8be-4469-87eb-9265e9930ca9' })
+    const b = clientSummary({ ...base, deviceId: '11111111-2222-3333-4444-555555555555' })
+    expect(a.clientId).toBe('62a35e0c-b8be-4469-87eb-9265e9930ca9')
+    expect(a.clientId).not.toBe(b.clientId)
+  })
+
+  it('without a device id the IP and User-Agent identify the client', () => {
+    const s = clientSummary({
+      ip: '10.0.0.5', headers: { 'user-agent': 'curl/8' },
+      detected: { client: 'other', clientVersion: null, device: 'unknown', browser: 'curl' },
+      os: { os: 'Unknown', osVersion: '', deviceModel: '' },
+      route: 'shop', gameId: 1, dlcId: null, dlcType: null, fileName: 'a.nsz', fileSize: 1, range: null,
+      deviceId: '   ', at: new Date(),
+    })
+    expect(s.clientId).toBe(clientIdOf('10.0.0.5', 'curl/8'))
+  })
+})

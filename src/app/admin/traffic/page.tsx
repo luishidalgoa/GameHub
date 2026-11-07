@@ -302,7 +302,7 @@ function formatRate(bytesPerSecond: number): string {
 function ClientTag({ d }: { d: DownloadRow }) {
   return (
     <span className="block text-xs text-muted-foreground font-mono truncate" title="Identificador del dispositivo y del intento">
-      {d.clientId ? `cliente ${d.clientId}` : 'cliente sin id'} · {d.ip} · {d.device ?? '—'} · {d.browser ?? '—'} · intento #{d.id}
+      {d.clientId ? `cliente ${d.clientId.slice(0, 8)}` : 'cliente sin id'} · {d.ip} · {d.device ?? '—'} · {d.browser ?? '—'} · intento #{d.id}
     </span>
   )
 }
@@ -457,7 +457,7 @@ function DescargasView({ data, live }: { data: TrafficData; live: LiveData | und
         </Panel>
       </div>
 
-      <Panel title="Juegos más descargados" note="Tramos completados. El tamaño es el del archivo del juego, no bytes transferidos.">
+      <Panel title="Juegos más descargados" note="Descargas completas: una descarga que se para y se reanuda cuenta una vez. El tamaño es el del archivo del juego, no bytes transferidos.">
         {!hasGames ? (
           <Empty>Sin descargas en los últimos 30 días.</Empty>
         ) : (
@@ -465,7 +465,7 @@ function DescargasView({ data, live }: { data: TrafficData; live: LiveData | und
             <BarChart
               data={downloads.topGames.map((g) => ({
                 name: g.title.length > 24 ? g.title.slice(0, 22) + '…' : g.title,
-                tramos: g.count,
+                descargas: g.count,
                 size: g.fileSize,
               }))}
               layout="vertical" barSize={16} margin={{ left: 8, right: 40 }}
@@ -476,11 +476,11 @@ function DescargasView({ data, live }: { data: TrafficData; live: LiveData | und
                 contentStyle={{ background: '#1c1c27', border: '1px solid #333', borderRadius: 6, fontSize: 12 }}
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 formatter={(val: any, _name: any, props: any) => [
-                  `${val} tramos · archivo ${formatBytes(BigInt(props.payload?.size ?? '0'))}`, 'Descargas',
+                  `${val} ${val === 1 ? 'descarga' : 'descargas'} · archivo ${formatBytes(BigInt(props.payload?.size ?? '0'))}`, 'Descargas',
                 ]}
               />
-              <Bar dataKey="tramos" fill="#6366f1" radius={[0, 4, 4, 0]}>
-                <LabelList dataKey="tramos" position="right" style={{ fontSize: 11, fill: '#9ca3af' }} />
+              <Bar dataKey="descargas" fill="#6366f1" radius={[0, 4, 4, 0]}>
+                <LabelList dataKey="descargas" position="right" style={{ fontSize: 11, fill: '#9ca3af' }} />
               </Bar>
             </BarChart>
           </ResponsiveContainer>

@@ -4,7 +4,7 @@ import { getRateLimitAlerts, parseUaDetail } from '@/lib/tracker'
 import { adminGuard } from '@/lib/admin-guard'
 import { RETENTION_DAYS } from '@/lib/retention'
 import { trustProxy } from '@/lib/net'
-import { ABANDON_AFTER_MS, countByDay, dayStarts, successPercent } from '@/lib/traffic-stats'
+import { ABANDON_AFTER_MS, completedDownloadsByGame, countByDay, dayStarts, successPercent } from '@/lib/traffic-stats'
 
 export const dynamic = 'force-dynamic'
 
@@ -92,12 +92,10 @@ export async function GET() {
       _count: { _all: true },
     }),
 
-    db.downloadLog.groupBy({
-      by: ['gameId'],
-      where: { dlcId: null, completed: true, startedAt: { gte: monthAgo } },
-      _count: { _all: true },
-      orderBy: { _count: { gameId: 'desc' } },
-      take: 10,
+    // Intentos de 30 días: se agrupan por descarga abajo, un reintento no es otra descarga.
+    db.downloadLog.findMany({
+      where: { dlcId: null, startedAt: { gte: monthAgo }, OR: [{ completed: true }, { bytesSent: { gt: BigInt(0) } }] },
+      select: { id: true, gameId: true, ip: true, dlcId: true, fileName: true, fileSize: true, bytesSent: true, frontier: true, completed: true, startedAt: true, lastByteAt: true },
     }),
 
     db.downloadLog.groupBy({
@@ -150,19 +148,20 @@ export async function GET() {
     { completed: 0, abandoned: 0, inProgress: 0 },
   )
 
-  // ── Juegos mas descargados (tramos completados, 30 dias)
-  const gameIds = topGamesRaw.map((g) => g.gameId)
+  // ── Juegos mas descargados (descargas completas, 30 dias)
+  const completedByGame = completedDownloadsByGame(topGamesRaw, Date.now())
+  const topIds = [...completedByGame].sort((a, b) => b[1] - a[1]).slice(0, 10)
   const games = await db.game.findMany({
-    where: { id: { in: gameIds } },
+    where: { id: { in: topIds.map(([id]) => id) } },
     select: { id: true, title: true, fileSize: true },
   })
   const gameMap = new Map(games.map((g) => [g.id, g]))
-  const topGames = topGamesRaw.map((g) => {
-    const game = gameMap.get(g.gameId)
+  const topGames = topIds.map(([gameId, count]) => {
+    const game = gameMap.get(gameId)
     return {
-      gameId: g.gameId,
+      gameId,
       title: game?.title ?? 'Desconocido',
-      count: g._count._all,
+      count,
       // Tamano del archivo del juego, no bytes transferidos: DownloadLog guarda
       // el tamano completo en cada tramo, asi que sumarlos inflaria el total.
       fileSize: game?.fileSize?.toString() ?? '0',

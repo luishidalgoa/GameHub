@@ -42,6 +42,8 @@ export interface ClientSummaryInput {
   fileSize: number
   /** Cabecera Range de la primera petición, si la hubo. */
   range: string | null
+  /** Identificador que el cliente declara (X-GameHub-Device). Si lo hay, identifica al aparato. */
+  deviceId?: string | null
   at: Date
 }
 
@@ -90,8 +92,10 @@ export function safeHeaders(headers: Record<string, string>): Record<string, str
 
 export function clientSummary(input: ClientSummaryInput): ClientSummary {
   const userAgent = input.headers['user-agent'] ?? ''
+  const declared = input.deviceId?.trim()
   return {
-    clientId: clientIdOf(input.ip, userAgent),
+    // Dos consolas detrás de la misma IP tienen el mismo User-Agent: su identificador propio las separa.
+    clientId: declared ? declared : clientIdOf(input.ip, userAgent),
     ip: input.ip,
     client: input.detected.client,
     clientVersion: input.detected.clientVersion,

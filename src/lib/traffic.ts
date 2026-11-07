@@ -42,6 +42,7 @@ export async function logDownloadStart(opts: {
     fileName: opts.fileName,
     fileSize: Number(opts.fileSize),
     range: h.get('range'),
+    deviceId: h.get('x-gamehub-device'),
     at,
   })
   const log = await db.downloadLog.create({
