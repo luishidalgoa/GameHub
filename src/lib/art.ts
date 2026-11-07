@@ -5,6 +5,7 @@ import { uploadToS3 } from '@/lib/s3'
 import { storeGameImages, kindOf, type StoredImage } from '@/lib/game-images'
 import { providerFetch } from '@/lib/metadata/http'
 import { fetchSteamGridDBArts, type SgdbArtType } from '@/lib/metadata/steamgriddb'
+import { searchSteamApp, steamBackgrounds } from '@/lib/metadata/steam'
 import {
   getLaunchBoxProvider, getLaunchBoxPlatformName, LAUNCHBOX_PLATFORM_NAMES,
   type LaunchBoxGame,
@@ -106,6 +107,35 @@ async function steamGridFallback(
   return out
 }
 
+/** Fondo de la tarjeta desde SteamGridDB: el primer héroe que el dueño no ha quitado. */
+async function fanartFromSteamGridDB(
+  game: { id: number; platformSlug: string; title?: string },
+  removed: Set<string>,
+): Promise<StoredImage | null> {
+  const url = (await fetchSteamGridDBArts(game.title ?? '', 'heroes')).find(u => !removed.has(u))
+  if (!url) return null
+  const { byUrl } = await storeGameImages({ id: game.id, platformSlug: game.platformSlug }, [{ url, type: 'Fanart - Background' }], 250)
+  return byUrl.get(url) ?? null
+}
+
+/** Fondo de la tarjeta desde la ficha de Steam: su fondo de página, si la app de Steam tiene el título. */
+async function fanartFromSteam(
+  game: { id: number; platformSlug: string; title?: string },
+  removed: Set<string>,
+): Promise<StoredImage | null> {
+  try {
+    const appid = await searchSteamApp(game.title ?? '')
+    if (appid === null) return null
+    const url = (await steamBackgrounds(appid)).map(b => b.url).find(u => !removed.has(u))
+    if (!url) return null
+    const { byUrl } = await storeGameImages({ id: game.id, platformSlug: game.platformSlug }, [{ url, type: 'Fanart - Background' }], 250)
+    return byUrl.get(url) ?? null
+  } catch {
+    // Steam no responde: el fondo sigue con las demás fuentes de la cadena.
+    return null
+  }
+}
+
 /**
  * The one place LaunchBox images become the game's art. Every image LaunchBox publishes
  * goes into the repository (GameImage, categorized); the banner, the fanart and the logo
@@ -149,7 +179,8 @@ export async function storeLaunchBoxArt(
 
   const backdrop = pickBackdrop(images)
   const bd = chains.banner.includes('launchbox') ? stored(backdrop?.image) : null
-  const fa = stored(pickFanart(images))
+  // El fondo de las tarjetas: LaunchBox ya guardado; SteamGridDB y Steam se piden luego, solo si la cadena los tiene.
+  const faLb = chains.fanart.includes('launchbox') ? stored(pickFanart(images)) : null
   const lo = chains.logo.includes('launchbox') ? stored(pickLogo(images)) : null
 
   // SteamGridDB fills the banner, the logo and the icon. The banner and the logo are asked only when
@@ -171,6 +202,23 @@ export async function storeLaunchBoxArt(
   const sgBannerPick = sgBanner ? { img: sgBanner, kind: 'banner' } : null
   const bannerPick = bannerSgFirst ? (sgBannerPick ?? lbBanner) : (lbBanner ?? sgBannerPick)
   const logoPick = logoSgFirst ? (sgLogo ?? lo) : (lo ?? sgLogo)
+
+  // El fondo de las tarjetas sigue su cadena, en su orden. SteamGridDB y Steam solo rellenan el
+  // fondo (la tarjeta), así que no se piden si ese dato no se escribe en esta pasada.
+  let fa: StoredImage | null = null
+  for (const source of chains.fanart) {
+    if (source === 'launchbox') {
+      if (faLb) { fa = faLb; break }
+      continue
+    }
+    if (!want('tile')) break
+    if (source === 'steamgriddb' && opts.found && game.title) {
+      fa = await fanartFromSteamGridDB(game, removed)
+    } else if (source === 'steam' && game.title) {
+      fa = await fanartFromSteam(game, removed)
+    }
+    if (fa) break
+  }
 
   const data: Record<string, unknown> = { artCheckedAt: new Date() }
   if (opts.launchboxId) data.launchboxId = opts.launchboxId

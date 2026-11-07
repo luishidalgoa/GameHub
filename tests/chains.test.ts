@@ -122,3 +122,11 @@ describe('the banner, the logo and the Steam source', () => {
     expect(r.logo).toEqual(DEFAULT_CHAINS.logo)
   })
 })
+
+describe('the fondo of the cards', () => {
+  it('takes LaunchBox, then SteamGridDB, by default; Steam is an option', () => {
+    expect(DEFAULT_CHAINS.fanart).toEqual(['launchbox', 'steamgriddb'])
+    expect(optionsFor('fanart', 'switch')).toEqual(['launchbox', 'steamgriddb', 'steam'])
+    expect(sanitizeChain('fanart', ['nintendo', 'steam'], 'switch')).toEqual(['steam'])
+  })
+})

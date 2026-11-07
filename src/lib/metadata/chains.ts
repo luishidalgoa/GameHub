@@ -20,6 +20,10 @@ export type ScreenshotSource = typeof SCREENSHOT_SOURCES[number]
 export const ART_SOURCES = ['launchbox', 'steamgriddb'] as const
 export type ArtSource = typeof ART_SOURCES[number]
 
+/** Fondo de las tarjetas (16:9): LaunchBox, SteamGridDB (heroes) o la ficha de Steam. */
+export const FANART_SOURCES = ['launchbox', 'steamgriddb', 'steam'] as const
+export type FanartSource = typeof FANART_SOURCES[number]
+
 export interface ProviderChains {
   cover: CoverSource[]
   info: InfoSource[]
@@ -27,6 +31,7 @@ export interface ProviderChains {
   screenshots: ScreenshotSource[]
   banner: ArtSource[]
   logo: ArtSource[]
+  fanart: FanartSource[]
 }
 
 export type ChainField = keyof ProviderChains
@@ -36,7 +41,7 @@ export type ChainField = keyof ProviderChains
  * quality. Twice the box is the size a sharp card needs on a high-density screen.
  */
 export const COVER_MIN_SCALE = 2
-export const CHAIN_FIELDS: readonly ChainField[] = ['cover', 'info', 'description', 'screenshots', 'banner', 'logo']
+export const CHAIN_FIELDS: readonly ChainField[] = ['cover', 'info', 'description', 'screenshots', 'banner', 'logo', 'fanart']
 
 /** What each field's chain can hold, for a platform. Only Switch has the Nintendo store's covers. */
 export function optionsFor(field: ChainField, slug: string): readonly string[] {
@@ -47,6 +52,7 @@ export function optionsFor(field: ChainField, slug: string): readonly string[] {
     case 'screenshots': return SCREENSHOT_SOURCES
     case 'banner':      return ART_SOURCES
     case 'logo':        return ART_SOURCES
+    case 'fanart':      return FANART_SOURCES
   }
 }
 
@@ -58,6 +64,7 @@ export const DEFAULT_CHAINS: ProviderChains = {
   screenshots: ['launchbox'],
   banner:      ['launchbox', 'steamgriddb'],
   logo:        ['launchbox', 'steamgriddb'],
+  fanart:      ['launchbox', 'steamgriddb'],
 }
 
 /**
@@ -140,7 +147,7 @@ export function resolveChains(global: ProviderChains, override: Partial<Provider
       ?? []) as ProviderChains[F]
   return {
     cover: pick('cover'), info: pick('info'), description: pick('description'), screenshots: pick('screenshots'),
-    banner: pick('banner'), logo: pick('logo'),
+    banner: pick('banner'), logo: pick('logo'), fanart: pick('fanart'),
   }
 }
 

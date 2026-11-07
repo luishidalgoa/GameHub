@@ -25,6 +25,7 @@ const FIELD_COPY: Record<ChainField, { label: string; hint: string }> = {
   screenshots: { label: 'Capturas',    hint: 'La primera fuente que tenga capturas. No se busca en otra si la primera no tiene ninguna.' },
   banner:      { label: 'Banner',      hint: 'La imagen ancha del juego. Se usa la primera fuente que la tenga, en el orden de la cadena.' },
   logo:        { label: 'Logo',        hint: 'El logo del juego con fondo transparente. Se usa la primera fuente que lo tenga.' },
+  fanart:      { label: 'Fondo',       hint: 'El fondo 16:9 de las tarjetas. Se usa la primera fuente que lo tenga, en el orden de la cadena.' },
 }
 
 const SOURCE_COPY: Record<string, { name: string; text: string }> = {
