@@ -13,6 +13,7 @@ const DAY_MS = 24 * 60 * 60 * 1000
 const downloadSelect = {
   id: true, ip: true, gameId: true, dlcId: true, dlcType: true, fileName: true, fileSize: true, bytesSent: true, frontier: true, completed: true,
   lastByteAt: true, startedAt: true, client: true, clientVersion: true,
+  clientId: true, device: true, browser: true,
   game: { select: { title: true } },
 } as const
 
@@ -20,7 +21,8 @@ const downloadSelect = {
 type DownloadRecord = {
   id: number; gameId: number; dlcId: number | null; dlcType: string | null; fileName: string; fileSize: bigint
   ip: string; bytesSent: bigint; frontier: bigint; completed: boolean; lastByteAt: Date | null; startedAt: Date
-  client: string | null; clientVersion: string | null; game: { title: string }
+  client: string | null; clientVersion: string | null; clientId: string | null; device: string | null; browser: string | null
+  game: { title: string }
 }
 
 /** Nombre de los DLC, actualizaciones y mods de las filas: el título del fichero si lo tiene, si no el nombre. */
@@ -62,6 +64,10 @@ function toDownloadRow(r: DownloadRecord, now: number, dlcTitles: Map<number, st
     fileName: r.fileName,
     client: r.client,
     clientVersion: r.clientVersion,
+    clientId: r.clientId,
+    ip: r.ip,
+    device: r.device,
+    browser: r.browser,
     fileSize: Number(r.fileSize),
     bytesSent: Number(r.bytesSent),
     ...p,

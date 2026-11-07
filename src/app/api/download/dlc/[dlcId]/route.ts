@@ -81,6 +81,7 @@ export async function GET(req: Request, { params }: { params: { dlcId: string } 
     // that starts the file is counted; the other ranges belong to the same session.
     const logId = start === 0 ? await logDownloadStart({
       req,
+      route: 'api/download/dlc',
       gameId: dlc.gameId,
       dlcId,
       dlcType: dlc.type,
@@ -111,6 +112,7 @@ export async function GET(req: Request, { params }: { params: { dlcId: string } 
   try {
     logId = await logDownloadStart({
       req,
+      route: 'api/download/dlc',
       gameId: dlc.gameId,
       dlcId,
       dlcType: dlc.type,

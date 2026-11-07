@@ -80,6 +80,11 @@ interface DownloadRow {
   fileName: string
   client: string | null
   clientVersion: string | null
+  /** Identificador corto del dispositivo: mismo valor, mismo cliente. */
+  clientId: string | null
+  ip: string
+  device: string | null
+  browser: string | null
   fileSize: number
   bytesSent: number
   progress: number
@@ -293,6 +298,15 @@ function formatRate(bytesPerSecond: number): string {
   return `${formatBytes(Math.round(bytesPerSecond))}/s`
 }
 
+/** Quién descarga: id corto del dispositivo, IP, dispositivo y navegador, y el intento en el historial. */
+function ClientTag({ d }: { d: DownloadRow }) {
+  return (
+    <span className="block text-xs text-muted-foreground font-mono truncate" title="Identificador del dispositivo y del intento">
+      {d.clientId ? `cliente ${d.clientId}` : 'cliente sin id'} · {d.ip} · {d.device ?? '—'} · {d.browser ?? '—'} · intento #{d.id}
+    </span>
+  )
+}
+
 /** Descargas en curso, con barra de progreso, y las que se pararon en las últimas 24 h. */
 function DownloadMonitor({ active, finished }: { active: DownloadRow[]; finished: DownloadRow[] }) {
   return (
@@ -310,6 +324,7 @@ function DownloadMonitor({ active, finished }: { active: DownloadRow[]; finished
                     <span className="text-xs text-muted-foreground truncate block">
                       {downloadKindLabel(d.kind)}{d.dlcTitle ? ` · ${d.dlcTitle}` : ''}
                     </span>
+                    <ClientTag d={d} />
                   </span>
                   <span className="text-xs text-muted-foreground tabular-nums">
                     {d.client ?? 'Cliente desconocido'}{d.clientVersion ? ` ${d.clientVersion}` : ''}
@@ -353,6 +368,7 @@ function DownloadMonitor({ active, finished }: { active: DownloadRow[]; finished
                       <span className="block text-xs text-muted-foreground">
                         {downloadKindLabel(d.kind)}{d.dlcTitle ? ` · ${d.dlcTitle}` : ''}
                       </span>
+                      <ClientTag d={d} />
                     </td>
                     <td className={`py-2 pr-3 ${summaryTone(d)}`}>
                       {summaryLabel(d)}

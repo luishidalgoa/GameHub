@@ -359,6 +359,11 @@ model DownloadLog {
   // mismo con la cabecera X-GameHub-Client, que es mas fiable que adivinar.
   client        String?
   clientVersion String?
+  // Identificador corto del dispositivo (hash de IP y User-Agent): sirve para reconocer el mismo cliente
+  // entre descargas. Ver src/lib/client-summary.ts.
+  clientId      String?
+  // Resumen completo del cliente al empezar el intento (JSON): cabeceras, SO, ruta y descarga.
+  clientInfo    String?
   fileName   String
   fileSize   BigInt
   startedAt  DateTime  @default(now())

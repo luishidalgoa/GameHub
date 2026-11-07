@@ -68,6 +68,7 @@ export async function serveShopFile(
   const logId = shouldLog
     ? await logDownloadStart({
         req,
+        route: 'shop',
         gameId:   target.gameId,
         dlcId:    target.dlcId,
         dlcType:  target.dlcType,

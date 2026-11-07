@@ -1,6 +1,16 @@
 import { db } from './db'
-import { detectDevice, detectBrowser, detectClient, getClientIp } from './tracker'
+import { detectDevice, detectBrowser, detectClient, getClientIp, parseUaDetail } from './tracker'
 import { DownloadMeter, type MeterFlush } from './download-meter'
+import { clientSummary } from './client-summary'
+
+/** Todas las cabeceras de la petición, para el resumen del cliente (sin las secretas: ver client-summary). */
+function allHeaders(req: Request): Record<string, string> {
+  const out: Record<string, string> = {}
+  req.headers.forEach((value, name) => {
+    out[name.toLowerCase()] = value
+  })
+  return out
+}
 
 export async function logDownloadStart(opts: {
   req: Request
@@ -9,24 +19,46 @@ export async function logDownloadStart(opts: {
   dlcType?: string
   fileName: string
   fileSize: bigint
+  /** Ruta de la API que sirvió la descarga, para saber de dónde llegó en el historial. */
+  route?: string
 }): Promise<number> {
   const ip = getClientIp(opts.req)
   const h = opts.req.headers as unknown as { get: (k: string) => string | null }
   const ua = h.get('user-agent') ?? ''
   // Our own client identifies itself; everything else is sniffed from the UA.
   const { client, version } = detectClient(ua, h.get('x-gamehub-client'))
+  const device = detectDevice(ua)
+  const browser = detectBrowser(ua)
+  const at = new Date()
+  const summary = clientSummary({
+    ip,
+    headers: allHeaders(opts.req),
+    detected: { client, clientVersion: version, device, browser },
+    os: parseUaDetail(ua),
+    route: opts.route ?? 'unknown',
+    gameId: opts.gameId,
+    dlcId: opts.dlcId ?? null,
+    dlcType: opts.dlcType ?? null,
+    fileName: opts.fileName,
+    fileSize: Number(opts.fileSize),
+    range: h.get('range'),
+    at,
+  })
   const log = await db.downloadLog.create({
     data: {
       gameId: opts.gameId,
       dlcId: opts.dlcId,
       dlcType: opts.dlcType,
       ip,
-      device: detectDevice(ua),
-      browser: detectBrowser(ua),
+      device,
+      browser,
       client,
       clientVersion: version,
+      clientId: summary.clientId,
+      clientInfo: JSON.stringify(summary),
       fileName: opts.fileName,
       fileSize: opts.fileSize,
+      startedAt: at,
     },
   })
   return log.id
