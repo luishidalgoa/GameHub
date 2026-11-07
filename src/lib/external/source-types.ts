@@ -10,9 +10,14 @@ export interface SourceConfig {
   type: SourceType
   url: string
   enabled: boolean
+  /** Solo las entradas cuyo título lleve esta etiqueta entre corchetes, p. ej. "NUP" para Switch 2. */
+  onlyTag?: string
+  /** Las entradas con esta etiqueta entre corchetes se dejan fuera (la otra mitad de un reparto). */
+  exceptTag?: string
 }
 
 const KEY = /^[a-z0-9][a-z0-9-]{0,62}$/
+const TAG = /^[A-Za-z0-9]{1,16}$/
 
 /** Motivo por el que una fuente no es válida, o null si lo es. */
 export function sourceConfigError(c: Partial<SourceConfig>): string | null {
@@ -28,7 +33,25 @@ export function sourceConfigError(c: Partial<SourceConfig>): string | null {
   if (url.protocol !== 'https:') return 'la URL tiene que ser https'
   if (url.hostname !== host) return `la URL tiene que ser de ${host}`
   if (typeof c.enabled !== 'boolean') return 'enabled tiene que ser verdadero o falso'
+  if (c.onlyTag !== undefined && !TAG.test(c.onlyTag)) return 'onlyTag tiene que ser una etiqueta de letras y cifras'
+  if (c.exceptTag !== undefined && !TAG.test(c.exceptTag)) return 'exceptTag tiene que ser una etiqueta de letras y cifras'
+  if (c.onlyTag !== undefined && c.exceptTag !== undefined) return 'onlyTag y exceptTag no pueden ir juntas'
   return null
+}
+
+/**
+ * Reparte una fuente entre plataformas por la etiqueta del título («[NUP]»): con `onlyTag` se queda
+ * solo lo que la lleva; con `exceptTag` se quita. Sin etiqueta, la fuente entera.
+ */
+export function filterByTag<T extends { title?: string }>(
+  entries: T[],
+  source: Pick<SourceConfig, 'onlyTag' | 'exceptTag'>,
+): T[] {
+  const tag = source.onlyTag ?? source.exceptTag
+  if (!tag) return entries
+  const marker = `[${tag}]`.toLowerCase()
+  const has = (e: T) => (e.title ?? '').toLowerCase().includes(marker)
+  return source.onlyTag ? entries.filter(has) : entries.filter(e => !has(e))
 }
 
 export function parseSourceConfigs(raw: string | null | undefined): SourceConfig[] {

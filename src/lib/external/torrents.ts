@@ -7,7 +7,7 @@ import { titleKey } from './match'
 import { planFold } from './variants'
 import { cleanSwitchTitle } from './title-clean'
 import { createProvider, type RawEntry } from './sources'
-import { parseSourceConfigs, type SourceConfig } from './source-types'
+import { filterByTag, parseSourceConfigs, type SourceConfig } from './source-types'
 
 const CHUNK = 500
 
@@ -386,7 +386,7 @@ async function linkToLocal(platformId: number, platformSlug: string, rows: Exter
 
 /** Una fuente: la descarga, la convierte y escribe sus filas. Si falla, no toca nada de esa fuente. */
 async function syncOneSource(source: SourceConfig, platformId: number, platformSlug: string): Promise<SourceResult> {
-  const entries = await createProvider(source).fetchEntries()
+  const entries = filterByTag(await createProvider(source).fetchEntries(), source)
 
   const syncedAt = new Date()
   const rows = entries.flatMap(e => {
