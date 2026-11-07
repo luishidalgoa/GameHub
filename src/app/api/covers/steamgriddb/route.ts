@@ -25,6 +25,8 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url)
     const q      = searchParams.get('q')?.trim()
     const gameId = searchParams.get('gameId')
+    // Qué tipo de imagen: portadas (grids, por defecto), banners (heroes) o logos (logos).
+    const type = searchParams.get('type') === 'heroes' ? 'heroes' : searchParams.get('type') === 'logos' ? 'logos' : 'grids'
 
     const key = await getKey()
     if (!key) {
@@ -51,8 +53,11 @@ export async function GET(req: Request) {
 
     // ── Step 2: get covers for a game ────────────────────────────────────────
     if (gameId) {
-      // Portrait covers (600x900) — standard box art format
-      const res  = await fetch(`${BASE}/grids/game/${gameId}?dimensions=600x900,342x482&nsfw=false`, { headers })
+      // Portrait covers (600x900) — standard box art format; heroes and logos have no size filter.
+      const path = type === 'grids'
+        ? `${BASE}/grids/game/${gameId}?dimensions=600x900,342x482&nsfw=false`
+        : `${BASE}/${type}/game/${gameId}?nsfw=false`
+      const res  = await fetch(path, { headers })
       const data = await res.json()
       if (!res.ok) return NextResponse.json({ error: data.errors?.[0] ?? 'SteamGridDB error' }, { status: res.status })
 

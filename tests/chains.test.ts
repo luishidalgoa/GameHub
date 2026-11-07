@@ -92,3 +92,33 @@ describe('stale choices do not turn into "no source"', () => {
     expect(resolveChains(DEFAULT_CHAINS, chain, 'switch').cover).toEqual(['launchbox', 'steamgriddb', 'nintendo'])
   })
 })
+
+describe('the banner, the logo and the Steam source', () => {
+  it('banner and logo take LaunchBox, then SteamGridDB, by default', () => {
+    expect(DEFAULT_CHAINS.banner).toEqual(['launchbox', 'steamgriddb'])
+    expect(DEFAULT_CHAINS.logo).toEqual(['launchbox', 'steamgriddb'])
+  })
+
+  it('banner and logo can only use the art sources', () => {
+    expect(sanitizeChain('banner', ['steam', 'steamgriddb'], 'switch')).toEqual(['steamgriddb'])
+    expect(sanitizeChain('logo', ['rawg'], 'switch')).toBeNull()
+  })
+
+  it('Steam is an option for the info, the description and the screenshots, not for the cover', () => {
+    expect(optionsFor('info', 'switch')).toContain('steam')
+    expect(optionsFor('description', 'switch')).toContain('steam')
+    expect(optionsFor('screenshots', 'switch')).toContain('steam')
+    expect(optionsFor('cover', 'switch')).not.toContain('steam')
+  })
+
+  it('Steam is not in the default chains: it is added by hand in the editor', () => {
+    expect(DEFAULT_CHAINS.info).not.toContain('steam')
+    expect(DEFAULT_CHAINS.description).not.toContain('steam')
+  })
+
+  it('an own chain with only banner keeps the rest of the global chains', () => {
+    const r = resolveChains(DEFAULT_CHAINS, { banner: ['steamgriddb'] }, 'switch')
+    expect(r.banner).toEqual(['steamgriddb'])
+    expect(r.logo).toEqual(DEFAULT_CHAINS.logo)
+  })
+})

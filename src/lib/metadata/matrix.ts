@@ -26,7 +26,8 @@ export interface ProviderMatrix {
 }
 
 const CHAIN_KEY = 'provider_chains'
-const LEGACY_KEYS: Record<ChainField, string> = {
+// Banner and logo are new chains: no single-value column was ever stored for them.
+const LEGACY_KEYS: Partial<Record<ChainField, string>> = {
   cover:       'provider_cover',
   info:        'provider_info',
   description: 'provider_description',
@@ -50,7 +51,7 @@ export async function getProviderMatrix(platformSlug?: string): Promise<Provider
   ])
 
   const setting = (key: string) => rows.find(r => r.key === key)?.value || undefined
-  const legacy = (field: ChainField) => setting(LEGACY_KEYS[field])
+  const legacy = (field: ChainField) => { const key = LEGACY_KEYS[field]; return key ? setting(key) : undefined }
   const global = parseGlobal(setting(CHAIN_KEY), {
     cover: legacy('cover'), info: legacy('info'), description: legacy('description'), screenshots: legacy('screenshots'),
   })

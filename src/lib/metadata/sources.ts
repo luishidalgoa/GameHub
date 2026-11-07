@@ -17,6 +17,7 @@ export const PROVIDER_LABEL: Record<string, string> = {
   launchbox:   'LaunchBox',
   rawg:        'RAWG',
   steamgriddb: 'SteamGridDB',
+  steam:       'Steam',
   libretro:    'libretro',
   upload:      'Manual',
   url:         'URL',
@@ -25,7 +26,7 @@ export const PROVIDER_LABEL: Record<string, string> = {
 }
 
 export type FieldSource =
-  | 'launchbox' | 'rawg' | 'steamgriddb' | 'libretro' | 'nintendo'
+  | 'launchbox' | 'rawg' | 'steamgriddb' | 'steam' | 'libretro' | 'nintendo'
   | 'wikidata'    // a fact (developer, publisher, year, genre) filled from Wikidata
   | 'upload'      // a file dropped, pasted or picked from disk
   | 'url'         // pasted image URL

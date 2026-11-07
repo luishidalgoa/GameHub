@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import useSWR from 'swr'
 import { useTranslations } from 'next-intl'
+import { ArtSearch } from '@/components/admin/ArtSearch'
 import { Upload, Link2, Trash2, Check, ChevronLeft, ChevronRight, Loader2, RefreshCw } from 'lucide-react'
 import { CoverUploader } from './CoverUploader'
 import { AdminButton } from '@/components/admin/AdminButton'
@@ -248,6 +249,7 @@ export function GameImagesPanel({ gameId, gameTitle, platformSlug, coverPath, co
           busy={busy}
           base={base}
           label={label(tab)}
+          gameTitle={gameTitle}
           onRelease={async () => { await onRelease(SLOT_FIELD[tab]); await mutate() }}
           run={run}
           offerUndo={offerUndo}
@@ -283,8 +285,10 @@ const post = (body: unknown): RequestInit => ({ method: 'POST', headers: { 'Cont
 
 // ── Banner, fanart and logo: one active image, a library, and ways to bring a new one ──────────
 
-function SlotPanel({ slot, art, images, busy, base, label, onRelease, run, offerUndo, panel }: {
+function SlotPanel({ slot, art, images, busy, base, label, gameTitle, onRelease, run, offerUndo, panel }: {
   panel: boolean
+  /** The game's title: the first query of the search in other sources. */
+  gameTitle: string
   slot: Slot
   art: GameArt
   images: ArtImage[]
@@ -387,6 +391,15 @@ function SlotPanel({ slot, art, images, busy, base, label, onRelease, run, offer
             />
             <AdminButton type="submit" variant="primary" size="md" disabled={busy !== null || !link.trim()}>{t('imgDownload')}</AdminButton>
           </form>
+        )}
+
+        {!panel && (
+          <ArtSearch
+            slot={slot}
+            initialQuery={gameTitle}
+            disabled={busy !== null}
+            onUse={url => upload(undefined, url)}
+          />
         )}
 
         {active && slot !== 'logo' && art.palette && art.palette.length > 0 && (

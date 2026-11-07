@@ -23,13 +23,16 @@ const FIELD_COPY: Record<ChainField, { label: string; hint: string }> = {
   info:        { label: 'Ficha',       hint: 'Desarrollador, editora, año y género. Si una fuente no tiene al juego, se prueba la siguiente.' },
   description: { label: 'Descripción', hint: 'La primera fuente que tenga texto.' },
   screenshots: { label: 'Capturas',    hint: 'La primera fuente que tenga capturas. No se busca en otra si la primera no tiene ninguna.' },
+  banner:      { label: 'Banner',      hint: 'La imagen ancha del juego. Se usa la primera fuente que la tenga, en el orden de la cadena.' },
+  logo:        { label: 'Logo',        hint: 'El logo del juego con fondo transparente. Se usa la primera fuente que lo tenga.' },
 }
 
 const SOURCE_COPY: Record<string, { name: string; text: string }> = {
   launchbox:   { name: 'LaunchBox',          text: 'Base de datos de la plataforma. Busca por título.' },
   rawg:        { name: 'RAWG',               text: 'Busca por título y comprueba la consola.' },
   libretro:    { name: 'libretro',           text: 'Caja de la consola por nombre de fichero.' },
-  steamgriddb: { name: 'SteamGridDB',        text: 'Portadas de la comunidad, por título.' },
+  steamgriddb: { name: 'SteamGridDB',        text: 'Imágenes de la comunidad, por título: portadas, banners y logos.' },
+  steam:       { name: 'Steam',              text: 'Ficha de la tienda de Steam, por título exacto. Solo juegos que estén en Steam.' },
   nintendo:    { name: 'Tienda de Nintendo', text: 'Portada de la tienda. Solo Switch.' },
 }
 

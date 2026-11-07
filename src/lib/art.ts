@@ -15,6 +15,8 @@ import { pickBackdrop, pickFanart, pickLogo } from '@/lib/metadata/launchbox-art
 import { paletteOf } from '@/lib/palette'
 import { pixelScale } from '@/lib/pixel-art'
 import { fetchLibretroScreens } from '@/lib/metadata/libretro'
+import { getProviderMatrix } from '@/lib/metadata/matrix'
+import type { ProviderChains } from '@/lib/metadata/chains'
 
 const MAX_DOWNLOAD_BYTES = 25 * 1024 * 1024
 
@@ -119,9 +121,23 @@ export type ArtBlock = 'backdrop' | 'tile' | 'logo'
 export async function storeLaunchBoxArt(
   game: { id: number; platformSlug: string; fileName?: string; retroSystem?: string | null; title?: string },
   imagesIn: LaunchBoxImage[],
-  opts: { found: boolean; launchboxId?: number | null; paceMs?: number; /** The blocks this call writes. Undefined = all of them. */ only?: ReadonlySet<ArtBlock> },
+  opts: {
+    found: boolean; launchboxId?: number | null; paceMs?: number
+    /** The blocks this call writes. Undefined = all of them. */
+    only?: ReadonlySet<ArtBlock>
+    /** The platform's chains. Undefined = read them from the settings. */
+    chains?: ProviderChains
+  },
 ): Promise<ArtOutcome> {
   const want = (block: ArtBlock) => !opts.only || opts.only.has(block)
+  // The banner and the logo follow their chain: which sources may fill them, and in what order.
+  const chains = opts.chains ?? (await getProviderMatrix(game.platformSlug)).chains
+  const sgdbFirst = (chain: readonly string[]) => {
+    const sg = chain.indexOf('steamgriddb')
+    return sg !== -1 && (chain.indexOf('launchbox') === -1 || sg < chain.indexOf('launchbox'))
+  }
+  const bannerSgFirst = sgdbFirst(chains.banner)
+  const logoSgFirst = sgdbFirst(chains.logo)
   // Images the owner removed are left out: not stored again, and never picked as banner, fanart or logo.
   let images = imagesIn
   const removed = new Set((await db.gameImage.findMany({
@@ -132,15 +148,15 @@ export async function storeLaunchBoxArt(
   const stored = (img: LaunchBoxImage | null | undefined) => (img ? byUrl.get(img.url) ?? null : null)
 
   const backdrop = pickBackdrop(images)
-  const bd = stored(backdrop?.image)
+  const bd = chains.banner.includes('launchbox') ? stored(backdrop?.image) : null
   const fa = stored(pickFanart(images))
-  const lo = stored(pickLogo(images))
+  const lo = chains.logo.includes('launchbox') ? stored(pickLogo(images)) : null
 
-  // SteamGridDB fills what LaunchBox did not: the banner, the logo and the icon, in that order of
-  // preference. Only for a game LaunchBox matched, with a title to search by.
+  // SteamGridDB fills the banner, the logo and the icon. The banner and the logo are asked only when
+  // their chain has SteamGridDB, and it goes first when the chain says so; otherwise it fills a gap.
   const need: SteamGridNeeds = {
-    banner: !bd && want('backdrop'),
-    logo: !lo && want('logo'),
+    banner: chains.banner.includes('steamgriddb') && want('backdrop') && (bannerSgFirst || !bd),
+    logo: chains.logo.includes('steamgriddb') && want('logo') && (logoSgFirst || !lo),
     // Icons are not a game field: only a full run fills them, not a pass that chose other fields.
     icon: !opts.only && !images.some(i => kindOf(i.type) === 'icon'),
   }
@@ -150,25 +166,26 @@ export async function storeLaunchBoxArt(
   const sgBanner = sgdb.banner ?? null
   const sgLogo = sgdb.logo ?? null
 
+  // The banner: LaunchBox's backdrop and SteamGridDB's hero, in the order of the chain.
+  const lbBanner = bd && backdrop ? { img: bd, kind: backdrop.kind } : null
+  const sgBannerPick = sgBanner ? { img: sgBanner, kind: 'banner' } : null
+  const bannerPick = bannerSgFirst ? (sgBannerPick ?? lbBanner) : (lbBanner ?? sgBannerPick)
+  const logoPick = logoSgFirst ? (sgLogo ?? lo) : (lo ?? sgLogo)
+
   const data: Record<string, unknown> = { artCheckedAt: new Date() }
   if (opts.launchboxId) data.launchboxId = opts.launchboxId
-  if (want('backdrop') && bd && backdrop) {
-    data.backdropPath = bd.key
-    data.backdropKind = backdrop.kind
-    if (bd.buffer) data.themePalette = JSON.stringify(await paletteOf(bd.buffer))
-  } else if (want('backdrop') && sgBanner) {
-    data.backdropPath = sgBanner.key
-    data.backdropKind = 'banner'
-    if (sgBanner.buffer) data.themePalette = JSON.stringify(await paletteOf(sgBanner.buffer))
+  if (want('backdrop') && bannerPick) {
+    data.backdropPath = bannerPick.img.key
+    data.backdropKind = bannerPick.kind
+    if (bannerPick.img.buffer) data.themePalette = JSON.stringify(await paletteOf(bannerPick.img.buffer))
   }
   if (want('tile') && fa) data.tilePath = fa.key
-  if (want('logo') && lo) data.logoPath = lo.key
-  else if (want('logo') && sgLogo) data.logoPath = sgLogo.key
+  if (want('logo') && logoPick) data.logoPath = logoPick.key
 
   // No LaunchBox fanart: the libretro snapshot stands in for the wide tile.
   let retroStored = false
   // Only when the snapshot would be used: the tile is wanted, or the backdrop is still missing.
-  if (!fa && (want('tile') || (want('backdrop') && !bd && !sgBanner))) {
+  if (!fa && (want('tile') || (want('backdrop') && !bannerPick))) {
     const retro = await fetchLibretroScreens(game.fileName ?? '', game.retroSystem === undefined ? game.platformSlug : (game.retroSystem ?? ''))
     const retroUrl = retro.snap ?? retro.title ?? null
     if (retroUrl) {
@@ -177,7 +194,7 @@ export async function storeLaunchBoxArt(
       await uploadToS3(webp, key)
       const stamped = `${key}?v=${Date.now()}`
       if (want('tile')) data.tilePath = stamped
-      if (!bd && !sgBanner && want('backdrop')) {
+      if (!bannerPick && want('backdrop')) {
         data.backdropPath = stamped
         data.backdropKind = retro.snap ? 'snap' : 'title'
         data.themePalette = JSON.stringify(await paletteOf(webp))
