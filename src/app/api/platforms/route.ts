@@ -65,7 +65,13 @@ async function checkTorrentSources(platformId: number, input: unknown): Promise<
     if (typeof c !== 'object' || c === null) return { error: 'cada fuente tiene que ser un objeto' }
     const err = sourceConfigError(c)
     if (err) return { error: `fuente «${c.key ?? '?'}»: ${err}` }
-    list.push({ key: c.key!, type: c.type!, url: c.url!, enabled: c.enabled! })
+    // onlyTag/exceptTag reparten una fuente entre plataformas: si se pierden al guardar, la
+    // plataforma trae todo el catalogo (Switch 2 recibio 7000 juegos de Switch 1).
+    list.push({
+      key: c.key!, type: c.type!, url: c.url!, enabled: c.enabled!,
+      ...(c.onlyTag !== undefined && { onlyTag: c.onlyTag }),
+      ...(c.exceptTag !== undefined && { exceptTag: c.exceptTag }),
+    })
   }
   const keys = list.map(c => c.key)
   if (new Set(keys).size !== keys.length) return { error: 'hay claves de fuente repetidas' }
