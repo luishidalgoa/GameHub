@@ -2,6 +2,7 @@ import { getRawgProvider, RawgAuthError, RawgProvider } from './rawg'
 import { getLaunchBoxProvider, getLaunchBoxPlatformName, type LaunchBoxGame } from './launchbox'
 import { searchStore, fetchStoreProduct } from './nintendo-store'
 import { fetchSteamGridDBCover } from './steamgriddb'
+import { lookupSteam } from './steam'
 import { fetchLibretroCover } from './libretro'
 import { titleAliasOf } from './title-aliases'
 import { calcTitleConfidence, calcConfidence, AUTO_THRESHOLD } from './scoring'
@@ -40,9 +41,9 @@ export interface ComposedMetadata {
   /** Every image LaunchBox publishes for the game, at its original size: stored by the art flow. */
   images: LaunchBoxImage[]
   /** Provenance for each field (for logging / UI). */
-  sources: Partial<Record<'cover' | 'info' | 'description' | 'screenshots', 'launchbox' | 'rawg' | 'steamgriddb' | 'libretro' | 'nintendo'>>
+  sources: Partial<Record<'cover' | 'info' | 'description' | 'screenshots', 'launchbox' | 'rawg' | 'steamgriddb' | 'steam' | 'libretro' | 'nintendo'>>
   /** Which provider gave each fact field, so the editor labels it (#133). */
-  facts?: Partial<Record<'developer' | 'publisher' | 'releaseYear' | 'genre', 'launchbox' | 'rawg' | 'nintendo'>>
+  facts?: Partial<Record<'developer' | 'publisher' | 'releaseYear' | 'genre', 'launchbox' | 'rawg' | 'nintendo' | 'steam'>>
   /** Best confidence achieved by the primary info match. */
   confidence: number
   /** IDs for persistence. */
@@ -235,6 +236,17 @@ export async function gatherMetadata(input: GatherInput): Promise<ComposedMetada
     }
   }
 
+  // Steam: la ficha de la tienda por título exacto. Solo se pide si una cadena la usa, y su
+  // fallo no bloquea nada: las demás fuentes siguen.
+  let steam: MetadataResult | null = null
+  let steamConfidence = 0
+  if (asked('steam')) {
+    try {
+      steam = await lookupSteam(title)
+      steamConfidence = steam ? 100 : 0
+    } catch { /* Steam no responde: la cadena sigue con las demás fuentes */ }
+  }
+
   // libretro matches on the file name, not on a provider hit, so it can dress a
   // game neither LaunchBox nor RAWG has ever heard of — that long tail of
   // regional releases, fan translations and Japan-only carts is exactly what the
@@ -262,12 +274,12 @@ export async function gatherMetadata(input: GatherInput): Promise<ComposedMetada
     : null
   // With a rejected key every game that needs RAWG fails the same way. Throwing the key error
   // (not a "no match" and not a retry) lets the batch stop and leave those games untouched.
-  if (!lb && !rawg && !nin && rawgAuth) throw rawgAuth
-  if (!lb && !rawg && !nin && down) {
+  if (!lb && !rawg && !nin && !steam && rawgAuth) throw rawgAuth
+  if (!lb && !rawg && !nin && !steam && down) {
     throw new StoreUnavailableError(`${down.source} no responde${down.error ? `: ${down.error}` : ''}`)
   }
-  if (!lb && !rawg && !nin && input.coverWithoutMatch === false) return null
-  if (!lb && !rawg && !nin) {
+  if (!lb && !rawg && !nin && !steam && input.coverWithoutMatch === false) return null
+  if (!lb && !rawg && !nin && !steam) {
     // Only the libretro box can stand alone here: it is matched on the file name.
     const box = await chooseCover({
       chain: input.coverWanted === false ? [] : chains.cover.filter(source => source === 'libretro'),
@@ -293,10 +305,12 @@ export async function gatherMetadata(input: GatherInput): Promise<ComposedMetada
   // ── INFO (title/dev/publisher/genre/year/esrb) ──
   // The first source of the info chain that has the game; Nintendo's store answers when none does.
   const infoFromChain = chains.info
-    .map(source => (source === 'launchbox' ? lb : rawg))
+    .map(source => (source === 'launchbox' ? lb : source === 'steam' ? steam : rawg))
     .find(hit => Boolean(hit)) ?? null
   const info = infoFromChain ?? nin ?? null
-  const infoSource: 'launchbox' | 'rawg' | 'nintendo' | undefined = info ? (info === lb ? 'launchbox' : info === nin ? 'nintendo' : 'rawg') : undefined
+  const infoSource: 'launchbox' | 'rawg' | 'nintendo' | 'steam' | undefined = info
+    ? (info === lb ? 'launchbox' : info === nin ? 'nintendo' : info === steam ? 'steam' : 'rawg')
+    : undefined
   if (infoSource) sources.info = infoSource
   const facts: NonNullable<ComposedMetadata['facts']> = {}
   if (info && infoSource) {
@@ -310,7 +324,7 @@ export async function gatherMetadata(input: GatherInput): Promise<ComposedMetada
   // The first source of the description chain that has one.
   let description: string | undefined
   for (const source of chains.description) {
-    const text = source === 'launchbox' ? lb?.description : rawg?.description
+    const text = source === 'launchbox' ? lb?.description : source === 'steam' ? steam?.description : rawg?.description
     if (text) { description = text; sources.description = source; break }
   }
 
@@ -342,6 +356,11 @@ export async function gatherMetadata(input: GatherInput): Promise<ComposedMetada
       sources.screenshots = 'launchbox'
       break
     }
+    if (source === 'steam' && steam?.screenshots?.length) {
+      screenshots = steam.screenshots
+      sources.screenshots = 'steam'
+      break
+    }
     if (source === 'rawg' && rawgProvider && rawg?.slug) {
       try {
         const shots = await rawgProvider.fetchScreenshots(rawg.slug)
@@ -369,7 +388,7 @@ export async function gatherMetadata(input: GatherInput): Promise<ComposedMetada
     screenshots,
     images: lb?.images ?? [],
     sources,
-    confidence: Math.max(lbConfidence, rawgConfidence),
+    confidence: Math.max(lbConfidence, rawgConfidence, steamConfidence),
     rawgId: rawg?.id,
     rawgSlug: rawg?.slug,
     launchboxId: lb?.id,

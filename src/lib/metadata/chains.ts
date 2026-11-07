@@ -7,20 +7,26 @@
 export const COVER_SOURCES = ['launchbox', 'libretro', 'steamgriddb', 'nintendo'] as const
 export type CoverSource = typeof COVER_SOURCES[number]
 
-export const INFO_SOURCES = ['launchbox', 'rawg'] as const
+export const INFO_SOURCES = ['launchbox', 'rawg', 'steam'] as const
 export type InfoSource = typeof INFO_SOURCES[number]
 
-export const DESCRIPTION_SOURCES = ['rawg', 'launchbox'] as const
+export const DESCRIPTION_SOURCES = ['rawg', 'launchbox', 'steam'] as const
 export type DescriptionSource = typeof DESCRIPTION_SOURCES[number]
 
-export const SCREENSHOT_SOURCES = ['launchbox', 'rawg'] as const
+export const SCREENSHOT_SOURCES = ['launchbox', 'rawg', 'steam'] as const
 export type ScreenshotSource = typeof SCREENSHOT_SOURCES[number]
+
+/** Banner (wide image) and logo: LaunchBox's copies or SteamGridDB's, in the order the chain says. */
+export const ART_SOURCES = ['launchbox', 'steamgriddb'] as const
+export type ArtSource = typeof ART_SOURCES[number]
 
 export interface ProviderChains {
   cover: CoverSource[]
   info: InfoSource[]
   description: DescriptionSource[]
   screenshots: ScreenshotSource[]
+  banner: ArtSource[]
+  logo: ArtSource[]
 }
 
 export type ChainField = keyof ProviderChains
@@ -30,7 +36,7 @@ export type ChainField = keyof ProviderChains
  * quality. Twice the box is the size a sharp card needs on a high-density screen.
  */
 export const COVER_MIN_SCALE = 2
-export const CHAIN_FIELDS: readonly ChainField[] = ['cover', 'info', 'description', 'screenshots']
+export const CHAIN_FIELDS: readonly ChainField[] = ['cover', 'info', 'description', 'screenshots', 'banner', 'logo']
 
 /** What each field's chain can hold, for a platform. Only Switch has the Nintendo store's covers. */
 export function optionsFor(field: ChainField, slug: string): readonly string[] {
@@ -39,6 +45,8 @@ export function optionsFor(field: ChainField, slug: string): readonly string[] {
     case 'info':        return INFO_SOURCES
     case 'description': return DESCRIPTION_SOURCES
     case 'screenshots': return SCREENSHOT_SOURCES
+    case 'banner':      return ART_SOURCES
+    case 'logo':        return ART_SOURCES
   }
 }
 
@@ -48,6 +56,8 @@ export const DEFAULT_CHAINS: ProviderChains = {
   info:        ['launchbox', 'rawg'],
   description: ['rawg', 'launchbox'],
   screenshots: ['launchbox'],
+  banner:      ['launchbox', 'steamgriddb'],
+  logo:        ['launchbox', 'steamgriddb'],
 }
 
 /**
@@ -128,7 +138,10 @@ export function resolveChains(global: ProviderChains, override: Partial<Provider
       ?? sanitizeChain(field, builtin[field], slug)
       ?? sanitizeChain(field, global[field], slug)
       ?? []) as ProviderChains[F]
-  return { cover: pick('cover'), info: pick('info'), description: pick('description'), screenshots: pick('screenshots') }
+  return {
+    cover: pick('cover'), info: pick('info'), description: pick('description'), screenshots: pick('screenshots'),
+    banner: pick('banner'), logo: pick('logo'),
+  }
 }
 
 /** Where a platform's chain comes from, for the settings screen. */
