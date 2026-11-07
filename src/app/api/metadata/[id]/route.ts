@@ -181,7 +181,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   // The art of the same LaunchBox page: every image is stored, and the banner, fanart and logo follow.
   if (meta.images.length > 0) {
     await storeLaunchBoxArt(
-      { id: gameId, platformSlug: game.platform.slug, fileName: game.fileName },
+      { id: gameId, platformSlug: game.platform.slug, fileName: game.fileName, title: game.title },
       meta.images,
       { found: true, launchboxId: meta.launchboxId, paceMs: 250 },
     ).catch(() => 'no-art' as const)
@@ -294,7 +294,8 @@ async function applyManualPick(
   const pickedImages = source === 'launchbox' ? ((meta as LaunchBoxGame).images ?? []) : []
   if (pickedImages.length > 0) {
     await storeLaunchBoxArt(
-      { id: gameId, platformSlug, fileName: row?.fileName ?? undefined },
+      // The matched LaunchBox title is the one SteamGridDB is searched by.
+      { id: gameId, platformSlug, fileName: row?.fileName ?? undefined, title: meta.title },
       pickedImages,
       { found: true, launchboxId: Number(id), paceMs: 250 },
     ).catch(() => 'no-art' as const)

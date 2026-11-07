@@ -2,8 +2,9 @@ import sharp from 'sharp'
 import { db } from '@/lib/db'
 import { applyMetadata } from '@/lib/metadata/apply'
 import { uploadToS3 } from '@/lib/s3'
-import { storeGameImages } from '@/lib/game-images'
+import { storeGameImages, kindOf, type StoredImage } from '@/lib/game-images'
 import { providerFetch } from '@/lib/metadata/http'
+import { fetchSteamGridDBArts, type SgdbArtType } from '@/lib/metadata/steamgriddb'
 import {
   getLaunchBoxProvider, getLaunchBoxPlatformName, LAUNCHBOX_PLATFORM_NAMES,
   type LaunchBoxGame,
@@ -72,6 +73,37 @@ async function pixelWebp(url: string): Promise<Buffer> {
 
 export type ArtOutcome = 'applied' | 'no-art' | 'no-match'
 
+/** What LaunchBox left out, so SteamGridDB may fill it: the banner, the logo and the icon. */
+interface SteamGridNeeds { banner: boolean; logo: boolean; icon: boolean }
+
+/** The SteamGridDB images stored for the blocks that were missing. Absent when not needed. */
+interface SteamGridArt { banner?: StoredImage | null; logo?: StoredImage | null; icon?: StoredImage | null }
+
+/**
+ * SteamGridDB, the default fallback for the banner, the logo and the icon when LaunchBox has none.
+ * Each one found is stored in the repository like a LaunchBox image; an image the owner removed
+ * is not stored again. Only called for a game LaunchBox matched, so a SteamGridDB title match never
+ * stands alone (the same guard as the covers).
+ */
+async function steamGridFallback(
+  game: { id: number; platformSlug: string; title: string },
+  need: SteamGridNeeds,
+  removed: Set<string>,
+): Promise<SteamGridArt> {
+  const fetchOne = async (type: SgdbArtType, typeLabel: string): Promise<StoredImage | null> => {
+    // The first candidate the owner has not removed: a removed one does not leave the slot empty.
+    const url = (await fetchSteamGridDBArts(game.title, type)).find(u => !removed.has(u))
+    if (!url) return null
+    const { byUrl } = await storeGameImages({ id: game.id, platformSlug: game.platformSlug }, [{ url, type: typeLabel }], 250)
+    return byUrl.get(url) ?? null
+  }
+  const out: SteamGridArt = {}
+  if (need.banner) out.banner = await fetchOne('heroes', 'Banner')
+  if (need.logo) out.logo = await fetchOne('logos', 'Clear Logo')
+  if (need.icon) out.icon = await fetchOne('icons', 'Icon')
+  return out
+}
+
 /**
  * The one place LaunchBox images become the game's art. Every image LaunchBox publishes
  * goes into the repository (GameImage, categorized); the banner, the fanart and the logo
@@ -85,7 +117,7 @@ export type ArtOutcome = 'applied' | 'no-art' | 'no-match'
 export type ArtBlock = 'backdrop' | 'tile' | 'logo'
 
 export async function storeLaunchBoxArt(
-  game: { id: number; platformSlug: string; fileName?: string; retroSystem?: string | null },
+  game: { id: number; platformSlug: string; fileName?: string; retroSystem?: string | null; title?: string },
   imagesIn: LaunchBoxImage[],
   opts: { found: boolean; launchboxId?: number | null; paceMs?: number; /** The blocks this call writes. Undefined = all of them. */ only?: ReadonlySet<ArtBlock> },
 ): Promise<ArtOutcome> {
@@ -104,19 +136,39 @@ export async function storeLaunchBoxArt(
   const fa = stored(pickFanart(images))
   const lo = stored(pickLogo(images))
 
+  // SteamGridDB fills what LaunchBox did not: the banner, the logo and the icon, in that order of
+  // preference. Only for a game LaunchBox matched, with a title to search by.
+  const need: SteamGridNeeds = {
+    banner: !bd && want('backdrop'),
+    logo: !lo && want('logo'),
+    // Icons are not a game field: only a full run fills them, not a pass that chose other fields.
+    icon: !opts.only && !images.some(i => kindOf(i.type) === 'icon'),
+  }
+  const sgdb: SteamGridArt = opts.found && game.title && (need.banner || need.logo || need.icon)
+    ? await steamGridFallback({ id: game.id, platformSlug: game.platformSlug, title: game.title }, need, removed)
+    : {}
+  const sgBanner = sgdb.banner ?? null
+  const sgLogo = sgdb.logo ?? null
+
   const data: Record<string, unknown> = { artCheckedAt: new Date() }
   if (opts.launchboxId) data.launchboxId = opts.launchboxId
   if (want('backdrop') && bd && backdrop) {
     data.backdropPath = bd.key
     data.backdropKind = backdrop.kind
     if (bd.buffer) data.themePalette = JSON.stringify(await paletteOf(bd.buffer))
+  } else if (want('backdrop') && sgBanner) {
+    data.backdropPath = sgBanner.key
+    data.backdropKind = 'banner'
+    if (sgBanner.buffer) data.themePalette = JSON.stringify(await paletteOf(sgBanner.buffer))
   }
   if (want('tile') && fa) data.tilePath = fa.key
   if (want('logo') && lo) data.logoPath = lo.key
+  else if (want('logo') && sgLogo) data.logoPath = sgLogo.key
 
   // No LaunchBox fanart: the libretro snapshot stands in for the wide tile.
   let retroStored = false
-  if (!fa && (want('tile') || want('backdrop'))) {
+  // Only when the snapshot would be used: the tile is wanted, or the backdrop is still missing.
+  if (!fa && (want('tile') || (want('backdrop') && !bd && !sgBanner))) {
     const retro = await fetchLibretroScreens(game.fileName ?? '', game.retroSystem === undefined ? game.platformSlug : (game.retroSystem ?? ''))
     const retroUrl = retro.snap ?? retro.title ?? null
     if (retroUrl) {
@@ -125,7 +177,7 @@ export async function storeLaunchBoxArt(
       await uploadToS3(webp, key)
       const stamped = `${key}?v=${Date.now()}`
       if (want('tile')) data.tilePath = stamped
-      if (!bd && want('backdrop')) {
+      if (!bd && !sgBanner && want('backdrop')) {
         data.backdropPath = stamped
         data.backdropKind = retro.snap ? 'snap' : 'title'
         data.themePalette = JSON.stringify(await paletteOf(webp))
@@ -134,7 +186,8 @@ export async function storeLaunchBoxArt(
     }
   }
 
-  const inRepo = await db.gameImage.count({ where: { gameId: game.id } })
+  // Images the owner removed stay in the table (restorable) but are not art anymore.
+  const inRepo = await db.gameImage.count({ where: { gameId: game.id, removedAt: null } })
   const artStatus = inRepo > 0 || retroStored ? 'ok' : opts.found ? 'no-art' : 'no-match'
   data.artStatus = artStatus
   // applyMetadata, not a raw update: the owner's locks on these fields are honoured.
@@ -149,7 +202,7 @@ export async function storeLaunchBoxArt(
 export async function fetchGameArt(game: ArtGame, paceMs = 600): Promise<ArtOutcome> {
   const found = await resolveLaunchBoxGame(game, paceMs)
   return storeLaunchBoxArt(
-    { id: game.id, platformSlug: game.platformSlug, fileName: game.fileName, retroSystem: game.retroSystem },
+    { id: game.id, platformSlug: game.platformSlug, fileName: game.fileName, retroSystem: game.retroSystem, title: game.title },
     found?.lb.images ?? [],
     { found: !!found, launchboxId: found?.id, paceMs },
   )

@@ -31,11 +31,14 @@ interface Props {
   game: Game
   thumbnailWidth?: number
   thumbnailHeight?: number
+  /** The platform's secondary box, when it has one (see lib/cover-shape). */
+  altThumbnailWidth?: number | null
+  altThumbnailHeight?: number | null
   /** Where «volver» goes when the editor was opened from a list. Without it, the browser's history. */
   returnTo?: string | null
 }
 
-export function GameEditorForm({ game, thumbnailWidth = 200, thumbnailHeight = 300, returnTo = null }: Props) {
+export function GameEditorForm({ game, thumbnailWidth = 200, thumbnailHeight = 300, altThumbnailWidth = null, altThumbnailHeight = null, returnTo = null }: Props) {
   const router = useRouter()
   const t = useTranslations('GameEditor')
   const [section, setSection] = useState<Section>('datos')
@@ -345,6 +348,8 @@ export function GameEditorForm({ game, thumbnailWidth = 200, thumbnailHeight = 3
               onCover={(path, next, frame) => { setCoverPath(path); setCoverFrame(frame ?? null); if (next) setSources(next) }}
               thumbnailWidth={thumbnailWidth}
               thumbnailHeight={thumbnailHeight}
+              altThumbnailWidth={altThumbnailWidth}
+              altThumbnailHeight={altThumbnailHeight}
               onRelease={releaseField}
             />
           )}

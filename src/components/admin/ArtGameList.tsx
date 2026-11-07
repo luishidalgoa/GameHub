@@ -11,6 +11,7 @@ export interface ArtGameRow {
   title: string
   platform: string
   missing: 'fanart' | 'logo'
+  box: { width: number; height: number; altWidth: number | null; altHeight: number | null }
 }
 
 /**
@@ -108,8 +109,10 @@ function ArtSidePanel({ row, onClose, onChanged }: { row: ArtGameRow; onClose: (
             gameTitle={row.title}
             coverPath={null}
             onCover={onChanged}
-            thumbnailWidth={200}
-            thumbnailHeight={300}
+            thumbnailWidth={row.box.width}
+            thumbnailHeight={row.box.height}
+            altThumbnailWidth={row.box.altWidth}
+            altThumbnailHeight={row.box.altHeight}
             onRelease={release}
           />
         </div>

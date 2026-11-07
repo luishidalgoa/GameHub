@@ -11,6 +11,20 @@ import type { GameArt, ArtImage, ShotEntry } from '@/lib/game-art'
 import { artTitle, slotOf, type ArtCategory } from '@/lib/art-catalog'
 import type { MetadataSources } from '@/lib/metadata/sources'
 import type { CoverFrame } from '@/lib/cover-frame'
+import { altBoxRatiosOf, boxRatioOf, frameRatioOf } from '@/lib/cover-shape'
+
+/** The platform's box as the picker needs it: its own proportion and its official alternates. */
+interface Frame { boxRatio: number; alternates: number[] }
+
+/**
+ * The proportion of one picture's card, the same rule as the public grid (GameCard): a picture
+ * takes the platform's box unless it is one of the platform's official alternate boxes, and a
+ * picture of unknown size takes the box. Never the 16:9 frame, which made every card landscape.
+ */
+function cardRatio(img: ArtImage, frame: Frame): number {
+  const ratio = img.width && img.height ? img.width / img.height : null
+  return frameRatioOf(ratio, frame.boxRatio, frame.alternates)
+}
 
 const TABS: ArtCategory[] = ['cover', 'banner', 'fanart', 'logo', 'screenshot', 'box', 'media', 'other']
 /** Categories the owner can only look at: LaunchBox's packaging and advertising art. */
@@ -39,6 +53,9 @@ interface Props {
   onCover: (path: string, sources?: MetadataSources, frame?: CoverFrame | null) => void
   thumbnailWidth: number
   thumbnailHeight: number
+  /** The platform's secondary box, when it has one. */
+  altThumbnailWidth?: number | null
+  altThumbnailHeight?: number | null
   /** Lets the owner hand a field back to the automatic flows. */
   onRelease: (field: string) => Promise<void> | void
   /**
@@ -48,8 +65,10 @@ interface Props {
   panel?: boolean
 }
 
-export function GameImagesPanel({ gameId, gameTitle, platformSlug, coverPath, coverFrame, onCover, thumbnailWidth, thumbnailHeight, onRelease, panel = false }: Props) {
+export function GameImagesPanel({ gameId, gameTitle, platformSlug, coverPath, coverFrame, onCover, thumbnailWidth, thumbnailHeight, altThumbnailWidth = null, altThumbnailHeight = null, onRelease, panel = false }: Props) {
   const t = useTranslations('GameEditor')
+  // The box every picture of this platform is shown in: the library, the reference tabs and the search.
+  const frame: Frame = { boxRatio: boxRatioOf(thumbnailWidth, thumbnailHeight), alternates: altBoxRatiosOf(altThumbnailWidth, altThumbnailHeight) }
   const base = `/api/admin/games/${gameId}`
   const { data: art, mutate } = useSWR<GameArt>(`${base}/images`, fetcher, { revalidateOnFocus: false })
   const [tab, setTab] = useState<ArtCategory>('banner')
@@ -209,6 +228,7 @@ export function GameImagesPanel({ gameId, gameTitle, platformSlug, coverPath, co
             title={t('imgLibraryOf', { category: label('cover') })}
             images={library('cover')}
             activeId={null}
+            frame={frame}
             busy={busy}
             onRemove={img => void removeImage(img, label('cover'))}
             onUse={img => run(`use-${img.id}`, async () => {
@@ -243,6 +263,7 @@ export function GameImagesPanel({ gameId, gameTitle, platformSlug, coverPath, co
         <ReferencePanel
           images={library(tab)}
           hint={t(`imgRefHint_${tab}`)}
+          frame={frame}
           busy={busy}
           onRemove={(img, category) => void removeImage(img, category)}
         />
@@ -399,7 +420,7 @@ function SlotPanel({ slot, art, images, busy, base, label, onRelease, run, offer
 
 // ── The library of a category: choose one to make it the active image ───────────────────────
 
-function Library({ title, images, activeId, busy, onUse, onRemove, extra }: {
+function Library({ title, images, activeId, busy, onUse, onRemove, extra, frame }: {
   title: string
   images: ArtImage[]
   activeId: number | null
@@ -407,6 +428,8 @@ function Library({ title, images, activeId, busy, onUse, onRemove, extra }: {
   onUse: (img: ArtImage) => void
   onRemove?: (img: ArtImage) => void
   extra?: ReactNode
+  /** The platform's box. Given for the covers, so each card keeps the console's shape; absent for slots (16:9). */
+  frame?: Frame
 }) {
   const t = useTranslations('GameEditor')
   return (
@@ -425,7 +448,8 @@ function Library({ title, images, activeId, busy, onUse, onRemove, extra }: {
                 aria-label={t('imgUseThis')}
                 disabled={busy !== null || on}
                 onClick={() => onUse(img)}
-                className={`relative block w-full aspect-video rounded-lg overflow-hidden bg-secondary border-2 transition-colors ${on ? 'border-primary' : 'border-border hover:border-muted-foreground'}`}
+                style={frame ? { aspectRatio: String(cardRatio(img, frame)) } : undefined}
+                className={`relative block w-full ${frame ? '' : 'aspect-video'} rounded-lg overflow-hidden bg-secondary border-2 transition-colors ${on ? 'border-primary' : 'border-border hover:border-muted-foreground'}`}
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={img.url} alt="" loading="lazy" className="w-full h-full object-contain" />
@@ -609,11 +633,12 @@ function ScreenshotsPanel({ art, base, gameId, busy, run, offerUndo, onCover, pa
 // ── Reference categories: packaging, media and everything else LaunchBox has ────────────────
 
 /** Read-only: the images grouped under the data model's name for each kind. */
-function ReferencePanel({ images, hint, busy, onRemove }: {
+function ReferencePanel({ images, hint, busy, onRemove, frame }: {
   images: ArtImage[]
   hint: string
   busy: string | null
   onRemove: (img: ArtImage, category: string) => void
+  frame: Frame
 }) {
   const t = useTranslations('GameEditor')
   if (images.length === 0) return <p className="text-sm text-muted-foreground">{t('imgLibraryEmpty')}</p>
@@ -628,7 +653,7 @@ function ReferencePanel({ images, hint, busy, onRemove }: {
           <ul className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             {list.map(img => (
               <li key={img.id} className="space-y-1.5">
-                <a href={img.url} target="_blank" rel="noopener noreferrer" className="block aspect-video rounded-lg overflow-hidden bg-secondary border border-border hover:border-muted-foreground transition-colors">
+                <a href={img.url} target="_blank" rel="noopener noreferrer" style={{ aspectRatio: String(cardRatio(img, frame)) }} className="block rounded-lg overflow-hidden bg-secondary border border-border hover:border-muted-foreground transition-colors">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={img.url} alt={artTitle(kind)} loading="lazy" className="w-full h-full object-contain" />
                 </a>

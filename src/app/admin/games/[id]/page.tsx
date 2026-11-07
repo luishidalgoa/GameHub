@@ -39,6 +39,8 @@ export default async function AdminGameEditorPage({ params, searchParams }: Prop
         returnTo={back}
         thumbnailWidth={game.platform.thumbnailWidth}
         thumbnailHeight={game.platform.thumbnailHeight}
+        altThumbnailWidth={game.platform.altThumbnailWidth}
+        altThumbnailHeight={game.platform.altThumbnailHeight}
       />
     </div>
   )

@@ -14,11 +14,16 @@ const MISSING: ArtMissing[] = ['ambos', 'fondo', 'logo']
 export const ART_PAGE_SIZE = 60
 const CANDIDATES_TTL_MS = 20_000
 
+/** A platform's boxes: its own size and its official alternate, when it has one. */
+export interface PlatformBox { width: number; height: number; altWidth: number | null; altHeight: number | null }
+
 export interface ArtListRow {
   id: number
   title: string
   platform: string
   missing: 'fanart' | 'logo'
+  /** The platform's box, so the side panel draws the covers in the console's shape. */
+  box: PlatformBox
 }
 
 /** The art filter from a query string; anything unknown falls back to the default. */
@@ -33,7 +38,7 @@ export function artFilterFrom(sp: Record<string, string | string[] | undefined>)
 }
 
 interface Candidates {
-  games: (ArtCandidate & { title: string })[]
+  games: (ArtCandidate & { title: string; platformBox: PlatformBox })[]
   downloaded: Set<number>
 }
 
@@ -45,14 +50,24 @@ async function candidates(): Promise<Candidates> {
         where: { isHidden: false },
         select: {
           id: true, title: true, description: true, releaseYear: true, developer: true, genre: true,
-          rawgAdded: true, backdropPath: true, logoPath: true, platform: { select: { name: true } },
+          rawgAdded: true, backdropPath: true, logoPath: true,
+          platform: { select: { name: true, thumbnailWidth: true, thumbnailHeight: true, altThumbnailWidth: true, altThumbnailHeight: true } },
         },
         orderBy: { title: 'asc' },
       }),
       db.downloadLog.findMany({ distinct: ['gameId'], select: { gameId: true } }),
     ])
     return {
-      games: games.map(g => ({ ...g, platformName: g.platform.name })),
+      games: games.map(g => ({
+        ...g,
+        platformName: g.platform.name,
+        platformBox: {
+          width: g.platform.thumbnailWidth,
+          height: g.platform.thumbnailHeight,
+          altWidth: g.platform.altThumbnailWidth,
+          altHeight: g.platform.altThumbnailHeight,
+        },
+      })),
       downloaded: new Set(downloads.map(d => d.gameId)),
     }
   })
@@ -73,7 +88,7 @@ export async function artListPage(filter: ArtFilter, page: number, pageSize = AR
   const start = (Math.max(1, page) - 1) * pageSize
   const items = picked.slice(start, start + pageSize).flatMap(({ id, missing }) => {
     const g = byId.get(id)
-    return g ? [{ id, title: g.title, platform: g.platformName, missing }] : []
+    return g ? [{ id, title: g.title, platform: g.platformName, missing, box: g.platformBox }] : []
   })
   return { items, total: picked.length, page, hasMore: start + pageSize < picked.length }
 }

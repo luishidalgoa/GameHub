@@ -595,7 +595,7 @@ async function runMetadataBatchInner(opts: {
       const artImages = meta.images.filter(i => artKinds.has(kindFromLaunchBox(i.type)))
       if (artImages.length > 0) {
         await storeLaunchBoxArt(
-          { id: game.id, platformSlug: game.platform.slug, fileName: game.fileName },
+          { id: game.id, platformSlug: game.platform.slug, fileName: game.fileName, title: game.title },
           artImages,
           { found: true, launchboxId: meta.launchboxId, paceMs: 250, only: artOnly },
         ).catch(() => 'no-art' as const)
