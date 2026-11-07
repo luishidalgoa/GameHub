@@ -14,7 +14,7 @@ interface Props {
 }
 
 type Source = 'launchbox' | 'rawg' | 'steamgriddb'
-type Candidate = MetadataResult & { source: 'launchbox' | 'rawg' }
+type Candidate = MetadataResult & { source: 'launchbox' | 'rawg' | 'steam' }
 type Sources = Partial<Record<'cover' | 'info' | 'description' | 'screenshots', Source>>
 
 export function MetadataFetchButton({ gameId, onApplied }: Props) {
@@ -29,9 +29,9 @@ export function MetadataFetchButton({ gameId, onApplied }: Props) {
   const [loading, setLoading] = useState(false)
   const [applying, setApplying] = useState<string | null>(null)
   const [results, setResults] = useState<Candidate[]>([])
-  const [provider, setProvider] = useState<'launchbox' | 'rawg' | null>(null)
+  const [provider, setProvider] = useState<'launchbox' | 'rawg' | 'steam' | null>(null)
   // Provider the admin explicitly forced for the search (null = matrix default).
-  const [forcedProvider, setForcedProvider] = useState<'launchbox' | 'rawg' | null>(null)
+  const [forcedProvider, setForcedProvider] = useState<'launchbox' | 'rawg' | 'steam' | null>(null)
   const [error, setError] = useState('')
   const [usedQuery, setUsedQuery] = useState('')
   const [manualQuery, setManualQuery] = useState('')
@@ -73,7 +73,7 @@ export function MetadataFetchButton({ gameId, onApplied }: Props) {
   // ── Manual search (fallback) ──
   // `prov` lets a provider-tab click search that source right away, without
   // waiting for the forcedProvider state update to flush.
-  const doSearch = async (q?: string, prov?: 'launchbox' | 'rawg' | null) => {
+  const doSearch = async (q?: string, prov?: 'launchbox' | 'rawg' | 'steam' | null) => {
     setLoading(true)
     setError('')
     setResults([])
@@ -106,7 +106,7 @@ export function MetadataFetchButton({ gameId, onApplied }: Props) {
   }
 
   // Switch which provider serves the results, re-running the current query.
-  const pickProvider = (p: 'launchbox' | 'rawg') => {
+  const pickProvider = (p: 'launchbox' | 'rawg' | 'steam') => {
     if (p === forcedProvider) return
     setForcedProvider(p)
     doSearch(manualQuery.trim() || undefined, p)
@@ -224,7 +224,7 @@ export function MetadataFetchButton({ gameId, onApplied }: Props) {
             <div className="px-4 pb-1 flex items-center gap-2">
               <span className="text-xs text-muted-foreground">{t('providerLabel')}</span>
               <div className="flex gap-1">
-                {(['launchbox', 'rawg'] as const).map((p) => {
+                {(['launchbox', 'rawg', 'steam'] as const).map((p) => {
                   const active = (forcedProvider ?? provider) === p
                   return (
                     <button

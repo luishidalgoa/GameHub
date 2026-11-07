@@ -12,6 +12,7 @@ import { fetchSteamGridDBCover } from '@/lib/metadata/steamgriddb'
 import { searchYouTubeTrailer } from '@/lib/youtube'
 import { serializeBigInt } from '@/lib/serialize'
 import type { MetadataResult } from '@/lib/metadata/provider'
+import { searchSteamList, fetchSteamApp } from '@/lib/metadata/steam'
 import { fetchLibretroCover, libretroSystemFor } from '@/lib/metadata/libretro'
 import type { LaunchBoxGame } from '@/lib/metadata/launchbox'
 import { changedFields, lockFields, LOCKABLE_FIELDS } from '@/lib/manual-fields'
@@ -25,7 +26,7 @@ import { extractSwitchTitleId } from '@/lib/scanner/titleid'
 
 export const dynamic = 'force-dynamic'
 
-type Source = 'launchbox' | 'rawg'
+type Source = 'launchbox' | 'rawg' | 'steam'
 
 async function rawgKey(): Promise<string | undefined> {
   const s = await db.setting.findUnique({ where: { key: 'rawg_api_key' } })
@@ -62,7 +63,7 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
   // when no valid override is given.
   const overrideProvider = sp.get('provider')
   const source: Source =
-    overrideProvider === 'launchbox' || overrideProvider === 'rawg'
+    overrideProvider === 'launchbox' || overrideProvider === 'rawg' || overrideProvider === 'steam'
       ? overrideProvider
       : await manualSearchSource(game.platform.slug)
 
@@ -71,6 +72,10 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
     const provider = await getLaunchBoxProvider(game.platform.slug)
     const r = await provider.search(game.title, game.platform.slug, overrideQuery)
     results = r.map(x => ({ ...x, source: 'launchbox' as const }))
+  } else if (source === 'steam') {
+    // Steam: la búsqueda manual es libre (no exige título exacto); el dueño elige la aplicación.
+    const r = await searchSteamList(usedQuery)
+    results = r.map(x => ({ id: x.id, title: x.name, source: 'steam' as const }))
   } else {
     const provider = getRawgProvider(await rawgKey())
     if (!provider) return NextResponse.json({ error: 'RAWG API key not configured' }, { status: 503 })
@@ -94,7 +99,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 
   // Normalize a manual pick (new + legacy shapes).
   const pickSource: Source | null =
-    body.source === 'launchbox' || body.source === 'rawg' ? body.source
+    body.source === 'launchbox' || body.source === 'rawg' || body.source === 'steam' ? body.source
       : (body.rawgId != null || body.rawgSlug != null) ? 'rawg'
         : null
   const pickId: number | string | undefined = body.id ?? body.rawgSlug ?? body.rawgId
@@ -103,7 +108,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   if (pickSource && pickId != null) {
     let applied
     try {
-      applied = await applyManualPick(game.platform.slug, gameId, pickSource, pickId, game.trailerUrl)
+      applied = await applyManualPick(game.platform.slug, gameId, pickSource, pickId, game.trailerUrl, game.title)
     } catch (err) {
       if (err instanceof RawgAuthError) {
         return NextResponse.json({ error: err.quota ? 'rawg_quota' : 'rawg_key_rejected', message: err.message }, { status: 503 })
@@ -220,6 +225,7 @@ async function applyManualPick(
   source: Source,
   id: number | string,
   existingTrailer: string | null,
+  gameTitle: string,
 ) {
   let meta: MetadataResult | null = null
   let screenshots: string[] = []
@@ -227,6 +233,9 @@ async function applyManualPick(
   if (source === 'launchbox') {
     const lb = await fetchLaunchBoxGame(Number(id))
     if (lb) { meta = lb; screenshots = lb.screenshots ?? [] }
+  } else if (source === 'steam') {
+    meta = await fetchSteamApp(Number(id), gameTitle)
+    if (meta) screenshots = meta.screenshots ?? []
   } else {
     const provider = getRawgProvider(await rawgKey())
     if (provider) {
