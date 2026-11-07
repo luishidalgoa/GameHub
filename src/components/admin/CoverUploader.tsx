@@ -4,12 +4,14 @@ import { useState, useRef, useEffect } from 'react'
 import type { CoverFrame } from '@/lib/cover-frame'
 import Image from 'next/image'
 import { useTranslations } from 'next-intl'
-import { Upload, Link as LinkIcon, Loader2, Crop, Search, ChevronDown, ChevronUp, ArrowLeft } from 'lucide-react'
+import { Upload, Link as LinkIcon, Loader2, Crop } from 'lucide-react'
 import { CoverAdjustModal } from './CoverAdjustModal'
 import { AdminButton } from '@/components/admin/AdminButton'
 import { resolveCoverPath } from '@/lib/cover-url'
-import { libretroSupports } from '@/lib/metadata/libretro'
+import { coverShapeOf } from '@/lib/cover-shape'
 import type { FieldSource, MetadataSources } from '@/lib/metadata/sources'
+import { isCoverSource } from '@/lib/metadata/sources'
+import { ImageSearch } from '@/components/admin/ImageSearch'
 
 interface Props {
   gameId: number
@@ -25,21 +27,14 @@ interface Props {
   onUploaded: (path: string, sources?: MetadataSources, frame?: CoverFrame | null) => void
   thumbnailWidth?: number
   thumbnailHeight?: number
+  /** The platform's secondary box, when it has one: a cover of that shape is shown in it, whole. */
+  altThumbnailWidth?: number | null
+  altThumbnailHeight?: number | null
+  /** The proportion of the stored cover, when known (the editor measures it on load otherwise). */
+  coverRatio?: number | null
 }
 
-interface RawgResult {
-  id: number
-  slug?: string
-  title: string
-  coverUrl?: string
-  releaseYear?: number
-}
-
-interface SgdbGame   { id: number; name: string }
-interface SgdbCover  { url: string; thumb: string; style: string }
-interface LibretroCover { url: string; thumb: string; name: string; score: number }
-
-export function CoverUploader({ gameId, gameTitle = '', platformSlug, currentCover, coverFrame = null, onUploaded, thumbnailWidth = 200, thumbnailHeight = 300 }: Props) {
+export function CoverUploader({ gameId, gameTitle = '', platformSlug, currentCover, coverFrame = null, onUploaded, thumbnailWidth = 200, thumbnailHeight = 300, altThumbnailWidth = null, altThumbnailHeight = null, coverRatio = null }: Props) {
   const t = useTranslations('CoverUploader')
   const [urlInput, setUrlInput]   = useState('')
   const [loading, setLoading]     = useState(false)
@@ -47,6 +42,12 @@ export function CoverUploader({ gameId, gameTitle = '', platformSlug, currentCov
   // Resolve it to the proxy URL for display — otherwise the browser treats it as
   // a relative path (e.g. /admin/games/123/covers/…) and 404s.
   const [preview, setPreview]     = useState<string | null>(() => resolveCoverPath(currentCover))
+  // The stored cover's own proportion: from the game, then measured when the picture loads (a new cover
+  // has no stored ratio here yet). It decides whether the cover is a secondary-box cover, shown whole.
+  const [shownRatio, setShownRatio] = useState<number | null>(coverRatio)
+  const coverShape = preview && shownRatio != null
+    ? coverShapeOf(shownRatio, { thumbnailWidth, thumbnailHeight, altThumbnailWidth, altThumbnailHeight })
+    : { ratio: thumbnailWidth / thumbnailHeight, whole: false }
   // The parent can change the cover on its own (another save, a refresh of the
   // game): the preview follows the stored cover instead of keeping the old one.
   useEffect(() => { setPreview(resolveCoverPath(currentCover)) }, [currentCover])
@@ -55,55 +56,6 @@ export function CoverUploader({ gameId, gameTitle = '', platformSlug, currentCov
   useEffect(() => { setFrame(coverFrame) }, [coverFrame])
   const [adjusting, setAdjusting] = useState(false)
   const [error, setError]         = useState<string | null>(null)
-
-  // Panel state
-  const [searchOpen, setSearchOpen] = useState(false)
-  const [searchTab, setSearchTab]   = useState<'rawg' | 'sgdb' | 'launchbox' | 'libretro'>('launchbox')
-
-  // RAWG tab
-  const [rawgQuery, setRawgQuery]     = useState('')
-  const [rawgSearching, setRawgSearching] = useState(false)
-  const [rawgResults, setRawgResults] = useState<RawgResult[]>([])
-  const [applyingRawg, setApplyingRawg] = useState<number | null>(null)
-
-  // SteamGridDB tab — two-step: game search → cover picker
-  const [sgdbQuery, setSgdbQuery]       = useState(gameTitle)
-  const [sgdbSearching, setSgdbSearching] = useState(false)
-  const [sgdbGames, setSgdbGames]       = useState<SgdbGame[]>([])
-  const [sgdbError, setSgdbError]       = useState('')
-  const [sgdbSelected, setSgdbSelected] = useState<SgdbGame | null>(null)
-  const [sgdbCovers, setSgdbCovers]     = useState<SgdbCover[]>([])
-  const [sgdbLoadingCovers, setSgdbLoadingCovers] = useState(false)
-  const [applyingSgdb, setApplyingSgdb] = useState<string | null>(null)
-
-  // LaunchBox tab — same two-step shape as SteamGridDB
-  const [lbQuery, setLbQuery]           = useState(gameTitle)
-  const [lbSearching, setLbSearching]   = useState(false)
-  const [lbGames, setLbGames]           = useState<SgdbGame[]>([])
-  const [lbError, setLbError]           = useState('')
-  const [lbSelected, setLbSelected]     = useState<SgdbGame | null>(null)
-  const [lbCovers, setLbCovers]         = useState<SgdbCover[]>([])
-  const [lbLoadingCovers, setLbLoadingCovers] = useState(false)
-  const [applyingLb, setApplyingLb]     = useState<string | null>(null)
-
-  // libretro tab — one step: every archive entry is already a cover, so there is
-  // no game to pick first. The server also searches the ROM file name, which is
-  // what pins down the regional edition.
-  const [libQuery, setLibQuery]         = useState(gameTitle)
-  const [libSearching, setLibSearching] = useState(false)
-  const [libCovers, setLibCovers]       = useState<LibretroCover[]>([])
-  const [libError, setLibError]         = useState('')
-  const [libSearched, setLibSearched]   = useState(false)
-  const [applyingLib, setApplyingLib]   = useState<string | null>(null)
-
-  // Unknown platform fails open: the server still has the last word, and a
-  // missing slug is no reason to hide a source that may well work.
-  const libretroAvailable = !platformSlug || libretroSupports(platformSlug)
-
-  // Never leave the panel parked on a tab that cannot return anything.
-  useEffect(() => {
-    if (!libretroAvailable && searchTab === 'libretro') setSearchTab('launchbox')
-  }, [libretroAvailable, searchTab])
 
   const fileRef = useRef<HTMLInputElement>(null)
 
@@ -157,7 +109,6 @@ export function CoverUploader({ gameId, gameTitle = '', platformSlug, currentCov
         setFrame(null)
         onUploaded(data.key ?? data.coverPath, data.sources, null)
         setUrlInput('')
-        setSearchOpen(false)
       }
       else setError(data.error || 'Upload failed')
     } catch (err) {
@@ -215,116 +166,6 @@ export function CoverUploader({ gameId, gameTitle = '', platformSlug, currentCov
     )
   }
 
-  // ── RAWG cover search ──────────────────────────────────────────────────────
-
-  const doRawgSearch = async (q: string) => {
-    if (!q.trim()) return
-    setRawgSearching(true)
-    setRawgResults([])
-    // Ask RAWG explicitly: without the override the endpoint searches the matrix's
-    // info provider, so this tab used to list LaunchBox results under the RAWG label.
-    const res  = await fetch(`/api/metadata/${gameId}?q=${encodeURIComponent(q.trim())}&provider=rawg`)
-    const data = await res.json()
-    setRawgSearching(false)
-    if (res.ok) setRawgResults((data.results ?? []).filter((r: RawgResult) => r.coverUrl))
-  }
-
-  const applyRawgCover = async (result: RawgResult) => {
-    if (!result.coverUrl) return
-    setApplyingRawg(result.id)
-    await uploadFromUrl(result.coverUrl, 'rawg')
-    setApplyingRawg(null)
-  }
-
-  // ── libretro ───────────────────────────────────────────────────────────────
-
-  const doLibretroSearch = async (q: string) => {
-    if (!q.trim()) return
-    setLibSearching(true)
-    setLibError('')
-    setLibCovers([])
-    try {
-      const res = await fetch(
-        `/api/covers/libretro?q=${encodeURIComponent(q.trim())}&gameId=${gameId}`,
-      )
-      const data = await res.json()
-      if (!res.ok) setLibError(data.message ?? data.error ?? 'Search failed')
-      else {
-        setLibCovers(data.covers ?? [])
-        if (data.error === 'unsupported_platform') setLibError(data.message)
-      }
-    } catch {
-      setLibError('Search failed')
-    } finally {
-      setLibSearching(false)
-      setLibSearched(true)
-    }
-  }
-
-  // ── SteamGridDB ────────────────────────────────────────────────────────────
-
-  const doSgdbSearch = async (q: string) => {
-    if (!q.trim()) return
-    setSgdbSearching(true)
-    setSgdbGames([])
-    setSgdbError('')
-    setSgdbSelected(null)
-    setSgdbCovers([])
-    const res  = await fetch(`/api/covers/steamgriddb?q=${encodeURIComponent(q.trim())}`)
-    const data = await res.json()
-    setSgdbSearching(false)
-    if (!res.ok) setSgdbError(data.message ?? data.error ?? 'Search failed')
-    else setSgdbGames(data.games ?? [])
-  }
-
-  const loadSgdbCovers = async (game: SgdbGame) => {
-    setSgdbSelected(game)
-    setSgdbLoadingCovers(true)
-    setSgdbCovers([])
-    const res  = await fetch(`/api/covers/steamgriddb?gameId=${game.id}`)
-    const data = await res.json()
-    setSgdbLoadingCovers(false)
-    if (res.ok) setSgdbCovers(data.covers ?? [])
-  }
-
-  const applySgdbCover = async (thumb: string, url: string) => {
-    setApplyingSgdb(url)
-    await uploadFromUrl(url, 'steamgriddb')
-    setApplyingSgdb(null)
-  }
-
-  // ── LaunchBox ──────────────────────────────────────────────────────────────
-
-  const doLbSearch = async (q: string) => {
-    if (!q.trim()) return
-    setLbSearching(true)
-    setLbGames([])
-    setLbError('')
-    setLbSelected(null)
-    setLbCovers([])
-    const res  = await fetch(`/api/covers/launchbox?gameId=${gameId}&q=${encodeURIComponent(q.trim())}`)
-    const data = await res.json()
-    setLbSearching(false)
-    if (!res.ok) setLbError(data.message ?? data.error ?? 'Search failed')
-    else setLbGames(data.games ?? [])
-  }
-
-  const loadLbCovers = async (game: SgdbGame) => {
-    setLbSelected(game)
-    setLbLoadingCovers(true)
-    setLbCovers([])
-    const res  = await fetch(`/api/covers/launchbox?lbId=${game.id}`)
-    const data = await res.json()
-    setLbLoadingCovers(false)
-    if (res.ok) setLbCovers(data.covers ?? [])
-  }
-
-  const applyLbCover = async (thumb: string, url: string) => {
-    setApplyingLb(url)
-    await uploadFromUrl(url, 'launchbox')
-    setApplyingLb(null)
-  }
-
   // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
@@ -338,7 +179,7 @@ export function CoverUploader({ gameId, gameTitle = '', platformSlug, currentCov
         </div>
       )}
       <div
-        style={{ aspectRatio: `${thumbnailWidth}/${thumbnailHeight}` }}
+        style={{ aspectRatio: String(coverShape.ratio) }}
         className="relative w-full max-w-[240px] rounded-lg overflow-hidden bg-secondary border-2 border-dashed border-border hover:border-primary/50 transition-colors cursor-pointer"
         onDrop={handleDrop}
         onDragOver={(e) => e.preventDefault()}
@@ -350,7 +191,17 @@ export function CoverUploader({ gameId, gameTitle = '', platformSlug, currentCov
           </div>
         ) : preview ? (
           <>
-            <Image src={preview} alt="Cover" fill className="object-cover" unoptimized />
+            <Image
+              src={preview}
+              alt="Cover"
+              fill
+              className={coverShape.whole ? 'object-contain' : 'object-cover'}
+              unoptimized
+              onLoad={(e) => {
+                const img = e.currentTarget
+                if (img.naturalWidth && img.naturalHeight) setShownRatio(img.naturalWidth / img.naturalHeight)
+              }}
+            />
             <div className="absolute inset-0 bg-black/50 opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center">
               <p className="text-white text-sm font-medium">{t('clickOrDrop')}</p>
             </div>
@@ -409,417 +260,13 @@ export function CoverUploader({ gameId, gameTitle = '', platformSlug, currentCov
         </AdminButton>
       </div>
 
-      {/* Search panel */}
-      <div className="border border-border rounded-md overflow-hidden">
-        <button
-          type="button"
-          onClick={() => setSearchOpen((o) => !o)}
-          className="w-full flex items-center justify-between px-3 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-        >
-          <span className="flex items-center gap-2">
-            <Search className="w-3.5 h-3.5" />
-            {t('searchCovers')}
-          </span>
-          {searchOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-        </button>
-
-        {searchOpen && (
-          <div className="border-t border-border bg-secondary/30">
-
-            {/* Tabs */}
-            <div className="flex border-b border-border">
-              {(['libretro', 'launchbox', 'sgdb', 'rawg'] as const).map((tab) => {
-                // A tab that can only answer "this archive has nothing for your
-                // console" is a dead end. Disable it and explain in the tooltip,
-                // instead of letting the search come back in red.
-                const disabled = tab === 'libretro' && !libretroAvailable
-                return (
-                  <button
-                    key={tab}
-                    type="button"
-                    disabled={disabled}
-                    title={disabled ? t('libretroUnsupported', { platform: platformSlug ?? '' }) : undefined}
-                    onClick={() => setSearchTab(tab)}
-                    className={`flex-1 px-3 py-2 text-xs font-medium transition-colors ${
-                      disabled
-                        ? 'text-muted-foreground/40 cursor-not-allowed'
-                        : searchTab === tab
-                          ? 'text-foreground border-b-2 border-primary -mb-px bg-secondary/50'
-                          : 'text-muted-foreground hover:text-foreground'
-                    }`}
-                  >
-                    {tab === 'sgdb' ? 'SteamGridDB'
-                      : tab === 'rawg' ? 'RAWG'
-                      : tab === 'libretro' ? 'libretro'
-                      : 'LaunchBox'}
-                  </button>
-                )
-              })}
-            </div>
-
-            <div className="p-3 space-y-3">
-
-              {/* ── libretro tab ──────────────────────────────────────── */}
-              {searchTab === 'libretro' && libretroAvailable && (
-                <>
-                  <p className="text-[11px] text-muted-foreground leading-snug">
-                    {t('libretroHint')}
-                  </p>
-                  <div className="flex gap-2">
-                    <input
-                      value={libQuery}
-                      onChange={(e) => setLibQuery(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); doLibretroSearch(libQuery) } }}
-                      placeholder={t('searchPlaceholder')}
-                      className="flex-1 px-3 py-2 text-sm bg-background border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary/50"
-                    />
-                    <AdminButton
-                      type="button"
-                      variant="primary"
-                      size="md"
-                      onClick={() => doLibretroSearch(libQuery)}
-                      disabled={libSearching || !libQuery.trim()}
-                    >
-                      <Search className="w-4 h-4" />
-                    </AdminButton>
-                  </div>
-
-                  {libError && <p className="text-xs text-destructive">{libError}</p>}
-
-                  {libSearching && (
-                    <div className="flex justify-center py-4">
-                      <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
-                    </div>
-                  )}
-
-                  {!libSearching && libSearched && !libError && libCovers.length === 0 && (
-                    <p className="text-xs text-muted-foreground text-center py-3">{t('noCoversForGame')}</p>
-                  )}
-
-                  {libCovers.length > 0 && (
-                    <div className="grid grid-cols-3 gap-2 max-h-64 overflow-y-auto">
-                      {libCovers.map((c) => (
-                        <button
-                          key={c.url}
-                          type="button"
-                          title={c.name}
-                          onClick={async () => { setApplyingLib(c.url); await uploadFromUrl(c.url, 'libretro'); setApplyingLib(null) }}
-                          disabled={applyingLib === c.url || loading}
-                          style={{ aspectRatio: `${thumbnailWidth}/${thumbnailHeight}` }}
-                          className="relative group rounded overflow-hidden bg-secondary border border-border hover:border-primary transition-colors disabled:opacity-60"
-                        >
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img src={c.thumb} alt={c.name} className="w-full h-full object-contain" />
-                          {applyingLib === c.url ? (
-                            <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
-                              <Loader2 className="w-4 h-4 animate-spin text-white" />
-                            </div>
-                          ) : (
-                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                              <span className="text-white text-xs font-medium">{t('use')}</span>
-                            </div>
-                          )}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </>
-              )}
-
-              {/* ── LaunchBox tab ─────────────────────────────────────── */}
-              {searchTab === 'launchbox' && (
-                <>
-                  {lbSelected ? (
-                    <div className="flex items-center gap-2">
-                      <AdminButton
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => { setLbSelected(null); setLbCovers([]) }}
-                      >
-                        <ArrowLeft className="w-3.5 h-3.5" />
-                      </AdminButton>
-                      <span className="text-xs font-medium text-foreground truncate">{lbSelected.name}</span>
-                    </div>
-                  ) : (
-                    <form
-                      onSubmit={(e) => { e.preventDefault(); doLbSearch(lbQuery) }}
-                      className="flex gap-2"
-                    >
-                      <input
-                        type="text"
-                        value={lbQuery}
-                        onChange={(e) => setLbQuery(e.target.value)}
-                        placeholder={t('gameTitlePlaceholder')}
-                        className="flex-1 bg-secondary border border-border rounded-md px-3 py-1.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-                      />
-                      <AdminButton
-                        type="submit"
-                        variant="primary"
-                        size="md"
-                        disabled={lbSearching || !lbQuery.trim()}
-                      >
-                        {lbSearching ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Search className="w-3.5 h-3.5" />}
-                      </AdminButton>
-                    </form>
-                  )}
-
-                  {lbError && (
-                    <p className="text-xs text-destructive bg-destructive/10 border border-destructive/20 rounded px-3 py-2">
-                      {lbError}
-                    </p>
-                  )}
-
-                  {/* Step 1: game list */}
-                  {!lbSelected && !lbSearching && lbGames.length > 0 && (
-                    <div className="space-y-1 max-h-48 overflow-y-auto">
-                      {lbGames.map((g) => (
-                        <button
-                          key={g.id}
-                          type="button"
-                          onClick={() => loadLbCovers(g)}
-                          className="w-full text-left px-3 py-2 text-sm rounded-md hover:bg-accent transition-colors text-foreground/80 hover:text-foreground flex items-center justify-between group"
-                        >
-                          <span className="truncate">{g.name}</span>
-                          <span className="text-xs text-muted-foreground group-hover:text-foreground ml-2 flex-shrink-0">{t('coversArrow')}</span>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-
-                  {lbSearching && (
-                    <div className="flex justify-center py-4">
-                      <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
-                    </div>
-                  )}
-
-                  {!lbSearching && !lbError && lbGames.length === 0 && lbQuery && !lbSelected && (
-                    <p className="text-xs text-muted-foreground text-center py-3">{t('noGames')}</p>
-                  )}
-
-                  {/* Step 2: cover grid */}
-                  {lbSelected && (
-                    <>
-                      {lbLoadingCovers && (
-                        <div className="flex justify-center py-4">
-                          <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
-                        </div>
-                      )}
-                      {!lbLoadingCovers && lbCovers.length === 0 && (
-                        <p className="text-xs text-muted-foreground text-center py-3">{t('noCoversForGame')}</p>
-                      )}
-                      {lbCovers.length > 0 && (
-                        <div className="grid grid-cols-3 gap-2 max-h-64 overflow-y-auto">
-                          {lbCovers.map((c) => (
-                            <button
-                              key={c.url}
-                              type="button"
-                              onClick={() => applyLbCover(c.thumb, c.url)}
-                              disabled={applyingLb === c.url || loading}
-                              style={{ aspectRatio: `${thumbnailWidth}/${thumbnailHeight}` }}
-                              className="relative group rounded overflow-hidden bg-secondary border border-border hover:border-primary transition-colors disabled:opacity-60"
-                            >
-                              {/* eslint-disable-next-line @next/next/no-img-element */}
-                              <img src={c.thumb} alt="" className="w-full h-full object-contain" />
-                              {applyingLb === c.url ? (
-                                <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
-                                  <Loader2 className="w-4 h-4 animate-spin text-white" />
-                                </div>
-                              ) : (
-                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                  <span className="text-white text-xs font-medium">{t('use')}</span>
-                                </div>
-                              )}
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </>
-                  )}
-                </>
-              )}
-
-              {/* ── SteamGridDB tab ───────────────────────────────────── */}
-              {searchTab === 'sgdb' && (
-                <>
-                  {/* Step 1 or step 2 header */}
-                  {sgdbSelected ? (
-                    <div className="flex items-center gap-2">
-                      <AdminButton
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => { setSgdbSelected(null); setSgdbCovers([]) }}
-                      >
-                        <ArrowLeft className="w-3.5 h-3.5" />
-                      </AdminButton>
-                      <span className="text-xs font-medium text-foreground truncate">{sgdbSelected.name}</span>
-                    </div>
-                  ) : (
-                    <form
-                      onSubmit={(e) => { e.preventDefault(); doSgdbSearch(sgdbQuery) }}
-                      className="flex gap-2"
-                    >
-                      <input
-                        type="text"
-                        value={sgdbQuery}
-                        onChange={(e) => setSgdbQuery(e.target.value)}
-                        placeholder={t('gameTitlePlaceholder')}
-                        className="flex-1 bg-secondary border border-border rounded-md px-3 py-1.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-                      />
-                      <AdminButton
-                        type="submit"
-                        variant="primary"
-                        size="md"
-                        disabled={sgdbSearching || !sgdbQuery.trim()}
-                      >
-                        {sgdbSearching ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Search className="w-3.5 h-3.5" />}
-                      </AdminButton>
-                    </form>
-                  )}
-
-                  {sgdbError && (
-                    <p className="text-xs text-destructive bg-destructive/10 border border-destructive/20 rounded px-3 py-2">
-                      {sgdbError}
-                    </p>
-                  )}
-
-                  {/* Step 1: game list */}
-                  {!sgdbSelected && !sgdbSearching && sgdbGames.length > 0 && (
-                    <div className="space-y-1 max-h-48 overflow-y-auto">
-                      {sgdbGames.map((g) => (
-                        <button
-                          key={g.id}
-                          type="button"
-                          onClick={() => loadSgdbCovers(g)}
-                          className="w-full text-left px-3 py-2 text-sm rounded-md hover:bg-accent transition-colors text-foreground/80 hover:text-foreground flex items-center justify-between group"
-                        >
-                          <span className="truncate">{g.name}</span>
-                          <span className="text-xs text-muted-foreground group-hover:text-foreground ml-2 flex-shrink-0">{t('coversArrow')}</span>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-
-                  {sgdbSearching && (
-                    <div className="flex justify-center py-4">
-                      <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
-                    </div>
-                  )}
-
-                  {!sgdbSearching && !sgdbError && sgdbGames.length === 0 && sgdbQuery && !sgdbSelected && (
-                    <p className="text-xs text-muted-foreground text-center py-3">{t('noGames')}</p>
-                  )}
-
-                  {/* Step 2: cover grid */}
-                  {sgdbSelected && (
-                    <>
-                      {sgdbLoadingCovers && (
-                        <div className="flex justify-center py-4">
-                          <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
-                        </div>
-                      )}
-                      {!sgdbLoadingCovers && sgdbCovers.length === 0 && (
-                        <p className="text-xs text-muted-foreground text-center py-3">{t('noCoversForGame')}</p>
-                      )}
-                      {sgdbCovers.length > 0 && (
-                        <div className="grid grid-cols-3 gap-2 max-h-64 overflow-y-auto">
-                          {sgdbCovers.map((c) => (
-                            <button
-                              key={c.url}
-                              type="button"
-                              onClick={() => applySgdbCover(c.thumb, c.url)}
-                              disabled={applyingSgdb === c.url || loading}
-                              style={{ aspectRatio: `${thumbnailWidth}/${thumbnailHeight}` }}
-                              className="relative group rounded overflow-hidden bg-secondary border border-border hover:border-primary transition-colors disabled:opacity-60"
-                            >
-                              {/* eslint-disable-next-line @next/next/no-img-element */}
-                              <img src={c.thumb} alt="" className="w-full h-full object-contain" />
-                              {applyingSgdb === c.url ? (
-                                <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
-                                  <Loader2 className="w-4 h-4 animate-spin text-white" />
-                                </div>
-                              ) : (
-                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                  <span className="text-white text-xs font-medium">{t('use')}</span>
-                                </div>
-                              )}
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </>
-                  )}
-                </>
-              )}
-
-              {/* ── RAWG tab ──────────────────────────────────────────── */}
-              {searchTab === 'rawg' && (
-                <>
-                  <form
-                    onSubmit={(e) => { e.preventDefault(); doRawgSearch(rawgQuery) }}
-                    className="flex gap-2"
-                  >
-                    <input
-                      type="text"
-                      value={rawgQuery}
-                      onChange={(e) => setRawgQuery(e.target.value)}
-                      placeholder="Game title…"
-                      className="flex-1 bg-secondary border border-border rounded-md px-3 py-1.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-                    />
-                    <AdminButton
-                      type="submit"
-                      variant="primary"
-                      size="md"
-                      disabled={rawgSearching || !rawgQuery.trim()}
-                    >
-                      {rawgSearching ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Search className="w-3.5 h-3.5" />}
-                    </AdminButton>
-                  </form>
-
-                  {rawgSearching && (
-                    <div className="flex justify-center py-4">
-                      <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
-                    </div>
-                  )}
-
-                  {!rawgSearching && rawgResults.length === 0 && rawgQuery && (
-                    <p className="text-xs text-muted-foreground text-center py-3">{t('noCovers')}</p>
-                  )}
-
-                  {rawgResults.length > 0 && (
-                    <div className="grid grid-cols-3 gap-2 max-h-64 overflow-y-auto">
-                      {rawgResults.map((r) => (
-                        <button
-                          key={r.id}
-                          type="button"
-                          onClick={() => applyRawgCover(r)}
-                          disabled={applyingRawg === r.id || loading}
-                          style={{ aspectRatio: `${thumbnailWidth}/${thumbnailHeight}` }}
-                          className="relative group rounded overflow-hidden bg-secondary border border-border hover:border-primary transition-colors disabled:opacity-60"
-                          title={r.title}
-                        >
-                          <Image src={r.coverUrl!} alt={r.title} fill className="object-contain" unoptimized />
-                          {applyingRawg === r.id ? (
-                            <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
-                              <Loader2 className="w-4 h-4 animate-spin text-white" />
-                            </div>
-                          ) : (
-                            <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-1">
-                              <p className="text-white text-[10px] leading-tight line-clamp-2">{r.title}</p>
-                            </div>
-                          )}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </>
-              )}
-
-            </div>
-          </div>
-        )}
-      </div>
+      <ImageSearch
+        slot="cover"
+        gameId={gameId}
+        gameTitle={gameTitle}
+        platformSlug={platformSlug ?? ''}
+        onPick={(url, source) => uploadFromUrl(url, isCoverSource(source) ? source : 'url')}
+      />
 
       {adjusting && preview && (
         <CoverAdjustModal

@@ -5,6 +5,7 @@ import { uploadToS3 } from '@/lib/s3'
 import { storeGameImages, kindOf, type StoredImage } from '@/lib/game-images'
 import { providerFetch } from '@/lib/metadata/http'
 import { fetchSteamGridDBArts, type SgdbArtType } from '@/lib/metadata/steamgriddb'
+import { findNintendoExact, nintendoConsoleOf } from '@/lib/metadata/nintendo'
 import { searchSteamApp, steamBackgrounds } from '@/lib/metadata/steam'
 import {
   getLaunchBoxProvider, getLaunchBoxPlatformName, LAUNCHBOX_PLATFORM_NAMES,
@@ -198,9 +199,21 @@ export async function storeLaunchBoxArt(
   const sgLogo = sgdb.logo ?? null
 
   // The banner: LaunchBox's backdrop and SteamGridDB's hero, in the order of the chain.
+  // El banner de Nintendo: su 2×1 de la eShop, del juego con el título exacto de esa consola.
+  const ninConsole = nintendoConsoleOf(game.platformSlug)
+  const ninBannerUrl = chains.banner.includes('nintendo') && ninConsole && want('backdrop') && game.title
+    ? (await findNintendoExact(game.title, ninConsole).catch(() => null))?.images.banner ?? null
+    : null
+  const ninBanner = ninBannerUrl
+    ? (await storeGameImages({ id: game.id, platformSlug: game.platformSlug }, [{ url: ninBannerUrl, type: 'Banner' }], 250)).byUrl.get(ninBannerUrl) ?? null
+    : null
+
   const lbBanner = bd && backdrop ? { img: bd, kind: backdrop.kind } : null
   const sgBannerPick = sgBanner ? { img: sgBanner, kind: 'banner' } : null
-  const bannerPick = bannerSgFirst ? (sgBannerPick ?? lbBanner) : (lbBanner ?? sgBannerPick)
+  const ninBannerPick = ninBanner ? { img: ninBanner, kind: 'banner' } : null
+  // El banner sigue el orden de su cadena: la primera fuente que lo tenga gana.
+  const bannerBy: Record<string, { img: StoredImage; kind: string } | null> = { launchbox: lbBanner, steamgriddb: sgBannerPick, nintendo: ninBannerPick }
+  const bannerPick = chains.banner.map(source => bannerBy[source] ?? null).find(Boolean) ?? null
   const logoPick = logoSgFirst ? (sgLogo ?? lo) : (lo ?? sgLogo)
 
   // El fondo de las tarjetas sigue su cadena, en su orden. SteamGridDB y Steam solo rellenan el

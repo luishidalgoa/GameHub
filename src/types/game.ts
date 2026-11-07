@@ -31,6 +31,8 @@ export interface Game {
   coverPath: string | null
   /** Encuadre del recorte de la portada (JSON), o null sin recorte. */
   coverFrame?: string | null
+  /** Proporción medida de la portada (ancho / alto), o null si no se ha medido. */
+  coverRatio?: number | null
   /** Juego en línea en algún proveedor de su plataforma (badge verde). */
   online?: boolean
   /** "local" con fichero en disco; "torrent" solo existe como torrent de una fuente externa. */

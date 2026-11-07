@@ -20,7 +20,7 @@ const BADGES: Array<{ key: keyof SourceReadiness; label: string }> = [
   { key: 'rawg',       label: 'RAWG' },
   { key: 'metacritic', label: 'Metacritic' },
   { key: 'libretro',   label: 'libretro' },
-  { key: 'store',      label: 'Tienda' },
+  { key: 'nintendo',   label: 'Nintendo' },
 ]
 
 export function MetadataChainPanel({ chains }: { chains: PlatformChain[] }) {

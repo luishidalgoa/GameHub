@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import useSWR from 'swr'
 import { useTranslations } from 'next-intl'
-import { ArtSearch } from '@/components/admin/ArtSearch'
+import { ImageSearch } from '@/components/admin/ImageSearch'
 import { Upload, Link2, Trash2, Check, ChevronLeft, ChevronRight, Loader2, RefreshCw } from 'lucide-react'
 import { CoverUploader } from './CoverUploader'
 import { AdminButton } from '@/components/admin/AdminButton'
@@ -57,6 +57,8 @@ interface Props {
   /** The platform's secondary box, when it has one. */
   altThumbnailWidth?: number | null
   altThumbnailHeight?: number | null
+  /** The stored cover's proportion, when known: the cover's shape in the editor. */
+  coverRatio?: number | null
   /** Lets the owner hand a field back to the automatic flows. */
   onRelease: (field: string) => Promise<void> | void
   /**
@@ -66,7 +68,7 @@ interface Props {
   panel?: boolean
 }
 
-export function GameImagesPanel({ gameId, gameTitle, platformSlug, coverPath, coverFrame, onCover, thumbnailWidth, thumbnailHeight, altThumbnailWidth = null, altThumbnailHeight = null, onRelease, panel = false }: Props) {
+export function GameImagesPanel({ gameId, gameTitle, platformSlug, coverPath, coverFrame, onCover, thumbnailWidth, thumbnailHeight, altThumbnailWidth = null, altThumbnailHeight = null, coverRatio = null, onRelease, panel = false }: Props) {
   const t = useTranslations('GameEditor')
   // The box every picture of this platform is shown in: the library, the reference tabs and the search.
   const frame: Frame = { boxRatio: boxRatioOf(thumbnailWidth, thumbnailHeight), alternates: altBoxRatiosOf(altThumbnailWidth, altThumbnailHeight) }
@@ -223,6 +225,9 @@ export function GameImagesPanel({ gameId, gameTitle, platformSlug, coverPath, co
               onUploaded={(path, next, frame) => { onCover(path, next, frame); void mutate() }}
               thumbnailWidth={thumbnailWidth}
               thumbnailHeight={thumbnailHeight}
+              altThumbnailWidth={altThumbnailWidth}
+              altThumbnailHeight={altThumbnailHeight}
+              coverRatio={coverRatio}
             />
           )}
           <Library
@@ -250,6 +255,8 @@ export function GameImagesPanel({ gameId, gameTitle, platformSlug, coverPath, co
           base={base}
           label={label(tab)}
           gameTitle={gameTitle}
+          gameId={gameId}
+          platformSlug={platformSlug ?? ''}
           onRelease={async () => { await onRelease(SLOT_FIELD[tab]); await mutate() }}
           run={run}
           offerUndo={offerUndo}
@@ -258,7 +265,7 @@ export function GameImagesPanel({ gameId, gameTitle, platformSlug, coverPath, co
       )}
 
       {tab === 'screenshot' && (
-        <ScreenshotsPanel art={art} base={base} gameId={gameId} busy={busy} run={run} offerUndo={offerUndo} onCover={onCover} panel={panel} />
+        <ScreenshotsPanel art={art} base={base} gameId={gameId} gameTitle={gameTitle} platformSlug={platformSlug ?? ''} busy={busy} run={run} offerUndo={offerUndo} onCover={onCover} panel={panel} />
       )}
 
       {REFERENCE.includes(tab) && (
@@ -285,10 +292,12 @@ const post = (body: unknown): RequestInit => ({ method: 'POST', headers: { 'Cont
 
 // ── Banner, fanart and logo: one active image, a library, and ways to bring a new one ──────────
 
-function SlotPanel({ slot, art, images, busy, base, label, gameTitle, onRelease, run, offerUndo, panel }: {
+function SlotPanel({ slot, art, images, busy, base, label, gameTitle, gameId, platformSlug, onRelease, run, offerUndo, panel }: {
   panel: boolean
   /** The game's title: the first query of the search in other sources. */
   gameTitle: string
+  gameId: number
+  platformSlug: string
   slot: Slot
   art: GameArt
   images: ArtImage[]
@@ -394,11 +403,13 @@ function SlotPanel({ slot, art, images, busy, base, label, gameTitle, onRelease,
         )}
 
         {!panel && (
-          <ArtSearch
+          <ImageSearch
             slot={slot}
-            initialQuery={gameTitle}
+            gameId={gameId}
+            gameTitle={gameTitle}
+            platformSlug={platformSlug}
             disabled={busy !== null}
-            onUse={url => upload(undefined, url)}
+            onPick={url => upload(undefined, url)}
           />
         )}
 
@@ -488,11 +499,13 @@ function Library({ title, images, activeId, busy, onUse, onRemove, extra, frame 
 
 // ── Screenshots: the list the public page shows, in its order ──────────────────────────────
 
-function ScreenshotsPanel({ art, base, gameId, busy, run, offerUndo, onCover, panel }: {
+function ScreenshotsPanel({ art, base, gameId, gameTitle, platformSlug, busy, run, offerUndo, onCover, panel }: {
   panel: boolean
   art: GameArt
   base: string
   gameId: number
+  gameTitle: string
+  platformSlug: string
   busy: string | null
   run: (key: string, fn: () => Promise<unknown>, done?: string) => Promise<void>
   offerUndo: (text: string, restore: () => Promise<unknown>) => void
@@ -602,6 +615,17 @@ function ScreenshotsPanel({ art, base, gameId, busy, run, offerUndo, onCover, pa
           />
           <AdminButton type="submit" variant="primary" size="md" disabled={busy !== null || !links.trim()}>{t('imgDownload')}</AdminButton>
         </form>
+      )}
+
+      {!panel && (
+        <ImageSearch
+          slot="screenshot"
+          gameId={gameId}
+          gameTitle={gameTitle}
+          platformSlug={platformSlug}
+          disabled={busy !== null}
+          onPick={url => add([], [url])}
+        />
       )}
 
       {shots.length === 0 ? (

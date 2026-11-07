@@ -75,6 +75,31 @@ export function frameRatioOf(
   return Math.max(secondary, boxRatio)
 }
 
+/** The box sizes a platform keeps (its main box and its secondary one, when it has one). */
+export interface PlatformBoxSizes {
+  thumbnailWidth?: number | null
+  thumbnailHeight?: number | null
+  altThumbnailWidth?: number | null
+  altThumbnailHeight?: number | null
+}
+
+/**
+ * How a game's cover is shown on its platform: the proportion of its frame, and whether the cover
+ * is kept whole (contain) instead of cropped. The same rule as the grid card: a cover of the
+ * platform's secondary box takes that shape and is never cropped; any other cover takes the main box.
+ */
+export function coverShapeOf(
+  coverRatio: number | null | undefined,
+  platform: PlatformBoxSizes | null | undefined,
+): { ratio: number; whole: boolean } {
+  const boxRatio = boxRatioOf(platform?.thumbnailWidth, platform?.thumbnailHeight)
+  const alternates = altBoxRatiosOf(platform?.altThumbnailWidth, platform?.altThumbnailHeight)
+  return {
+    ratio: frameRatioOf(coverRatio, boxRatio, alternates),
+    whole: boxFitOf(coverRatio, boxRatio, alternates) === 'alt',
+  }
+}
+
 /** True when a stored cover has the proportion of the platform's box, or of one of its alternates. */
 export function isBoxRatio(
   ratio: number | null | undefined,

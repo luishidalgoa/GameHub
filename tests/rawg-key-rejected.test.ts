@@ -20,9 +20,11 @@ vi.mock('@/lib/metadata/launchbox', () => ({
   })),
   LAUNCHBOX_PLATFORM_NAMES: {},
 }))
-vi.mock('@/lib/metadata/nintendo-store', () => ({
-  searchStore: vi.fn(async () => null),
-  fetchStoreProduct: vi.fn(async () => null),
+vi.mock('@/lib/metadata/nintendo', () => ({
+  nintendoConsoleOf: (slug: string) => (slug === 'switch' || slug === 'switch-2' ? slug : null),
+  findNintendoExact: vi.fn(async () => null),
+  fetchNintendoPage: vi.fn(async () => ({ gallery: [], description: undefined })),
+  nintendoMetadata: vi.fn(() => null),
 }))
 
 import { gatherMetadata, StoreUnavailableError } from '@/lib/metadata/compose'

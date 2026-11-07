@@ -25,6 +25,7 @@ const BANNER_TRANSITION = 'linear-gradient(to bottom, #000 0%, #000 70%, transpa
 import { extractUpdateVersion, extractDlcName, latestVersion } from '@/lib/switch-labels'
 import type { Game } from '@/types/game'
 import { resolveCoverPath } from '@/lib/cover-url'
+import { coverShapeOf } from '@/lib/cover-shape'
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
@@ -70,6 +71,8 @@ export function GameDetailModal({ gameId, onClose, region, returnTo }: Props) {
   }, [onClose])
 
   const cover = game?.coverPath ?? game?.coverUrl
+  // The cover's frame: its platform's secondary shape when it is one, else the main box (as in the grid).
+  const coverShape = coverShapeOf(game?.coverRatio, game?.platform)
 
   // ── Swipe-down to dismiss (mobile bottom sheet) ─────────────────────────────
   const [dragY, setDragY]       = useState(0)
@@ -207,12 +210,10 @@ export function GameDetailModal({ gameId, onClose, region, returnTo }: Props) {
               <div className="flex-shrink-0 w-36">
                 <div
                   className="relative rounded-lg overflow-hidden bg-secondary"
-                  style={{
-                    aspectRatio: `${game.platform?.thumbnailWidth ?? 200} / ${game.platform?.thumbnailHeight ?? 300}`,
-                  }}
+                  style={{ aspectRatio: String(coverShape.ratio) }}
                 >
                   {cover ? (
-                    <Image src={cover} alt={game.title} fill className="object-cover" unoptimized />
+                    <Image src={cover} alt={game.title} fill className={coverShape.whole ? 'object-contain' : 'object-cover'} unoptimized />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center">
                       <span className="text-5xl font-bold text-muted-foreground/30">

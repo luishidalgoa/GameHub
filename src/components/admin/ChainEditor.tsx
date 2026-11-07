@@ -34,7 +34,7 @@ const SOURCE_COPY: Record<string, { name: string; text: string }> = {
   libretro:    { name: 'libretro',           text: 'Caja de la consola por nombre de fichero.' },
   steamgriddb: { name: 'SteamGridDB',        text: 'Imágenes de la comunidad, por título: portadas, banners y logos.' },
   steam:       { name: 'Steam',              text: 'Ficha de la tienda de Steam, por título exacto. Solo juegos que estén en Steam.' },
-  nintendo:    { name: 'Tienda de Nintendo', text: 'Portada de la tienda. Solo Switch.' },
+  nintendo:    { name: 'Nintendo', text: 'Ficha, descripción, capturas, banner y portada de la tienda, por título exacto. Solo Switch y Switch 2; cada consola busca en la suya.' },
 }
 
 const ORIGIN_LABEL: Record<ChainOrigin, string> = {

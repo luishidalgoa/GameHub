@@ -4,8 +4,7 @@ import { useState } from 'react'
 import Image from 'next/image'
 import { useTranslations } from 'next-intl'
 import { Sparkles, X, Check, Loader2, Search } from 'lucide-react'
-import type { MetadataResult } from '@/lib/metadata/provider'
-import { PROVIDER_LABEL } from '@/lib/metadata/sources'
+import { SOURCE_LABEL, type MetadataSourceId } from '@/lib/providers/catalog'
 import { AdminButton } from '@/components/admin/AdminButton'
 
 interface Props {
@@ -13,8 +12,12 @@ interface Props {
   onApplied: () => void
 }
 
-type Source = 'launchbox' | 'rawg' | 'steamgriddb'
-type Candidate = MetadataResult & { source: 'launchbox' | 'rawg' | 'steam' }
+// Una fuente de la ficha puede ser cualquier origen (también los manuales: URL, subida…): se muestra por su nombre.
+type Source = string
+// Un resultado de la búsqueda, tal como lo da el servidor para cualquier fuente de metadatos.
+interface Candidate { id: number | string; title: string; source: MetadataSourceId; platform?: string; thumb?: string }
+// Las fuentes de metadatos las da el servidor (src/lib/providers/metadata.ts): el modal no lista ninguna a mano.
+interface ProviderInfo { id: MetadataSourceId; label: string; available: boolean }
 type Sources = Partial<Record<'cover' | 'info' | 'description' | 'screenshots', Source>>
 
 export function MetadataFetchButton({ gameId, onApplied }: Props) {
@@ -29,9 +32,10 @@ export function MetadataFetchButton({ gameId, onApplied }: Props) {
   const [loading, setLoading] = useState(false)
   const [applying, setApplying] = useState<string | null>(null)
   const [results, setResults] = useState<Candidate[]>([])
-  const [provider, setProvider] = useState<'launchbox' | 'rawg' | 'steam' | null>(null)
+  const [provider, setProvider] = useState<MetadataSourceId | null>(null)
+  const [providers, setProviders] = useState<ProviderInfo[]>([])
   // Provider the admin explicitly forced for the search (null = matrix default).
-  const [forcedProvider, setForcedProvider] = useState<'launchbox' | 'rawg' | 'steam' | null>(null)
+  const [forcedProvider, setForcedProvider] = useState<MetadataSourceId | null>(null)
   const [error, setError] = useState('')
   const [usedQuery, setUsedQuery] = useState('')
   const [manualQuery, setManualQuery] = useState('')
@@ -73,7 +77,7 @@ export function MetadataFetchButton({ gameId, onApplied }: Props) {
   // ── Manual search (fallback) ──
   // `prov` lets a provider-tab click search that source right away, without
   // waiting for the forcedProvider state update to flush.
-  const doSearch = async (q?: string, prov?: 'launchbox' | 'rawg' | 'steam' | null) => {
+  const doSearch = async (q?: string, prov?: MetadataSourceId | null) => {
     setLoading(true)
     setError('')
     setResults([])
@@ -88,6 +92,7 @@ export function MetadataFetchButton({ gameId, onApplied }: Props) {
       if (!res.ok) setError(data.error ?? t('searchFailed'))
       else {
         setResults(data.results ?? [])
+        setProviders(data.providers ?? [])
         setProvider(data.provider ?? null)
         setUsedQuery(data.usedQuery ?? q ?? '')
       }
@@ -106,7 +111,7 @@ export function MetadataFetchButton({ gameId, onApplied }: Props) {
   }
 
   // Switch which provider serves the results, re-running the current query.
-  const pickProvider = (p: 'launchbox' | 'rawg' | 'steam') => {
+  const pickProvider = (p: MetadataSourceId) => {
     if (p === forcedProvider) return
     setForcedProvider(p)
     doSearch(manualQuery.trim() || undefined, p)
@@ -135,7 +140,7 @@ export function MetadataFetchButton({ gameId, onApplied }: Props) {
   const summaryLine = (s: Sources) =>
     (['cover', 'info', 'description', 'screenshots'] as const)
       .filter(k => s[k])
-      .map(k => `${t(`field_${k}`)}: ${PROVIDER_LABEL[s[k]!] ?? s[k]}`)
+      .map(k => `${t(`field_${k}`)}: ${(SOURCE_LABEL as Record<string, string>)[s[k]!] ?? s[k]}`)
       .join('  ·  ')
 
   return (
@@ -188,7 +193,7 @@ export function MetadataFetchButton({ gameId, onApplied }: Props) {
                 <h3 className="font-semibold">{t('modalTitle')}</h3>
                 {provider && (
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    {t('searchingIn')} {PROVIDER_LABEL[provider]}
+                    {t('searchingIn')} {provider ? SOURCE_LABEL[provider] : ''}
                   </p>
                 )}
               </div>
@@ -224,21 +229,22 @@ export function MetadataFetchButton({ gameId, onApplied }: Props) {
             <div className="px-4 pb-1 flex items-center gap-2">
               <span className="text-xs text-muted-foreground">{t('providerLabel')}</span>
               <div className="flex gap-1">
-                {(['launchbox', 'rawg', 'steam'] as const).map((p) => {
-                  const active = (forcedProvider ?? provider) === p
+                {providers.map((p) => {
+                  const active = (forcedProvider ?? provider) === p.id
                   return (
                     <button
-                      key={p}
+                      key={p.id}
                       type="button"
-                      onClick={() => pickProvider(p)}
-                      disabled={loading}
+                      onClick={() => pickProvider(p.id)}
+                      disabled={loading || !p.available}
+                      title={p.available ? undefined : `${p.label} no responde para esta plataforma`}
                       className={`px-2.5 py-1 text-xs rounded-md border transition-colors disabled:opacity-50 ${
                         active
                           ? 'bg-primary text-primary-foreground border-primary'
                           : 'bg-secondary border-border text-muted-foreground hover:text-foreground hover:bg-accent'
                       }`}
                     >
-                      {PROVIDER_LABEL[p]}
+                      {p.label}
                     </button>
                   )
                 })}
@@ -278,8 +284,8 @@ export function MetadataFetchButton({ gameId, onApplied }: Props) {
                     className="w-full flex items-center gap-4 p-3 rounded-lg hover:bg-accent transition-colors text-left disabled:opacity-50 group"
                   >
                     <div className="w-12 h-16 flex-shrink-0 rounded overflow-hidden bg-secondary">
-                      {r.coverUrl ? (
-                        <Image src={r.coverUrl} alt={r.title} width={48} height={64} className="object-cover w-full h-full" unoptimized />
+                      {r.thumb ? (
+                        <Image src={r.thumb} alt={r.title} width={48} height={64} className="object-cover w-full h-full" unoptimized />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center text-muted-foreground/40 text-xl font-bold">
                           {r.title.charAt(0)}
@@ -289,8 +295,7 @@ export function MetadataFetchButton({ gameId, onApplied }: Props) {
                     <div className="flex-1 min-w-0">
                       <p className="font-medium text-sm">{r.title}</p>
                       <div className="flex items-center gap-2 mt-0.5">
-                        {r.releaseYear && <span className="text-xs text-muted-foreground">{r.releaseYear}</span>}
-                        {r.platformName && <span className="text-xs text-muted-foreground/50">{r.platformName}</span>}
+                        {r.platform && <span className="text-xs text-muted-foreground/50">{r.platform}</span>}
                       </div>
                     </div>
                     {applying === String(r.id)

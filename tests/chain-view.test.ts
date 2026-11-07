@@ -6,11 +6,11 @@ import { chainFor, sourcesFor } from '@/lib/metadata/chain-view'
 
 describe('which sources can answer for a platform', () => {
   it('Xbox 360 is reachable on LaunchBox, RAWG and Metacritic', () => {
-    expect(sourcesFor('xbox-360')).toMatchObject({ launchbox: true, rawg: true, metacritic: true, libretro: true, store: false })
+    expect(sourcesFor('xbox-360')).toMatchObject({ launchbox: true, rawg: true, metacritic: true, libretro: true, nintendo: false })
   })
 
   it('Switch adds the Nintendo store and no libretro cover', () => {
-    expect(sourcesFor('switch')).toMatchObject({ store: true, libretro: false })
+    expect(sourcesFor('switch')).toMatchObject({ nintendo: true, libretro: false })
   })
 
   it('Game Boy resolves LaunchBox and Metacritic per console', () => {
@@ -19,7 +19,7 @@ describe('which sources can answer for a platform', () => {
 
   it('an unknown platform reports every source as unavailable', () => {
     expect(sourcesFor('no-such-platform')).toEqual({
-      launchbox: false, rawg: false, metacritic: false, libretro: false, store: false,
+      launchbox: false, rawg: false, metacritic: false, libretro: false, nintendo: false,
     })
   })
 })
@@ -40,7 +40,7 @@ describe('the chain for one platform', () => {
 
   it('marks the store step as not applicable outside Switch', () => {
     const chain = chainFor({ slug: 'xbox-360', name: 'Xbox 360' })
-    expect(chain.steps.find(s => s.id === 'store')?.state).toBe('na')
+    expect(chain.steps.find(s => s.id === 'nintendo')?.state).toBe('na')
   })
 
   it('does not state the field sources: those are edited in settings, as a chain', () => {

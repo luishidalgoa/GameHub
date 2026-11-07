@@ -4,7 +4,9 @@ import { db } from '@/lib/db'
 import { adminGuard } from '@/lib/admin-guard'
 import { getRawgProvider, RawgAuthError } from '@/lib/metadata/rawg'
 import { fileToTitle } from '@/lib/utils'
-import { getLaunchBoxProvider, fetchLaunchBoxGame } from '@/lib/metadata/launchbox'
+import type { LaunchBoxGame } from '@/lib/metadata/launchbox'
+import { METADATA_ADAPTERS, isMetadataSource, metadataSourcesFor } from '@/lib/providers/metadata'
+import type { MetadataSourceId } from '@/lib/providers/catalog'
 import { getProviderMatrix } from '@/lib/metadata/matrix'
 import { gatherMetadata, StoreUnavailableError } from '@/lib/metadata/compose'
 import { downloadAndCacheCover, saveCoverFromBuffer } from '@/lib/covers'
@@ -12,9 +14,7 @@ import { fetchSteamGridDBCover } from '@/lib/metadata/steamgriddb'
 import { searchYouTubeTrailer } from '@/lib/youtube'
 import { serializeBigInt } from '@/lib/serialize'
 import type { MetadataResult } from '@/lib/metadata/provider'
-import { searchSteamList, fetchSteamApp } from '@/lib/metadata/steam'
 import { fetchLibretroCover, libretroSystemFor } from '@/lib/metadata/libretro'
-import type { LaunchBoxGame } from '@/lib/metadata/launchbox'
 import { changedFields, lockFields, LOCKABLE_FIELDS } from '@/lib/manual-fields'
 import { applyMetadata, textPatch, type TextField } from '@/lib/metadata/apply'
 import { storeLaunchBoxArt } from '@/lib/art'
@@ -26,7 +26,7 @@ import { extractSwitchTitleId } from '@/lib/scanner/titleid'
 
 export const dynamic = 'force-dynamic'
 
-type Source = 'launchbox' | 'rawg' | 'steam'
+type Source = MetadataSourceId
 
 async function rawgKey(): Promise<string | undefined> {
   const s = await db.setting.findUnique({ where: { key: 'rawg_api_key' } })
@@ -40,9 +40,9 @@ async function rawgKey(): Promise<string | undefined> {
  *  wearing someone else's box art. */
 async function manualSearchSource(platformSlug: string): Promise<Source> {
   const matrix = await getProviderMatrix(platformSlug)
-  if (matrix.info === 'launchbox') return 'launchbox'
-  if (matrix.info === 'rawg' && (await rawgKey())) return 'rawg'
-  return (await rawgKey()) ? 'rawg' : 'launchbox'
+  const sources = await metadataSourcesFor(platformSlug)
+  const primary = sources.find(x => x.id === matrix.info && x.available)
+  return (primary ?? sources.find(x => x.available) ?? sources[0]).id
 }
 
 // ── GET: manual search (fallback) — candidates from the info provider ─────────
@@ -62,28 +62,22 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
   // matrix-driven one may not list a given game. Falls back to the matrix choice
   // when no valid override is given.
   const overrideProvider = sp.get('provider')
-  const source: Source =
-    overrideProvider === 'launchbox' || overrideProvider === 'rawg' || overrideProvider === 'steam'
-      ? overrideProvider
-      : await manualSearchSource(game.platform.slug)
+  const source: Source = isMetadataSource(overrideProvider) ? overrideProvider : await manualSearchSource(game.platform.slug)
 
-  let results: Array<MetadataResult & { source: Source }> = []
-  if (source === 'launchbox') {
-    const provider = await getLaunchBoxProvider(game.platform.slug)
-    const r = await provider.search(game.title, game.platform.slug, overrideQuery)
-    results = r.map(x => ({ ...x, source: 'launchbox' as const }))
-  } else if (source === 'steam') {
-    // Steam: la búsqueda manual es libre (no exige título exacto); el dueño elige la aplicación.
-    const r = await searchSteamList(usedQuery)
-    results = r.map(x => ({ id: x.id, title: x.name, source: 'steam' as const }))
-  } else {
-    const provider = getRawgProvider(await rawgKey())
-    if (!provider) return NextResponse.json({ error: 'RAWG API key not configured' }, { status: 503 })
-    const r = await provider.search(game.title, game.platform.slug, overrideQuery)
-    results = r.map(x => ({ ...x, source: 'rawg' as const }))
+  const adapter = METADATA_ADAPTERS[source]
+  if (!(await adapter.available(game.platform.slug))) {
+    return NextResponse.json({ error: `${source} no responde para esta plataforma` }, { status: 503 })
   }
+  const results = (await adapter.search(usedQuery, { platformSlug: game.platform.slug, title: game.title }))
+    .map(r => ({ ...r, source }))
 
-  return NextResponse.json({ provider: source, results, usedQuery })
+  return NextResponse.json({
+    provider: source,
+    results,
+    usedQuery,
+    // Todas las fuentes de metadatos: el modal las lista solas, sin una lista propia.
+    providers: await metadataSourcesFor(game.platform.slug),
+  })
 }
 
 // ── POST: apply metadata ──────────────────────────────────────────────────────
@@ -99,7 +93,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 
   // Normalize a manual pick (new + legacy shapes).
   const pickSource: Source | null =
-    body.source === 'launchbox' || body.source === 'rawg' || body.source === 'steam' ? body.source
+    isMetadataSource(body.source) ? body.source
       : (body.rawgId != null || body.rawgSlug != null) ? 'rawg'
         : null
   const pickId: number | string | undefined = body.id ?? body.rawgSlug ?? body.rawgId
@@ -230,19 +224,9 @@ async function applyManualPick(
   let meta: MetadataResult | null = null
   let screenshots: string[] = []
 
-  if (source === 'launchbox') {
-    const lb = await fetchLaunchBoxGame(Number(id))
-    if (lb) { meta = lb; screenshots = lb.screenshots ?? [] }
-  } else if (source === 'steam') {
-    meta = await fetchSteamApp(Number(id), gameTitle)
-    if (meta) screenshots = meta.screenshots ?? []
-  } else {
-    const provider = getRawgProvider(await rawgKey())
-    if (provider) {
-      meta = await provider.fetchById(id)
-      if (meta?.slug) { try { screenshots = await provider.fetchScreenshots(meta.slug) } catch { /* ignore */ } }
-    }
-  }
+  // Cada fuente trae su ficha y sus capturas por el mismo contrato (src/lib/providers/metadata.ts).
+  meta = await METADATA_ADAPTERS[source].fetch(String(id), { platformSlug, title: gameTitle })
+  if (meta) screenshots = meta.screenshots ?? []
   if (!meta) return null
 
   // The picked candidate's own art first; without it, the platform's cover chain.

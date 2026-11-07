@@ -9,6 +9,7 @@ import { RAWG_PLATFORM_SLUGS } from './rawg'
 import { METACRITIC_PLATFORM_SLUGS } from './metacritic'
 import { libretroSystemsFor } from './libretro'
 import { GAME_BOY_SLUG } from './platform-console'
+import { NINTENDO_CONSOLE_SLUGS } from '../providers/catalog'
 
 export type StepState = 'ready' | 'missing' | 'na'
 
@@ -25,7 +26,7 @@ export interface SourceReadiness {
   rawg:       boolean
   metacritic: boolean
   libretro:   boolean
-  store:      boolean
+  nintendo:   boolean
 }
 
 export interface PlatformChain {
@@ -43,7 +44,8 @@ export function sourcesFor(slug: string): SourceReadiness {
     // Game Boy's Metacritic page depends on the game's own console (gb, gbc or gba).
     metacritic: slug === GAME_BOY_SLUG || Boolean(METACRITIC_PLATFORM_SLUGS[slug]),
     libretro:   libretroSystemsFor(slug).length > 0,
-    store:      slug === 'switch',
+    // Switch y Switch 2 tienen su propia tienda: cada una busca solo en la suya.
+    nintendo:   slug in NINTENDO_CONSOLE_SLUGS,
   }
 }
 
@@ -67,9 +69,9 @@ export function chainFor(input: { slug: string; name: string }): PlatformChain {
       state: sources.rawg ? 'ready' : 'missing',
     },
     {
-      id: 'store', title: 'Ficha · tienda de Nintendo',
-      detail: sources.store ? 'Primera para Switch, sin umbral de coincidencia.' : 'No aplica fuera de Switch.',
-      state: sources.store ? 'ready' : 'na',
+      id: 'nintendo', title: 'Ficha · tienda de Nintendo',
+      detail: sources.nintendo ? 'Título exacto en la tienda de su consola (Switch o Switch 2), sin umbral de coincidencia.' : 'No aplica fuera de Switch y Switch 2.',
+      state: sources.nintendo ? 'ready' : 'na',
     },
     {
       id: 'libretro-cover', title: 'Portada sola · libretro',

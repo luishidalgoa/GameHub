@@ -1,8 +1,10 @@
 import { describe, it, expect, vi } from 'vitest'
 
-vi.mock('@/lib/metadata/nintendo-store', () => ({
-  searchStore: vi.fn(async () => { throw new Error('fetch failed') }),
-  fetchStoreProduct: vi.fn(async () => null),
+vi.mock('@/lib/metadata/nintendo', () => ({
+  nintendoConsoleOf: (slug: string) => (slug === 'switch' || slug === 'switch-2' ? slug : null),
+  findNintendoExact: vi.fn(async () => { throw new Error('fetch failed') }),
+  fetchNintendoPage: vi.fn(async () => ({ gallery: [], description: undefined })),
+  nintendoMetadata: vi.fn(() => null),
 }))
 
 import { gatherMetadata, StoreUnavailableError } from '@/lib/metadata/compose'

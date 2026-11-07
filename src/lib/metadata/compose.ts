@@ -1,6 +1,6 @@
 import { getRawgProvider, RawgAuthError, RawgProvider } from './rawg'
 import { getLaunchBoxProvider, getLaunchBoxPlatformName, type LaunchBoxGame } from './launchbox'
-import { searchStore, fetchStoreProduct } from './nintendo-store'
+import { findNintendoExact, fetchNintendoPage, nintendoMetadata, nintendoConsoleOf } from './nintendo'
 import { fetchSteamGridDBCover } from './steamgriddb'
 import { lookupSteam } from './steam'
 import { fetchLibretroCover } from './libretro'
@@ -218,17 +218,19 @@ export async function gatherMetadata(input: GatherInput): Promise<ComposedMetada
     }
   }
 
-  // Switch: la tienda oficial de Nintendo va antes que RAWG para la ficha y la portada.
+  // Switch y Switch 2: la tienda oficial de Nintendo va antes que RAWG para la ficha y la portada.
+  // Cada consola busca solo en la suya: un juego de Switch 2 nunca trae la ficha de Switch 1.
   let nin: MetadataResult | null = null
   let storeDown = false
-  if (platformSlug === 'switch') {
+  const ninConsole = nintendoConsoleOf(platformSlug)
+  if (ninConsole) {
     try {
-      const hit = await searchStore(title)
+      const hit = await findNintendoExact(title, ninConsole)
       if (diag) diag.storeHit = Boolean(hit)
       if (hit) {
-        const product = await fetchStoreProduct(hit.url)
-        if (product) nin = { ...product, title }
-        else storeDown = true
+        // La galería y la descripción de la ficha de la tienda solo se piden si una cadena las usa.
+        const page = asked('nintendo') ? await fetchNintendoPage(hit.url) : { gallery: [], description: undefined }
+        nin = nintendoMetadata(hit, page.gallery, page.description)
       }
     } catch {
       // Sin respuesta de la tienda: se sigue con RAWG y LaunchBox, y si nada responde se reintenta más tarde.
@@ -305,7 +307,7 @@ export async function gatherMetadata(input: GatherInput): Promise<ComposedMetada
   // ── INFO (title/dev/publisher/genre/year/esrb) ──
   // The first source of the info chain that has the game; Nintendo's store answers when none does.
   const infoFromChain = chains.info
-    .map(source => (source === 'launchbox' ? lb : source === 'steam' ? steam : rawg))
+    .map(source => (source === 'launchbox' ? lb : source === 'steam' ? steam : source === 'nintendo' ? nin : rawg))
     .find(hit => Boolean(hit)) ?? null
   const info = infoFromChain ?? nin ?? null
   const infoSource: 'launchbox' | 'rawg' | 'nintendo' | 'steam' | undefined = info
@@ -324,7 +326,10 @@ export async function gatherMetadata(input: GatherInput): Promise<ComposedMetada
   // The first source of the description chain that has one.
   let description: string | undefined
   for (const source of chains.description) {
-    const text = source === 'launchbox' ? lb?.description : source === 'steam' ? steam?.description : rawg?.description
+    const text = source === 'launchbox' ? lb?.description
+      : source === 'steam' ? steam?.description
+        : source === 'nintendo' ? nin?.description
+          : rawg?.description
     if (text) { description = text; sources.description = source; break }
   }
 
@@ -359,6 +364,11 @@ export async function gatherMetadata(input: GatherInput): Promise<ComposedMetada
     if (source === 'steam' && steam?.screenshots?.length) {
       screenshots = steam.screenshots
       sources.screenshots = 'steam'
+      break
+    }
+    if (source === 'nintendo' && nin?.screenshots?.length) {
+      screenshots = nin.screenshots
+      sources.screenshots = 'nintendo'
       break
     }
     if (source === 'rawg' && rawgProvider && rawg?.slug) {

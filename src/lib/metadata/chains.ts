@@ -4,21 +4,27 @@
 //
 // Pure: the settings UI and the engine both read it, so it is free of server imports.
 
+import { NINTENDO_CONSOLE_SLUGS } from '../providers/catalog'
+
 export const COVER_SOURCES = ['launchbox', 'libretro', 'steamgriddb', 'nintendo'] as const
 export type CoverSource = typeof COVER_SOURCES[number]
 
-export const INFO_SOURCES = ['launchbox', 'rawg', 'steam'] as const
+export const INFO_SOURCES = ['launchbox', 'rawg', 'steam', 'nintendo'] as const
 export type InfoSource = typeof INFO_SOURCES[number]
 
-export const DESCRIPTION_SOURCES = ['rawg', 'launchbox', 'steam'] as const
+export const DESCRIPTION_SOURCES = ['rawg', 'launchbox', 'steam', 'nintendo'] as const
 export type DescriptionSource = typeof DESCRIPTION_SOURCES[number]
 
-export const SCREENSHOT_SOURCES = ['launchbox', 'rawg', 'steam'] as const
+export const SCREENSHOT_SOURCES = ['launchbox', 'rawg', 'steam', 'nintendo'] as const
 export type ScreenshotSource = typeof SCREENSHOT_SOURCES[number]
 
-/** Banner (wide image) and logo: LaunchBox's copies or SteamGridDB's, in the order the chain says. */
-export const ART_SOURCES = ['launchbox', 'steamgriddb'] as const
-export type ArtSource = typeof ART_SOURCES[number]
+/** Banner (wide image): LaunchBox's backdrop, SteamGridDB's hero, or Nintendo's 2×1 eShop banner. */
+export const BANNER_SOURCES = ['launchbox', 'steamgriddb', 'nintendo'] as const
+export type BannerSource = typeof BANNER_SOURCES[number]
+
+/** Logo: LaunchBox's clear logo or SteamGridDB's. Nintendo's store has none. */
+export const LOGO_SOURCES = ['launchbox', 'steamgriddb'] as const
+export type LogoSource = typeof LOGO_SOURCES[number]
 
 /** Fondo de las tarjetas (16:9): LaunchBox, SteamGridDB (heroes) o la ficha de Steam. */
 export const FANART_SOURCES = ['launchbox', 'steamgriddb', 'steam'] as const
@@ -29,8 +35,8 @@ export interface ProviderChains {
   info: InfoSource[]
   description: DescriptionSource[]
   screenshots: ScreenshotSource[]
-  banner: ArtSource[]
-  logo: ArtSource[]
+  banner: BannerSource[]
+  logo: LogoSource[]
   fanart: FanartSource[]
 }
 
@@ -43,17 +49,19 @@ export type ChainField = keyof ProviderChains
 export const COVER_MIN_SCALE = 2
 export const CHAIN_FIELDS: readonly ChainField[] = ['cover', 'info', 'description', 'screenshots', 'banner', 'logo', 'fanart']
 
-/** What each field's chain can hold, for a platform. Only Switch has the Nintendo store's covers. */
+const FIELD_SOURCES: Record<ChainField, readonly string[]> = {
+  cover: COVER_SOURCES, info: INFO_SOURCES, description: DESCRIPTION_SOURCES, screenshots: SCREENSHOT_SOURCES,
+  banner: BANNER_SOURCES, logo: LOGO_SOURCES, fanart: FANART_SOURCES,
+}
+
+/** Nintendo's store only knows its own consoles: a source that cannot answer for the platform is not offered. */
+function usableFor(source: string, slug: string): boolean {
+  return source !== 'nintendo' || slug === 'global' || slug in NINTENDO_CONSOLE_SLUGS
+}
+
+/** What each field's chain can hold, for a platform. The global scope ('global') offers every source. */
 export function optionsFor(field: ChainField, slug: string): readonly string[] {
-  switch (field) {
-    case 'cover':       return slug === 'switch' ? COVER_SOURCES : COVER_SOURCES.filter(s => s !== 'nintendo')
-    case 'info':        return INFO_SOURCES
-    case 'description': return DESCRIPTION_SOURCES
-    case 'screenshots': return SCREENSHOT_SOURCES
-    case 'banner':      return ART_SOURCES
-    case 'logo':        return ART_SOURCES
-    case 'fanart':      return FANART_SOURCES
-  }
+  return FIELD_SOURCES[field].filter(source => usableFor(source, slug))
 }
 
 /** The chains in force when nothing is set: the way GameHub has always asked. */
@@ -73,7 +81,8 @@ export const DEFAULT_CHAINS: ProviderChains = {
  * only then the Nintendo store.
  */
 export const PLATFORM_DEFAULTS: Record<string, Partial<ProviderChains>> = {
-  switch: { cover: ['launchbox', 'steamgriddb', 'nintendo'] },
+  switch:     { cover: ['launchbox', 'steamgriddb', 'nintendo'] },
+  'switch-2': { cover: ['launchbox', 'steamgriddb', 'nintendo'] },
 }
 
 /** Keeps the valid, unique options of a chain. Null when the value is not a list at all. */

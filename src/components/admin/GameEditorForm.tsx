@@ -350,6 +350,7 @@ export function GameEditorForm({ game, thumbnailWidth = 200, thumbnailHeight = 3
               thumbnailHeight={thumbnailHeight}
               altThumbnailWidth={altThumbnailWidth}
               altThumbnailHeight={altThumbnailHeight}
+              coverRatio={game.coverRatio ?? null}
               onRelease={releaseField}
             />
           )}

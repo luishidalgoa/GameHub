@@ -9,6 +9,7 @@ import { db } from '@/lib/db'
 import { backdropUrl } from '@/lib/tile-art'
 import { BANNER_FADE, parsePalette } from '@/lib/theme-palette'
 import { resolveCoverPath } from '@/lib/s3'
+import { coverShapeOf } from '@/lib/cover-shape'
 import { formatBytes } from '@/lib/utils'
 import { languagesFromCsv } from '@/lib/rom-tags'
 import { extractUpdateVersion, extractDlcName, latestVersion } from '@/lib/switch-labels'
@@ -85,8 +86,8 @@ export default async function GamePage({ params, searchParams }: Props) {
     ? `radial-gradient(60% 80% at 30% 20%, ${c0} 0%, transparent 60%), radial-gradient(50% 70% at 80% 60%, ${c1} 0%, transparent 65%), #14101f`
     : 'radial-gradient(60% 80% at 30% 20%, #5b3aa8 0%, transparent 60%), radial-gradient(50% 70% at 80% 60%, #1f5f7a 0%, transparent 65%), #14101f'
   const cover = resolveCoverPath(game.coverPath) ?? game.coverUrl
-  const thumbW = game.platform?.thumbnailWidth  ?? 200
-  const thumbH = game.platform?.thumbnailHeight ?? 300
+  // The cover's frame: its platform's secondary shape when it is one, else the main box (as in the grid).
+  const coverShape = coverShapeOf(game.coverRatio, game.platform)
 
   const editions: Edition[] = [
     { key: 'primary', region: game.region, languages: languagesFromCsv(game.languages), fileSize: game.fileSize.toString() },
@@ -153,9 +154,9 @@ export default async function GamePage({ params, searchParams }: Props) {
               {cover && (
                 <div
                   className="relative flex-shrink-0 w-24 sm:w-32 lg:w-36 rounded-xl overflow-hidden bg-secondary shadow-2xl"
-                  style={{ aspectRatio: `${thumbW} / ${thumbH}`, viewTransitionName: `game-cover-${game.id}` }}
+                  style={{ aspectRatio: String(coverShape.ratio), viewTransitionName: `game-cover-${game.id}` }}
                 >
-                  <Image src={cover} alt={game.title} fill className="object-cover" unoptimized />
+                  <Image src={cover} alt={game.title} fill className={coverShape.whole ? 'object-contain' : 'object-cover'} unoptimized />
                 </div>
               )}
               <div className="flex min-w-0 flex-1 flex-col gap-4 xl:max-w-[680px]">

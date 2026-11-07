@@ -41,6 +41,8 @@ export const LAUNCHBOX_PLATFORM_NAMES: Record<string, string> = {
   wiiu:      'Nintendo Wii U',
   'wii-u':   'Nintendo Wii U',
   switch:    'Nintendo Switch',
+  // Switch 2 is its own console: without this alias the fuzzy match gave it Switch 1's games.
+  'switch-2': 'Nintendo Switch 2',
   n64:       'Nintendo 64',
   // LaunchBox's results filter expects the bare name — "…System (SNES)" returns 0.
   snes:                                  'Super Nintendo Entertainment System',
@@ -79,7 +81,12 @@ export const LAUNCHBOX_PLATFORM_NAMES: Record<string, string> = {
 const normPlatform = (s: string) =>
   s.toLowerCase().replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim()
 
+/** The numbers a platform name carries («2» in «Nintendo Switch 2»): they name the generation, so they must agree. */
+const numbersOf = (s: string) => normPlatform(s).split(' ').filter(t => /^\d+$/.test(t)).join(' ')
+
 function platformTokenScore(a: string, b: string): number {
+  // «Nintendo Switch 2» and «Nintendo Switch» share two of three tokens, but they are different consoles.
+  if (numbersOf(a) !== numbersOf(b)) return 0
   const ta = new Set(normPlatform(a).split(' ').filter(Boolean))
   const tb = new Set(normPlatform(b).split(' ').filter(Boolean))
   if (ta.size === 0 || tb.size === 0) return 0
