@@ -154,12 +154,20 @@ export async function GET(req: Request) {
   // gh_magnet: magnet del fichero base cuando el juego local tiene una fuente torrent vinculada.
   // Solo en el fichero base: DLC, updates y ediciones regionales no son ese torrent.
   const lGameIds = [...new Set(available.map((c) => c.gameId))]
-  const [online, extMagnets] = await Promise.all([
+  const [online, extMagnets, extMagnetOnly] = await Promise.all([
     onlineGameIds(games),
     db.externalGame.findMany({
       where:   { gameId: { in: lGameIds } },
       select:  { gameId: true, magnet: true },
       orderBy: { id: 'asc' },
+    }),
+    // Juegos de la fuente externa sin archivo local: solo se sirven por magnet.
+    db.externalGame.findMany({
+      where:   { platform: { slug: 'switch' }, gameId: null },
+      select:  { id: true, title: true, titleId: true, magnet: true,
+                 year: true, genre: true, publisher: true, developer: true,
+                 description: true },
+      orderBy: { title: 'asc' },
     }),
   ])
   const magnetByGameId = new Map<number, string>()
@@ -178,6 +186,14 @@ export async function GET(req: Request) {
       ? { gh_cover: jpegImageUrl(base, c.game.coverPath, c.game.coverUrl) }
       : {}),
     ...(c.game.title ? { gh_title: c.game.title } : {}),
+  }))
+
+  // ── Entradas solo-magnet (fuente externa sin archivo local) ──────────────
+  // Sin URL de descarga directa; GameHubNX v1.18.10+ las acepta e instala por torrent.
+  const magnetFiles = extMagnetOnly.map((eg) => ({
+    gh_magnet: eg.magnet,
+    gh_title:  eg.title,
+    ...(eg.titleId ? { gh_titleid: eg.titleId } : {}),
   }))
 
   // ── titledb (rich metadata for CyberFoil / Tinfoil eShop display) ─────────
@@ -240,6 +256,25 @@ export async function GET(req: Request) {
     }
   }
 
+  // Entradas solo-magnet en titledb: las que tienen Title ID conocido.
+  for (const eg of extMagnetOnly) {
+    if (!eg.titleId) continue
+    const tid = eg.titleId.toUpperCase()
+    if (titledb[tid]) continue  // no pisar una entrada de juego local
+    titledb[tid] = {
+      id:          tid,
+      name:        eg.title,
+      description: eg.description ?? '',
+      ...(eg.year ? { releaseDate: eg.year * 10000 + 101 } : {}),
+      ...(eg.genre ? { category: [eg.genre] } : {}),
+      ...(eg.publisher ? { publisher: eg.publisher } : {}),
+      gh_title:   eg.title,
+      gh_magnet:  eg.magnet,
+      ...(eg.developer ? { gh_developer: eg.developer } : {}),
+      ...(eg.year ? { gh_year: eg.year } : {}),
+    }
+  }
+
   // ── directories: separate DLC and update sub-indexes ─────────────────────
   // Announced from DB rows only (no per-file stat — that is the sub-index's job).
   // Restricted to visible games so a hidden library doesn't advertise a folder
@@ -263,7 +298,7 @@ export async function GET(req: Request) {
   // valor por defecto, que es exactamente el comportamiento de antes.
   const switchPlatform = await db.platform.findUnique({
     where:  { slug: 'switch' },
-    select: { thumbnailWidth: true, thumbnailHeight: true },
+    select: { id: true, thumbnailWidth: true, thumbnailHeight: true },
   })
   const cover =
     switchPlatform && switchPlatform.thumbnailWidth > 0 &&
@@ -274,11 +309,12 @@ export async function GET(req: Request) {
         }
       : {}
 
+  const allFiles = [...files, ...magnetFiles]
   return NextResponse.json({
-    files,
+    files: allFiles,
     directories,
     ...(Object.keys(titledb).length > 0 && { titledb }),
     ...cover,
-    success: `GameHub · ${files.length} titles`,
+    success: `GameHub · ${allFiles.length} titles`,
   })
 }
