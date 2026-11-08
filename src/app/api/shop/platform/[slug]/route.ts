@@ -14,6 +14,7 @@ import { db } from '@/lib/db'
 import { guardShopRequest, shopBaseUrl } from '@/lib/shop-auth'
 import { matchesExtensions, platformExtensions, statSize } from '@/lib/shop-files'
 import { jpegImageUrl } from '@/lib/cover-url'
+import { platformMagnetRows } from '@/lib/platform-magnets'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -75,14 +76,23 @@ export async function GET(
         : {}),
     }))
 
+  // Entradas solo-magnet (fuente externa sin archivo local): GameHubNX las baja
+  // por torrent, igual que las de Switch, y no tienen url directa.
+  const magnetFiles = (await platformMagnetRows(platform.id)).map((eg) => ({
+    gh_magnet: eg.magnet,
+    gh_title:  eg.title,
+    gh_kind:   'rom',
+  }))
+  const allFiles = [...files, ...magnetFiles]
+
   return NextResponse.json({
-    files,
+    files: allFiles,
     gh_platform: platform.slug,
     gh_platform_name: platform.name,
     ...(platform.thumbnailWidth > 0 && platform.thumbnailHeight > 0
       ? { gh_cover_width: platform.thumbnailWidth,
           gh_cover_height: platform.thumbnailHeight }
       : {}),
-    success: `GameHub ${platform.name} · ${files.length} items`,
+    success: `GameHub ${platform.name} · ${allFiles.length} items`,
   })
 }
