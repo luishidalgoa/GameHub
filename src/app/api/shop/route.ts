@@ -81,6 +81,8 @@ export async function GET(req: Request) {
     gameId:   number
     game:     (typeof games)[number]
     region:   string | null
+    /** true solo para el fichero del juego base: el magnet del juego es el de ese fichero, no el de sus ediciones. */
+    isBase:   boolean
   }
 
   // `fileName` de aqui en adelante es el nombre SERVIDO, no el del disco: si el
@@ -109,6 +111,7 @@ export async function GET(req: Request) {
         gameId:   g.id,
         game:     g,
         region:   null,
+        isBase:   true,
       })
     }
     for (const d of g.dlcs) {
@@ -124,6 +127,7 @@ export async function GET(req: Request) {
         gameId:   g.id,
         game:     g,
         region:   d.region,
+        isBase:   false,
       })
     }
   }
@@ -147,12 +151,29 @@ export async function GET(req: Request) {
   // Tinfoil y CyberFoil ignoran las claves que no conocen, asi que esto no les
   // afecta; el titledb se sigue publicando igual para ellos.
   // gh_online: el juego tiene juego en línea en algún proyecto de su plataforma.
-  const online = await onlineGameIds(games)
+  // gh_magnet: magnet del fichero base cuando el juego local tiene una fuente torrent vinculada.
+  // Solo en el fichero base: DLC, updates y ediciones regionales no son ese torrent.
+  const lGameIds = [...new Set(available.map((c) => c.gameId))]
+  const [online, extMagnets] = await Promise.all([
+    onlineGameIds(games),
+    db.externalGame.findMany({
+      where:   { gameId: { in: lGameIds } },
+      select:  { gameId: true, magnet: true },
+      orderBy: { id: 'asc' },
+    }),
+  ])
+  const magnetByGameId = new Map<number, string>()
+  for (const r of extMagnets) {
+    if (r.gameId != null && r.magnet && !magnetByGameId.has(r.gameId))
+      magnetByGameId.set(r.gameId, r.magnet)
+  }
+
   const files = available.map((c) => ({
     url:  c.url,
     size: c.size,
     gh_id: c.gameId,
     gh_online: online.has(c.gameId),
+    ...(c.isBase && magnetByGameId.has(c.gameId) ? { gh_magnet: magnetByGameId.get(c.gameId) } : {}),
     ...(c.game.coverPath || c.game.coverUrl
       ? { gh_cover: jpegImageUrl(base, c.game.coverPath, c.game.coverUrl) }
       : {}),
@@ -212,6 +233,7 @@ export async function GET(req: Request) {
       ...(c.game.releaseYear ? { gh_year:        c.game.releaseYear } : {}),
       ...(c.game.trailerUrl  ? { gh_trailer:     c.game.trailerUrl }  : {}),
       ...(c.game.groupKey    ? { gh_group:       c.game.groupKey }    : {}),
+      ...(c.isBase && magnetByGameId.has(c.gameId) ? { gh_magnet: magnetByGameId.get(c.gameId) } : {}),
       ...(shots.length > 0
         ? { gh_screenshots: shots.map((u) => u + (u.includes('?') ? '&' : '?') + 'fmt=jpg') }
         : {}),
