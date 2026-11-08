@@ -13,7 +13,7 @@ export async function platformMagnetRows(platformId: number) {
   const [rows, blacklisted, hidden] = await Promise.all([
     db.externalGame.findMany({
       where:   { platformId, gameId: null },
-      select:  { id: true, title: true, titleId: true, titleKey: true, source: true, sourceKey: true, magnet: true },
+      select:  { id: true, title: true, titleId: true, titleKey: true, source: true, sourceKey: true, magnet: true, fileName: true },
       orderBy: { title: 'asc' },
     }),
     db.torrentBlacklist.findMany({

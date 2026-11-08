@@ -533,6 +533,8 @@ model ExternalGame {
   sourceUrl   String
   size        String?
   format      String?
+  // Nombre del fichero dentro del torrent (una coleccion trae muchos juegos con el mismo magnet).
+  fileName    String?
   hasDlc      Boolean  @default(false)
   cover       String?
   year        Int?

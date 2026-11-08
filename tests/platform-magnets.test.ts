@@ -25,7 +25,7 @@ beforeAll(async () => {
   })
   await db.externalGame.createMany({
     data: [
-      row('ok', 'PLAT MAGNET OK', null, `magnet:?xt=urn:btih:${OK_HASH}`),
+      { ...row('ok', 'PLAT MAGNET OK', null, `magnet:?xt=urn:btih:${OK_HASH}`), fileName: 'PLAT MAGNET OK (USA).iso' },
       row('b32', 'PLAT MAGNET BASE32', null, 'magnet:?xt=urn:btih:4XEJ3HH7X7XQ7ZS5VXM6AZ3WMEB7OEOG'),
       row('bl', 'PLAT MAGNET BLACKLIST', null, `magnet:?xt=urn:btih:${'a'.repeat(40)}`),
       row('hid', 'PLAT MAGNET HIDDEN', null, `magnet:?xt=urn:btih:${'b'.repeat(40)}`),
@@ -70,6 +70,7 @@ describe('/api/shop/platform/<slug>: entradas solo-magnet', () => {
     const ok = body.files.find((f: { gh_title?: string }) => f.gh_title === 'PLAT MAGNET OK')
     expect(isBtihMagnet(ok.gh_magnet)).toBe(true)
     expect(ok.url).toBeUndefined()
+    expect(ok.gh_file).toBe('PLAT MAGNET OK (USA).iso')
   })
 
   it('cuenta los magnets publicables en la lista de plataformas', async () => {

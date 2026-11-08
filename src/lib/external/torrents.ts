@@ -23,6 +23,7 @@ export interface ExternalGameRow {
   sourceUrl: string
   size: string | null
   format: string | null
+  fileName: string | null
   hasDlc: boolean
   cover: string | null
   year: number | null
@@ -51,6 +52,7 @@ export function toExternalRow(e: RawEntry, platformId: number, source: string): 
     sourceUrl: e.url,
     size: text(e.size),
     format: text(e.image_format)?.toUpperCase() ?? null,
+    fileName: text(e.file_name),
     hasDlc: /\bDLC\b/i.test(e.title),
     cover: text(e.cover),
     year: Number.isFinite(year) ? year : null,
@@ -131,6 +133,7 @@ async function writeSourceRows(platformId: number, source: string, rows: (Extern
     if (!e) return []
     const same = e.title === r.title && e.titleId === r.titleId && e.titleKey === r.titleKey
       && e.magnet === r.magnet && e.sourceUrl === r.sourceUrl && e.size === r.size && e.format === r.format
+      && e.fileName === r.fileName
       && e.hasDlc === r.hasDlc && e.cover === r.cover && e.year === r.year && e.genre === r.genre
       && e.developer === r.developer && e.publisher === r.publisher && e.description === r.description
       && e.gameId === r.gameId

@@ -2,6 +2,8 @@
 export interface RawEntry {
   title?: string
   magnet?: string
+  // Nombre del fichero tal como aparece en la fuente (y dentro del torrent, si es una coleccion).
+  file_name?: string
   topic_id?: string
   url?: string
   size?: string

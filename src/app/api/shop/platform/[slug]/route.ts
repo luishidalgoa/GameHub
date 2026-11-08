@@ -78,10 +78,12 @@ export async function GET(
 
   // Entradas solo-magnet (fuente externa sin archivo local): GameHubNX las baja
   // por torrent, igual que las de Switch, y no tienen url directa.
+  // gh_file: el fichero de esa ROM dentro del torrent, cuando la coleccion trae muchas.
   const magnetFiles = (await platformMagnetRows(platform.id)).map((eg) => ({
     gh_magnet: eg.magnet,
     gh_title:  eg.title,
     gh_kind:   'rom',
+    ...(eg.fileName ? { gh_file: eg.fileName } : {}),
   }))
   const allFiles = [...files, ...magnetFiles]
 

@@ -45,6 +45,7 @@ function parseMinervaHtml(html: string): RawEntry[] {
     entries.push({
       title,
       magnet: baseMagnet + trackers,
+      file_name: filename,
       topic_id: romId,
       url: `https://minerva-archive.org/rom?id=${romId}`,
       size: sizeMatch ? sizeMatch[1].trim() : undefined,
