@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { db } from '@/lib/db'
 import { GET as platformIndex } from '@/app/api/shop/platform/[slug]/route'
 import { isBtihMagnet } from '@/lib/platform-magnets'
+import { GET as platformsList } from '@/app/api/shop/platforms/route'
 
 // Entradas solo-magnet de una plataforma que no es Switch: se publican con gh_magnet
 // y nunca lo que el admin quito u oculto. Datos sinteticos.
@@ -69,5 +70,13 @@ describe('/api/shop/platform/<slug>: entradas solo-magnet', () => {
     const ok = body.files.find((f: { gh_title?: string }) => f.gh_title === 'PLAT MAGNET OK')
     expect(isBtihMagnet(ok.gh_magnet)).toBe(true)
     expect(ok.url).toBeUndefined()
+  })
+
+  it('cuenta los magnets publicables en la lista de plataformas', async () => {
+    const res = await platformsList(new Request('http://127.0.0.1/api/shop/platforms'))
+    const body = await res.json()
+    const entry = body.files.find((f: { slug: string }) => f.slug === SLUG)
+    // Solo el magnet valido: base32, lista negra y oculto no cuentan.
+    expect(entry.games).toBe(1)
   })
 })

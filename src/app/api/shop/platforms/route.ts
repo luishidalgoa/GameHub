@@ -11,6 +11,7 @@ import { db } from '@/lib/db'
 import { guardShopRequest, shopBaseUrl } from '@/lib/shop-auth'
 import { jpegImageUrl } from '@/lib/cover-url'
 import { isSwitchFile, matchesExtensions, platformExtensions } from '@/lib/shop-files'
+import { platformMagnetCounts } from '@/lib/platform-magnets'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -37,13 +38,16 @@ export async function GET(req: Request) {
     where:   { enabled: true },
     orderBy: { sortOrder: 'asc' },
     select: {
-      slug: true, name: true, extensions: true, emulators: true,
+      id: true, slug: true, name: true, extensions: true, emulators: true,
       emulatorName: true, iconPath: true,
       games: { where: { isHidden: false, source: 'local' }, select: { fileName: true } },
     },
   })
 
   const base = shopBaseUrl(req)
+  // Las entradas solo-magnet (torrent de la fuente externa) cuentan como juegos de la
+  // plataforma: sin ellas una plataforma de torrent sale con 0 y la app no la deja abrir.
+  const magnetCounts = await platformMagnetCounts()
   const files = platforms.map((p) => {
     const exts = platformExtensions(p.extensions)
     // Cuenta de ficheros que ESTA plataforma sabe servir. No se comprueba el
@@ -52,6 +56,7 @@ export async function GET(req: Request) {
     // plataforma descarta despues lo que no puede medir, igual que el de
     // Switch, asi que puede servir menos de los que dice esta cifra.
     const games = p.games.filter((g) => matchesExtensions(g.fileName, exts)).length
+      + (magnetCounts.get(p.id) ?? 0)
     return {
       slug:       p.slug,
       name:       p.name,

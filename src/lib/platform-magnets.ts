@@ -34,3 +34,45 @@ export async function platformMagnetRows(platformId: number) {
     !blocked.has(identityOf(eg)) &&
     !blocked.has(`topic:${eg.source}:${eg.sourceKey}`))
 }
+
+// Cuantos magnets publicables tiene cada plataforma. La lista de plataformas se pide
+// cada vez que se abre la pestana, y la cuenta no cambia por minuto: se guarda cinco
+// minutos para no releer toda la fuente externa en cada peticion.
+const COUNT_TTL_MS = 5 * 60 * 1000
+let countCache: { at: number; counts: Map<number, number> } | null = null
+
+export async function platformMagnetCounts(): Promise<Map<number, number>> {
+  if (countCache && Date.now() - countCache.at < COUNT_TTL_MS) return countCache.counts
+  const [rows, blacklisted, hidden] = await Promise.all([
+    db.externalGame.findMany({
+      where:  { gameId: null },
+      select: { platformId: true, source: true, sourceKey: true, titleId: true, titleKey: true, magnet: true },
+    }),
+    db.torrentBlacklist.findMany({ select: { platformId: true, identity: true } }),
+    db.game.findMany({
+      where:  { source: 'torrent', isHidden: true },
+      select: { platformId: true, externalKey: true },
+    }),
+  ])
+  const blockedBy = new Map<number, Set<string>>()
+  const blockFor = (platformId: number) => {
+    let set = blockedBy.get(platformId)
+    if (!set) blockedBy.set(platformId, (set = new Set<string>()))
+    return set
+  }
+  for (const b of blacklisted) blockFor(b.platformId).add(b.identity)
+  for (const g of hidden) {
+    const identity = torrentKeyOf(g.externalKey)?.identity
+    if (identity) blockFor(g.platformId).add(identity)
+  }
+  const counts = new Map<number, number>()
+  for (const eg of rows) {
+    if (!isBtihMagnet(eg.magnet)) continue
+    const blocked = blockedBy.get(eg.platformId)
+    if (blocked && (blocked.has(identityOf(eg)) || blocked.has(`topic:${eg.source}:${eg.sourceKey}`)))
+      continue
+    counts.set(eg.platformId, (counts.get(eg.platformId) ?? 0) + 1)
+  }
+  countCache = { at: Date.now(), counts }
+  return counts
+}
