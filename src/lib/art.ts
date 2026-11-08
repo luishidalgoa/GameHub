@@ -190,9 +190,10 @@ export async function storeLaunchBoxArt(
     banner: chains.banner.includes('steamgriddb') && want('backdrop') && (bannerSgFirst || !bd),
     logo: chains.logo.includes('steamgriddb') && want('logo') && (logoSgFirst || !lo),
     // Icons are not a game field: only a full run fills them, not a pass that chose other fields.
-    icon: !opts.only && !images.some(i => kindOf(i.type) === 'icon'),
+    // The icon has no chain of its own: it is only filled for a game a provider matched.
+    icon: opts.found && !opts.only && !images.some(i => kindOf(i.type) === 'icon'),
   }
-  const sgdb: SteamGridArt = opts.found && game.title && (need.banner || need.logo || need.icon)
+  const sgdb: SteamGridArt = game.title && (need.banner || need.logo || need.icon)
     ? await steamGridFallback({ id: game.id, platformSlug: game.platformSlug, title: game.title }, need, removed)
     : {}
   const sgBanner = sgdb.banner ?? null
@@ -225,7 +226,7 @@ export async function storeLaunchBoxArt(
       continue
     }
     if (!want('tile')) break
-    if (source === 'steamgriddb' && opts.found && game.title) {
+    if (source === 'steamgriddb' && game.title) {
       fa = await fanartFromSteamGridDB(game, removed)
     } else if (source === 'steam' && game.title) {
       fa = await fanartFromSteam(game, removed)

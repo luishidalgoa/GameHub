@@ -139,7 +139,18 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     }
     throw err
   }
-  if (!meta) return NextResponse.json({ error: 'No confident match found' }, { status: 404 })
+  // Ninguna fuente de la ficha dio coincidencia: la cadena de arte igual busca banner, logo y fondo
+  // en las fuentes que la cadena de la plataforma tenga (sin ficha, solo títulos exactos).
+  if (!meta) {
+    const outcome = await storeLaunchBoxArt(
+      { id: gameId, platformSlug: game.platform.slug, fileName: game.fileName, title: game.title },
+      [],
+      { found: false, paceMs: 250 },
+    ).catch(() => 'no-match' as const)
+    if (outcome !== 'applied') return NextResponse.json({ error: 'No confident match found' }, { status: 404 })
+    const withArt = await db.game.findUnique({ where: { id: gameId } })
+    return NextResponse.json({ ...serializeBigInt(withArt), sources: {} })
+  }
 
   // A cover the admin chose by hand is never replaced by an automatic run (#81).
   const prevSources = parseMetadataSources(game.metadataSources)
