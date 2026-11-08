@@ -592,8 +592,9 @@ async function runMetadataBatchInner(opts: {
       }
 
       // Art from the same LaunchBox page: the blocks this pass writes (background, tile, logo).
+      // Sin imágenes LaunchBox de estos tipos, el banner, logo y fondo siguen buscándose en SteamGridDB y Steam.
       const artImages = meta.images.filter(i => artKinds.has(kindFromLaunchBox(i.type)))
-      if (artImages.length > 0) {
+      if (artOnly.size > 0) {
         await storeLaunchBoxArt(
           { id: game.id, platformSlug: game.platform.slug, fileName: game.fileName, title: game.title },
           artImages,

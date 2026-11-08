@@ -178,13 +178,13 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     genre: meta.genre, developer: meta.developer, publisher: meta.publisher,
   }, f => f === 'description' ? meta.sources.description : (facts?.[f] ?? meta.sources.info))
   // The art of the same LaunchBox page: every image is stored, and the banner, fanart and logo follow.
-  if (meta.images.length > 0) {
-    await storeLaunchBoxArt(
-      { id: gameId, platformSlug: game.platform.slug, fileName: game.fileName, title: game.title },
-      meta.images,
-      { found: true, launchboxId: meta.launchboxId, paceMs: 250 },
-    ).catch(() => 'no-art' as const)
-  }
+  // Siempre, tenga o no imágenes LaunchBox: SteamGridDB y Steam son respaldo de banner, logo y fondo
+  // aunque LaunchBox no tenga nada que aportar (si no, esos huecos nunca se rellenaban).
+  await storeLaunchBoxArt(
+    { id: gameId, platformSlug: game.platform.slug, fileName: game.fileName, title: game.title },
+    meta.images,
+    { found: true, launchboxId: meta.launchboxId, paceMs: 250 },
+  ).catch(() => 'no-art' as const)
   const updated = await applyMetadata(gameId, { origin: 'auto', patch, sources: {
     cover:       coverLocked ? prevSources.cover : meta.sources.cover,
     screenshots: meta.sources.screenshots,
@@ -285,7 +285,7 @@ async function applyManualPick(
   }, () => source)
   // A picked LaunchBox game brings its whole art: every image, and the banner, fanart and logo.
   const pickedImages = source === 'launchbox' ? ((meta as LaunchBoxGame).images ?? []) : []
-  if (pickedImages.length > 0) {
+  if (source === 'launchbox') {
     await storeLaunchBoxArt(
       // The matched LaunchBox title is the one SteamGridDB is searched by.
       { id: gameId, platformSlug, fileName: row?.fileName ?? undefined, title: meta.title },
