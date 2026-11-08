@@ -8,6 +8,7 @@ import { planFold } from './variants'
 import { cleanSwitchTitle } from './title-clean'
 import { createProvider, type RawEntry } from './sources'
 import { filterByTag, parseSourceConfigs, type SourceConfig } from './source-types'
+import { consoleOfSource, identityOf } from '@/lib/games/torrent-key'
 
 const CHUNK = 500
 
@@ -71,34 +72,11 @@ export function sizeBytes(size: string | null): bigint {
 
 const DLC_TAIL = /\+\s*\d+\s*DLC.*$/i
 
-/** Identidad de un juego entre fuentes: su Title ID, o su nombre cuando no lo tiene. */
-const GB_CONSOLES = ['gb', 'gbc', 'gba'] as const
 const GB_EXTENSIONS: Record<string, string> = { '.gb': 'gb', '.gbc': 'gbc', '.gba': 'gba' }
-
-/** Consola de Game Boy de una fuente («minerva-gbc» → «gbc»), o null si la fuente no es de una. */
-function consoleOfSource(source: string): string | null {
-  const c = source.replace(/^minerva-/, '')
-  return (GB_CONSOLES as readonly string[]).includes(c) ? c : null
-}
 
 /** Consola de Game Boy de un fichero local por su extensión, o null. */
 function consoleOfFile(fileName: string): string | null {
   return GB_EXTENSIONS[fileName.slice(fileName.lastIndexOf('.')).toLowerCase()] ?? null
-}
-
-/**
- * Identidad de un juego sin Title ID. En Game Boy el mismo título existe en GB, GBC y GBA y no es el
- * mismo juego: GB y GBC llevan su consola en la identidad; GBA conserva la de siempre.
- * Un nombre corto (p. ej. «16t») cuenta igual que uno largo: sus variantes de un mismo archivo
- * torrent son una sola fila por plataforma. Solo un nombre vacío cae en la identidad del topic.
- */
-export function identityOf(e: { titleId: string | null; titleKey: string; source: string; sourceKey: string }): string {
-  if (e.titleId) return `id:${e.titleId}`
-  if (e.titleKey.length > 0) {
-    const console = consoleOfSource(e.source)
-    return `key:${console && console !== 'gba' ? `${console}:` : ''}${e.titleKey}`
-  }
-  return `topic:${e.source}:${e.sourceKey}`
 }
 
 /** Clave de una fila torrent: `torrent:<fuente>:<identidad>`. Las antiguas `<fuente>:<topic>` se leen por su topic. */

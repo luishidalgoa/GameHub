@@ -54,7 +54,7 @@ describe('parseSourceConfigs', () => {
 
 vi.mock('@/lib/db', () => ({ db: {} }))
 
-import { identityOf } from '@/lib/external/torrents'
+import { identityOf } from '@/lib/games/torrent-key'
 
 describe('identidad de un juego torrent', () => {
   it('varias variantes con el mismo nombre corto son un solo juego', () => {

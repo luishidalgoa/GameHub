@@ -31,10 +31,15 @@ import { onlineGameIds } from '@/lib/online/flags'
 
 import { isSwitchFile, parseScreenshots, shopFileName, statSize } from '@/lib/shop-files'
 import { servedTitleId } from '@/lib/scanner/titleid'
+import { identityOf, torrentKeyOf } from '@/lib/games/torrent-key'
 
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
+
+// Un hash v1 de 40 hex, como lo lee GameHubNX; con otro formato la instalación falla.
+const BTIH_V1 = /^magnet:\?xt=urn:btih:[0-9a-f]{40}(&|$)/i
+const isBtihMagnet = (m: string | null | undefined): m is string => !!m && BTIH_V1.test(m)
 
 export async function GET(req: Request) {
   const denied = await guardShopRequest(req)
@@ -154,7 +159,7 @@ export async function GET(req: Request) {
   // gh_magnet: magnet del fichero base cuando el juego local tiene una fuente torrent vinculada.
   // Solo en el fichero base: DLC, updates y ediciones regionales no son ese torrent.
   const lGameIds = [...new Set(available.map((c) => c.gameId))]
-  const [online, extMagnets, extMagnetOnly] = await Promise.all([
+  const [online, extMagnets, extMagnetOnly, blacklisted, hiddenTorrents] = await Promise.all([
     onlineGameIds(games),
     db.externalGame.findMany({
       where:   { gameId: { in: lGameIds } },
@@ -163,18 +168,42 @@ export async function GET(req: Request) {
     }),
     // Juegos de la fuente externa sin archivo local: solo se sirven por magnet.
     db.externalGame.findMany({
-      where:   { platform: { slug: 'switch' }, gameId: null },
-      select:  { id: true, title: true, titleId: true, magnet: true,
-                 year: true, genre: true, publisher: true, developer: true,
+      where:   { platform: { slug: 'switch', enabled: true }, gameId: null },
+      select:  { id: true, title: true, titleId: true, titleKey: true, source: true, sourceKey: true,
+                 magnet: true, year: true, genre: true, publisher: true, developer: true,
                  description: true },
       orderBy: { title: 'asc' },
+    }),
+    db.torrentBlacklist.findMany({
+      where:  { platform: { slug: 'switch' } },
+      select: { identity: true },
+    }),
+    db.game.findMany({
+      where:  { platform: { slug: 'switch' }, source: 'torrent', isHidden: true },
+      select: { externalKey: true },
     }),
   ])
   const magnetByGameId = new Map<number, string>()
   for (const r of extMagnets) {
-    if (r.gameId != null && r.magnet && !magnetByGameId.has(r.gameId))
+    if (r.gameId != null && isBtihMagnet(r.magnet) && !magnetByGameId.has(r.gameId))
       magnetByGameId.set(r.gameId, r.magnet)
   }
+
+  // Lo que el admin quitó (lista negra) u ocultó no vuelve a publicarse. La
+  // identidad es la del sync; una lista antigua guarda `topic:<fuente>:<id>`.
+  const blocked = new Set<string>([
+    ...blacklisted.map((b) => b.identity),
+    ...hiddenTorrents.flatMap((g) => torrentKeyOf(g.externalKey)?.identity ?? []),
+  ])
+  // Un Title ID que ya se sirve como archivo local no se repite como magnet.
+  const localTitleIds = new Set(
+    available.flatMap((c) => { const t = extractSwitchTitleId(c.fileName); return t ? [t.toUpperCase()] : [] }),
+  )
+  const shopMagnetRows = extMagnetOnly.filter((eg) =>
+    isBtihMagnet(eg.magnet) &&
+    !blocked.has(identityOf(eg)) &&
+    !blocked.has(`topic:${eg.source}:${eg.sourceKey}`) &&
+    !(eg.titleId && localTitleIds.has(eg.titleId.toUpperCase())))
 
   const files = available.map((c) => ({
     url:  c.url,
@@ -190,7 +219,7 @@ export async function GET(req: Request) {
 
   // ── Entradas solo-magnet (fuente externa sin archivo local) ──────────────
   // Sin URL de descarga directa; GameHubNX v1.18.10+ las acepta e instala por torrent.
-  const magnetFiles = extMagnetOnly.map((eg) => ({
+  const magnetFiles = shopMagnetRows.map((eg) => ({
     gh_magnet: eg.magnet,
     gh_title:  eg.title,
     ...(eg.titleId ? { gh_titleid: eg.titleId } : {}),
@@ -257,7 +286,7 @@ export async function GET(req: Request) {
   }
 
   // Entradas solo-magnet en titledb: las que tienen Title ID conocido.
-  for (const eg of extMagnetOnly) {
+  for (const eg of shopMagnetRows) {
     if (!eg.titleId) continue
     const tid = eg.titleId.toUpperCase()
     if (titledb[tid]) continue  // no pisar una entrada de juego local
@@ -298,7 +327,7 @@ export async function GET(req: Request) {
   // valor por defecto, que es exactamente el comportamiento de antes.
   const switchPlatform = await db.platform.findUnique({
     where:  { slug: 'switch' },
-    select: { id: true, thumbnailWidth: true, thumbnailHeight: true },
+    select: { thumbnailWidth: true, thumbnailHeight: true },
   })
   const cover =
     switchPlatform && switchPlatform.thumbnailWidth > 0 &&
