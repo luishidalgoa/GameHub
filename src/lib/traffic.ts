@@ -65,6 +65,37 @@ export async function logDownloadStart(opts: {
   return log.id
 }
 
+/**
+ * Una descarga torrent terminada. Los bytes llegan de otros pares, no de GameHub, así que no hay
+ * progreso que medir: se registra el intento entero, igual que una descarga directa completa.
+ */
+export async function logTorrentCompletion(opts: {
+  req: Request
+  gameId: number
+  fileName: string
+  fileSize: bigint
+}): Promise<number> {
+  const logId = await logDownloadStart({
+    req: opts.req,
+    route: 'torrent',
+    gameId: opts.gameId,
+    fileName: opts.fileName,
+    fileSize: opts.fileSize,
+  })
+  const now = new Date()
+  await db.downloadLog.update({
+    where: { id: logId },
+    data: {
+      bytesSent: opts.fileSize,
+      frontier: opts.fileSize,
+      lastByteAt: now,
+      finishedAt: now,
+      completed: true,
+    },
+  })
+  return logId
+}
+
 export async function logDownloadComplete(logId: number) {
   await db.downloadLog.update({
     where: { id: logId },
