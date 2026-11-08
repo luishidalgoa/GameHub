@@ -7,9 +7,8 @@ import { History, Trash2 } from 'lucide-react'
 import { getRecentlyViewed, clearRecentlyViewed } from '@/lib/recently-viewed'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { Masonry } from '@/components/home/Masonry'
-import { GridTile } from '@/components/home/GridTile'
 import { PlatformSelect } from '@/components/home/PlatformSelect'
-import { groupByTitle } from '@/lib/game-groups'
+import { CollectionGrid } from '@/components/home/CollectionGrid'
 import type { TileGame } from '@/lib/home-data'
 
 export default function RecentPage() {
@@ -74,7 +73,7 @@ function RecentContent() {
           action={{ label: t('emptyCta'), href: '/' }}
         />
       ) : (
-        // The same grid as /explorar/nuevos: the masonry of glass tiles.
+        // The same grid as /platform: flexible covers, infinite scroll.
         <>
           <PlatformSelect
             platforms={[...new Map(games.map(g => [g.platformSlug, { slug: g.platformSlug, name: g.platformName }])).values()]}
@@ -82,9 +81,7 @@ function RecentContent() {
             base="/recent"
             allLabel={tHome('allPlatforms')}
           />
-          <Masonry>
-            {groupByTitle(platform ? games.filter(g => g.platformSlug === platform) : games).map(g => <GridTile key={g.game.id} group={g} />)}
-          </Masonry>
+          <CollectionGrid source={{ kind: 'ids', ids: (platform ? games.filter(g => g.platformSlug === platform) : games).map(g => g.id) }} />
         </>
       )}
     </div>
